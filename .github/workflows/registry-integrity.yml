@@ -1,0 +1,189 @@
+# ==============================================================================
+# BAOBAB Dev Container — Released Registry Contract Integrity
+# ==============================================================================
+# A published GitHub Release advertises concrete `docker pull` directives and
+# immutable digests. Those directives are a consumer contract: downstream
+# Dev Containers and Codespaces must be able to resolve them for as long as the
+# release is supported.
+#
+# This workflow independently verifies the latest stable release against GHCR:
+#   1. every advertised tag still resolves;
+#   2. the resolved digest still equals the digest recorded in the release;
+#   3. the OCI index remains readable;
+#   4. linux/amd64 and linux/arm64 image manifests are still referenced and
+#      individually resolvable.
+#
+# It runs daily and after the publish workflow completes. This is deliberately
+# separate from publish.yml: publish-time verification proves correctness at
+# publication time; this workflow proves durability after publication.
+# ==============================================================================
+
+name: Verify Released GHCR Contracts
+
+on:
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+  workflow_run:
+    workflows:
+      - "Publish Baobab Dev Container"
+    types:
+      - completed
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: released-ghcr-contract-integrity
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  verify-latest-stable-release:
+    name: Verify latest stable release is pullable
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Authenticate to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install crane CLI tool
+        env:
+          CRANE_VERSION: "0.21.9"
+          CRANE_SHA256: "5c16d8ddb971cb1d5e6ed8b1e743da8224414eeba2c2762d8f1a61b2f095699e"
+        run: |
+          set -euo pipefail
+          ASSET="go-containerregistry_Linux_x86_64.tar.gz"
+          curl -fsSL -o "${ASSET}" \
+            "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/${ASSET}"
+          echo "${CRANE_SHA256}  ${ASSET}" | sha256sum -c -
+          tar -xzf "${ASSET}" crane
+          chmod +x crane
+          sudo mv crane /usr/local/bin/crane
+          crane version
+
+      - name: Fetch latest stable GitHub Release contract
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/releases/latest" > "${RUNNER_TEMP}/release.json"
+          TAG_NAME=$(jq -r '.tag_name' "${RUNNER_TEMP}/release.json")
+          RELEASE_URL=$(jq -r '.html_url' "${RUNNER_TEMP}/release.json")
+          jq -r '.body // ""' "${RUNNER_TEMP}/release.json" > "${RUNNER_TEMP}/release-body.md"
+          echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "release_url=${RELEASE_URL}" >> "$GITHUB_OUTPUT"
+          echo "Verifying release ${TAG_NAME}: ${RELEASE_URL}"
+
+      - name: Parse advertised image references and recorded digests
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import pathlib
+          import re
+          import sys
+
+          body = pathlib.Path("${{ runner.temp }}/release-body.md").read_text()
+          pattern = re.compile(
+              r"docker pull\s+(?P<ref>ghcr\.io/nabhold/baobab-dev:[^\s`]+)"
+              r".*?Verify \(digest `(?P<digest>sha256:[0-9a-f]{64})`\):",
+              re.DOTALL,
+          )
+          records = list(pattern.finditer(body))
+          if not records:
+              print("::error::Latest stable release contains no parseable GHCR pull contracts.")
+              sys.exit(1)
+
+          out = pathlib.Path("${{ runner.temp }}/release-contracts.tsv")
+          with out.open("w") as f:
+              for match in records:
+                  ref = match.group("ref")
+                  digest = match.group("digest")
+                  f.write(f"{ref}\t{digest}\n")
+                  print(f"contract: {ref} -> {digest}")
+          PY
+
+      - name: Verify advertised tags, digests, indices and platform manifests
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          failures=0
+
+          while IFS=$'\t' read -r ref expected_digest; do
+            [[ -z "${ref}" ]] && continue
+            echo "::group::Verify ${ref}"
+
+            if ! actual_digest=$(crane digest "${ref}" 2>&1); then
+              echo "::error::Release ${RELEASE_TAG} advertises ${ref}, but GHCR cannot resolve it: ${actual_digest}"
+              failures=$((failures + 1))
+              echo "::endgroup::"
+              continue
+            fi
+
+            if [[ "${actual_digest}" != "${expected_digest}" ]]; then
+              echo "::error::Digest drift for ${ref}: release records ${expected_digest}, GHCR resolves ${actual_digest}."
+              failures=$((failures + 1))
+              echo "::endgroup::"
+              continue
+            fi
+
+            if ! manifest_json=$(crane manifest "${ref}" 2>&1); then
+              echo "::error::Tag resolves but its OCI manifest cannot be read: ${ref}: ${manifest_json}"
+              failures=$((failures + 1))
+              echo "::endgroup::"
+              continue
+            fi
+
+            for arch in amd64 arm64; do
+              child_digest=$(jq -r --arg arch "${arch}" \
+                '[.manifests[]? | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest][0] // empty' \
+                <<<"${manifest_json}")
+
+              if [[ -z "${child_digest}" ]]; then
+                echo "::error::${ref} has no linux/${arch} image manifest in its OCI index."
+                failures=$((failures + 1))
+                continue
+              fi
+
+              image_name="${ref%%:*}"
+              if ! crane manifest "${image_name}@${child_digest}" >/dev/null; then
+                echo "::error::${ref} references missing linux/${arch} child manifest ${child_digest}."
+                failures=$((failures + 1))
+              else
+                echo "linux/${arch}: ${child_digest} (resolvable)"
+              fi
+            done
+
+            echo "tag digest: ${actual_digest} (matches release)"
+            echo "::endgroup::"
+          done < "${RUNNER_TEMP}/release-contracts.tsv"
+
+          if (( failures > 0 )); then
+            echo "::error::${failures} released GHCR contract check(s) failed. A published release is no longer safely consumable."
+            exit 1
+          fi
+
+      - name: Write integrity summary
+        if: always()
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+          RELEASE_URL: ${{ steps.release.outputs.release_url }}
+        run: |
+          {
+            echo "## Released GHCR Contract Integrity"
+            echo
+            echo "Release: [${RELEASE_TAG}](${RELEASE_URL})"
+            echo
+            echo "The workflow checks tag existence, release-recorded digest equality, OCI index readability, and linux/amd64 + linux/arm64 child-manifest reachability."
+          } >> "$GITHUB_STEP_SUMMARY"
