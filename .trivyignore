@@ -234,15 +234,15 @@ CVE-2025-47273 exp:2026-11-10
 # re-checking each of the nine CVEs in this batch individually — some may
 # have shipped fixes by then and some may not.
 # ==============================================================================
-CVE-2026-33818 exp:2026-09-05
-CVE-2026-39821 exp:2026-09-05
-CVE-2026-56853 exp:2026-09-05
-CVE-2026-56858 exp:2026-09-05
-CVE-2026-56859 exp:2026-09-05
-CVE-2026-56860 exp:2026-09-05
-CVE-2026-56862 exp:2026-09-05
-CVE-2026-56864 exp:2026-09-05
-CVE-2026-56865 exp:2026-09-05
+CVE-2026-33818 exp:2026-11-10
+CVE-2026-39821 exp:2026-11-10
+CVE-2026-56853 exp:2026-11-10
+CVE-2026-56858 exp:2026-11-10
+CVE-2026-56859 exp:2026-11-10
+CVE-2026-56860 exp:2026-11-10
+CVE-2026-56862 exp:2026-11-10
+CVE-2026-56864 exp:2026-11-10
+CVE-2026-56865 exp:2026-11-10
 
 # ------------------------------------------------------------------------------
 # CVE-2026-17106 (GHSA-hfg8-hc9c-6c3h) — moby/go-archive: crafted tar
@@ -297,7 +297,7 @@ CVE-2026-56865 exp:2026-09-05
 # above, drop this entry; if not, re-verify and extend deliberately rather
 # than let this lapse silently into a routine, unreviewed suppression.
 # ------------------------------------------------------------------------------
-CVE-2026-17106 exp:2026-09-05
+CVE-2026-17106 exp:2026-11-10
 
 # ------------------------------------------------------------------------------
 # GHSA-6v7p-g79w-8964 — msgpack: Out-of-bounds read / crash on Unpacker reuse
