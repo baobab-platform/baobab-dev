@@ -254,15 +254,22 @@ security:
 infra:
 
   terraform:
-    version: "1.16.1"
+    version: "1.16.2"
     source: "hashicorp"
     # Explicit pin, NOT "latest" — same rationale as development.maven
     # above: infra tooling is exactly the class of dependency where a
     # silent version float carries real risk (a `terraform apply` running
     # against live AWS infrastructure with an unreviewed provider/engine
-    # upgrade). 1.16.1 is HashiCorp's current stable release at authoring
-    # time (2026-09-02/03), live-verified against
-    # releases.hashicorp.com/terraform/1.16.1/terraform_1.16.1_SHA256SUMS.
+    # upgrade). 1.16.1 was HashiCorp's stable release at original authoring
+    # time (2026-09-02/03); bumped to 1.16.2 (HashiCorp's release from
+    # 2026-09-09) on 2026-09-15 after this pin's own Trivy gate started
+    # failing the v1.4.0 publish build on CVE-2026-84304 and CVE-2026-84445
+    # (google.golang.org/grpc, both HIGH) in the 1.16.1 binary. 1.16.2's own
+    # go.mod bumps google.golang.org/grpc straight to v1.83.2, which carries
+    # the fix for both CVEs (84304 needs >=1.83.1, 84445 needs >=1.82.2/
+    # 1.83.2) — live-verified against
+    # github.com/hashicorp/terraform/blob/v1.16.2/go.mod and
+    # releases.hashicorp.com/terraform/1.16.2/terraform_1.16.2_SHA256SUMS.
     #
     # Distribution is a per-architecture zip (unlike Maven's single
     # architecture-independent tarball). HashiCorp publishes one SHA256SUMS
