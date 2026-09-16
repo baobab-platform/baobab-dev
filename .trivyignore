@@ -332,6 +332,39 @@ CVE-2026-56865 exp:2026-11-10
 CVE-2026-17106 exp:2026-11-10
 
 # ------------------------------------------------------------------------------
+# CVE-2026-56854 — golang.org/x/crypto/ssh: source-address restriction not
+# enforced for non-public-key authentication callbacks
+#
+# Found in: usr/local/bin/cosign
+# Fixed in: golang.org/x/crypto 0.55.0 (installed: v0.53.0)
+#
+# Investigated 2026-09-16, the day this surfaced as the sole failure once
+# the "final" target's Trivy scan itself started completing successfully
+# again (nabhold/baobab-dev#31 — a prior disk-quota/OCI-scan-target
+# infrastructure problem had been masking whether the scan even reached
+# this deep before). Confirmed, not assumed, that no fix is currently
+# installable: cosign's own latest release is v3.1.3 (2026-08-06, GitHub's
+# own release list, tagged [Latest]) — live-checked directly against that
+# tag's go.mod, which still declares `golang.org/x/crypto v0.53.0`, short
+# of the 0.55.0 fix. Same "vendored at compile time by cosign's own
+# maintainers, no upstream rebuild yet" situation as every other
+# task/yq/cosign entry in this file.
+#
+# REACHABILITY NOTE (recorded, not a reason to drop the entry — Trivy's
+# SCA scan is version-based, not reachability-based, per this file's
+# standing convention): the vulnerable code path is server-side SSH
+# authentication — the 'source-address' critical option returned by
+# PasswordCallback, KeyboardInteractiveCallback, NoClientAuthCallback, and
+# GSSAPIWithMICConfig.AllowLogin was silently not enforced (only the
+# public-key callback paths enforced it correctly). cosign is a
+# client-side signing/verification CLI; it implements no SSH server and
+# calls none of those four callback types, so this specific finding has
+# no exploitable path through cosign's actual usage in this image, even
+# though the vulnerable dependency is present.
+# ------------------------------------------------------------------------------
+CVE-2026-56854 exp:2026-11-10
+
+# ------------------------------------------------------------------------------
 # GHSA-6v7p-g79w-8964 — msgpack: Out-of-bounds read / crash on Unpacker reuse
 #
 # Found in: pip's own vendored copy (pip/_vendor/msgpack), NOT a separately
