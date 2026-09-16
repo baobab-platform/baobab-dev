@@ -41,6 +41,27 @@ in `README.md § Versioning strategy`.
   tag-suffix logic and the non-final smoke-test step were already written
   generically for "any non-final target," not enumerated per target.
 
+### Fixed
+- The v1.4.0 tag's publish build failed Trivy's HIGH-severity gate on
+  every matrix leg (`final`, `frontend`, `frontend-e2e`, and `infra`,
+  both architectures): `usr/local/bin/task` vendors
+  `google.golang.org/grpc` v1.83.0, flagged for CVE-2026-84304 and
+  CVE-2026-84445 (both disclosed 2026-09, after task's last release).
+  `infra` additionally flagged its own pinned Terraform 1.16.1 for the
+  same CVE-2026-84445 (grpc v1.83.1, one release short of the 1.83.2
+  fix). Terraform is bumped to 1.16.2 (`config/versions.yaml`), which
+  bundles grpc v1.83.2 and clears both CVEs; task has no upstream release
+  incorporating a patched grpc yet (latest is v3.53.1, 2026-08-18), so
+  both CVEs are recorded in `.trivyignore` pending a go-task/task rebuild.
+- `.nabhold/environment.yaml` and `README.md`'s "Foundation 4" section
+  still declared this repository's own dogfooded `full` profile at
+  1.2.6, out of step with `.devcontainer/devcontainer.json`'s image pin
+  (already moved to `ghcr.io/nabhold/baobab-dev:1.4.0` ahead of this
+  release). This failed the Foundation Repository Gates
+  `repository-contract` job's `devcontainer must use
+  ghcr.io/nabhold/baobab-dev:{minimum_version}` check on every push to
+  `main`. Both files now declare 1.4.0, matching the devcontainer pin.
+
 ## [1.3.0-rc.0] — Java + Maven for iDempiere
 
 ### Added
