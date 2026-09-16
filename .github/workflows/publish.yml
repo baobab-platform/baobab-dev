@@ -51,10 +51,25 @@
 #   just cache-hit — a restore-keys prefix match populates the dir but
 #   still reports cache-hit: false) because hardcoding either flag
 #   breaks the very first run with "cannot be specified on the first
-#   run". `--skip-files` exempts only `flutter_web_sdk/**/dart_sdk.js`
-#   (~14-16MB compiled Flutter bundle) from SECRET scanning — it has no
-#   effect on CVE coverage and only stops the secret scanner flagging a
-#   large first-party bundle as "too large" (observed 2026-08-17).
+#   run". `--skip-files` exempts `flutter_web_sdk/**/dart_sdk.js`
+#   (~14-16MB compiled Flutter bundle) from SECRET scanning only — it has
+#   no effect on CVE coverage and only stops the secret scanner flagging a
+#   large first-party bundle as "too large" (observed 2026-08-17). It ALSO
+#   exempts `flutter/bin/cache/artifacts/engine/**/*.jar` from scanning
+#   entirely (both scanners): this Flutter-SDK-bundled JAR
+#   (`android-*/flutter.jar`) is the ONLY Java artifact `final` ships, and
+#   is therefore the sole reason Trivy pulls its own ~922MB Java DB for
+#   this target — a real, deliberately-accepted trade: this JAR is Google's
+#   own prebuilt Flutter engine binary, versioned and shipped by the
+#   Flutter SDK release itself (not something `pip`/`npm`/OS-package-style
+#   CVE tracking meaningfully covers per-jar), used only as local dev
+#   tooling in this devcontainer image, never a production runtime
+#   dependency exposed to end users — unlike the OS/library packages
+#   `--pkg-types os,library` still fully covers. Complements the OCI-layout
+#   scan-target fix below (see "Build local single-manifest image for
+#   scanning") rather than replacing it: removing the one Java artifact
+#   removes the Java DB download's ~922MB disk cost entirely, on top of
+#   that fix's removal of the daemon-loaded duplicate image.
 #   `--skip-version-check` drops Trivy's own unrelated, unpinned
 #   "newer CLI available" network check.
 #
@@ -655,15 +670,28 @@ jobs:
       # TRIGGER POLICY" above): this is now the primary gate on every
       # PR/`main` push, with the tag push re-running it as defense-in-depth.
       #
-      # Scan target: `final` reads the OCI tarball written by "Build local
-      # single-manifest image for scanning" above via `--input` (no daemon
-      # image to name); every other target scans the LOCAL `baobab-dev:scan`
-      # image by name, not the registry digest — see "TRIVY SCAN TARGET"
-      # above. No `--platform` needed either way since a local
-      # single-manifest source has nothing to disambiguate. The tarball is
-      # removed right after the scan — nothing later in this job needs it,
-      # and `final` is the one target where every byte of headroom matters
-      # (see the previous step's comment on the disk-quota root cause).
+      # Scan target: `final` reads the OCI layout DIRECTORY extracted from
+      # the tarball written by "Build local single-manifest image for
+      # scanning" above via `--input`; every other target scans the LOCAL
+      # `baobab-dev:scan` image by name, not the registry digest — see
+      # "TRIVY SCAN TARGET" above. No `--platform` needed either way since a
+      # local single-manifest source has nothing to disambiguate.
+      #
+      # FIX: `trivy image --input <path>` does NOT accept an OCI archive as
+      # a single tar file directly — confirmed live: it tried both parsers
+      # in sequence and failed both ("unable to open ... as a Docker image:
+      # file manifest.json not found in tar" — that's the docker-archive
+      # parser, which expects docker save's layout, not OCI's; "unable to
+      # open ... as an OCI Image: stat .../index.json: not a directory" —
+      # that's the OCI parser, which does `stat <path>/index.json`, i.e. it
+      # expects `<path>` to already be an unpacked OCI Image Layout
+      # DIRECTORY (oci-layout, index.json, blobs/), not the tarball buildx
+      # wrote it as. Untarring first satisfies that exact check. The
+      # tarball is removed as soon as it's extracted (never coexists with
+      # the directory for long) and the directory is removed right after
+      # the scan — nothing later in this job needs either, and `final` is
+      # the one target where every byte of headroom matters (see the
+      # previous step's comment on the disk-quota root cause).
       - name: Scan built container with Trivy
         env:
           # Read via shell var (not interpolated inline) so an empty value contributes zero words, not a blank arg.
@@ -671,7 +699,12 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "${{ matrix.target }}" == "final" ]]; then
-            SCAN_SOURCE_ARGS=(--input "${{ runner.temp }}/scan-image-final.tar")
+            SCAN_TAR="${{ runner.temp }}/scan-image-final.tar"
+            SCAN_DIR="${{ runner.temp }}/scan-image-final"
+            mkdir -p "${SCAN_DIR}"
+            tar -xf "${SCAN_TAR}" -C "${SCAN_DIR}"
+            rm -f "${SCAN_TAR}"
+            SCAN_SOURCE_ARGS=(--input "${SCAN_DIR}")
           else
             SCAN_SOURCE_ARGS=(baobab-dev:scan)
           fi
@@ -679,7 +712,7 @@ jobs:
           trivy image \
             --scanners vuln,secret \
             ${TRIVY_SKIP_FLAGS} \
-            --skip-files "**/corepack/**,**/cacache/**,**/flutter_web_sdk/**/dart_sdk.js,**/devtools/**" \
+            --skip-files "**/corepack/**,**/cacache/**,**/flutter_web_sdk/**/dart_sdk.js,**/devtools/**,**/flutter/bin/cache/artifacts/engine/**/*.jar" \
             --pkg-types os,library \
             --severity CRITICAL,HIGH \
             --exit-code 1 \
@@ -689,7 +722,7 @@ jobs:
             "${SCAN_SOURCE_ARGS[@]}"
 
           if [[ "${{ matrix.target }}" == "final" ]]; then
-            rm -f "${{ runner.temp }}/scan-image-final.tar"
+            rm -rf "${SCAN_DIR}"
           fi
 
       # Container Smoke Test (final — tests the actual to-be-published image)
