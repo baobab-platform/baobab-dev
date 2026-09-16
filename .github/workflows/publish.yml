@@ -535,6 +535,28 @@ jobs:
           tags: baobab-dev:scan
           cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
 
+      # Free build cache before Trivy scan (final target only)
+      # The "Free disk space" step above (preinstalled toolchain removal)
+      # was not enough on its own — `final` still hit "disk quota exceeded"
+      # reproducibly, now consistently mid-Trivy-scan rather than before any
+      # download, confirming the two docker builds above (push-by-digest,
+      # then load:true) leave enough buildx build cache on disk to still
+      # exhaust the runner once Trivy's ~922MB Java DB is added on top.
+      # `docker builder prune -af` clears that build cache — both builds
+      # already finished and `cache-to: type=gha` already exported what's
+      # needed for the NEXT run's cache-from, so nothing this job still
+      # needs depends on the local cache surviving. Deliberately
+      # `docker builder prune`, not `docker image prune -a`: the latter
+      # would delete the just-loaded `baobab-dev:scan` image itself (no
+      # container references it, so `-a` would treat it as unused), which
+      # Trivy scans next.
+      - name: Free build cache before Trivy scan (final target only)
+        if: matrix.target == 'final'
+        run: |
+          set -x
+          docker builder prune -af
+          df -h /
+
       # Cache Trivy vulnerability database
       # Trivy re-downloads its ~500MB+ DB on every scan by default.
       # trivy-action's own bundled `actions/cache` isn't SHA-pinned (fails
