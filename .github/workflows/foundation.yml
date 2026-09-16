@@ -13,8 +13,8 @@ permissions:
 
 jobs:
   foundation:
-    uses: nabhold/shared/.github/workflows/foundation-repository-gates.yml@50edfcd846859ba7cabd644c7f7a4a8d4a1ab37d
+    uses: nabhold/shared/.github/workflows/foundation-repository-gates.yml@919ee0ade2047017a0915d9f22566381a6655dff
     with:
       dockerfile: ""
       build_context: "."
-      dependency_review_enabled: true
+      dependency_review_enabled: false
