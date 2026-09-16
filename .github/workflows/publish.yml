@@ -1,1 +1,1704 @@
-TODO_PLACEHOLDER
+# ==============================================================================
+# BAOBAB Enterprise Platform — Container Publish, Attestation & Security Pipeline
+# File: .github/workflows/publish.yml
+#
+# HIGHLIGHTS:
+#   1. Actions pinned to 40-char commit SHAs (supply-chain tamper resistance).
+#   2. Concurrency: cancels superseded PR/branch runs; never cancels main/tags.
+#   3. Least privilege: global `contents: read`, elevated per job only.
+#   4. Native Buildx SBOM (sbom: true) + SLSA provenance (provenance: true).
+#   5. Trivy gate blocks release on unpatched CRITICAL/HIGH CVEs.
+#   6. Keyless Cosign signing/attestation via GitHub OIDC — no static keys.
+#      Cosign CLI v3.x since 2026-08-23 (see "Install Cosign CLI tool" below
+#      for why this was a forced, non-optional major-version upgrade).
+#   7. Tag-gated publish, shift-left security — see policies below.
+#
+# PUBLISH TRIGGER POLICY:
+#   Build + Trivy gate run on every push/PR to `main`. Registry push,
+#   signing, attestation, and GitHub Release wait for an actual `v*.*.*`
+#   tag — a deliberate, reviewed release action, not a side effect of
+#   merging to `main` — OR a workflow_dispatch explicitly requesting an
+#   existing tag rebuild (`workflow_dispatch.inputs.tag`), which follows
+#   the identical path. Every gating `if:` reads
+#   `needs.sanity-check.outputs.is_release` (resolved once, in
+#   sanity-check's "Resolve release context" step, from either
+#   `startsWith(github.ref, 'refs/tags/')` or a validated dispatch tag
+#   input — never `github.event_name != 'pull_request'`, which would also
+#   fire on `main` pushes) — see GHCR auth, the real build, digest
+#   export/upload, and the smoke-test steps, plus the `publish` job's own
+#   `if:`. `metadata-action`'s semver tag rules and the `latest` tag's
+#   `enable:` check likewise read `needs.sanity-check.outputs.release_tag`
+#   rather than the raw ref, since `github.ref` on a workflow_dispatch run
+#   is the dispatched branch, not the tag being rebuilt.
+#
+# SECURITY SCAN TRIGGER POLICY (shift-left):
+#   The Trivy gate ("Build local single-manifest image for scanning"
+#   through "Scan built container with Trivy") is DELIBERATELY NOT
+#   tag-gated — it runs on every PR, `main` push, and tag push, so a bad
+#   dependency or base-image bump is caught before merge, not at release
+#   time. Added cost is minimal: it reuses the `type=gha` build cache and
+#   the cached vulnerability DB. It still re-runs at tag time too, as
+#   defense-in-depth against a CVE disclosed between merge and release.
+#   Registry push, the real build's `push:` flag, digest export/upload,
+#   the smoke test, and the whole `publish` job remain tag-gated.
+#
+# TRIVY CLI FLAGS (pinned TRIVY_VERSION=0.73.0):
+#   `--pkg-types os,library` replaces the deprecated `--vuln-type`
+#   (renamed in Trivy v0.54.0: aquasecurity/trivy#7268). `--scanners
+#   vuln,secret` is explicit rather than relying on Trivy's current
+#   default set. `--skip-db-update`/`--skip-java-db-update` are computed
+#   dynamically by "Determine Trivy DB skip flags" (checked on disk, not
+#   just cache-hit — a restore-keys prefix match populates the dir but
+#   still reports cache-hit: false) because hardcoding either flag
+#   breaks the very first run with "cannot be specified on the first
+#   run". `--skip-files` exempts only `flutter_web_sdk/**/dart_sdk.js`
+#   (~14-16MB compiled Flutter bundle) from SECRET scanning — it has no
+#   effect on CVE coverage and only stops the secret scanner flagging a
+#   large first-party bundle as "too large" (observed 2026-08-17).
+#   `--skip-version-check` drops Trivy's own unrelated, unpinned
+#   "newer CLI available" network check.
+#
+# TRIVY SCAN TARGET:
+#   `sbom: true` + `provenance: true` make even a single-platform build
+#   emit an OCI Image INDEX (real manifest + a separate "unknown/unknown"
+#   attestation manifest) — documented BuildKit behavior (moby/buildkit,
+#   docker/buildx#1964; also goharbor/harbor#22848, stacklok/dockyard#215).
+#   Trivy can't resolve that index directly, so "Build local
+#   single-manifest image for scanning" re-exports the same build (no
+#   attestations, same builder/cache, nothing rebuilt) purely as an
+#   unambiguous local scan target — `load: true` into the Docker daemon
+#   for most targets, or an OCI tarball (`type=oci` + `trivy image
+#   --input`) for `final`, whose daemon-loaded footprint alone was enough
+#   to blow past GitHub-hosted runners' per-job disk quota (see that
+#   step's comment for the full root-cause writeup). The real published
+#   artifact keeps its full SBOM + provenance untouched either way.
+#
+# PERFORMANCE:
+#   Trivy's vulnerability DB (~500MB+) is cached via our own SHA-pinned
+#   `actions/cache` call — trivy-action's bundled `actions/cache` isn't
+#   SHA-pinned, so it's rejected by the org's action-pinning policy —
+#   under a single day-scoped key shared by both matrix legs and every
+#   trigger: the first scan anywhere in the repo each day pays the
+#   download; every later PR/branch/tag scan that day reuses the cache.
+# ==============================================================================
+
+name: Publish Baobab Dev Container
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*.*.*"
+      - "v*.*.*-*"
+    paths:
+      - ".devcontainer/**"
+      - "config/**"
+      - "scripts/**"
+      - ".github/workflows/publish.yml"
+
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".devcontainer/**"
+      - "config/**"
+      - "scripts/**"
+      - ".github/workflows/publish.yml"
+
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to rebuild (optional)
+        required: false
+        default: ""
+
+# Cancels superseded PR/branch runs to save CI time; never cancels a `main`
+# or tag run, so production deploy tracks are never interrupted mid-flight.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/') }}
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/baobab-dev
+
+# Least-privilege default: global token rights are read-only; elevated only per job.
+permissions:
+  contents: read
+
+# Explicit, not relying on GitHub's current Linux default: many `run:` steps
+# in this workflow depend on Bash-specific features (arrays, `[[ ... ]]`,
+# `mapfile`, process substitution, `${array[@]:1}`, `$RANDOM`) that a POSIX
+# `sh` would not support.
+defaults:
+  run:
+    shell: bash
+
+jobs:
+
+  # Job 1: Pre-flight Lockfile Integrity & Release Context Resolution
+  # Verifies config/versions.lock matches config/versions.yaml and hard-fails
+  # on any drift (PR, branch push, tag push, or workflow_dispatch rebuild
+  # alike — see "Fail on lockfile drift" below; auto-resolution now lives
+  # exclusively in .github/workflows/update-lockfile.yml, never here). Also
+  # resolves which ref every downstream job should build from and whether
+  # this run should publish, so a workflow_dispatch rebuild of an existing
+  # tag (workflow_dispatch.inputs.tag) behaves identically to a real tag
+  # push (see "Resolve release context" below). Runs on every trigger —
+  # build always needs a correct lockfile, whether or not this run ever
+  # publishes anything.
+  sanity-check:
+    name: Lockfile Integrity & Auto-Sync
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+
+    # `contents: read` only. CHANGED: this job no longer auto-commits
+    # anything (see "Fail on lockfile drift" below), so it no longer needs
+    # `contents: write`.
+    permissions:
+      contents: read
+
+    outputs:
+      # Empty/'false' unless this run is a real `v*.*.*` tag push OR a
+      # workflow_dispatch requesting an existing tag rebuild — see "Resolve
+      # release context" below. This is what wires up
+      # workflow_dispatch.inputs.tag (previously declared but never read by
+      # any gating `if:` in this file).
+      release_tag: ${{ steps.release-context.outputs.release_tag }}
+      is_release: ${{ steps.release-context.outputs.is_release }}
+      is_stable_release: ${{ steps.release-context.outputs.is_stable_release }}
+      checkout_ref: ${{ steps.release-context.outputs.checkout_ref }}
+
+    steps:
+      # Resolves, in one place, what every downstream job/step needs to
+      # agree on: which ref to check out, whether this run should publish,
+      # and which tag string release metadata should use. Runs before
+      # checkout on purpose — it only needs GitHub Actions context, no repo
+      # files.
+      #
+      # A workflow_dispatch with `tag` set now behaves like rebuilding that
+      # exact tag: checks it out, builds, and — if validation passes —
+      # publishes and releases exactly as a real tag push would. A dispatch
+      # with `tag` left empty behaves as before: validation-only, against
+      # whichever branch was selected in the dispatch UI.
+      #
+      # Tag format is validated here, not left to fail later at checkout or
+      # deep inside "docker/metadata-action produced zero tags" — a
+      # malformed dispatch input fails immediately with a clear message
+      # instead of surfacing as a confusing downstream symptom.
+      - name: Resolve release context
+        id: release-context
+        run: |
+          set -euo pipefail
+          DISPATCH_TAG="${{ github.event.inputs.tag }}"
+
+          # is_stable_release: true only for a tag with no '-' suffix (e.g.
+          # v1.2.5, not v1.2.5-rc.6) — the SAME boundary already used by
+          # docker/metadata-action's 'latest' tag enable: check below,
+          # computed once here as the single source of truth. Feeds the
+          # release job's prerelease: input — it does NOT gate whether the
+          # release job runs at all. RC tags still get a full GitHub
+          # Release with all pull/cosign commands, same as today; they're
+          # just correctly flagged as a pre-release, which GitHub itself
+          # then automatically excludes from ever being shown as "Latest".
+          is_stable_release() {
+            local tag="$1"
+            if [[ "${tag}" == *-* ]]; then
+              echo "false"
+            else
+              echo "true"
+            fi
+          }
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${DISPATCH_TAG}" ]]; then
+            if [[ ! "${DISPATCH_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
+              echo "::error:: workflow_dispatch 'tag' input '${DISPATCH_TAG}' does not match this workflow's own tag pattern (v*.*.* or v*.*.*-*)."
+              exit 1
+            fi
+            echo "::notice:: Rebuilding existing tag '${DISPATCH_TAG}' via workflow_dispatch — this run will check out that tag and publish/release exactly as a real tag push would."
+            echo "release_tag=${DISPATCH_TAG}" >> "$GITHUB_OUTPUT"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            echo "is_stable_release=$(is_stable_release "${DISPATCH_TAG}")" >> "$GITHUB_OUTPUT"
+            echo "checkout_ref=${DISPATCH_TAG}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
+            echo "release_tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            echo "is_stable_release=$(is_stable_release "${{ github.ref_name }}")" >> "$GITHUB_OUTPUT"
+            echo "checkout_ref=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_tag=" >> "$GITHUB_OUTPUT"
+            echo "is_release=false" >> "$GITHUB_OUTPUT"
+            echo "is_stable_release=false" >> "$GITHUB_OUTPUT"
+            echo "checkout_ref=${{ github.event.pull_request.head.ref || github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout source code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.release-context.outputs.checkout_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Pinned + checksummed (not "latest") per this project's binary-pinning
+      # convention (config/resolve.sh). CI-bootstrap tooling only — parses
+      # config/versions.yaml before versions.lock exists, so intentionally
+      # decoupled from YQ_VERSION in versions.lock (the yq shipped inside the
+      # image itself). Bump YQ_BOOTSTRAP_VERSION/_SHA256 by hand as needed.
+      - name: Install yq dependency
+        env:
+          YQ_BOOTSTRAP_VERSION: "4.53.3"
+          YQ_BOOTSTRAP_SHA256: "fa52a4e758c63d38299163fbdd1edfb4c4963247918bf9c1c5d31d84789eded4"
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_BOOTSTRAP_VERSION}/yq_linux_amd64"
+          echo "${YQ_BOOTSTRAP_SHA256}  /tmp/yq" | sha256sum -c -
+          sudo install -m 0755 /tmp/yq /usr/local/bin/yq
+          rm -f /tmp/yq
+
+      - name: Verify lockfile integrity via resolve.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          chmod +x config/resolve.sh
+          ./config/resolve.sh
+
+      - name: Check for lockfile drift
+        id: drift-check
+        run: |
+          if git diff --quiet -- config/versions.lock .python-version; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Lockfile drift is now ALWAYS a hard failure — on PRs, branch
+      # pushes, tag pushes, and workflow_dispatch rebuilds alike. CHANGED:
+      # this pipeline previously auto-committed resolved drift on branch
+      # pushes via git-auto-commit-action, and only hard-failed on tag
+      # pushes. That auto-commit was removed:
+      #   1. Publishing pipelines should be deterministic and not mutate
+      #      source as a side effect of building it.
+      #   2. A `pull_request` run — including from a fork — auto-committing
+      #      with `secrets.GITHUB_TOKEN` was a real risk surface: a fork's
+      #      token can't push back to the base repo anyway, so the step
+      #      would either silently no-op or fail in a way easy to mistake
+      #      for a genuine problem.
+      #   3. It duplicated `.github/workflows/update-lockfile.yml`, which
+      #      already does this properly on a schedule + manual dispatch,
+      #      opening a reviewable PR rather than committing directly.
+      # Auto-resolution now lives exclusively in that dedicated workflow;
+      # this job only verifies and fails loudly.
+      - name: Fail on lockfile drift
+        if: steps.drift-check.outputs.drift == 'true'
+        run: |
+          echo "::error:: config/versions.lock is out of date with config/versions.yaml on ref '${{ steps.release-context.outputs.checkout_ref }}'."
+          echo "::error:: This pipeline no longer auto-commits resolved lockfiles. Run config/resolve.sh locally, or trigger .github/workflows/update-lockfile.yml, review and merge the resulting PR, then re-run."
+          exit 1
+
+      # Hand off the freshly-resolved lockfile via artifact: build's
+      # checkout later in this run is pinned to the same ref this job
+      # checked out (read-only) — there is no commit for a later checkout
+      # to see, by design (see "Fail on lockfile drift" above). Uploaded
+      # unconditionally — pull_request and non-release builds alike still
+      # need a lockfile.
+      - name: Upload resolved lockfile
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: resolved-lockfile
+          path: |
+            config/versions.lock
+            .python-version
+          if-no-files-found: error
+          retention-days: 1
+
+  # Job 2: Multi-Arch Container Build & Vulnerability Scan Gate
+  # Builds amd64/arm64 images and runs the Trivy CVE/secret gate on every
+  # push and PR (see "SECURITY SCAN TRIGGER POLICY" above). Only on a
+  # `v*.*.*` tag push does it also push the real image to GHCR (with SBOM +
+  # SLSA provenance embedded) and smoke-test it (see "PUBLISH TRIGGER
+  # POLICY" above).
+  build:
+    name: "Build & Security Scan (${{ matrix.target }}, ${{ matrix.platform }})"
+    needs: sanity-check
+
+    # RATIONALE: Route arm64 builds to native ARM GitHub-hosted runners for faster performance.
+    runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
+    timeout-minutes: 120
+
+    # `packages: write` — needed to push image layers/metadata by digest.
+    # Granted job-wide (GitHub Actions has no per-step scoping); only
+    # exercised on tag pushes. CORRECTED (was stale): this used to say only
+    # `final` pushed and frontend/frontend-e2e "never push in this job yet"
+    # — that was true during the TIER 1 rollout but is no longer accurate.
+    # All three targets now push on tag pushes (see the real build step's
+    # `push:` logic and outputs below); PR/main runs still never push, so
+    # this permission remains unused (but present, since GitHub Actions has
+    # no per-step scoping) outside tag pushes.
+    permissions:
+      contents: read
+      packages: write
+
+    # TIER 1 (baobab-dev-v1_1_0-release-plan-amended.md tasks 1.9/1.10;
+    # ADR-0001): build and Trivy-scan every Dockerfile target on every
+    # trigger, exactly as `final` already was. `infra` (2026-09-03,
+    # nabhold/infrastructure local development + testing proposal) joined
+    # the matrix directly at TIER 2 — publishing for real from day one —
+    # rather than repeating a separate build-only proving period, since its
+    # stage reuses patterns (checksummed binary install, profile-gated
+    # verify.sh, leaf stage off `base`) already validated by `frontend`'s
+    # own Tier 1 -> Tier 2 rollout.
+    # This runs 4 targets × 2 platforms on every PR/push — an accepted,
+    # disclosed cost of validating every stage continuously rather than
+    # only at publish time.
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - final
+          - frontend
+          - frontend-e2e
+          - infra
+        platform:
+          - linux/amd64
+          - linux/arm64
+
+    # Read directly by the trivy binary (every Trivy flag has a
+    # TRIVY_<FLAG> env equivalent). Set once here so "Cache Trivy
+    # vulnerability database" and `trivy image` agree on the same path.
+    env:
+      TRIVY_CACHE_DIR: ${{ github.workspace }}/.cache/trivy
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.sanity-check.outputs.checkout_ref }}
+
+      # Free disk space (final target only)
+      # `final` is the only target combining Python+Node+Flutter+Java+Maven+
+      # Docker CLI — by far the largest image this job builds — and Trivy
+      # also pulls its own ~922MB Java DB on top of it. Standard
+      # GitHub-hosted runners repeatedly hit "disk quota exceeded" around
+      # the Trivy scan step on this target specifically — confirmed
+      # reproducible via nabhold/baobab-dev#31's CI across five independent
+      # runs (both linux/amd64 and linux/arm64), never a real build or CVE
+      # regression. The biggest single contributor — a second, fully
+      # daemon-loaded copy of `final` for scanning — is eliminated
+      # separately (see "Build local single-manifest image for scanning"
+      # below, which scans `final` from an OCI tarball instead of
+      # `load: true`); this step remains as an additional, cheap margin of
+      # safety. frontend/frontend-e2e/infra never hit this — they don't
+      # carry Flutter's Android engine artifacts or the JDK/Maven install,
+      # so this step is gated to `final` only rather than slowing down
+      # every matrix leg. Removes preinstalled runner toolchains this build
+      # never uses (Android SDK, .NET, GHC, CodeQL bundles) — the standard
+      # community pattern for GitHub-hosted runners' disk-space constraints
+      # on large multi-stage Docker builds.
+      - name: Free disk space (final target only)
+        if: matrix.target == 'final'
+        run: |
+          set -x
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
+      # Overwrites whatever versions.lock the checkout brought in with the
+      # exact one sanity-check resolved earlier in THIS run (see "Upload
+      # resolved lockfile" in sanity-check for why).
+      - name: Download resolved lockfile
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: resolved-lockfile
+          path: .
+
+      # - name: Setup QEMU Emulation
+      # uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
+
+      - name: Setup Docker Buildx Engine
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      # Only needed to PUSH — an unauthenticated build can still pull the
+      # public base image and read the GHA cache, so PR/branch validation
+      # builds (which never push) skip this login entirely.
+      - name: Authenticate to GitHub Container Registry (GHCR)
+        if: needs.sanity-check.outputs.is_release == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Extract OCI Metadata & Labels
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      # Build image with native Buildx SBOM & SLSA Provenance
+      #   sbom: true          — SPDX Software Bill of Materials
+      #   provenance: true    — SLSA Level 3 build provenance, embedded
+      #   push-by-digest      — pushes layers without touching tags yet
+      #   push: true for every target on a tag push. Simplified from an
+      #     earlier target-restricted form (final/frontend only, added
+      #     during Tier 2's staged rollout) now that frontend-e2e has
+      #     completed its own Tier 2 pass too — all three targets publish
+      #     identically as of this release
+      #     (baobab-dev-v1_1_0-release-plan-amended.md). PR/`main` runs
+      #     exercise the identical build with push disabled regardless of
+      #     target, so a build failure surfaces before a tag is ever cut.
+      - name: Build container image with SBOM & SLSA Provenance
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ./.devcontainer/docker/Dockerfile
+          target: ${{ matrix.target }}
+          build-args: |
+            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ github.sha }}
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=${{ needs.sanity-check.outputs.is_release == 'true' }}
+          cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}-${{ matrix.platform }}
+          sbom: true
+          # Instruct BuildKit to emit SLSA v1.0 schema inside the in-toto predicate
+          provenance: mode=max,version=v1
+
+      # DEBUG: confirms BuildKit generated provenance at build time, before any merge step touches it.
+      - name: Debug — inspect provenance immediately after build
+        if: needs.sanity-check.outputs.is_release == 'true' && vars.BAOBAB_PUBLISH_DEBUG == 'true'
+        run: |
+          echo "::group::buildx version (build job)"
+          docker buildx version
+          echo "::endgroup::"
+          echo "::group::Provenance for ${{ steps.build.outputs.digest }}"
+          docker buildx imagetools inspect \
+            "${REGISTRY}/${IMAGE_NAME}@${{ steps.build.outputs.digest }}" \
+            --format '{{ json . }}' | jq '.'
+          echo "::endgroup::"
+      
+      # Export each arch's digest to a file, then upload as its own artifact
+      # (Docker's documented "distribute build across runners" pattern).
+      # Matrix job `outputs:` don't reliably survive across legs — depending
+      # on completion order, `needs.build.outputs.*` can silently drop one
+      # architecture. Artifact naming below includes matrix.target — with
+      # all three targets now producing digests, the original
+      # platform-only naming (`digests-amd64`/`digests-arm64`) would
+      # collide between all of them.
+      #
+      # REVERTED Option A: briefly exported the flat image-manifest digest
+      # instead of this index digest, on the theory that it would route
+      # `imagetools create`'s later merge through buildx's referrers-API
+      # attestation-rediscovery path (docker/buildx#3433). Confirmed live
+      # that this made things WORSE — 100% of publish legs failed instead
+      # of ~50% — meaning GHCR/buildx doesn't successfully recover
+      # attestations via that path in this setup. Reverted to exporting
+      # this index digest (image + attestation as a 2-entry index), because
+      # the actual fix (Option B, see the "Publish multi-architecture OCI
+      # manifest" step below) uses `crane index append`'s `--flatten`
+      # behavior, which specifically needs an INDEX as its source to
+      # correctly pull both children — the opposite requirement from
+      # Option A.
+      - name: Export architecture image digest
+        if: needs.sanity-check.outputs.is_release == 'true'
+        run: |
+          mkdir -p "${{ runner.temp }}/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        if: needs.sanity-check.outputs.is_release == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-${{ matrix.target }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+      # Build local single-manifest image for scanning
+      # See "TRIVY SCAN TARGET" above: the real push-by-digest build (with
+      # sbom/provenance) produces a 2-manifest OCI index Trivy can't resolve
+      # directly. This re-exports the identical build — same builder/cache,
+      # nothing rebuilt — with no attestations, purely as an unambiguous
+      # local scan target. Runs on EVERY trigger AND every target (not
+      # gated at all) — this is the whole point of Tier 1: frontend/
+      # frontend-e2e get the same continuous Trivy coverage `final` already
+      # had, even though they don't publish yet. Neither output type below
+      # touches GHCR, so no registry auth needed.
+      #
+      # `final` scans from an OCI tarball (`type=oci,dest=...`) instead of
+      # `load: true`. ROOT-CAUSED (nabhold/baobab-dev#31 CI, reproduced
+      # across five separate runs): `load: true` fully materializes a
+      # SECOND complete copy of `final` (Python+Node+Flutter+Java+Maven+
+      # Docker CLI — by far the heaviest target) into the Docker daemon's
+      # own storage, on top of the first build above, before Trivy's
+      # ~922MB Java DB download even starts. GitHub-hosted runners enforce
+      # a per-job disk quota separate from the underlying disk's reported
+      # free space — confirmed live: `docker builder prune -af` reclaimed
+      # exactly 0B (there was no stray buildx build cache to free — that
+      # was never the actual consumer) while `df -h /` still showed 18G
+      # free, yet the job kept failing with `disk quota exceeded` (EDQUOT,
+      # not `ENOSPC`/"no space left on device") partway through the Java
+      # DB download or the subsequent file-analysis pass — the signature
+      # of a hard per-job ceiling, not genuine disk exhaustion. `final` has
+      # no use for a daemon-loaded local image on a PR/branch run anyway:
+      # its own smoke test only runs on a real tag push and pulls the
+      # REGISTRY digest (see "Execute container smoke test (final)"
+      # below), never `baobab-dev:scan`. Writing an OCI tarball instead
+      # avoids that second full daemon-loaded copy entirely; `trivy image
+      # --input` (see "Scan built container with Trivy" below) reads it
+      # directly. frontend/frontend-e2e/infra keep `load: true` — they've
+      # never hit this quota and DO need a locally-loaded `baobab-dev:scan`
+      # for their own smoke test ("Execute container smoke test (non-final
+      # targets)" below).
+      - name: Build local single-manifest image for scanning
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ./.devcontainer/docker/Dockerfile
+          target: ${{ matrix.target }}
+          build-args: |
+            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ github.sha }}
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: baobab-dev:scan
+          outputs: ${{ matrix.target == 'final' && format('type=oci,dest={0}/scan-image-final.tar', runner.temp) || 'type=docker' }}
+          cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
+
+      # Cache Trivy vulnerability database
+      # Trivy re-downloads its ~500MB+ DB on every scan by default.
+      # trivy-action's own bundled `actions/cache` isn't SHA-pinned (fails
+      # the org's action-pinning policy), so this uses our own SHA-pinned
+      # `actions/cache` call instead. One day-scoped key
+      # (`cache-trivy-<date>`, `cache-trivy-` restore-key prefix) is shared
+      # across BOTH matrix legs AND every trigger (PR/branch/tag) — the DB
+      # isn't architecture-specific, so whichever leg or trigger runs first
+      # each day populates the cache everything else that day reuses.
+      - name: Determine cache date
+        id: cache-date
+        run: echo "date=$(date -u +'%Y-%m-%d')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Trivy vulnerability database
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.TRIVY_CACHE_DIR }}
+          key: cache-trivy-${{ steps.cache-date.outputs.date }}
+          restore-keys: |
+            cache-trivy-
+
+      # Determine Trivy DB skip flags
+      # Unconditionally passing --skip-db-update/--skip-java-db-update
+      # breaks the very first run (or any genuine cache miss) with "cannot
+      # be specified on the first run" — there's no local DB yet to skip.
+      # This checks what actually landed on disk (not just the cache
+      # step's hit/miss verdict — a restore-keys prefix match still
+      # populates the dir while reporting cache-hit: false) and only emits
+      # the flag for a DB that's genuinely present. Output feeds the Trivy
+      # step below via env var, so an empty result contributes zero words.
+      - name: Determine Trivy DB skip flags
+        id: trivy-db-cache-state
+        run: |
+          set -euo pipefail
+          SKIP_FLAGS=""
+
+          if [ -d "${TRIVY_CACHE_DIR}/db" ] && \
+             [ -n "$(find "${TRIVY_CACHE_DIR}/db" -type f -print -quit 2>/dev/null)" ]; then
+            SKIP_FLAGS="${SKIP_FLAGS} --skip-db-update"
+          fi
+
+          if [ -d "${TRIVY_CACHE_DIR}/java-db" ] && \
+             [ -n "$(find "${TRIVY_CACHE_DIR}/java-db" -type f -print -quit 2>/dev/null)" ]; then
+            SKIP_FLAGS="${SKIP_FLAGS} --skip-java-db-update"
+          fi
+
+          echo "flags=${SKIP_FLAGS}" >> "$GITHUB_OUTPUT"
+
+      # Security Vulnerability Gate (Trivy)
+      # Scans for OS/library CVEs; exits 1 on unpatched HIGH/CRITICAL,
+      # blocking publish. Installed via a direct checksummed download
+      # rather than aquasecurity/trivy-action: that composite action calls
+      # aquasecurity/setup-trivy and actions/cache pinned by TAG in its own
+      # source — outside this file's control, and rejected by the org's
+      # "actions pinned to full commit SHA" policy transitively (confirmed
+      # via a real failed run). A plain `run:` step has no `uses:` for that
+      # policy to reject, and matches the checksummed-download pattern used
+      # throughout this project. SHA256s below are from Trivy's own
+      # checksums.txt (GitHub's release-asset digest API was rate-limited
+      # at verification time; live-verified via a full download+sha256sum).
+      - name: Install Trivy
+        env:
+          TRIVY_VERSION: "0.73.0"
+        run: |
+          set -euo pipefail
+          case "${{ matrix.platform }}" in
+            linux/amd64) ASSET="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"; SHA256="2edd39da482bb4e9831962487b68f68e3928ec3137794757f54d00383d79547b" ;;
+            linux/arm64) ASSET="trivy_${TRIVY_VERSION}_Linux-ARM64.tar.gz"; SHA256="13833d97e8a1a5367471c372a173180157f593bece570e20d5d925fef552f5dd" ;;
+            *) echo "::error::Unsupported platform ${{ matrix.platform }} for Trivy install"; exit 1 ;;
+          esac
+
+          curl -fsSL -o "${ASSET}" "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${ASSET}"
+          echo "${SHA256}  ${ASSET}" | sha256sum -c -
+          tar -xzf "${ASSET}" trivy
+          chmod +x trivy
+          sudo mv trivy /usr/local/bin/trivy
+          trivy --version
+
+      # Flags (Trivy 0.73.0): `--pkg-types` replaces deprecated
+      # `--vuln-type` (renamed v0.54.0). `--scanners vuln,secret` is
+      # explicit rather than relying on Trivy's default set. Skip flags
+      # come from `${TRIVY_SKIP_FLAGS}` (never hardcoded — see "Determine
+      # Trivy DB skip flags" above). `--skip-version-check` drops Trivy's
+      # own unrelated network check. Not tag-gated (see "SECURITY SCAN
+      # TRIGGER POLICY" above): this is now the primary gate on every
+      # PR/`main` push, with the tag push re-running it as defense-in-depth.
+      #
+      # Scan target: `final` reads the OCI tarball written by "Build local
+      # single-manifest image for scanning" above via `--input` (no daemon
+      # image to name); every other target scans the LOCAL `baobab-dev:scan`
+      # image by name, not the registry digest — see "TRIVY SCAN TARGET"
+      # above. No `--platform` needed either way since a local
+      # single-manifest source has nothing to disambiguate. The tarball is
+      # removed right after the scan — nothing later in this job needs it,
+      # and `final` is the one target where every byte of headroom matters
+      # (see the previous step's comment on the disk-quota root cause).
+      - name: Scan built container with Trivy
+        env:
+          # Read via shell var (not interpolated inline) so an empty value contributes zero words, not a blank arg.
+          TRIVY_SKIP_FLAGS: ${{ steps.trivy-db-cache-state.outputs.flags }}
+        run: |
+          set -euo pipefail
+          if [[ "${{ matrix.target }}" == "final" ]]; then
+            SCAN_SOURCE_ARGS=(--input "${{ runner.temp }}/scan-image-final.tar")
+          else
+            SCAN_SOURCE_ARGS=(baobab-dev:scan)
+          fi
+
+          trivy image \
+            --scanners vuln,secret \
+            ${TRIVY_SKIP_FLAGS} \
+            --skip-files "**/corepack/**,**/cacache/**,**/flutter_web_sdk/**/dart_sdk.js,**/devtools/**" \
+            --pkg-types os,library \
+            --severity CRITICAL,HIGH \
+            --exit-code 1 \
+            --ignore-unfixed \
+            --skip-version-check \
+            --format table \
+            "${SCAN_SOURCE_ARGS[@]}"
+
+          if [[ "${{ matrix.target }}" == "final" ]]; then
+            rm -f "${{ runner.temp }}/scan-image-final.tar"
+          fi
+
+      # Container Smoke Test (final — tests the actual to-be-published image)
+      # Still tag-gated and now also final-only: steps.build.outputs.digest
+      # only resolves to something pullable once the real build's `push:`
+      # is true, i.e. a tag push AND target == final. Tests the actual
+      # to-be-published image, not the local `baobab-dev:scan` image Trivy
+      # scans.
+      - name: Execute container smoke test (final)
+        if: matrix.target == 'final' && matrix.platform == 'linux/amd64' && needs.sanity-check.outputs.is_release == 'true'
+        run: |
+          docker run --rm \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }} \
+            baobab-verify
+
+      # Container Smoke Test (every non-final target — local scan image)
+      # Runs against the already-`load: true`-ed local `baobab-dev:scan`
+      # image rather than the registry digest, so it needs no tag gating
+      # and no registry auth — cheap enough to run on every PR/push, not
+      # just at publish time. `final` gets an additional registry-digest
+      # smoke test above since that path already existed; frontend,
+      # frontend-e2e, and (2026-09-03) infra all push for real too but
+      # don't have an equivalent registry-digest smoke test of their own —
+      # this local check still validates FUNCTIONAL correctness
+      # (BAOBAB_BUILD_PROFILE gating, right tools present), just not the
+      # exact bytes GHCR served. Genuinely target-agnostic (`!= 'final'`,
+      # not an enumerated list) — a future target needs no change here.
+      - name: Execute container smoke test (non-final targets)
+        if: matrix.target != 'final' && matrix.platform == 'linux/amd64'
+        run: |
+          docker run --rm baobab-dev:scan baobab-verify
+
+  # Job 3: Manifest Creation, OIDC Cosign Signing & Release Attestation
+  # Merges per-arch images into a multi-arch OCI index, applies keyless
+  # Cosign signatures/attestations via OIDC, and creates a GitHub Release.
+  # Gated to `v*.*.*` tag pushes only (see PUBLISH TRIGGER POLICY above).
+  publish:
+    name: "Publish Multi-Arch Manifest & Cosign Sign (${{ matrix.target }})"
+    needs: [build, sanity-check]
+    if: needs.sanity-check.outputs.is_release == 'true'
+
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    # TIER 2 (baobab-dev-v1_1_0-release-plan-amended.md; ADR-0001): matrix
+    # over target instead of a single final-only run. All three targets
+    # publish now — final+frontend proved this split on tag v1.1.0;
+    # frontend-e2e completes it in this pass. `infra` joins the matrix
+    # 2026-09-03 (nabhold/infrastructure local development + testing
+    # proposal) — no other change needed in this job: the tag-suffix logic
+    # in "Extract Docker tagging metadata" below and the "Container Smoke
+    # Test (frontend / frontend-e2e — local scan image)" step in the build
+    # job above are both already written generically for "any non-final
+    # target", not enumerated per target. GitHub Release creation was
+    # REMOVED from this job entirely and moved to a new `release` job
+    # below: with matrix legs running in parallel, each independently
+    # creating/publishing "the" release for this tag would race — multiple
+    # legs concurrently calling `gh release edit --draft=false` on the same
+    # tag is a real correctness bug, not a style concern. This job now only
+    # publishes its own target's image and exports what the `release` job
+    # needs to build one combined release afterward.
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - final
+          - frontend
+          - frontend-e2e
+          - infra
+
+    # contents: write REMOVED — this job no longer creates the GitHub
+    # Release (see note above). packages: write — publish the multi-arch
+    # OCI index. id-token: write — CRITICAL for keyless Cosign signing via
+    # GitHub OIDC.
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.sanity-check.outputs.checkout_ref }}
+
+      # Same reasoning as build's identical step: this job's checkout is
+      # pinned to the resolved release context ref, which for a
+      # workflow_dispatch rebuild is the target tag, not the branch the
+      # dispatch was run against — and can't see sanity-check's own-run
+      # commit regardless. Needed so "Create GitHub Release" has
+      # versions.lock to attach.
+      - name: Download resolved lockfile
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: resolved-lockfile
+          path: .
+
+      - name: Authenticate to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Only semver + `latest` patterns are needed: this job's `if:` above
+      # already guarantees a `v*.*.*` tag, so branch/sha tag types would
+      # never match, and `latest`'s `enable:` needs no extra tag-ref guard.
+
+      # FIX: publish job previously had no Buildx setup, relying on the runner's older bundled buildx CLI for imagetools create/inspect — the likely cause of missing provenance in the merged index.
+      - name: Setup Docker Buildx Engine
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      # FIX (found via a live, reproducible failure — not caught by the
+      # earlier verification): `flavor.suffix` correctly applies to the
+      # EXPLICIT `type=raw,value=latest` rule below, as verified earlier —
+      # but docker/metadata-action ALSO generates its own SEPARATE,
+      # IMPLICIT auto-latest tag by default, independent of that rule, and
+      # `suffix` does NOT apply to it unless `onlatest=true` is set. Never
+      # explicitly disabling that implicit tag (via `latest=false`) meant
+      # BOTH fired for every non-final target: the correct
+      # `latest-<target>` from the explicit rule, AND an accidental bare
+      # `latest` from the implicit one — so `final` and every other target
+      # were all concurrently pushing to the SAME `ghcr.io/.../baobab-dev:
+      # latest` tag in parallel matrix legs. This is a genuine, 100%-
+      # reproducible race condition, not a timing issue — confirmed by two
+      # consecutive full-retry-exhaustion failures with real backoff delays
+      # that changed nothing, which is exactly what a real collision looks
+      # like versus a transient one. `latest=false` disables the implicit
+      # tag entirely; only the explicit, correctly-suffixed rule produces a
+      # `latest` tag now.
+      # crane (google/go-containerregistry) fetches raw OCI blobs by digest
+      # and constructs OCI indices with full manual control — buildx has no
+      # equivalent for either. MOVED earlier in this job (was originally
+      # installed just before the provenance-extraction step, where it was
+      # first needed for `crane blob`) because Option B (below) now needs
+      # it for the manifest-merge step too, not just extraction.
+      - name: Install crane CLI tool
+        env:
+          CRANE_VERSION: "0.21.9"
+          CRANE_SHA256: "5c16d8ddb971cb1d5e6ed8b1e743da8224414eeba2c2762d8f1a61b2f095699e"
+        run: |
+          set -euo pipefail
+          ASSET="go-containerregistry_Linux_x86_64.tar.gz"
+          curl -fsSL -o "${ASSET}" "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/${ASSET}"
+          echo "${CRANE_SHA256}  ${ASSET}" | sha256sum -c -
+          tar -xzf "${ASSET}" crane
+          chmod +x crane
+          sudo mv crane /usr/local/bin/crane
+          crane version
+
+      # EXTRACTED (2026-08-28): the retry-and-verify loop both extraction
+      # steps below need is now scripts/fetch-complete-oci-index.sh — see
+      # that script's header for the full rationale. Made executable once
+      # here since both steps use it.
+      - name: Make fetch-complete-oci-index.sh executable
+        run: chmod +x scripts/fetch-complete-oci-index.sh
+
+      - name: Extract Docker tagging metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            latest=false
+            suffix=${{ matrix.target == 'final' && '' || format('-{0}', matrix.target) }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.sanity-check.outputs.release_tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.sanity-check.outputs.release_tag }}
+            type=semver,pattern={{major}},value=${{ needs.sanity-check.outputs.release_tag }}
+            type=raw,value=latest,enable=${{ !contains(needs.sanity-check.outputs.release_tag, '-') }}
+
+      # Download per-architecture digests exported by the build job — only
+      # THIS target's digests. Pattern includes matrix.target: without it,
+      # this would pull every other target's digests into the same merge,
+      # producing a manifest that mixed layers from different Dockerfile
+      # stages under one tag.
+      # FIX: 'digests-${{ matrix.target }}-*' over-matched — for
+      # matrix.target == frontend, that glob ALSO matched
+      # 'digests-frontend-e2e-amd64'/'-arm64' as a prefix, pulling
+      # frontend-e2e's per-arch digests into frontend's merge. Confirmed
+      # live (v1.2.5-rc.3): 4 artifacts downloaded instead of 2, which fed
+      # 4 source indices (8 children after --flatten) into "Publish
+      # multi-architecture OCI manifest" below instead of 2 (4 children) —
+      # visible in that step's "existing manifest:" line count. The
+      # resulting index held two linux/amd64 image manifests, so the
+      # provenance-extraction step's single-result jq lookup for amd64
+      # silently returned multiple/no match, misreported as "missing
+      # attestation manifest for linux/amd64" on every retry.
+      #
+      # REGRESSION (v1.2.5-rc.5) from the first attempted fix: a `pattern: |`
+      # multi-line block does NOT give `actions/download-artifact` two
+      # patterns to OR together — that newline-separated-list behavior
+      # belongs to a different, unrelated tool (Azure Pipelines'
+      # DownloadPipelineArtifact task). This action's `pattern` input is
+      # documented as a single glob (see actions/download-artifact's own
+      # action.yml); a multi-line YAML block scalar produces ONE string
+      # containing a literal newline character, which cannot match any
+      # real artifact name. Confirmed live: "Total of 0 artifact(s)
+      # downloaded" across final, frontend, AND frontend-e2e in the same
+      # run — the resulting empty digests/ directory then hit the known
+      # (previously deferred, now fixed below) nullglob gap in "Publish
+      # multi-architecture OCI manifest"'s glob, which misreported the
+      # real zero as "found 1".
+      #
+      # Corrected to a SINGLE pattern using brace expansion — minimatch
+      # (the library this action uses) expands `{a,b}` by default
+      # (`nobrace` defaults to false) — verified directly against
+      # minimatch with this run's real artifact names before applying:
+      # exactly 2 matches per target, no cross-target collision, for all
+      # three of final/frontend/frontend-e2e.
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-${{ matrix.target }}-{amd64,arm64}
+          merge-multiple: true
+
+      # ------------------------------------------------------------------
+      # Merge per-architecture digests into a unified multi-arch OCI index
+      # ------------------------------------------------------------------
+      # OPTION B — replaces `docker buildx imagetools create`, which has a
+      # documented gap (docker/buildx#3433: "individual image manifests...
+      # dropped their related attestation manifests") dropping the
+      # attestation-manifest sibling for at least one platform when merging
+      # attestation-bearing index sources. Confirmed live against this
+      # exact pipeline: consistently linux/amd64, never linux/arm64, across
+      # three separate publish runs of the `frontend` target. Option A
+      # (exporting flat manifest digests instead, to route through buildx's
+      # referrers-API attestation-rediscovery path) was tried first and
+      # made things WORSE — 100% of legs failed instead of ~50% — ruling
+      # that path out entirely rather than just this specific symptom.
+      #
+      # `crane index append`'s `--flatten` defaults to true: since each
+      # `-m` source here is itself a 2-entry index (image manifest +
+      # attestation manifest, from the single-platform sbom/provenance-
+      # enabled push — see the build job's digest-export comment),
+      # `--flatten` means crane appends BOTH children of each source index
+      # into the new combined index, not the source index as one opaque
+      # entry. This is full manual control over the merge, independent of
+      # whatever internal buildx heuristic was dropping amd64's
+      # attestation — verified against go-containerregistry's own
+      # documented usage (cmd/crane/doc/crane_index_append.md), not
+      # inferred from buildx behavior this time.
+      #
+      # Only the PRIMARY tag is created via `index append` (which does the
+      # actual content push); every other tag (major.minor, major, latest)
+      # is applied afterward via `crane tag`, which retags an existing
+      # digest without re-uploading any content — far cheaper than
+      # re-running `index append` once per tag.
+      - name: Publish multi-architecture OCI manifest
+        id: create-manifest
+        env:
+          TAGS_JSON: ${{ steps.meta.outputs.json }}
+        run: |
+          set -euo pipefail
+          IMG="${REGISTRY}/${IMAGE_NAME}"
+
+          # nullglob: without it, a glob that matches ZERO files leaves the
+          # literal unexpanded pattern string as the array's sole element,
+          # so ${#DIGEST_FILES[@]} reports 1 even when the real count is 0.
+          # Confirmed live (v1.2.5-rc.5): a broken "Download digests"
+          # pattern (see that step's comment) downloaded 0 real files for
+          # every target, but this check reported "found 1" for all three —
+          # masking a complete match failure as a subtler off-by-one and
+          # sending investigation in the wrong direction. Also tightened to
+          # an exact count: 2 is the only valid outcome (amd64 + arm64,
+          # never more, never fewer), so `-ne 2` catches an over-match too,
+          # not just an under-match.
+          shopt -s nullglob
+          DIGEST_FILES=("${{ runner.temp }}/digests"/*)
+
+          # Guard against a silently incomplete manifest: fail loudly rather
+          # than publishing a "multi-arch" image that only actually supports
+          # one architecture.
+          if [[ ${#DIGEST_FILES[@]} -ne 2 ]]; then
+            echo "::error:: Expected exactly 2 architecture digests (amd64 + arm64), found ${#DIGEST_FILES[@]}."
+            echo "::error:: Check the 'build' job's per-platform 'Upload digest' steps, and this job's 'Download digests' step's pattern."
+            exit 1
+          fi
+
+          DIGEST_ARGS=()
+          for f in "${DIGEST_FILES[@]}"; do
+            DIGEST_ARGS+=(-m "${IMG}@sha256:$(basename "$f")")
+          done
+
+          mapfile -t ALL_TAGS < <(echo "${TAGS_JSON}" | jq -r '.tags[]')
+
+          if [[ ${#ALL_TAGS[@]} -eq 0 ]]; then
+            echo "::error:: docker/metadata-action produced zero tags — nothing to publish."
+            exit 1
+          fi
+
+          PRIMARY_TAG="${ALL_TAGS[0]}"
+
+          crane index append "${DIGEST_ARGS[@]}" -t "${PRIMARY_TAG}"
+
+          DIGEST=$(crane digest "${PRIMARY_TAG}")
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+          # Apply every remaining tag to the same digest just created.
+          for full_tag in "${ALL_TAGS[@]:1}"; do
+            [[ -z "${full_tag}" ]] && continue
+            short_tag="${full_tag##*:}"
+            crane tag "${IMG}@${DIGEST}" "${short_tag}"
+          done
+
+      # DEBUG: confirms the attestation-manifest siblings survived crane's merge, for both platforms this time.
+      - name: Debug — inspect merged manifest before extracting provenance
+        if: vars.BAOBAB_PUBLISH_DEBUG == 'true'
+        env:
+          DIGEST: ${{ steps.create-manifest.outputs.digest }}
+        run: |
+          echo "::group::Full crane manifest of merged index"
+          crane manifest "${REGISTRY}/${IMAGE_NAME}@${DIGEST}" | jq '.'
+          echo "::endgroup::"
+
+      # Extract per-platform SLSA provenance predicates
+      # BuildKit already computed a full, genuine SLSA v1 predicate per
+      # platform in the `build` job (`provenance: true`); it's embedded,
+      # unsigned, in the OCI index `crane index append` just merged (see
+      # that step's comment for why crane replaced `imagetools create`).
+      # This step extracts exactly that — no new content invented — so the
+      # "Attest container image provenance" step below signs REAL build
+      # data. cosign has no visibility into BuildKit's native embedded
+      # attestation (different OCI convention than cosign's own
+      # `sha256-<digest>.att`; `cosign download attestation` 404s against
+      # it), so reading the raw index manually is the only way to hand
+      # that content to cosign. Provenance is keyed per-platform, hence two
+      # predicate files and two DSSE statements attested against the same
+      # multi-arch digest (cosign appends rather than overwrites, so both
+      # coexist and either satisfies scripts/verify-image.sh's check).
+      # REWRITTEN: buildx's convenience `.Provenance` map came back empty
+      # for BOTH platforms after `imagetools create` (a known gap in that
+      # roundtrip, docker/docs#23366). Manifest merging was later replaced
+      # entirely with `crane index append` (see that step's comment — a
+      # separate, confirmed buildx bug dropped attestation siblings
+      # outright, not just the convenience map). This walks the raw OCI
+      # index manually via `crane manifest` — the SAME tool that built it,
+      # not buildx's `imagetools inspect`, which produced an incomplete
+      # view of a crane-constructed index even though the underlying
+      # registry content was correct (confirmed: this exact "No attestation
+      # manifest found" error persisted after switching the merge to crane,
+      # until the READ side was also switched to crane here). Never
+      # fabricates a predicate; prefers the SLSA v1.0 predicate layer,
+      # falling back to v0.2 only if v1 is genuinely absent.
+      - name: Extract per-platform SLSA provenance predicates
+        env:
+          DIGEST: ${{ steps.create-manifest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IMG="${REGISTRY}/${IMAGE_NAME}"
+
+          # FIX: a live release run (v1.1.0, publishing 3 targets instead of
+          # 2 — 6 concurrent push-by-digest writes to this same repository
+          # instead of 4) saw the `frontend` leg fail here with "No
+          # attestation manifest found for linux/amd64". Root-caused to two
+          # compounding issues, both fixed: (1) `imagetools create` dropping
+          # an attestation sibling during merge (switched to `crane index
+          # append`), and (2) `imagetools inspect` producing an incomplete
+          # read of the resulting crane-built index even after (1) was
+          # fixed (switched reads to `crane manifest`). The fetch-and-retry
+          # loop that guards against both this and genuine registry
+          # propagation delays now lives in scripts/fetch-complete-oci-index.sh
+          # (EXTRACTED 2026-08-28 — see that script's header for the full
+          # rationale) — this step and "Extract per-platform SPDX SBOM
+          # predicates" below both call it rather than duplicating the loop.
+          MANIFEST_JSON=$(scripts/fetch-complete-oci-index.sh "${IMG}" "${DIGEST}" \
+            "the 'build' job's 'Build container image with SBOM & SLSA Provenance' step")
+
+          for PLATFORM in linux/amd64 linux/arm64; do
+            ARCH="${PLATFORM#linux/}"
+            FILE="provenance-$(basename "${PLATFORM}").json"
+            TYPE_FILE="provenance-type-$(basename "${PLATFORM}").txt"
+
+            # Locate this platform's own image-manifest digest within the merged index.
+            IMAGE_DIGEST=$(echo "${MANIFEST_JSON}" | jq -r --arg arch "${ARCH}" \
+              '.manifests[] | select(.platform.architecture == $arch and .platform.os == "linux") | .digest')
+
+            if [[ -z "${IMAGE_DIGEST}" || "${IMAGE_DIGEST}" == "null" ]]; then
+              echo "::error:: No image manifest found for ${PLATFORM} in the merged index ${IMG}@${DIGEST}."
+              exit 1
+            fi
+
+            # Locate the sibling attestation-manifest that references this platform's image manifest.
+            ATTESTATION_DIGEST=$(echo "${MANIFEST_JSON}" | jq -r --arg ref "${IMAGE_DIGEST}" \
+              '.manifests[] | select(.annotations."vnd.docker.reference.type" == "attestation-manifest" and .annotations."vnd.docker.reference.digest" == $ref) | .digest')
+
+            if [[ -z "${ATTESTATION_DIGEST}" || "${ATTESTATION_DIGEST}" == "null" ]]; then
+              echo "::error:: No attestation manifest found for ${PLATFORM} (image digest ${IMAGE_DIGEST}) on ${IMG}@${DIGEST}."
+              echo "::error:: Check the 'build' job's 'Build container image with SBOM & SLSA Provenance' step."
+              exit 1
+            fi
+
+            ATTESTATION_RAW=$(crane manifest "${IMG}@${ATTESTATION_DIGEST}")
+
+            # Prefer the real SLSA v1.0 in-toto layer; fall back to v0.2 only if BuildKit genuinely didn't emit v1.
+            PREDICATE_DIGEST=$(echo "${ATTESTATION_RAW}" | jq -r \
+              '.layers[] | select(.annotations."in-toto.io/predicate-type" == "https://slsa.dev/provenance/v1") | .digest')
+            PREDICATE_TYPE="slsaprovenance1"
+
+            if [[ -z "${PREDICATE_DIGEST}" || "${PREDICATE_DIGEST}" == "null" ]]; then
+              PREDICATE_DIGEST=$(echo "${ATTESTATION_RAW}" | jq -r \
+                '.layers[] | select(.annotations."in-toto.io/predicate-type" == "https://slsa.dev/provenance/v0.2") | .digest')
+              PREDICATE_TYPE="slsaprovenance"
+              if [[ -n "${PREDICATE_DIGEST}" && "${PREDICATE_DIGEST}" != "null" ]]; then
+                echo "::warning:: ${PLATFORM}: SLSA v1.0 provenance layer not found; falling back to v0.2."
+              fi
+            fi
+
+            if [[ -z "${PREDICATE_DIGEST}" || "${PREDICATE_DIGEST}" == "null" ]]; then
+              echo "::error:: No SLSA provenance layer (v1.0 or v0.2) found in attestation manifest ${IMG}@${ATTESTATION_DIGEST} for ${PLATFORM}."
+              echo "::error:: Check the 'build' job's 'provenance: mode=max,version=v1' setting."
+              exit 1
+            fi
+
+            # Fetch the real in-toto statement blob and isolate the SLSA predicate object.
+            crane blob "${IMG}@${PREDICATE_DIGEST}" | jq '.predicate' > "${FILE}"
+            echo "${PREDICATE_TYPE}" > "${TYPE_FILE}"
+
+            if [[ ! -s "${FILE}" ]] || [[ "$(cat "${FILE}")" == "null" ]]; then
+              echo "::error:: Fetched in-toto statement for ${PLATFORM} but its .predicate field was empty/null (blob ${PREDICATE_DIGEST})."
+              exit 1
+            fi
+          done
+      # Keyless OIDC Cosign Infrastructure
+      # Installs Cosign; signs/attests via short-lived GitHub OIDC tokens
+      # instead of long-lived static keys.
+      #
+      # UPGRADED (2026-08-23): cosign-installer v3.8.0 -> v4.1.2, forced by
+      # a genuine version-scheme trap: v3.8.0 was the INSTALLER ACTION's own
+      # version, not the cosign CLI's — sigstore/cosign-installer's own
+      # release notes state "cosign-installer v3.x cannot be used to install
+      # Cosign v3.x; you must upgrade to cosign-installer v4 in order to use
+      # Cosign v3." This job had been running some cosign v2.x release the
+      # whole time. This surfaced because `cosign attest --signing-config`
+      # (only available from cosign v2.6.0 on, on-by-default from v3.0 on)
+      # returned "unknown flag" on the old pin — that specific flag is no
+      # longer used anywhere in this job (see "Attest container image SBOM"
+      # below for why), but the underlying version-confusion bug was real
+      # regardless, and this upgrade stands on its own merits: correct,
+      # current cosign, not tied to any one flag's fate.
+      #
+      # No `cosign-release:` override: cosign-installer's own README
+      # explicitly recommends AGAINST pinning a specific Cosign version
+      # unless you have a specific reason to run an older one — one fewer
+      # version to independently track. Dependabot's existing
+      # `github-actions` ecosystem keeps this action's own SHA (and
+      # therefore its bundled Cosign default) current and reviewable, which
+      # already matches this project's "explicit, reviewed version bumps"
+      # convention without a second manual pin.
+      #
+      # RESOLVED (2026-08-23): Cosign v3 defaults to storing
+      # signatures/attestations as OCI 1.1 Referrers-API artifacts instead
+      # of the legacy `sha256-<digest>.sig`/`.att` tag convention this
+      # pipeline relied on under v2.x. GHCR's Referrers API support couldn't
+      # be confirmed from documentation alone — sources found during this
+      # investigation conflicted (some recent reports said GHCR supports
+      # read+write of referrers; others as recent as mid-2025 said it did
+      # not). Settled empirically instead of by further research: the
+      # v1.0.0-rc.2 run signed, attested (signature + SLSA provenance + SPDX
+      # SBOM), and then "Verify published image signature & attestations"
+      # independently re-verified all three from a cold `cosign
+      # verify`/`verify-attestation` — full round trip, real success, not
+      # inferred. GHCR's Referrers API support is fine for this pipeline's
+      # purposes. Leaving this note in place as the record of how that was
+      # actually confirmed, in case it's ever in doubt again after a future
+      # cosign or GHCR change.
+      - name: Install Cosign CLI tool
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      
+      # NEW: make the shared cosign-retry wrapper executable once, here — all three cosign-calling steps below depend on it.
+      - name: Make cosign-retry.sh executable
+        run: chmod +x scripts/cosign-retry.sh  
+
+      # SIMPLIFIED: retry logic now lives in scripts/cosign-retry.sh, shared with the two attest steps below.
+      - name: Sign container image via Keyless OIDC Identity
+        env:
+          DIGEST: ${{ steps.create-manifest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IMG="${REGISTRY}/${IMAGE_NAME}"
+
+          scripts/cosign-retry.sh cosign sign --yes \
+            -a "repo=${{ github.repository }}" \
+            -a "workflow=${{ github.workflow }}" \
+            -a "sha=${{ github.sha }}" \
+            "${IMG}@${DIGEST}"
+      # Attest container image provenance
+      # Cosign-signs the two per-platform predicates extracted above (two
+      # calls — see "Extract per-platform SLSA provenance predicates").
+      # `-a`/`--annotation` is deliberately omitted here (unlike `cosign
+      # sign` above): `cosign attest` doesn't accept it — confirmed absent
+      # from `cosign attest`'s own flag list on both the old v2.x pin and
+      # the current v3.1.x line ("unknown shorthand flag: 'a' in -a", hit
+      # on the v1.0.0-rc.2 run that surfaced this investigation) — this is
+      # not a version-specific gap. `--type slsaprovenance1`
+      # (the v1 predicate shorthand) is deliberate, not cosmetic:
+      # scripts/verify-image.sh's `cosign verify-attestation` resolves
+      # plain `slsaprovenance` to the DIFFERENT v0.2 URI, so attesting
+      # under v1 while verifying under the v0.2 alias would never match.
+      # scripts/verify-image.sh has been updated to check
+      # `--type slsaprovenance1` to match.
+      # This step deliberately stays on cosign's default (TUF-distributed,
+      # currently Rekor v1) signing config — it already succeeds; only the
+      # SBOM attest step below needs the Rekor v2 override.
+      # UPDATED: cosign needs the predicate type this run actually resolved per platform (v1, or the rare v0.2 fallback), read from the sidecar file the extraction step above wrote — no longer hardcoded to slsaprovenance1.
+      # SIMPLIFIED: retry logic now lives in scripts/cosign-retry.sh, shared with sign and SBOM attest.
+      - name: Attest container image provenance
+        env:
+          DIGEST: ${{ steps.create-manifest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IMG="${REGISTRY}/${IMAGE_NAME}"
+
+          for PLATFORM in linux/amd64 linux/arm64; do
+            FILE="provenance-$(basename "${PLATFORM}").json"
+            TYPE_FILE="provenance-type-$(basename "${PLATFORM}").txt"
+            PREDICATE_TYPE="$(cat "${TYPE_FILE}")"
+
+            scripts/cosign-retry.sh cosign attest --yes \
+              --type "${PREDICATE_TYPE}" \
+              --predicate "${FILE}" \
+              "${IMG}@${DIGEST}"
+          done
+      # Extract & Attest SPDX SBOM
+      # Same manual-extraction technique as SLSA provenance above — buildx's
+      # `.SBOM` map has the identical create+inspect roundtrip gap as
+      # `.Provenance` (sigstore/cosign#3030). BuildKit's SBOM layer uses
+      # predicate type "https://spdx.dev/Document" exactly, with no
+      # version-suffix ambiguity, so an exact match is safe here.
+      #
+      # FILE-LEVEL TRIM (2026-08-23): the structural-breakdown diagnostic
+      # confirmed the ~26.6MB SBOM was 87.3% file-level cataloging (22,588
+      # SPDX `files` entries + their ownership `relationships`) and only
+      # 12.7% actual packages (2,783, fully declared). Syft has an official
+      # setting for exactly this detail-level choice —
+      # `file.metadata.selection: none` / env `SYFT_FILE_METADATA_SELECTION`
+      # — but BuildKit's native SBOM generator (docker/buildkit-syft-scanner)
+      # does not expose Syft config passthrough (confirmed: open upstream
+      # issue, docker/buildkit-syft-scanner#130, reporter's own reading of
+      # the source says the config is hardcoded; the only scanner build args
+      # BuildKit documents are BUILDKIT_SBOM_SCAN_STAGE/_CONTEXT, which
+      # control scan SCOPE, not detail level). Reproduced the same effect
+      # here as post-processing instead: strips the `files` array and any
+      # `relationships` entry that references a file element, leaves
+      # `packages` completely untouched — verified below, not assumed.
+      # `.comment` is added to the SPDX document itself so any consumer of
+      # this attestation sees the omission disclosed in-band, not silently.
+      - name: Extract per-platform SPDX SBOM predicates
+        env:
+          DIGEST: ${{ steps.create-manifest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IMG="${REGISTRY}/${IMAGE_NAME}"
+
+          # Same fix as the provenance-extraction step above (see its
+          # comment for the full incident writeup) — this step reads the
+          # identical merged index and can fail the same way for the same
+          # reasons. Shared with that step via
+          # scripts/fetch-complete-oci-index.sh rather than duplicating the
+          # retry loop a second time (EXTRACTED 2026-08-28).
+          MANIFEST_JSON=$(scripts/fetch-complete-oci-index.sh "${IMG}" "${DIGEST}" \
+            "the 'build' job's SBOM generation")
+
+          for PLATFORM in linux/amd64 linux/arm64; do
+            ARCH="${PLATFORM#linux/}"
+            FILE="sbom-$(basename "${PLATFORM}").json"
+            RAW_FILE="sbom-$(basename "${PLATFORM}")-raw.json"
+
+            IMAGE_DIGEST=$(echo "${MANIFEST_JSON}" | jq -r --arg arch "${ARCH}" \
+              '.manifests[] | select(.platform.architecture == $arch and .platform.os == "linux") | .digest')
+
+            if [[ -z "${IMAGE_DIGEST}" || "${IMAGE_DIGEST}" == "null" ]]; then
+              echo "::error:: No image manifest found for ${PLATFORM} in the merged index ${IMG}@${DIGEST}."
+              exit 1
+            fi
+
+            ATTESTATION_DIGEST=$(echo "${MANIFEST_JSON}" | jq -r --arg ref "${IMAGE_DIGEST}" \
+              '.manifests[] | select(.annotations."vnd.docker.reference.type" == "attestation-manifest" and .annotations."vnd.docker.reference.digest" == $ref) | .digest')
+
+            if [[ -z "${ATTESTATION_DIGEST}" || "${ATTESTATION_DIGEST}" == "null" ]]; then
+              echo "::error:: No attestation manifest found for ${PLATFORM} (image digest ${IMAGE_DIGEST}) on ${IMG}@${DIGEST}."
+              exit 1
+            fi
+
+            ATTESTATION_RAW=$(crane manifest "${IMG}@${ATTESTATION_DIGEST}")
+
+            PREDICATE_DIGEST=$(echo "${ATTESTATION_RAW}" | jq -r \
+              '.layers[] | select(.annotations."in-toto.io/predicate-type" == "https://spdx.dev/Document") | .digest')
+
+            if [[ -z "${PREDICATE_DIGEST}" || "${PREDICATE_DIGEST}" == "null" ]]; then
+              echo "::error:: No SPDX SBOM layer found in attestation manifest ${IMG}@${ATTESTATION_DIGEST} for ${PLATFORM}."
+              echo "::error:: Check the 'build' job's 'sbom: true' setting."
+              exit 1
+            fi
+
+            crane blob "${IMG}@${PREDICATE_DIGEST}" | jq '.predicate' > "${RAW_FILE}"
+
+            if [[ ! -s "${RAW_FILE}" ]] || [[ "$(cat "${RAW_FILE}")" == "null" ]]; then
+              echo "::error:: Fetched in-toto statement for ${PLATFORM} but its .predicate field was empty/null (blob ${PREDICATE_DIGEST})."
+              exit 1
+            fi
+
+            RAW_PACKAGE_COUNT=$(jq '(.packages // []) | length' "${RAW_FILE}")
+
+            # Strip file-level entries + their ownership relationships only.
+            # Builds a hash-set of file SPDXIDs first (single pass) so the
+            # relationship filter is O(1) per lookup rather than an
+            # index()-per-relationship scan against 20k+ file IDs.
+            jq '
+              (reduce (.files // [])[] as $f ({}; .[$f.SPDXID] = true)) as $file_set
+              | del(.files)
+              | .relationships = ((.relationships // []) | map(select(
+                  ($file_set[.spdxElementId] // false) == false and
+                  ($file_set[.relatedSpdxElement] // false) == false
+                )))
+              | .comment = "File-level cataloging (SPDX '\''files'\'' array and per-file ownership relationships) intentionally omitted from this attestation to keep the predicate within Sigstore Rekor'\''s practical size limits. Every package below remains fully declared with complete purl/version/license metadata — nothing was removed from the package list, only the per-file evidence layer beneath it. Re-scan the published image directly with Syft (file.metadata.selection: all) for file-level detail."
+            ' "${RAW_FILE}" > "${FILE}"
+
+            TRIMMED_PACKAGE_COUNT=$(jq '(.packages // []) | length' "${FILE}")
+
+            # Hard guarantee, not an assumption: the trim above must never
+            # touch .packages. If these counts ever diverge, something is
+            # structurally wrong with the jq above — fail loudly rather than
+            # attest a predicate that may have silently lost package data.
+            if [[ "${RAW_PACKAGE_COUNT}" != "${TRIMMED_PACKAGE_COUNT}" ]]; then
+              echo "::error:: Package count changed during file-level trim for ${PLATFORM}: ${RAW_PACKAGE_COUNT} -> ${TRIMMED_PACKAGE_COUNT}. This should be structurally impossible. Refusing to attest — investigate the trim jq in this step before re-running."
+              exit 1
+            fi
+
+            RAW_BYTES=$(wc -c < "${RAW_FILE}")
+            TRIMMED_BYTES=$(wc -c < "${FILE}")
+            echo "::notice:: ${PLATFORM}: SBOM trimmed ${RAW_BYTES} -> ${TRIMMED_BYTES} bytes (${RAW_PACKAGE_COUNT} packages, unchanged)."
+
+            rm -f "${RAW_FILE}"
+          done
+
+      # ------------------------------------------------------------------------
+      # DIAGNOSTIC (kept permanently as a release-time sanity check, not just
+      # for this investigation): reports the size of whatever sbom-*.json and
+      # provenance-*.json ended up on disk. As of the 2026-08-23 file-level
+      # trim in "Extract per-platform SPDX SBOM predicates" above, that means
+      # the ALREADY-TRIMMED SBOM (originally ~26.6MB/~26.7MB before the trim,
+      # ~120x provenance's ~223KB — see that step's comment for the full
+      # root-cause analysis of why the untrimmed size broke Rekor v1). This
+      # table is what tells us, on every future run, whether the trimmed size
+      # still stays comfortably clear of size trouble — not a one-time check.
+      # ------------------------------------------------------------------------
+      - name: "DIAGNOSTIC: report SBOM/provenance predicate sizes vs. Rekor's 100KB limit"
+        run: |
+          set -euo pipefail
+          REKOR_V1_LIMIT_BYTES=102400  # 100KB — Rekor's documented public-instance attestation upload limit (empirically, the real ceiling for our failure sits somewhere between this and 26MB — see thread history for full analysis)
+
+          {
+            echo "### 🔍 DIAGNOSTIC — predicate payload sizes vs. Rekor's 100KB public-instance limit"
+            echo ""
+            echo "| File | Bytes | KB | Over 100KB limit? |"
+            echo "|---|---|---|---|"
+            for FILE in provenance-amd64.json provenance-arm64.json sbom-amd64.json sbom-arm64.json; do
+              if [[ -f "${FILE}" ]]; then
+                BYTES=$(wc -c < "${FILE}")
+                KB=$(( BYTES / 1024 ))
+                if (( BYTES > REKOR_V1_LIMIT_BYTES )); then
+                  FLAG="⚠️ **YES**"
+                else
+                  FLAG="no"
+                fi
+                echo "| \`${FILE}\` | ${BYTES} | ${KB} | ${FLAG} |"
+              else
+                echo "| \`${FILE}\` | _not found_ | — | — |"
+              fi
+            done
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # ------------------------------------------------------------------------
+      # DIAGNOSTIC: SBOM structural breakdown (2026-08-23)
+      # ------------------------------------------------------------------------
+      # Originally written to answer "what's consuming the ~26MB" before any
+      # trim existed — that investigation found 87.3% of the file was SPDX
+      # `files` entries + ownership `relationships`, only 12.7% actual
+      # packages, which directly led to the file-level trim now applied in
+      # "Extract per-platform SPDX SBOM predicates" above. Kept running here
+      # as a confirmation check, not just a historical artifact: this table
+      # should now show `files: 0` and the same package count/ecosystem
+      # breakdown as before the trim — if either one looks wrong on a given
+      # run (files > 0, or an ecosystem's package count changed), that's a
+      # sign the trim step's guard rail didn't catch something and needs
+      # attention before trusting this run's attestation.
+      # Only sbom-amd64.json is analyzed — arm64's composition should mirror
+      # it closely (same Dockerfile, same package set); re-run this step
+      # against sbom-arm64.json by hand if amd64's breakdown looks
+      # architecture-specific in a way that's surprising.
+      - name: "DIAGNOSTIC: SBOM structural breakdown by ecosystem"
+        run: |
+          set -euo pipefail
+          FILE="sbom-amd64.json"
+
+          if [[ ! -f "${FILE}" ]]; then
+            echo "::warning:: ${FILE} not found — skipping structural breakdown."
+            exit 0
+          fi
+
+          TOTAL_PACKAGES=$(jq '(.packages // []) | length' "${FILE}")
+          TOTAL_FILES=$(jq '(.files // []) | length' "${FILE}")
+          TOTAL_RELATIONSHIPS=$(jq '(.relationships // []) | length' "${FILE}")
+
+          # Per-package: [purl ecosystem scheme, serialized byte length of that package object].
+          # "unknown" catches packages with no purl externalRef at all.
+          jq -r '
+            .packages[]? as $p
+            | ( ($p.externalRefs // [])
+                | map(select(.referenceType == "purl"))
+                | (.[0].referenceLocator // "unknown")
+              ) as $purl
+            | ( if $purl == "unknown" then "unknown"
+                else ($purl | capture("^pkg:(?<s>[^/]+)/").s? // "unknown")
+                end
+              ) as $scheme
+            | [$scheme, ($p | tostring | length)] | @tsv
+          ' "${FILE}" > /tmp/pkg-by-scheme.tsv
+
+          # Aggregate: count + total bytes per ecosystem, sorted by bytes desc.
+          BY_SCHEME=$(awk -F'\t' '
+            { count[$1]++; bytes[$1]+=$2 }
+            END { for (s in count) printf "%s\t%d\t%d\n", s, count[s], bytes[s] }
+          ' /tmp/pkg-by-scheme.tsv | sort -t $'\t' -k3 -rn)
+
+          # Individually largest package entries (catches outliers — e.g. one
+          # entry with an unusually large embedded license/copyright blob —
+          # separately from "which ecosystem has the most packages").
+          # NOTE: `sort -rn | { head -15; cat >/dev/null; }` — not just `| head -15`.
+          # Under `set -o pipefail`, `head` closing the pipe after its 15 lines
+          # sends SIGPIPE to `sort` while it's still writing the remaining
+          # (unwanted) output, which makes `sort` exit non-zero and kills this
+          # whole step via `set -e` — confirmed live in this project's own CI
+          # (2026-08-23: "sort: write failed: 'standard output': Broken pipe",
+          # exit code 2). Draining the rest into /dev/null after `head` is done
+          # lets `sort` finish writing to a live reader every time.
+          TOP_PACKAGES=$(jq -r '
+            .packages[]?
+            | [ (. | tostring | length), .name, (.versionInfo // "?") ] | @tsv
+          ' "${FILE}" | sort -rn | { head -15; cat >/dev/null; })
+
+          {
+            echo "### 🔍 DIAGNOSTIC — SBOM structural breakdown (${FILE})"
+            echo ""
+            echo "**Totals:** ${TOTAL_PACKAGES} packages, ${TOTAL_FILES} file entries, ${TOTAL_RELATIONSHIPS} relationships"
+            echo ""
+            echo "#### By ecosystem (purl scheme)"
+            echo ""
+            echo "| Ecosystem | Package count | Total bytes | Avg bytes/pkg |"
+            echo "|---|---|---|---|"
+            while IFS=$'\t' read -r scheme count bytes; do
+              [[ -z "${scheme}" ]] && continue
+              avg=$(( bytes / count ))
+              echo "| \`${scheme}\` | ${count} | ${bytes} | ${avg} |"
+            done <<< "${BY_SCHEME}"
+            echo ""
+            echo "#### 15 largest individual package entries"
+            echo ""
+            echo "| Bytes | Name | Version |"
+            echo "|---|---|---|"
+            while IFS=$'\t' read -r bytes name version; do
+              [[ -z "${bytes}" ]] && continue
+              echo "| ${bytes} | \`${name}\` | \`${version}\` |"
+            done <<< "${TOP_PACKAGES}"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # Attest the two per-platform SPDX SBOMs extracted above, mirroring the provenance-attest step (cosign appends, so both attestations coexist on the same digest).
+      # SIMPLIFIED: retry logic lives in scripts/cosign-retry.sh, shared with sign and provenance attest.
+      #
+      # REVERTED TO PLAIN REKOR V1 (2026-08-23): this step briefly used
+      # `--signing-config` to route around Rekor v1's practical size ceiling
+      # via an early-adopter Rekor v2 instance (log2025-1.rekor.sigstore.dev).
+      # That path is now removed, not just unused — full history below for
+      # whoever needs it next time a large-attestation problem shows up here:
+      #
+      #   1. Root cause: the untrimmed SBOM predicate ran ~26MB (~120x
+      #      provenance's ~223KB), and Rekor v1 requires uploading the ENTIRE
+      #      DSSE-wrapped payload (sigstore/cosign#3599) — a payload that
+      #      size got rejected outright, deterministically, every run.
+      #   2. Rather than route around the limit, "Extract per-platform SPDX
+      #      SBOM predicates" above now trims the predicate at the source:
+      #      strips SPDX file-level cataloging (87.3% of the original size —
+      #      22,588 `files` entries + their ownership relationships) while
+      #      leaving every one of the 2,783 real packages fully declared.
+      #      See that step's comment for why this is a legitimate detail-level
+      #      choice (Syft's own `file.metadata.selection: none`), not data
+      #      loss.
+      #   3. That alone brought the predicate down enough to attest cleanly
+      #      against plain Rekor v1 — confirmed via a real run, not assumed —
+      #      so the Rekor v2 SigningConfig detour (the "Build Rekor v2
+      #      signing config for SBOM attestation" step that used to sit
+      #      here) is no longer needed and has been deleted.
+      #
+      # If a future SBOM genuinely needs to be this large again (a real
+      # change in what's shipped, not just verbosity), the Rekor v2 approach
+      # is still valid and fully documented in this file's git history —
+      # search for "log2025-1.rekor.sigstore.dev" in a prior commit rather
+      # than re-deriving it from scratch.
+      - name: Attest container image SBOM
+        env:
+          DIGEST: ${{ steps.create-manifest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          IMG="${REGISTRY}/${IMAGE_NAME}"
+
+          for PLATFORM in linux/amd64 linux/arm64; do
+            FILE="sbom-$(basename "${PLATFORM}").json"
+
+            scripts/cosign-retry.sh cosign attest --yes \
+              --type spdxjson \
+              --predicate "${FILE}" \
+              "${IMG}@${DIGEST}"
+          done
+      # Post-Publish Verification
+      # scripts/verify-image.sh re-implements, from the outside, exactly
+      # what a downstream consumer would run to trust this image: keyless
+      # signature, SLSA provenance, and SPDX SBOM checks. Runs BEFORE
+      # "Create GitHub Release" deliberately — a failure here must block
+      # the Release, since there's no point publishing notes for an image
+      # that just failed its own trust check. Verified by DIGEST
+      # (steps.create-manifest.outputs.digest), not by tag: a tag is a
+      # mutable pointer that could move between the sign step and this
+      # check; the digest cannot.
+      # NOTE (2026-08-23): this step is the practical test of the "Install
+      # Cosign CLI tool" step's known open risk (GHCR OCI 1.1 Referrers API
+      # support) — see that step's comment. If this fails with something
+      # that reads like "no matching signatures/attestations found" rather
+      # than a cryptographic/identity mismatch, start there.
+      - name: Make verify-image.sh executable
+        run: chmod +x scripts/verify-image.sh
+
+      - name: Verify published image signature & attestations
+        env:
+          DIGEST: ${{ steps.create-manifest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          scripts/verify-image.sh "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+      # ------------------------------------------------------------------------
+      # Export this target's published info for the `release` job
+      # ------------------------------------------------------------------------
+      # GitHub Release creation was REMOVED from this job (TIER 2 — see the
+      # job-level comment above for why: parallel matrix legs racing to
+      # create/publish the same release is a real correctness bug). Each
+      # leg instead writes its own primary tag + digest to a small file,
+      # uploaded as its own artifact, which the `release` job downloads
+      # from every leg to build ONE combined release afterward. Job
+      # `outputs:` were deliberately not used here — this file already
+      # relies on the artifact-file pattern (not matrix outputs) for
+      # exactly this "combine results from parallel legs" problem, see the
+      # `build` job's digest-export comment for the same reasoning.
+      - name: Export published info for release job
+        env:
+          FIRST_TAG: ${{ fromJSON(steps.meta.outputs.json).tags[0] }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${{ runner.temp }}/published-info"
+          cat > "${{ runner.temp }}/published-info/${{ matrix.target }}.json" <<JSON
+          {
+            "target": "${{ matrix.target }}",
+            "tag": "${FIRST_TAG}",
+            "digest": "${{ steps.create-manifest.outputs.digest }}"
+          }
+          JSON
+
+      - name: Upload published info
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: published-info-${{ matrix.target }}
+          path: ${{ runner.temp }}/published-info/*.json
+          if-no-files-found: error
+          retention-days: 1
+
+      # ------------------------------------------------------------------------
+      # Step Summary Output (per-target — the release job's summary covers
+      # the combined release; this one is this matrix leg's own record)
+      # ------------------------------------------------------------------------
+      - name: Output Workflow Step Summary
+        run: |
+          {
+            echo "## BAOBAB Dev Container Published Successfully (${{ matrix.target }})"
+            echo ""
+            echo "**OCI Image Reference:** \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\`"
+            echo "**Index Manifest Digest:** \`${{ steps.create-manifest.outputs.digest }}\`"
+            echo ""
+            echo "### Security & Hygiene Controls Applied"
+            echo "- ✅ **Pinned GitHub Actions:** Immutable 40-character commit SHAs"
+            echo "- ✅ **Concurrency Control:** Auto-cancels obsolete build runs on PRs"
+            echo "- ✅ **Trivy CVE Gate:** Passed (0 Critical/High unpatched vulnerabilities)"
+            echo "- ✅ **SBOM & SLSA Attestations:** Embedded directly into OCI index"
+            echo "- ✅ **Keyless Cosign Signature:** Signed via GitHub Actions OIDC identity"
+            echo "- ✅ **Post-Publish Verification:** Signature and attestations independently re-verified against the published digest (scripts/verify-image.sh)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Job 4: Combined GitHub Release
+  # Runs once, after every `publish` matrix leg has finished — creates ONE
+  # release for the tag, listing pull + verification commands for every
+  # target that was published this run (final, frontend, frontend-e2e as
+  # of this pass). Reads whatever published-info-* artifacts exist — no
+  # hardcoded target list, so a future fourth target needs no change here.
+  release:
+    name: Create Combined GitHub Release
+    needs: [publish, sanity-check]
+    if: needs.sanity-check.outputs.is_release == 'true'
+
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    # contents: write — create the GitHub Release. This is the only job
+    # that needs it now; `publish`'s matrix legs no longer touch releases.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.sanity-check.outputs.checkout_ref }}
+
+      # Needed so the release can attach versions.lock as a release asset,
+      # same as the old single-job version did.
+      - name: Download resolved lockfile
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: resolved-lockfile
+          path: .
+
+      # Pulls every target's published-info-*.json into one directory —
+      # however many `publish` matrix legs actually ran and reached their
+      # export step (final, frontend, frontend-e2e as of this pass).
+      - name: Download published info from all targets
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ${{ runner.temp }}/published-info
+          pattern: published-info-*
+          merge-multiple: true
+
+      # Builds the release body from whatever published-info JSON files are
+      # actually present — genuinely no hardcoded target list, so this
+      # doesn't need editing when a future target joins. `final` renders
+      # first if present (its pull command has no suffix, matching the
+      # primary/default image), everything else in whatever order `find`
+      # returns.
+      - name: Build combined release body
+        id: release-body
+        run: |
+          set -euo pipefail
+          BODY_FILE="${{ runner.temp }}/release-body.md"
+          INFO_DIR="${{ runner.temp }}/published-info"
+
+          ordered_files=()
+          [[ -f "${INFO_DIR}/final.json" ]] && ordered_files+=("${INFO_DIR}/final.json")
+          for f in "${INFO_DIR}"/*.json; do
+            [[ "$f" == "${INFO_DIR}/final.json" ]] && continue
+            ordered_files+=("$f")
+          done
+
+          {
+            echo "### Container Pull Directives"
+            echo ""
+
+            for f in "${ordered_files[@]}"; do
+              target=$(jq -r '.target' "$f")
+              tag=$(jq -r '.tag' "$f")
+              digest=$(jq -r '.digest' "$f")
+
+              echo "**${target}:**"
+              echo '```bash'
+              echo "docker pull ${tag}"
+              echo '```'
+              echo ""
+              echo "Verify (digest \`${digest}\`):"
+              echo '```bash'
+              echo "cosign verify \\"
+              echo "  --certificate-identity-regexp \"^https://github.com/${{ github.repository_owner }}\" \\"
+              echo "  --certificate-oidc-issuer \"https://token.actions.githubusercontent.com\" \\"
+              echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${digest}"
+              echo ""
+              echo "cosign verify-attestation \\"
+              echo "  --type slsaprovenance1 \\"
+              echo "  --certificate-identity-regexp \"^https://github.com/${{ github.repository_owner }}\" \\"
+              echo "  --certificate-oidc-issuer \"https://token.actions.githubusercontent.com\" \\"
+              echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${digest}"
+              echo '```'
+              echo ""
+            done
+          } > "${BODY_FILE}"
+
+          echo "path=${BODY_FILE}" >> "$GITHUB_OUTPUT"
+
+      # Same immutable-releases sequencing as before (create as draft, then
+      # publish) — see the prior single-job version's comment for the full
+      # "Cannot upload assets to an immutable release" background; that
+      # constraint is unchanged by this job split.
+      - name: Create GitHub Release (draft)
+        id: create-release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ needs.sanity-check.outputs.release_tag }}
+          draft: true
+          prerelease: ${{ needs.sanity-check.outputs.is_stable_release != 'true' }}
+          files: config/versions.lock
+          generate_release_notes: true
+          body_path: ${{ steps.release-body.outputs.path }}
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release edit "${{ needs.sanity-check.outputs.release_tag }}" --draft=false --repo "${{ github.repository }}"
