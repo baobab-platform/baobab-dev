@@ -12,10 +12,31 @@
 #   3. the OCI index remains readable;
 #   4. linux/amd64 and linux/arm64 image manifests are still referenced and
 #      individually resolvable.
+#   5. the Cosign keyless signature, SLSA provenance attestation, and SPDX
+#      SBOM attestation are all still independently verifiable — not just
+#      the image bytes.
 #
 # It runs daily and after the publish workflow completes. This is deliberately
 # separate from publish.yml: publish-time verification proves correctness at
 # publication time; this workflow proves durability after publication.
+#
+# CHECK 5 (signature/attestation durability) reuses scripts/verify-image.sh
+# unchanged — the same script publish.yml itself runs right after signing —
+# rather than re-implementing the cosign invocations here. ADDED 2026-09-16:
+# checks 1-4 alone proved an image's BYTES stayed pullable, but said nothing
+# about whether its signature/attestations stayed resolvable. Those live in
+# GHCR's OCI 1.1 Referrers API, a separate code path from plain manifest/blob
+# serving (see scripts/verify-image.sh's own CHANGE LOG: this API's GHCR
+# support was confirmed empirically, not from documentation, precisely
+# because it was uncertain) — real drift there (retention/GC behavior,
+# registry-side Referrers API regressions) would leave the image pullable
+# while quietly breaking every downstream consumer's own zero-trust
+# verification, and checks 1-4 would report it as fully healthy. Verified
+# per-ref by DIGEST (`${image}@${digest}`), not by tag, matching this
+# workflow's own tag/digest-drift check above and publish.yml's own
+# verification convention — a tag is a mutable pointer that could move
+# between this job's digest check and its attestation check; the digest
+# cannot.
 # ==============================================================================
 
 name: Verify Released GHCR Contracts
@@ -49,6 +70,12 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # Needed for scripts/verify-image.sh (check 5 below) — this workflow
+      # previously never checked out the repo, since crane-based checks 1-4
+      # need no repo files at all.
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - name: Authenticate to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -70,6 +97,21 @@ jobs:
           chmod +x crane
           sudo mv crane /usr/local/bin/crane
           crane version
+
+      # Same installer/pin as publish.yml's "Install Cosign CLI tool" step —
+      # see that step's comment for why cosign-installer v4.x is required to
+      # install cosign v3.x, and why no cosign-release: override is pinned.
+      # Reuses the SAME GHCR docker credential helper docker/login-action
+      # already configured above; cosign verify/verify-attestation need no
+      # extra permission or secret beyond the packages: read already granted
+      # job-wide — keyless verification talks to Sigstore's public
+      # Fulcio/Rekor/TUF infrastructure, not GitHub, and never signs
+      # anything here.
+      - name: Install Cosign CLI tool
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Make verify-image.sh executable
+        run: chmod +x scripts/verify-image.sh
 
       - name: Fetch latest stable GitHub Release contract
         id: release
@@ -113,7 +155,7 @@ jobs:
                   print(f"contract: {ref} -> {digest}")
           PY
 
-      - name: Verify advertised tags, digests, indices and platform manifests
+      - name: Verify advertised tags, digests, indices, platform manifests, and attestations
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
         run: |
@@ -145,6 +187,8 @@ jobs:
               continue
             fi
 
+            image_name="${ref%%:*}"
+
             for arch in amd64 arm64; do
               child_digest=$(jq -r --arg arch "${arch}" \
                 '[.manifests[]? | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest][0] // empty' \
@@ -156,7 +200,6 @@ jobs:
                 continue
               fi
 
-              image_name="${ref%%:*}"
               if ! crane manifest "${image_name}@${child_digest}" >/dev/null; then
                 echo "::error::${ref} references missing linux/${arch} child manifest ${child_digest}."
                 failures=$((failures + 1))
@@ -166,6 +209,24 @@ jobs:
             done
 
             echo "tag digest: ${actual_digest} (matches release)"
+
+            # Check 5: signature + SLSA provenance + SPDX SBOM attestation,
+            # all still independently verifiable — see this file's header
+            # comment for why this is a genuinely separate failure mode from
+            # checks 1-4 above. Digest-pinned (image_name@actual_digest), not
+            # the tag, for the same reason the earlier tag/digest check
+            # exists at all. Output is captured rather than streamed live:
+            # verify-image.sh's own [INFO]/[SUCCESS] lines are useful on
+            # success but should not spam the log on a failure this loop
+            # already reports clearly via ::error::.
+            if ! verify_output=$(./scripts/verify-image.sh "${image_name}@${actual_digest}" 2>&1); then
+              echo "::error::${ref}@${actual_digest} failed signature/attestation verification (Cosign signature, SLSA provenance, or SPDX SBOM attestation no longer verifies):"
+              echo "${verify_output}"
+              failures=$((failures + 1))
+            else
+              echo "signature + attestations: VALID (Cosign signature, SLSA provenance, SPDX SBOM)"
+            fi
+
             echo "::endgroup::"
           done < "${RUNNER_TEMP}/release-contracts.tsv"
 
@@ -185,5 +246,5 @@ jobs:
             echo
             echo "Release: [${RELEASE_TAG}](${RELEASE_URL})"
             echo
-            echo "The workflow checks tag existence, release-recorded digest equality, OCI index readability, and linux/amd64 + linux/arm64 child-manifest reachability."
+            echo "The workflow checks tag existence, release-recorded digest equality, OCI index readability, linux/amd64 + linux/arm64 child-manifest reachability, and Cosign signature + SLSA provenance + SPDX SBOM attestation verifiability."
           } >> "$GITHUB_STEP_SUMMARY"
