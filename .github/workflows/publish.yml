@@ -370,6 +370,30 @@ jobs:
         with:
           ref: ${{ needs.sanity-check.outputs.checkout_ref }}
 
+      # Free disk space (final target only)
+      # `final` is the only target combining Python+Node+Flutter+Java+Maven+
+      # Docker CLI — by far the largest image this job builds, and this job
+      # builds it TWICE (push-by-digest, then again with load:true for
+      # scanning) before Trivy also pulls its own ~922MB Java DB on top.
+      # Standard GitHub-hosted runners repeatedly hit "disk quota exceeded"
+      # partway through the Trivy scan step on this target specifically —
+      # confirmed reproducible via nabhold/baobab-dev#31's CI, THREE
+      # consecutive independent runs (both linux/amd64 and linux/arm64),
+      # always during the Trivy Java DB download, never a real build or CVE
+      # regression. frontend/frontend-e2e/infra never hit this — they don't
+      # carry Flutter's Android engine artifacts or the JDK/Maven install,
+      # so this step is gated to `final` only rather than slowing down
+      # every matrix leg. Removes preinstalled runner toolchains this build
+      # never uses (Android SDK, .NET, GHC, CodeQL bundles) — the standard
+      # community pattern for GitHub-hosted runners' disk-space constraints
+      # on large multi-stage Docker builds.
+      - name: Free disk space (final target only)
+        if: matrix.target == 'final'
+        run: |
+          set -x
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
       # Overwrites whatever versions.lock the checkout brought in with the
       # exact one sanity-check resolved earlier in THIS run (see "Upload
       # resolved lockfile" in sanity-check for why).
