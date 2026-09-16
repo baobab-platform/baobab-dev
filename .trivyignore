@@ -61,6 +61,38 @@ CVE-2026-56852 exp:2026-11-10
 GHSA-hrxh-6v49-42gf exp:2026-11-10
 
 # ------------------------------------------------------------------------------
+# CVE-2026-84304, CVE-2026-84445 — gRPC-Go: index-out-of-bounds panic /
+# missing :authority-Host validation, Denial of Service (DoS)
+#
+# Found in: usr/local/bin/task
+# Fixed in: google.golang.org/grpc 1.83.1 (CVE-2026-84304); 1.82.2, 1.83.2,
+# or 1.85.0-dev (CVE-2026-84445)
+#
+# SAME SITUATION as GHSA-hrxh-6v49-42gf above, added separately (not
+# folded into that entry) because it surfaced later, against a different
+# grpc-go release line: task's own binary vendors google.golang.org/grpc
+# v1.83.0, compiled in by go-task/task's own maintainers at their last
+# release. Investigated 2026-09-15, the day this pin first broke the
+# v1.4.0 publish build's Trivy gate: go-task/task's actual latest release
+# is v3.53.1 (2026-08-18), predating both CVEs' 2026-09 disclosure — no
+# newer task release exists to pick up a patched grpc. (A "task
+# 3.53.1-r4" reference seen in other projects' dependency-bump PRs is an
+# Alpine apk package *revision* rebuilt against patched deps, not an
+# upstream go-task/task release — nothing this repo's own version pinning
+# can reach.) Same root cause and same "vendored at compile time, no
+# upstream rebuild yet" situation as every task/yq/cosign entry in this
+# file; config/resolve.sh's own "latest" tracking will pick up a fixed
+# release automatically once go-task/task cuts one.
+#
+# NOT present in terraform (infra profile) as of this same date: terraform
+# is pinned explicitly in config/versions.yaml, bumped 1.16.1 -> 1.16.2 in
+# the same change that added this entry, which carries grpc v1.83.2 and is
+# therefore already clean of both CVEs.
+# ------------------------------------------------------------------------------
+CVE-2026-84304 exp:2026-11-10
+CVE-2026-84445 exp:2026-11-10
+
+# ------------------------------------------------------------------------------
 # CVE-2026-39822 — Go stdlib os.Root: symlink following allows directory
 # traversal
 #
