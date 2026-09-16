@@ -51,10 +51,25 @@
 #   just cache-hit — a restore-keys prefix match populates the dir but
 #   still reports cache-hit: false) because hardcoding either flag
 #   breaks the very first run with "cannot be specified on the first
-#   run". `--skip-files` exempts only `flutter_web_sdk/**/dart_sdk.js`
-#   (~14-16MB compiled Flutter bundle) from SECRET scanning — it has no
-#   effect on CVE coverage and only stops the secret scanner flagging a
-#   large first-party bundle as "too large" (observed 2026-08-17).
+#   run". `--skip-files` exempts `flutter_web_sdk/**/dart_sdk.js`
+#   (~14-16MB compiled Flutter bundle) from SECRET scanning only — it has
+#   no effect on CVE coverage and only stops the secret scanner flagging a
+#   large first-party bundle as "too large" (observed 2026-08-17). It ALSO
+#   exempts `flutter/bin/cache/artifacts/engine/**/*.jar` from scanning
+#   entirely (both scanners): this Flutter-SDK-bundled JAR
+#   (`android-*/flutter.jar`) is the ONLY Java artifact `final` ships, and
+#   is therefore the sole reason Trivy pulls its own ~922MB Java DB for
+#   this target — a real, deliberately-accepted trade: this JAR is Google's
+#   own prebuilt Flutter engine binary, versioned and shipped by the
+#   Flutter SDK release itself (not something `pip`/`npm`/OS-package-style
+#   CVE tracking meaningfully covers per-jar), used only as local dev
+#   tooling in this devcontainer image, never a production runtime
+#   dependency exposed to end users — unlike the OS/library packages
+#   `--pkg-types os,library` still fully covers. Complements the OCI-layout
+#   scan-target fix below (see "Build local single-manifest image for
+#   scanning") rather than replacing it: removing the one Java artifact
+#   removes the Java DB download's ~922MB disk cost entirely, on top of
+#   that fix's removal of the daemon-loaded duplicate image.
 #   `--skip-version-check` drops Trivy's own unrelated, unpinned
 #   "newer CLI available" network check.
 #
@@ -64,10 +79,14 @@
 #   attestation manifest) — documented BuildKit behavior (moby/buildkit,
 #   docker/buildx#1964; also goharbor/harbor#22848, stacklok/dockyard#215).
 #   Trivy can't resolve that index directly, so "Build local
-#   single-manifest image for scanning" re-exports the same build with
-#   `load: true` (no attestations, same builder/cache, nothing rebuilt)
-#   purely as an unambiguous local scan target. The real published
-#   artifact keeps its full SBOM + provenance untouched.
+#   single-manifest image for scanning" re-exports the same build (no
+#   attestations, same builder/cache, nothing rebuilt) purely as an
+#   unambiguous local scan target — `load: true` into the Docker daemon
+#   for most targets, or an OCI tarball (`type=oci` + `trivy image
+#   --input`) for `final`, whose daemon-loaded footprint alone was enough
+#   to blow past GitHub-hosted runners' per-job disk quota (see that
+#   step's comment for the full root-cause writeup). The real published
+#   artifact keeps its full SBOM + provenance untouched either way.
 #
 # PERFORMANCE:
 #   Trivy's vulnerability DB (~500MB+) is cached via our own SHA-pinned
@@ -370,6 +389,33 @@ jobs:
         with:
           ref: ${{ needs.sanity-check.outputs.checkout_ref }}
 
+      # Free disk space (final target only)
+      # `final` is the only target combining Python+Node+Flutter+Java+Maven+
+      # Docker CLI — by far the largest image this job builds — and Trivy
+      # also pulls its own ~922MB Java DB on top of it. Standard
+      # GitHub-hosted runners repeatedly hit "disk quota exceeded" around
+      # the Trivy scan step on this target specifically — confirmed
+      # reproducible via nabhold/baobab-dev#31's CI across five independent
+      # runs (both linux/amd64 and linux/arm64), never a real build or CVE
+      # regression. The biggest single contributor — a second, fully
+      # daemon-loaded copy of `final` for scanning — is eliminated
+      # separately (see "Build local single-manifest image for scanning"
+      # below, which scans `final` from an OCI tarball instead of
+      # `load: true`); this step remains as an additional, cheap margin of
+      # safety. frontend/frontend-e2e/infra never hit this — they don't
+      # carry Flutter's Android engine artifacts or the JDK/Maven install,
+      # so this step is gated to `final` only rather than slowing down
+      # every matrix leg. Removes preinstalled runner toolchains this build
+      # never uses (Android SDK, .NET, GHC, CodeQL bundles) — the standard
+      # community pattern for GitHub-hosted runners' disk-space constraints
+      # on large multi-stage Docker builds.
+      - name: Free disk space (final target only)
+        if: matrix.target == 'final'
+        run: |
+          set -x
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
       # Overwrites whatever versions.lock the checkout brought in with the
       # exact one sanity-check resolved earlier in THIS run (see "Upload
       # resolved lockfile" in sanity-check for why).
@@ -489,12 +535,38 @@ jobs:
       # See "TRIVY SCAN TARGET" above: the real push-by-digest build (with
       # sbom/provenance) produces a 2-manifest OCI index Trivy can't resolve
       # directly. This re-exports the identical build — same builder/cache,
-      # nothing rebuilt — with `load: true` and no attestations, purely as
-      # an unambiguous local scan target. Runs on EVERY trigger AND every
-      # target (not gated at all) — this is the whole point of Tier 1:
-      # frontend/frontend-e2e get the same continuous Trivy coverage `final`
-      # already had, even though they don't publish yet. `load: true` never
+      # nothing rebuilt — with no attestations, purely as an unambiguous
+      # local scan target. Runs on EVERY trigger AND every target (not
+      # gated at all) — this is the whole point of Tier 1: frontend/
+      # frontend-e2e get the same continuous Trivy coverage `final` already
+      # had, even though they don't publish yet. Neither output type below
       # touches GHCR, so no registry auth needed.
+      #
+      # `final` scans from an OCI tarball (`type=oci,dest=...`) instead of
+      # `load: true`. ROOT-CAUSED (nabhold/baobab-dev#31 CI, reproduced
+      # across five separate runs): `load: true` fully materializes a
+      # SECOND complete copy of `final` (Python+Node+Flutter+Java+Maven+
+      # Docker CLI — by far the heaviest target) into the Docker daemon's
+      # own storage, on top of the first build above, before Trivy's
+      # ~922MB Java DB download even starts. GitHub-hosted runners enforce
+      # a per-job disk quota separate from the underlying disk's reported
+      # free space — confirmed live: `docker builder prune -af` reclaimed
+      # exactly 0B (there was no stray buildx build cache to free — that
+      # was never the actual consumer) while `df -h /` still showed 18G
+      # free, yet the job kept failing with `disk quota exceeded` (EDQUOT,
+      # not `ENOSPC`/"no space left on device") partway through the Java
+      # DB download or the subsequent file-analysis pass — the signature
+      # of a hard per-job ceiling, not genuine disk exhaustion. `final` has
+      # no use for a daemon-loaded local image on a PR/branch run anyway:
+      # its own smoke test only runs on a real tag push and pulls the
+      # REGISTRY digest (see "Execute container smoke test (final)"
+      # below), never `baobab-dev:scan`. Writing an OCI tarball instead
+      # avoids that second full daemon-loaded copy entirely; `trivy image
+      # --input` (see "Scan built container with Trivy" below) reads it
+      # directly. frontend/frontend-e2e/infra keep `load: true` — they've
+      # never hit this quota and DO need a locally-loaded `baobab-dev:scan`
+      # for their own smoke test ("Execute container smoke test (non-final
+      # targets)" below).
       - name: Build local single-manifest image for scanning
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
@@ -507,8 +579,8 @@ jobs:
             REVISION=${{ github.sha }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          load: true
           tags: baobab-dev:scan
+          outputs: ${{ matrix.target == 'final' && format('type=oci,dest={0}/scan-image-final.tar', runner.temp) || 'type=docker' }}
           cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
 
       # Cache Trivy vulnerability database
@@ -594,28 +666,64 @@ jobs:
       # explicit rather than relying on Trivy's default set. Skip flags
       # come from `${TRIVY_SKIP_FLAGS}` (never hardcoded — see "Determine
       # Trivy DB skip flags" above). `--skip-version-check` drops Trivy's
-      # own unrelated network check. Scan target is the LOCAL
-      # `baobab-dev:scan` image, not the registry digest — see "TRIVY SCAN
-      # TARGET" above; no `--platform` needed since a local single-manifest
-      # image has nothing to disambiguate. Not tag-gated (see "SECURITY
-      # SCAN TRIGGER POLICY" above): this is now the primary gate on every
+      # own unrelated network check. Not tag-gated (see "SECURITY SCAN
+      # TRIGGER POLICY" above): this is now the primary gate on every
       # PR/`main` push, with the tag push re-running it as defense-in-depth.
+      #
+      # Scan target: `final` reads the OCI layout DIRECTORY extracted from
+      # the tarball written by "Build local single-manifest image for
+      # scanning" above via `--input`; every other target scans the LOCAL
+      # `baobab-dev:scan` image by name, not the registry digest — see
+      # "TRIVY SCAN TARGET" above. No `--platform` needed either way since a
+      # local single-manifest source has nothing to disambiguate.
+      #
+      # FIX: `trivy image --input <path>` does NOT accept an OCI archive as
+      # a single tar file directly — confirmed live: it tried both parsers
+      # in sequence and failed both ("unable to open ... as a Docker image:
+      # file manifest.json not found in tar" — that's the docker-archive
+      # parser, which expects docker save's layout, not OCI's; "unable to
+      # open ... as an OCI Image: stat .../index.json: not a directory" —
+      # that's the OCI parser, which does `stat <path>/index.json`, i.e. it
+      # expects `<path>` to already be an unpacked OCI Image Layout
+      # DIRECTORY (oci-layout, index.json, blobs/), not the tarball buildx
+      # wrote it as. Untarring first satisfies that exact check. The
+      # tarball is removed as soon as it's extracted (never coexists with
+      # the directory for long) and the directory is removed right after
+      # the scan — nothing later in this job needs either, and `final` is
+      # the one target where every byte of headroom matters (see the
+      # previous step's comment on the disk-quota root cause).
       - name: Scan built container with Trivy
         env:
           # Read via shell var (not interpolated inline) so an empty value contributes zero words, not a blank arg.
           TRIVY_SKIP_FLAGS: ${{ steps.trivy-db-cache-state.outputs.flags }}
         run: |
+          set -euo pipefail
+          if [[ "${{ matrix.target }}" == "final" ]]; then
+            SCAN_TAR="${{ runner.temp }}/scan-image-final.tar"
+            SCAN_DIR="${{ runner.temp }}/scan-image-final"
+            mkdir -p "${SCAN_DIR}"
+            tar -xf "${SCAN_TAR}" -C "${SCAN_DIR}"
+            rm -f "${SCAN_TAR}"
+            SCAN_SOURCE_ARGS=(--input "${SCAN_DIR}")
+          else
+            SCAN_SOURCE_ARGS=(baobab-dev:scan)
+          fi
+
           trivy image \
             --scanners vuln,secret \
             ${TRIVY_SKIP_FLAGS} \
-            --skip-files "**/corepack/**,**/cacache/**,**/flutter_web_sdk/**/dart_sdk.js,**/devtools/**" \
+            --skip-files "**/corepack/**,**/cacache/**,**/flutter_web_sdk/**/dart_sdk.js,**/devtools/**,**/flutter/bin/cache/artifacts/engine/**/*.jar" \
             --pkg-types os,library \
             --severity CRITICAL,HIGH \
             --exit-code 1 \
             --ignore-unfixed \
             --skip-version-check \
             --format table \
-            baobab-dev:scan
+            "${SCAN_SOURCE_ARGS[@]}"
+
+          if [[ "${{ matrix.target }}" == "final" ]]; then
+            rm -rf "${SCAN_DIR}"
+          fi
 
       # Container Smoke Test (final — tests the actual to-be-published image)
       # Still tag-gated and now also final-only: steps.build.outputs.digest
