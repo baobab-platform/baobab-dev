@@ -240,10 +240,30 @@ frontend_tooling:
     stage: "frontend"
 
   playwright:
-    version: "latest"
+    version: "1.62.1"
     source: "npm"
     stage: "frontend-e2e"
-    note: "Installs its own browser binaries (Chromium/Firefox/WebKit) — this is the highest CVE-surface addition in this domain, expect its own hardening cycle."
+    note: >
+      Explicit pin, NOT "latest" — unlike sharp/lighthouse/turbo above,
+      which are ordinary CLI tools with no version coupling to a
+      consumer's own dependencies. Playwright is different: the
+      globally-installed `playwright` CLI in this image (which downloads
+      browser binaries at build time via `npx playwright install`) and a
+      consumer repo's own `@playwright/test` dependency (which drives
+      test execution and looks up browser binaries by the EXACT revision
+      its own version expects) must resolve to the same Playwright
+      release, or the browser binaries this image downloaded for one
+      revision are invisible to a test runner expecting a different one
+      — observed for real: nabhold/zuribeans#60's CI failed with
+      "Error: browserType.launch: Executable doesn't exist at
+      /root/.cache/ms-playwright/chromium_headless_shell-1234/..." after
+      "latest" drifted past zuribeans' own pinned
+      "@playwright/test": "1.62.1" between this image's builds — the
+      exact same class of drift versions.yaml's own pnpm pin was
+      hardened against (see package_managers.pnpm above and
+      docs/incidents/2026-09-18-codespaces-corepack-interactive-prompt.md).
+      Keep this pin equal to whatever frontend-e2e consumers currently
+      declare, the same way pnpm's pin is maintained.
 
   sharp:
     version: "latest"
