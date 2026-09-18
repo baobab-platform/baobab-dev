@@ -5,6 +5,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/) as described
 in `README.md § Versioning strategy`.
 
+## [1.4.2] — Pin Playwright to stop the same version-drift class hitting `frontend-e2e`
+
+### Fixed
+- **Root cause**: `config/versions.yaml`'s `frontend_tooling.playwright.version`
+  was `"latest"`, resolved independently at each image build — the exact
+  same class of drift `package_managers.pnpm.version` was hardened
+  against in 1.4.1. The globally-installed `playwright` CLI in this
+  image (which downloads browser binaries at build time) and a consumer
+  repo's own `@playwright/test` dependency (which drives test execution
+  and looks up browser binaries by the exact revision its own version
+  expects) must resolve to the same Playwright release, or the browser
+  binaries this image downloaded for one revision are invisible to a
+  test runner expecting a different one. Discovered when
+  `nabhold/zuribeans#60`'s CI failed with `Error: browserType.launch:
+  Executable doesn't exist at
+  /root/.cache/ms-playwright/chromium_headless_shell-1234/...` after
+  "latest" drifted past `zuribeans`' own pinned
+  `"@playwright/test": "1.62.1"` between this image's 1.2.x/1.3.x/1.4.0
+  and 1.4.1 builds — confirmed as a genuine regression, not a flake:
+  the identical CI job passed on `zuribeans`' `main` branch against the
+  older `1.2.6-frontend-e2e` image.
+- `frontend_tooling.playwright.version` is now pinned to the exact
+  version consuming repos currently declare (`1.62.1`), instead of
+  `"latest"`, matching `package_managers.pnpm`'s own precedent.
+
+See `docs/incidents/2026-09-18-codespaces-corepack-interactive-prompt.md`
+for the full pnpm incident this recurrence is modeled on.
+
 ## [1.4.1] — Non-interactive pnpm provisioning for `frontend`/`frontend-e2e`
 
 ### Fixed
