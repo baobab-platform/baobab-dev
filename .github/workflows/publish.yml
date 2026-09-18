@@ -794,6 +794,16 @@ jobs:
           EOF
           printf 'lockfileVersion: '"'"'9.0'"'"'\n' > "${FIXTURE_DIR}/pnpm-lock.yaml"
 
+          # The bind mount below keeps the host directory's ownership
+          # (the runner's own UID, not 1000) inside the container, but
+          # `baobab-dev:scan` defaults to USER vscode (UID 1000) — pnpm
+          # then fails with EACCES writing its own temp file in a
+          # directory it can't write to. This fixture is throwaway CI
+          # scratch space with nothing sensitive in it, so opening it up
+          # is harmless; the alternative (matching UIDs via --user) would
+          # only reproduce a real consumer's actual UID by coincidence.
+          chmod -R a+rwX "${FIXTURE_DIR}"
+
           echo "::notice:: Verifying pnpm@${PNPM_VERSION} installs non-interactively (no TTY, no network) for target '${{ matrix.target }}'."
 
           timeout 90 docker run --rm \
