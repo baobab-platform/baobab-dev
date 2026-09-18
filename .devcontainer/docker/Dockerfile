@@ -556,6 +556,29 @@ ENV BAOBAB_CONFIG_DIR=/usr/local/share/baobab/config
 # -----------------------------------------------------------------------------
 FROM base AS with-node
 
+# COREPACK_HOME fixed to an absolute, user-independent path — set BEFORE the
+# `corepack prepare` calls below run (as root, during this stage) so the
+# prepared pnpm/yarn releases land here rather than at Corepack's own
+# default of "$HOME/.cache/node/corepack". That default resolves per
+# invoking user: `corepack prepare --activate` here runs as root
+# (HOME=/root), but every downstream consumer of this image — `RUN
+# baobab-verify` in the `frontend`/`frontend-e2e`/`final` stages below, and
+# every real devcontainer session — runs as `vscode` (HOME=/home/vscode),
+# whose Corepack cache is empty. Left at the default, Corepack correctly
+# concludes "the version I need isn't in THIS user's cache" and tries to
+# download it again — exactly the network fetch (and, interactively, the
+# prompt) this whole change exists to eliminate, discovered when
+# COREPACK_ENABLE_NETWORK=0 below turned that silent re-download into a
+# hard, diagnosable "Corepack is about to download pnpm-11.24.0.tgz;
+# Network access disabled" error inside this Dockerfile's own build. A
+# fixed, absolute COREPACK_HOME sidesteps per-user cache resolution
+# entirely: whichever user invokes pnpm/yarn, Corepack looks in the same
+# place it was populated during this stage's own RUN. World-readable
+# (chmod after the prepare calls, once populated) since `vscode` never
+# needs to WRITE here — every version this image promises is already
+# resident by the time `USER vscode` takes effect further down.
+ENV COREPACK_HOME=/usr/local/share/baobab/corepack
+
 # -----------------------------------------------------------------------------
 # 4. Node.js LTS, npm, pnpm, yarn
 # -----------------------------------------------------------------------------
@@ -704,7 +727,49 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     ) && \
     corepack enable && \
     corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
-    corepack prepare yarn@stable --activate
+    corepack prepare yarn@stable --activate && \
+    chmod -R a+rX "${COREPACK_HOME}"
+
+# Non-interactive-by-construction guard, not a suppression of the prompt —
+# Corepack's own documented mechanism for this exact failure mode. By
+# default Corepack checks a project's package.json `packageManager` field
+# (COREPACK_ENABLE_PROJECT_SPEC, on by default) and, if that pins a
+# pnpm/yarn version other than the one `corepack prepare --activate` just
+# baked in above, silently fetches it over the network on first invocation
+# — in an interactive-feeling shell (Codespaces/Dev Container lifecycle
+# commands) that fetch is preceded by a "Do you want to continue? [Y/n]"
+# confirmation prompt, which blocks forever with no TTY to answer it. That
+# drift is expected to recur (every consumer repo's own `packageManager`
+# pin moves independently of this image's release cadence) even though
+# PNPM_VERSION above is now kept in lockstep with today's known consumers.
+# Setting COREPACK_ENABLE_NETWORK=0 does not touch today's fix (this image
+# already carries the exact version currently declared) — it converts any
+# FUTURE reappearance of the same drift from a silent hang into an
+# immediate, explicit Corepack error naming the missing version, so a
+# consumer repo drifting out of sync with this image fails its Codespace
+# build loudly instead of hanging it. Per Corepack's own docs, the only
+# way to satisfy a project pinning a version this image does not already
+# carry, with network disabled, is to rebuild/republish this image with an
+# updated PNPM_VERSION — exactly the intended remediation path (see
+# docs/frontend-image-contract.md's upgrade procedure), never a prompt.
+#
+# COREPACK_ENABLE_NETWORK=0 alone is not sufficient, and shipping it
+# without COREPACK_DEFAULT_TO_LATEST=0 broke this very build: even a bare
+# `pnpm --version` with NO project `packageManager` spec in scope (exactly
+# what `RUN baobab-verify` below does, from /workspaces with no
+# package.json present) is, by default, resolved via Corepack's "Known
+# Good Release" mechanism, which checks the npm registry for a newer
+# release on every invocation regardless of whether a matching version is
+# already `prepare --activate`d locally (COREPACK_DEFAULT_TO_LATEST, on by
+# default) — a genuinely different Corepack setting than the project-spec
+# mismatch case COREPACK_ENABLE_NETWORK=0 targets above. With network
+# disabled and this left on, that background check itself fails outright:
+# "Network access disabled by the environment; can't reach npm repository
+# https://registry.npmjs.org" — confirmed against this Dockerfile's own
+# frontend-target CI build. Disabling it means Corepack trusts the
+# version it already activated instead of always phoning home first.
+ENV COREPACK_ENABLE_NETWORK=0 \
+    COREPACK_DEFAULT_TO_LATEST=0
 
 # -----------------------------------------------------------------------------
 

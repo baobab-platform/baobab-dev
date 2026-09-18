@@ -755,6 +755,64 @@ jobs:
         run: |
           docker run --rm baobab-dev:scan baobab-verify
 
+      # Non-interactive Package-Manager Provisioning Test (frontend /
+      # frontend-e2e only — the two targets that install pnpm via
+      # Corepack). This is deliberately separate from the smoke test just
+      # above: `baobab-verify` proves pnpm is present and at the expected
+      # exact version INSIDE the built image, but it never actually
+      # exercises Corepack's own project-spec-matching path the way a real
+      # consumer repo's devcontainer lifecycle command does. Reproduces
+      # that exact path instead: a throwaway fixture project pins the
+      # SAME exact pnpm version this image's config/versions.lock resolved
+      # (PNPM_VERSION), matching the real-world shape of a consumer's own
+      # package.json `packageManager` field, then runs `pnpm install
+      # --frozen-lockfile` with stdin fully closed and no pty (`docker run`
+      # without `-i`/`-t`, plus `< /dev/null` on the host side) and
+      # `CI=true` set — the same non-interactive shape a Codespaces/Dev
+      # Container `updateContentCommand` runs under. `timeout 90` turns a
+      # regression of the original interactive-prompt hang (the defect
+      # this whole change fixes) into a clear, bounded CI failure instead
+      # of silently consuming the job's entire runner budget.
+      - name: Execute non-interactive package-manager provisioning test
+        if: (matrix.target == 'frontend' || matrix.target == 'frontend-e2e') && matrix.platform == 'linux/amd64'
+        run: |
+          set -euo pipefail
+          # shellcheck disable=SC1091
+          . config/versions.lock
+          : "${PNPM_VERSION:?PNPM_VERSION missing from resolved versions.lock}"
+
+          FIXTURE_DIR="${{ runner.temp }}/pnpm-fixture"
+          rm -rf "${FIXTURE_DIR}"
+          mkdir -p "${FIXTURE_DIR}"
+
+          cat > "${FIXTURE_DIR}/package.json" <<EOF
+          {
+            "name": "baobab-dev-pnpm-provisioning-fixture",
+            "private": true,
+            "packageManager": "pnpm@${PNPM_VERSION}"
+          }
+          EOF
+          printf 'lockfileVersion: '"'"'9.0'"'"'\n' > "${FIXTURE_DIR}/pnpm-lock.yaml"
+
+          # The bind mount below keeps the host directory's ownership
+          # (the runner's own UID, not 1000) inside the container, but
+          # `baobab-dev:scan` defaults to USER vscode (UID 1000) — pnpm
+          # then fails with EACCES writing its own temp file in a
+          # directory it can't write to. This fixture is throwaway CI
+          # scratch space with nothing sensitive in it, so opening it up
+          # is harmless; the alternative (matching UIDs via --user) would
+          # only reproduce a real consumer's actual UID by coincidence.
+          chmod -R a+rwX "${FIXTURE_DIR}"
+
+          echo "::notice:: Verifying pnpm@${PNPM_VERSION} installs non-interactively (no TTY, no network) for target '${{ matrix.target }}'."
+
+          timeout 90 docker run --rm \
+            -e CI=true \
+            -v "${FIXTURE_DIR}:/workspaces/fixture" \
+            -w /workspaces/fixture \
+            baobab-dev:scan \
+            pnpm install --frozen-lockfile < /dev/null
+
   # Job 3: Manifest Creation, OIDC Cosign Signing & Release Attestation
   # Merges per-arch images into a multi-arch OCI index, applies keyless
   # Cosign signatures/attestations via OIDC, and creates a GitHub Release.

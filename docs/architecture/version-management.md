@@ -173,6 +173,51 @@ In the same way these files lock application dependencies, `versions.lock` locks
 
 ---
 
+## Consumer Version Coupling — pnpm and the `frontend`/`frontend-e2e` Profiles
+
+Every managed version in `versions.yaml` is either pinned exactly (Maven, Terraform, AWS CLI) or left floating to `"latest"` (uv, Poetry, npm, Flutter, most CLI utilities). Floating is the right default for a tool this image's own scripts invoke directly — a newer patch is simply a newer, presumably-better version of the same tool, and there's no independent party whose own pin has to keep matching it.
+
+`package_managers.pnpm` is the one exception inside that generally-floating group, and deliberately pinned exactly instead. The difference is that pnpm is not just a tool this image runs — it is a tool baked into the image (via `corepack prepare "pnpm@${PNPM_VERSION}" --activate` in the Dockerfile's `with-node` stage) that every `frontend`/`frontend-e2e` **consumer repository** also independently declares a version for, via its own `package.json` `packageManager` field. Those two declarations are resolved completely separately — this image's at `docker build` time, the consumer's whenever that repo's own maintainers last edited `package.json` — and Corepack's default behavior (`COREPACK_ENABLE_PROJECT_SPEC`) is to check the consumer's declaration against what's already activated and fetch a different one on demand if they disagree. If `versions.yaml` floated pnpm to `"latest"` the way every other tool in this stage does, that mismatch would be the *common* case, not an edge case — and because a mismatch triggers a network fetch, and that fetch is preceded by an interactive confirmation prompt Corepack shows whenever it thinks it might be running interactively, a non-interactive provisioning context (a Codespace or Dev Container lifecycle command, with no TTY to answer that prompt) hangs instead of erroring or silently succeeding. This is exactly what happened in production — see `docs/incidents/2026-09-18-codespaces-corepack-interactive-prompt.md`.
+
+**The contract going forward:**
+
+| Owns | Responsibility |
+| --- | --- |
+| `baobab-dev` (`config/versions.yaml`) | Bakes in the exact pnpm version its known `frontend`/`frontend-e2e` consumers currently declare. Guarantees availability. |
+| Consumer repo (`package.json`'s `packageManager` field) | Declares the exact pnpm version that repo's own lockfile was generated against. Declares compatibility. |
+| Consumer repo's `pnpm-lock.yaml` | Locks the actual application dependency graph. |
+
+If a consumer bumps its `packageManager` pin ahead of this image's own `PNPM_VERSION`, the two are now allowed to disagree again — but the failure mode is now a hard, immediate, clearly-worded Corepack error (`ENV COREPACK_ENABLE_NETWORK=0` plus `COREPACK_DEFAULT_TO_LATEST=0` — both required together, see the incident doc's same-day correction — set in the `with-node` stage and inherited by every profile descending from it) rather than a silent network fetch or an interactive hang. `baobab-verify`'s JavaScript checks (`check_exact_version` for pnpm, `check_major_version` for Node) also fail loudly in that state, both inside the Docker build (`RUN baobab-verify`) and at container runtime.
+
+**Upgrade procedure**, when a consumer needs a newer pnpm:
+
+```text
+Consumer repo bumps package.json "packageManager"
+                    │
+                    ▼
+Bump config/versions.yaml's package_managers.pnpm.version
+      to the SAME exact version, in this repo
+                    │
+                    ▼
+config/resolve.sh regenerates versions.lock (CI: sanity-check job)
+                    │
+                    ▼
+.github/workflows/publish.yml builds, scans, and smoke-tests
+      the candidate frontend/frontend-e2e images
+                    │
+                    ▼
+Tag + publish the next baobab-dev release (e.g. 1.4.1 → 1.4.2)
+                    │
+                    ▼
+Consumer repo's devcontainer.json / CI workflows bump their
+      image tag reference to the new release
+                    │
+                    ▼
+Cold Codespace/Dev Container validation
+```
+
+Bumping only one side (the consumer's `packageManager` field, or this repo's `versions.yaml`) without the other reintroduces the mismatch this section exists to prevent.
+
 ## Future Evolution
 
 The current version management architecture establishes a strong foundation for deterministic builds.

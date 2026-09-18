@@ -71,6 +71,7 @@ fi
 : "${PYTHON_MINOR:=3.14}"
 : "${PYTHON_VERSION:=3.14}"
 : "${NODE_MAJOR:=24}"
+: "${PNPM_VERSION:=}"
 : "${FLUTTER_VERSION:=unknown}"
 : "${JAVA_MAJOR:=17}"
 : "${EXPECTED_USER:=vscode}"
@@ -184,6 +185,87 @@ check_optional() {
         ok "$label (${version})"
     else
         warnc "$label — '$version_cmd' failed (exit ${rc})${stderr_out:+: ${stderr_out}}"
+    fi
+}
+
+# check_exact_version: like check_required, but additionally fails if the
+# installed version doesn't exactly match $expected (leading 'v' stripped
+# from both sides before comparing). Added for pnpm specifically — presence
+# alone (check_required) doesn't catch the image baking in a DIFFERENT pnpm
+# than config/versions.lock's own PNPM_VERSION resolved to, the exact class
+# of drift that let a stale/mismatched image slip through prior verify runs
+# undetected while Corepack silently tried (and, without a TTY, hung)
+# downloading whatever a consuming repo's package.json actually pinned.
+# $expected empty (versions.lock not sourced / PNPM_VERSION unresolved) is
+# reported as a warning, not a failure — there is nothing to compare against.
+check_exact_version() {
+
+    local label="$1"
+    local cmd="$2"
+    local expected="$3"
+    local version_cmd="${4:-$2 --version}"
+
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        bad "$label — '$cmd' not found"
+        return
+    fi
+
+    local version stderr_out rc=0
+    run_version_cmd "$version_cmd" version stderr_out || rc=$?
+
+    if [[ $rc -ne 0 || -z "$version" ]]; then
+        bad "$label — '$version_cmd' failed (exit ${rc})${stderr_out:+: ${stderr_out}}"
+        return
+    fi
+
+    local actual="${version#v}"
+
+    if [[ -z "$expected" ]]; then
+        warnc "$label (${version}) — expected version unknown (versions.lock not sourced), skipping exact-match check"
+        return
+    fi
+
+    if [[ "$actual" == "$expected" ]]; then
+        ok "$label (${version})"
+    else
+        bad "$label version mismatch — Expected ${label} ${expected}. Found ${actual}."
+    fi
+}
+
+# check_major_version: like check_exact_version, but compares only the
+# leading major-version component (e.g. Node's "v24.5.1" vs expected "24").
+# Node's own point releases move independently of this file (NodeSource
+# apt tracks the newest patch on the ${NODE_MAJOR}.x line automatically),
+# so an exact full-version match would be a false failure on every routine
+# Node patch release — the policy this image actually enforces is the
+# major-version baseline (Node 24), not a specific patch.
+check_major_version() {
+
+    local label="$1"
+    local cmd="$2"
+    local expected_major="$3"
+    local version_cmd="${4:-$2 --version}"
+
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        bad "$label — '$cmd' not found"
+        return
+    fi
+
+    local version stderr_out rc=0
+    run_version_cmd "$version_cmd" version stderr_out || rc=$?
+
+    if [[ $rc -ne 0 || -z "$version" ]]; then
+        bad "$label — '$version_cmd' failed (exit ${rc})${stderr_out:+: ${stderr_out}}"
+        return
+    fi
+
+    local actual_major="${version#v}"
+    actual_major="${actual_major%%.*}"
+
+    if [[ "$actual_major" == "$expected_major" ]]; then
+        ok "$label (${version})"
+    else
+        bad "$label major-version mismatch — Expected ${label} ${expected_major}.x. Found ${version}."
     fi
 }
 
@@ -344,9 +426,9 @@ section "JavaScript"
 # unconditionally, which is why this section previously had no gate at all.
 if [[ "$BAOBAB_BUILD_PROFILE" != "infra" ]]; then
 
-    check_required "Node.js ${NODE_MAJOR}" node
+    check_major_version "Node.js" node "${NODE_MAJOR}"
     check_required "npm" npm
-    check_required "pnpm" pnpm
+    check_exact_version "pnpm" pnpm "${PNPM_VERSION}"
     check_optional "Yarn" yarn
 
 else
