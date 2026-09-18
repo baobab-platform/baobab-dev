@@ -5,6 +5,63 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versioning follows [Semantic Versioning](https://semver.org/) as described
 in `README.md § Versioning strategy`.
 
+## [1.4.1] — Non-interactive pnpm provisioning for `frontend`/`frontend-e2e`
+
+### Fixed
+- **Root cause**: `config/versions.yaml`'s `package_managers.pnpm.version` was
+  `"latest"`, resolved by `config/resolve.sh` to whatever pnpm release was
+  newest at THIS image's own build time and baked in via `corepack prepare
+  "pnpm@${PNPM_VERSION}" --activate` (Dockerfile `with-node` stage). Every
+  frontend consumer repo (zuribeans, nabhold, ...) independently pins an
+  EXACT pnpm version in its own `package.json` `packageManager` field (e.g.
+  `pnpm@11.24.0`), resolved completely separately from this image's own
+  build cadence. Whenever the two drifted apart — which "latest" guarantees
+  will eventually happen — Corepack's default project-spec check
+  (`COREPACK_ENABLE_PROJECT_SPEC`) detected the mismatch on first `pnpm`
+  invocation and attempted to download the consumer-pinned version over the
+  network, preceded by an interactive `Do you want to continue? [Y/n]`
+  confirmation prompt. Codespaces/Dev Container lifecycle commands
+  (`updateContentCommand: "corepack enable && pnpm install
+  --frozen-lockfile"`) have no TTY to answer that prompt, so provisioning
+  hung indefinitely on every clean Codespace/container create.
+- `package_managers.pnpm.version` is now pinned to the exact version
+  (`11.24.0`) consuming repos currently declare, instead of `"latest"` —
+  the image now bakes in precisely the version those repos already expect,
+  so no network fetch is ever attempted for the common case.
+- Added `ENV COREPACK_ENABLE_NETWORK=0` to the Dockerfile's `with-node`
+  stage (inherited by `frontend`, `frontend-e2e`, and `final`). This is
+  defense-in-depth, not the primary fix: it ensures any FUTURE recurrence
+  of this same drift (a consumer repo bumping its `packageManager` pin
+  ahead of this image's next release) fails immediately with a clear
+  Corepack error naming the missing version, instead of silently
+  downloading or hanging on a prompt — see Corepack's own documented
+  behavior for `COREPACK_ENABLE_NETWORK=0`.
+- `scripts/verify.sh` (`baobab-verify`) previously only checked that
+  `node`/`npm`/`pnpm` were present (`cmd --version` succeeding), never that
+  their versions actually matched this image's own `config/versions.lock`.
+  Added `check_exact_version()` (pnpm, against `PNPM_VERSION`) and
+  `check_major_version()` (Node, against `NODE_MAJOR`) so a future
+  version-pinning regression fails `baobab-verify` — and therefore the
+  image build itself (`RUN baobab-verify` in the Dockerfile) and every
+  consumer's `postCreateCommand` — instead of silently shipping.
+- `.github/workflows/publish.yml`: added a "non-interactive package-manager
+  provisioning test" step (frontend/frontend-e2e targets only) that mounts
+  a throwaway fixture project pinning this image's own exact `PNPM_VERSION`
+  and runs `pnpm install --frozen-lockfile` inside the built candidate image
+  with stdin fully closed and `CI=true` set — the same non-interactive
+  shape a real Codespace lifecycle command runs under — bounded by a 90s
+  `timeout` so a regression of the original hang fails the CI job cleanly
+  instead of exhausting the runner's time budget.
+
+### Changed
+- Consumers (see `nabhold/zuribeans`): `updateContentCommand` simplified
+  from `"corepack enable && pnpm install --frozen-lockfile"` to just
+  `"pnpm install --frozen-lockfile"` — `corepack enable` is a filesystem
+  change (writing shim scripts) baked into the image at build time via the
+  Dockerfile's `with-node` stage; it does not need to be re-run on every
+  container create, and re-running it added no correctness benefit while
+  keeping the interactive-prompt code path reachable.
+
 ## [1.4.0-rc.0] — `infra` profile: Terraform + AWS CLI for nabhold/infrastructure
 
 ### Added

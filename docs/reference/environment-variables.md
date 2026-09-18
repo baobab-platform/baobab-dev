@@ -76,6 +76,20 @@ Using project-local virtual environments makes dependencies easier to manage and
 
 ---
 
+## Node / Corepack Configuration
+
+Node.js, npm, pnpm, and yarn are all provisioned during image creation (Dockerfile `with-node` stage) rather than left for a developer or a container-startup command to install.
+
+Typical configuration includes:
+
+| Variable                     | Purpose                                                                                                                                                                                                                                                                                                        |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `COREPACK_ENABLE_NETWORK=0`   | Prevents Corepack from making any network request to fetch a package-manager release. This image already bakes in the exact pnpm version consuming repos currently declare (`corepack prepare "pnpm@${PNPM_VERSION}" --activate`), so no fetch should ever be needed; if a consumer's own `package.json` `packageManager` pin later drifts ahead of this image's own pin, Corepack fails immediately with a clear error naming the missing version instead of silently downloading it — or, without this variable, prompting for interactive confirmation and hanging in a non-TTY Codespace/Dev Container lifecycle command. See `docs/architecture/version-management.md § Consumer Version Coupling` and `docs/incidents/2026-09-18-codespaces-corepack-interactive-prompt.md`. |
+
+Consumer repos should **not** need to run `corepack enable` themselves in a `postCreateCommand`/`updateContentCommand` — it is a filesystem change (installing shim scripts) already baked into the image at build time.
+
+---
+
 ## Flutter Environment
 
 The Flutter SDK is configured during image creation so it is immediately available.

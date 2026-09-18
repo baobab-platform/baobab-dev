@@ -79,8 +79,31 @@ package_managers:
     source: "github"
 
   pnpm:
-    version: "latest"
+    version: "11.24.0"
     source: "npm"
+    # Explicit pin, NOT "latest" — unlike npm/npm_bundled_tar below, whose
+    # float is deliberate (see their own comments: CVE freshness for a
+    # bundled dependency of Node itself, not the primary package manager
+    # engineers and CI invoke directly). pnpm is different: it is baked into
+    # this image via `corepack prepare "pnpm@${PNPM_VERSION}" --activate`
+    # (with-node stage), and every frontend/frontend-e2e/full consumer repo
+    # independently pins an EXACT pnpm version via its own package.json
+    # `packageManager` field (e.g. zuribeans, nabhold: "pnpm@11.24.0").
+    # Corepack checks that field by default (COREPACK_ENABLE_PROJECT_SPEC)
+    # and, finding a version other than whatever "latest" happened to
+    # resolve to at this image's last build, attempts to download the
+    # project-declared version on first invocation — which is exactly the
+    # interactive "Do you want to continue? [Y/n]" prompt that hung
+    # Codespaces provisioning (COREPACK_ENABLE_NETWORK=0 below, in the
+    # Dockerfile's with-node stage, turns any future recurrence of this same
+    # drift into an immediate clear failure instead of a hang, but the
+    # actual fix is this: keep this pin equal to what consuming repos'
+    # `packageManager` fields declare, so the exact version they need is
+    # already resident and no network call is ever attempted). 11.24.0 is
+    # the version zuribeans and nabhold currently declare (2026-09-18) —
+    # bump this in lockstep whenever those repos bump theirs, exactly like
+    # the "Version upgrade procedure" documented in docs/frontend-image-
+    # contract.md.
 
   npm:
     version: "latest"

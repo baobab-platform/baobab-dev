@@ -706,6 +706,30 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
     corepack prepare yarn@stable --activate
 
+# Non-interactive-by-construction guard, not a suppression of the prompt —
+# Corepack's own documented mechanism for this exact failure mode. By
+# default Corepack checks a project's package.json `packageManager` field
+# (COREPACK_ENABLE_PROJECT_SPEC, on by default) and, if that pins a
+# pnpm/yarn version other than the one `corepack prepare --activate` just
+# baked in above, silently fetches it over the network on first invocation
+# — in an interactive-feeling shell (Codespaces/Dev Container lifecycle
+# commands) that fetch is preceded by a "Do you want to continue? [Y/n]"
+# confirmation prompt, which blocks forever with no TTY to answer it. That
+# drift is expected to recur (every consumer repo's own `packageManager`
+# pin moves independently of this image's release cadence) even though
+# PNPM_VERSION above is now kept in lockstep with today's known consumers.
+# Setting COREPACK_ENABLE_NETWORK=0 does not touch today's fix (this image
+# already carries the exact version currently declared) — it converts any
+# FUTURE reappearance of the same drift from a silent hang into an
+# immediate, explicit Corepack error naming the missing version, so a
+# consumer repo drifting out of sync with this image fails its Codespace
+# build loudly instead of hanging it. Per Corepack's own docs, the only
+# way to satisfy a project pinning a version this image does not already
+# carry, with network disabled, is to rebuild/republish this image with an
+# updated PNPM_VERSION — exactly the intended remediation path (see
+# docs/frontend-image-contract.md's upgrade procedure), never a prompt.
+ENV COREPACK_ENABLE_NETWORK=0
+
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
