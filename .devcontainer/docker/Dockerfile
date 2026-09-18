@@ -556,6 +556,29 @@ ENV BAOBAB_CONFIG_DIR=/usr/local/share/baobab/config
 # -----------------------------------------------------------------------------
 FROM base AS with-node
 
+# COREPACK_HOME fixed to an absolute, user-independent path — set BEFORE the
+# `corepack prepare` calls below run (as root, during this stage) so the
+# prepared pnpm/yarn releases land here rather than at Corepack's own
+# default of "$HOME/.cache/node/corepack". That default resolves per
+# invoking user: `corepack prepare --activate` here runs as root
+# (HOME=/root), but every downstream consumer of this image — `RUN
+# baobab-verify` in the `frontend`/`frontend-e2e`/`final` stages below, and
+# every real devcontainer session — runs as `vscode` (HOME=/home/vscode),
+# whose Corepack cache is empty. Left at the default, Corepack correctly
+# concludes "the version I need isn't in THIS user's cache" and tries to
+# download it again — exactly the network fetch (and, interactively, the
+# prompt) this whole change exists to eliminate, discovered when
+# COREPACK_ENABLE_NETWORK=0 below turned that silent re-download into a
+# hard, diagnosable "Corepack is about to download pnpm-11.24.0.tgz;
+# Network access disabled" error inside this Dockerfile's own build. A
+# fixed, absolute COREPACK_HOME sidesteps per-user cache resolution
+# entirely: whichever user invokes pnpm/yarn, Corepack looks in the same
+# place it was populated during this stage's own RUN. World-readable
+# (chmod after the prepare calls, once populated) since `vscode` never
+# needs to WRITE here — every version this image promises is already
+# resident by the time `USER vscode` takes effect further down.
+ENV COREPACK_HOME=/usr/local/share/baobab/corepack
+
 # -----------------------------------------------------------------------------
 # 4. Node.js LTS, npm, pnpm, yarn
 # -----------------------------------------------------------------------------
@@ -704,7 +727,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     ) && \
     corepack enable && \
     corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
-    corepack prepare yarn@stable --activate
+    corepack prepare yarn@stable --activate && \
+    chmod -R a+rX "${COREPACK_HOME}"
 
 # Non-interactive-by-construction guard, not a suppression of the prompt —
 # Corepack's own documented mechanism for this exact failure mode. By
