@@ -728,7 +728,24 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # carry, with network disabled, is to rebuild/republish this image with an
 # updated PNPM_VERSION — exactly the intended remediation path (see
 # docs/frontend-image-contract.md's upgrade procedure), never a prompt.
-ENV COREPACK_ENABLE_NETWORK=0
+#
+# COREPACK_ENABLE_NETWORK=0 alone is not sufficient, and shipping it
+# without COREPACK_DEFAULT_TO_LATEST=0 broke this very build: even a bare
+# `pnpm --version` with NO project `packageManager` spec in scope (exactly
+# what `RUN baobab-verify` below does, from /workspaces with no
+# package.json present) is, by default, resolved via Corepack's "Known
+# Good Release" mechanism, which checks the npm registry for a newer
+# release on every invocation regardless of whether a matching version is
+# already `prepare --activate`d locally (COREPACK_DEFAULT_TO_LATEST, on by
+# default) — a genuinely different Corepack setting than the project-spec
+# mismatch case COREPACK_ENABLE_NETWORK=0 targets above. With network
+# disabled and this left on, that background check itself fails outright:
+# "Network access disabled by the environment; can't reach npm repository
+# https://registry.npmjs.org" — confirmed against this Dockerfile's own
+# frontend-target CI build. Disabling it means Corepack trusts the
+# version it already activated instead of always phoning home first.
+ENV COREPACK_ENABLE_NETWORK=0 \
+    COREPACK_DEFAULT_TO_LATEST=0
 
 # -----------------------------------------------------------------------------
 

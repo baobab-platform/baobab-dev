@@ -187,7 +187,7 @@ Every managed version in `versions.yaml` is either pinned exactly (Maven, Terraf
 | Consumer repo (`package.json`'s `packageManager` field) | Declares the exact pnpm version that repo's own lockfile was generated against. Declares compatibility. |
 | Consumer repo's `pnpm-lock.yaml` | Locks the actual application dependency graph. |
 
-If a consumer bumps its `packageManager` pin ahead of this image's own `PNPM_VERSION`, the two are now allowed to disagree again — but the failure mode is now a hard, immediate, clearly-worded Corepack error (`ENV COREPACK_ENABLE_NETWORK=0`, set in the `with-node` stage and inherited by every profile descending from it) rather than a silent network fetch or an interactive hang. `baobab-verify`'s JavaScript checks (`check_exact_version` for pnpm, `check_major_version` for Node) also fail loudly in that state, both inside the Docker build (`RUN baobab-verify`) and at container runtime.
+If a consumer bumps its `packageManager` pin ahead of this image's own `PNPM_VERSION`, the two are now allowed to disagree again — but the failure mode is now a hard, immediate, clearly-worded Corepack error (`ENV COREPACK_ENABLE_NETWORK=0` plus `COREPACK_DEFAULT_TO_LATEST=0` — both required together, see the incident doc's same-day correction — set in the `with-node` stage and inherited by every profile descending from it) rather than a silent network fetch or an interactive hang. `baobab-verify`'s JavaScript checks (`check_exact_version` for pnpm, `check_major_version` for Node) also fail loudly in that state, both inside the Docker build (`RUN baobab-verify`) and at container runtime.
 
 **Upgrade procedure**, when a consumer needs a newer pnpm:
 
