@@ -7,7 +7,7 @@
 # Purpose
 # -------
 # baobab-dev declares what it ACTUALLY provides, per profile, so CI can
-# validate a consuming repo's `.baobab-platform/environment.yaml` against something
+# validate a consuming repo's `.baobab/environment.yaml` against something
 # concrete instead of trusting versions.lock's shape to match the contract
 # schema's shape by convention alone.
 #
