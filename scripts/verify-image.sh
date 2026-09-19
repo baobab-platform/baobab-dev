@@ -22,7 +22,7 @@
 #     rather than a confusing failure.
 #
 # Usage:
-#   ./scripts/verify-image.sh ghcr.io/nabhold/baobab-dev:v1.0.0
+#   ./scripts/verify-image.sh ghcr.io/baobab-platform/baobab-dev:v1.0.0
 #
 # CHANGE LOG (this file, most recent first)
 # ------------------------------------------------------------------------------
@@ -57,7 +57,7 @@
 
 set -Eeuo pipefail
 
-IMAGE="${1:-ghcr.io/nabhold/baobab-dev:v1.0.0}"
+IMAGE="${1:-ghcr.io/baobab-platform/baobab-dev:v1.0.0}"
 OIDC_ISSUER="https://token.actions.githubusercontent.com"
 EXPECTED_OWNER_REGEXP="^https://github.com/nabhold"
 
