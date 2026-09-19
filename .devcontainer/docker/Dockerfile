@@ -4,7 +4,7 @@
 # BAOBAB Enterprise Platform — Standard Development Container
 # =============================================================================
 # Maintained by: Nabhold Group Africa — Platform Engineering
-# Registry:      ghcr.io/nabhold/baobab-dev
+# Registry:      ghcr.io/baobab-platform/baobab-dev
 #
 # This image is the single source of truth for the BAOBAB local development
 # environment. It is built for GitHub Codespaces and Dev Containers (VS Code /
@@ -93,7 +93,7 @@
 #   nothing security-relevant changed in the actual toolchain.
 # * [2026-09-01] v1.3.0-rc.0: Added Java (Eclipse Temurin JDK) + Apache Maven
 #   to the `final` stage, needed by baobab-erp's iDempiere ERP engine
-#   migration (github.com/nabhold/baobab-erp) — see the new section 6b below,
+#   migration (github.com/baobab-platform/baobab-erp) — see the new section 6b below,
 #   and config/versions.yaml's `languages.java` / `development.maven`
 #   entries for the full rationale (Temurin apt repo confirmed multi-arch
 #   amd64+arm64; Maven's tarball is architecture-independent; Maven pinned
@@ -102,7 +102,7 @@
 #   /opt/maven/bin were added to section 10's global PATH.
 # * [2026-09-01] Fixed a long-standing copy/paste bug in the `base` stage's
 #   OCI LABEL block: `image.source` and `image.documentation` pointed at
-#   `github.com/nabhold/baobab-devcontainer`, a repository name this project
+#   `github.com/baobab-platform/baobab-devcontainer`, a repository name this project
 #   has never actually used — every other reference in this repo (README,
 #   devcontainer.json, this CHANGE LOG) has always said `baobab-dev`. Both
 #   labels now point at the real repository.
@@ -382,7 +382,7 @@ RUN set -euo pipefail; \
 # frontend, frontend-e2e)
 #
 # RESTRUCTURED (baobab-dev-v1_1_0-release-plan-amended.md, tasks 1.9/1.10;
-# ADR-0001, nabhold/shared). Previously this was the start of a single
+# ADR-0001, baobab-platform/shared). Previously this was the start of a single
 # monolithic `final` stage that installed Python, Node, and Flutter
 # sequentially with no way to build a subset of them. Extracted here as its
 # own stage — sections 1-2 of the pre-restructuring file, content
@@ -403,13 +403,13 @@ ARG REVISION
 LABEL org.opencontainers.image.title="baobab-dev" \
       org.opencontainers.image.description="Standard development container for the BAOBAB Enterprise Platform (Nabhold Group Africa)" \
       org.opencontainers.image.vendor="Nabhold Group Africa" \
-      org.opencontainers.image.source="https://github.com/nabhold/baobab-dev" \
+      org.opencontainers.image.source="https://github.com/baobab-platform/baobab-dev" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.created=$BUILD_DATE \
       org.opencontainers.image.version=$VERSION \
       org.opencontainers.image.revision=$REVISION \
       org.opencontainers.image.authors="Platform Engineering <platform@nabhold.com>" \
-      org.opencontainers.image.documentation="https://github.com/nabhold/baobab-dev/blob/main/README.md"
+      org.opencontainers.image.documentation="https://github.com/baobab-platform/baobab-dev/blob/main/README.md"
 
 # -----------------------------------------------------------------------------
 # devcontainer.metadata image label — Development Environment Contract task
@@ -432,7 +432,7 @@ LABEL org.opencontainers.image.title="baobab-dev" \
 # with the full platform port set, since `final` is the only profile that
 # actually runs Django/FastAPI/Postgres/Redis/MinIO/Traefik.
 #
-# Real consumers (e.g. baobab's own .nabhold/environment.yaml-driven
+# Real consumers (e.g. baobab's own .baobab-platform/environment.yaml-driven
 # devcontainer.json) still declare their own forwardPorts/portsAttributes —
 # per the union rule those are ADDED to this default, never a replacement
 # of it. This repo's own devcontainer.json keeps the full illustrative port
@@ -775,7 +775,7 @@ ENV COREPACK_ENABLE_NETWORK=0 \
 
 # -----------------------------------------------------------------------------
 # Stage: frontend — Node/pnpm/Turborepo only, for the four digital-estate
-# repos (nabhold/nabhold, zuribeans, thamani, equator-estate). Branches
+# repos (baobab-platform/nabhold, zuribeans, thamani, equator-estate). Branches
 # directly off with-node, NOT off `final` below and not the reverse either
 # — deliberate sibling relationship so a Turborepo version bump can never
 # invalidate the Python/Flutter layers `final` depends on, and vice versa.
@@ -814,7 +814,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # binaries — same source and verification as `final`'s equivalent block,
 # deliberately excluding `uv`/`uvx` (Python-only, this profile has no
 # Python) and `cosign` (image-signing tool, not a frontend-repo need per
-# nabhold/shared's capabilities.yaml).
+# baobab-platform/shared's capabilities.yaml).
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && \
@@ -898,9 +898,9 @@ CMD ["sleep", "infinity"]
 # Stage: frontend-e2e — extends `frontend` with browser-dependent tooling
 # for end-to-end testing, image processing, and performance auditing.
 #
-# NOT a daily devcontainer image — a repo's own .nabhold/environment.yaml
+# NOT a daily devcontainer image — a repo's own .baobab-platform/environment.yaml
 # should declare `profile: frontend`, never `frontend-e2e`; a CI test
-# workflow references this tag directly instead (see nabhold/shared's
+# workflow references this tag directly instead (see baobab-platform/shared's
 # development-environment schema, "frontend-e2e is a CI-only profile").
 # Kept as a SEPARATE stage from `frontend` (not merged into it) specifically
 # so daily interactive development never carries Playwright's browser
@@ -1204,7 +1204,7 @@ https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CO
 # 6b. Java (Eclipse Temurin JDK) + Apache Maven
 # -----------------------------------------------------------------------------
 # Needed for baobab-erp's iDempiere ERP engine migration
-# (github.com/nabhold/baobab-erp) — not needed by any other BAOBAB engine
+# (github.com/baobab-platform/baobab-erp) — not needed by any other BAOBAB engine
 # today. iDempiere's own docs (wiki.idempiere.org/en/Install_Prerequisites,
 # live-verified 2026-09-01) require a full JDK, explicitly not JRE-only
 # ("openjdk-17-jre is not sufficient because it doesn't have the jar command
@@ -1452,19 +1452,19 @@ HEALTHCHECK \
 CMD ["sleep", "infinity"]
 
 # -----------------------------------------------------------------------------
-# Stage: infra — Terraform + AWS CLI only, for nabhold/infrastructure's local
-# development and testing (nabhold/infrastructure has no devcontainer
+# Stage: infra — Terraform + AWS CLI only, for baobab-platform/infrastructure's local
+# development and testing (baobab-platform/infrastructure has no devcontainer
 # profile today; this is what it declares going forward).
 #
 # Branches directly off `base`, NOT `with-node` — this profile needs none of
-# Python/Node/Flutter/Java (nabhold/infrastructure's own README: Terraform +
+# Python/Node/Flutter/Java (baobab-platform/infrastructure's own README: Terraform +
 # AWS CLI, with Kubernetes/Helm/Temporal "deliberately deferred until
 # operational need justifies their additional machinery"). Sibling to
 # `with-node`, same deliberate-isolation reasoning as `frontend`'s own stage
 # comment above: a Terraform version bump can never invalidate the Node/
 # Python/Flutter layers `with-node`/`final` depend on, and vice versa.
 #
-# NEW stage (2026-09-03) — nabhold/infrastructure local development +
+# NEW stage (2026-09-03) — baobab-platform/infrastructure local development +
 # testing proposal.
 # -----------------------------------------------------------------------------
 FROM base AS infra
@@ -1486,7 +1486,7 @@ LABEL devcontainer.metadata='{"forwardPorts":[],"otherPortsAttributes":{"onAutoF
 # Docker CLI + Compose plugin — byte-identical to `final`'s equivalent block
 # (client only; Codespaces mounts the host Docker socket, so no dockerd/
 # containerd here either). Needed for Terraform's own `docker` provider use
-# and for running the compose stack nabhold/infrastructure's own README
+# and for running the compose stack baobab-platform/infrastructure's own README
 # documents — unlike `frontend`, which deliberately excludes Docker CLI.
 # -----------------------------------------------------------------------------
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
