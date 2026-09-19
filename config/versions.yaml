@@ -53,7 +53,7 @@ languages:
     # Docker images) — no per-arch checksum pair needed here, unlike the
     # GitHub-release binaries under utilities/security below.
     #
-    # Needed for baobab-erp's iDempiere ERP engine (github.com/nabhold/
+    # Needed for baobab-erp's iDempiere ERP engine (github.com/baobab-platform/
     # baobab-erp) — iDempiere's own docs (wiki.idempiere.org/en/
     # Install_Prerequisites, live-verified 2026-09-01) require a JDK
     # (explicitly not JRE-only — "openjdk-17-jre is not sufficient because
@@ -213,7 +213,7 @@ development:
 # NEW — frontend_tooling
 #
 # Backs the `frontend` and `frontend-e2e` Dockerfile build targets (ADR-0001,
-# nabhold/shared) and the `frontend` profile in the development-environment
+# baobab-platform/shared) and the `frontend` profile in the development-environment
 # contract schema. Follows this file's own established convention: "latest",
 # resolved to an exact version by resolve.sh into versions.lock at build
 # time — NOT hardcoded here, for the same reason pnpm/uv/poetry above aren't.
@@ -254,7 +254,7 @@ frontend_tooling:
       its own version expects) must resolve to the same Playwright
       release, or the browser binaries this image downloaded for one
       revision are invisible to a test runner expecting a different one
-      — observed for real: nabhold/zuribeans#60's CI failed with
+      — observed for real: baobab-platform/zuribeans#60's CI failed with
       "Error: browserType.launch: Executable doesn't exist at
       /root/.cache/ms-playwright/chromium_headless_shell-1234/..." after
       "latest" drifted past zuribeans' own pinned
@@ -287,8 +287,8 @@ security:
 # NEW — infra
 #
 # Backs the `infra` Dockerfile build target and the `infra` profile in the
-# development-environment contract schema (nabhold/shared). Powers local
-# development + testing for nabhold/infrastructure (Terraform-managed AWS
+# development-environment contract schema (baobab-platform/shared). Powers local
+# development + testing for baobab-platform/infrastructure (Terraform-managed AWS
 # infrastructure) — deliberately excludes Python/Node/Flutter/Java/Maven,
 # none of which infrastructure-as-code needs. Branches off `base` directly
 # in the Dockerfile, not `with-node` — see that stage's own comment.
