@@ -3,7 +3,7 @@
 # File: scripts/bootstrap.sh
 #
 # One-command onboarding for a new BAOBAB engineer or an automated runner
-# that consumes the published ghcr.io/nabhold/baobab-dev image outside of the
+# that consumes the published ghcr.io/baobab-platform/baobab-dev image outside of the
 # VS Code / Codespaces Dev Container lifecycle, for example:
 #
 #   • a bare `docker run`
