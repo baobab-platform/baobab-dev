@@ -38,7 +38,7 @@
 # Usage:
 #   scripts/fetch-complete-oci-index.sh <image-ref-without-digest> <digest> [hint]
 #
-#   <image-ref-without-digest>  e.g. ghcr.io/nabhold/baobab-dev
+#   <image-ref-without-digest>  e.g. ghcr.io/baobab-platform/baobab-dev
 #   <digest>                    e.g. sha256:abc123... (the merged index's own digest)
 #   [hint]                      Optional. Appended to the final error message,
 #                                naming the specific upstream `build`-job step

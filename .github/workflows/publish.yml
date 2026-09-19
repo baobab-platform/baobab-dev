@@ -356,7 +356,7 @@ jobs:
     # TIER 1 (baobab-dev-v1_1_0-release-plan-amended.md tasks 1.9/1.10;
     # ADR-0001): build and Trivy-scan every Dockerfile target on every
     # trigger, exactly as `final` already was. `infra` (2026-09-03,
-    # nabhold/infrastructure local development + testing proposal) joined
+    # baobab-platform/infrastructure local development + testing proposal) joined
     # the matrix directly at TIER 2 — publishing for real from day one —
     # rather than repeating a separate build-only proving period, since its
     # stage reuses patterns (checksummed binary install, profile-gated
@@ -395,7 +395,7 @@ jobs:
       # also pulls its own ~922MB Java DB on top of it. Standard
       # GitHub-hosted runners repeatedly hit "disk quota exceeded" around
       # the Trivy scan step on this target specifically — confirmed
-      # reproducible via nabhold/baobab-dev#31's CI across five independent
+      # reproducible via baobab-platform/baobab-dev#31's CI across five independent
       # runs (both linux/amd64 and linux/arm64), never a real build or CVE
       # regression. The biggest single contributor — a second, fully
       # daemon-loaded copy of `final` for scanning — is eliminated
@@ -543,7 +543,7 @@ jobs:
       # touches GHCR, so no registry auth needed.
       #
       # `final` scans from an OCI tarball (`type=oci,dest=...`) instead of
-      # `load: true`. ROOT-CAUSED (nabhold/baobab-dev#31 CI, reproduced
+      # `load: true`. ROOT-CAUSED (baobab-platform/baobab-dev#31 CI, reproduced
       # across five separate runs): `load: true` fully materializes a
       # SECOND complete copy of `final` (Python+Node+Flutter+Java+Maven+
       # Docker CLI — by far the heaviest target) into the Docker daemon's
@@ -829,7 +829,7 @@ jobs:
     # over target instead of a single final-only run. All three targets
     # publish now — final+frontend proved this split on tag v1.1.0;
     # frontend-e2e completes it in this pass. `infra` joins the matrix
-    # 2026-09-03 (nabhold/infrastructure local development + testing
+    # 2026-09-03 (baobab-platform/infrastructure local development + testing
     # proposal) — no other change needed in this job: the tag-suffix logic
     # in "Extract Docker tagging metadata" below and the "Container Smoke
     # Test (frontend / frontend-e2e — local scan image)" step in the build

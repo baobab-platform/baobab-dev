@@ -676,7 +676,7 @@ fi
 # NEW: frontend_tooling (turbo, playwright, sharp, lighthouse)
 #
 # Backs the `frontend`/`frontend-e2e` Dockerfile targets (ADR-0001,
-# nabhold/shared) — all npm-sourced, resolved the same way as pnpm above.
+# baobab-platform/shared) — all npm-sourced, resolved the same way as pnpm above.
 # None of these have a compiled per-architecture GitHub release binary the
 # way ripgrep/task/uv/gh/cosign do; npm's own install-time integrity
 # checking is the verification mechanism, same reasoning already applied

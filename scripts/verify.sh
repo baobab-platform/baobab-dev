@@ -269,9 +269,9 @@ check_major_version() {
     fi
 }
 
-# check_contract: validates the calling repo's own .nabhold/environment.yaml
+# check_contract: validates the calling repo's own .baobab/environment.yaml
 # (if one exists) against this image's config/capabilities.yaml, per the
-# Development Environment Contract (nabhold/shared, ADR-0001).
+# Development Environment Contract (baobab-platform/shared, ADR-0001).
 #
 # Deliberately opt-in and non-blocking as of v1.1.0 — see the design notes
 # in baobab-dev-v1_1_0-release-plan-amended.md §2 for why this stays a soft
@@ -291,7 +291,7 @@ check_contract() {
 
     section "Development Environment Contract"
 
-    local contract_file=".nabhold/environment.yaml"
+    local contract_file=".baobab/environment.yaml"
 
     if [[ ! -f "$contract_file" ]]; then
         say "  No environment contract found (${contract_file}) — skipping compatibility check."
@@ -501,7 +501,7 @@ fi
 section "Containers"
 
 # `infra` added alongside `full` (2026-09-03) — it installs Docker CLI +
-# Compose plugin too (nabhold/infrastructure's own compose stack), matching
+# Compose plugin too (baobab-platform/infrastructure's own compose stack), matching
 # capabilities.yaml's `development.docker: true` under both profiles.
 if [[ "$BAOBAB_BUILD_PROFILE" == "full" || "$BAOBAB_BUILD_PROFILE" == "infra" ]]; then
 
@@ -537,7 +537,7 @@ fi
 
 section "Infrastructure"
 
-# Needed only for nabhold/infrastructure's Terraform-managed AWS
+# Needed only for baobab-platform/infrastructure's Terraform-managed AWS
 # infrastructure — not by any other BAOBAB repo today. Matches
 # capabilities.yaml, which only lists `development.terraform`/`aws_cli`
 # under `infra`.

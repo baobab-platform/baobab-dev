@@ -340,7 +340,7 @@ CVE-2026-17106 exp:2026-11-10
 #
 # Investigated 2026-09-16, the day this surfaced as the sole failure once
 # the "final" target's Trivy scan itself started completing successfully
-# again (nabhold/baobab-dev#31 — a prior disk-quota/OCI-scan-target
+# again (baobab-platform/baobab-dev#31 — a prior disk-quota/OCI-scan-target
 # infrastructure problem had been masking whether the scan even reached
 # this deep before). Confirmed, not assumed, that no fix is currently
 # installable: cosign's own latest release is v3.1.3 (2026-08-06, GitHub's

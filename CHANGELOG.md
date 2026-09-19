@@ -18,7 +18,7 @@ in `README.md § Versioning strategy`.
   expects) must resolve to the same Playwright release, or the browser
   binaries this image downloaded for one revision are invisible to a
   test runner expecting a different one. Discovered when
-  `nabhold/zuribeans#60`'s CI failed with `Error: browserType.launch:
+  `baobab-platform/zuribeans#60`'s CI failed with `Error: browserType.launch:
   Executable doesn't exist at
   /root/.cache/ms-playwright/chromium_headless_shell-1234/...` after
   "latest" drifted past `zuribeans`' own pinned
@@ -82,7 +82,7 @@ for the full pnpm incident this recurrence is modeled on.
   instead of exhausting the runner's time budget.
 
 ### Changed
-- Consumers (see `nabhold/zuribeans`): `updateContentCommand` simplified
+- Consumers (see `baobab-platform/zuribeans`): `updateContentCommand` simplified
   from `"corepack enable && pnpm install --frozen-lockfile"` to just
   `"pnpm install --frozen-lockfile"` — `corepack enable` is a filesystem
   change (writing shim scripts) baked into the image at build time via the
@@ -90,14 +90,14 @@ for the full pnpm incident this recurrence is modeled on.
   container create, and re-running it added no correctness benefit while
   keeping the interactive-prompt code path reachable.
 
-## [1.4.0-rc.0] — `infra` profile: Terraform + AWS CLI for nabhold/infrastructure
+## [1.4.0-rc.0] — `infra` profile: Terraform + AWS CLI for baobab-platform/infrastructure
 
 ### Added
-- New `infra` Dockerfile build target (`ghcr.io/nabhold/baobab-dev:{version}-infra`)
-  — Terraform + AWS CLI only, for nabhold/infrastructure's local development
+- New `infra` Dockerfile build target (`ghcr.io/baobab-platform/baobab-dev:{version}-infra`)
+  — Terraform + AWS CLI only, for baobab-platform/infrastructure's local development
   and testing. Branches directly off the shared `base` stage, not `with-node`
   — this profile needs none of Python/Node/Flutter/Java, matching
-  nabhold/infrastructure's own README, which defers Kubernetes/Helm/Temporal
+  baobab-platform/infrastructure's own README, which defers Kubernetes/Helm/Temporal
   "until operational need justifies their additional machinery."
 - HashiCorp Terraform 1.16.1, installed from `releases.hashicorp.com` as a
   per-architecture zip and verified against HashiCorp's own SHA256SUMS
@@ -138,13 +138,13 @@ for the full pnpm incident this recurrence is modeled on.
   bundles grpc v1.83.2 and clears both CVEs; task has no upstream release
   incorporating a patched grpc yet (latest is v3.53.1, 2026-08-18), so
   both CVEs are recorded in `.trivyignore` pending a go-task/task rebuild.
-- `.nabhold/environment.yaml` and `README.md`'s "Foundation 4" section
+- `.baobab/environment.yaml` and `README.md`'s "Foundation 4" section
   still declared this repository's own dogfooded `full` profile at
   1.2.6, out of step with `.devcontainer/devcontainer.json`'s image pin
-  (already moved to `ghcr.io/nabhold/baobab-dev:1.4.0` ahead of this
+  (already moved to `ghcr.io/baobab-platform/baobab-dev:1.4.0` ahead of this
   release). This failed the Foundation Repository Gates
   `repository-contract` job's `devcontainer must use
-  ghcr.io/nabhold/baobab-dev:{minimum_version}` check on every push to
+  ghcr.io/baobab-platform/baobab-dev:{minimum_version}` check on every push to
   `main`. Both files now declare 1.4.0, matching the devcontainer pin.
 
 ## [1.3.0-rc.0] — Java + Maven for iDempiere
@@ -153,7 +153,7 @@ for the full pnpm incident this recurrence is modeled on.
 - Eclipse Temurin OpenJDK 17 (JDK, not JRE) in the `full` profile, installed
   from Adoptium's own apt repository (multi-arch: `linux/amd64` and
   `linux/arm64`). Required by `baobab-erp`'s iDempiere ERP engine migration
-  (github.com/nabhold/baobab-erp) — not used by any other BAOBAB engine.
+  (github.com/baobab-platform/baobab-erp) — not used by any other BAOBAB engine.
 - Apache Maven 3.9.16 in the `full` profile, installed from
   `archive.apache.org` and verified against its published SHA-512 checksum.
   Pinned explicitly rather than tracked at "latest": Maven Central's release
@@ -168,9 +168,9 @@ for the full pnpm incident this recurrence is modeled on.
 
 ### Fixed
 - The `base` stage's OCI `image.source` and `image.documentation` labels
-  pointed at `github.com/nabhold/baobab-devcontainer`, a repository name this
+  pointed at `github.com/baobab-platform/baobab-devcontainer`, a repository name this
   project has never used. Both now correctly point at
-  `github.com/nabhold/baobab-dev`.
+  `github.com/baobab-platform/baobab-dev`.
 - CI's "scan built container with Trivy" step failed on both `linux/amd64`
   and `linux/arm64` `final` builds: Trivy's secret scanner flagged three
   placeholder credential-shaped values inside Maven's own stock

@@ -24,15 +24,15 @@
 #
 
 [project]
-site_url = "https://nabhold.github.io/baobab-dev/"
+site_url = "https://baobab-platform.github.io/baobab-dev/"
 site_name = "BAOBAB"
 site_description = "Enterprise-grade, reproducible development environment for the BAOBAB Enterprise Platform."
 site_author = "Nabhold Group Africa"
 
 copyright = "Copyright &copy; 2026 Nabhold Group Africa | Licensed under the Apache 2.0 License"
 
-repo_url = "https://github.com/nabhold/baobab-dev"
-repo_name = "nabhold/baobab-dev"
+repo_url = "https://github.com/baobab-platform/baobab-dev"
+repo_name = "baobab-platform/baobab-dev"
 edit_uri = "edit/main/docs/"
 
 nav = [

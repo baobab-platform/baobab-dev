@@ -95,12 +95,12 @@ classifiers = [
 # ------------------------------------------------------------------------------
 
 [project.urls]
-Homepage = "https://github.com/nabhold/baobab-dev"
-Repository = "https://github.com/nabhold/baobab-dev"
-Documentation = "https://nabhold.github.io/baobab-dev/"
-Issues = "https://github.com/nabhold/baobab-dev/issues"
-Releases = "https://github.com/nabhold/baobab-dev/releases"
-Changelog = "https://github.com/nabhold/baobab-dev/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/baobab-platform/baobab-dev"
+Repository = "https://github.com/baobab-platform/baobab-dev"
+Documentation = "https://baobab-platform.github.io/baobab-dev/"
+Issues = "https://github.com/baobab-platform/baobab-dev/issues"
+Releases = "https://github.com/baobab-platform/baobab-dev/releases"
+Changelog = "https://github.com/baobab-platform/baobab-dev/blob/main/CHANGELOG.md"
 
 # ------------------------------------------------------------------------------
 # Dependency Groups
