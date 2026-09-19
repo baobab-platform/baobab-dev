@@ -2,12 +2,12 @@
 # BAOBAB-DEV
 # Capability Self-Declaration
 #
-# Target path: nabhold/baobab-dev/config/capabilities.yaml
+# Target path: baobab-platform/baobab-dev/config/capabilities.yaml
 #
 # Purpose
 # -------
 # baobab-dev declares what it ACTUALLY provides, per profile, so CI can
-# validate a consuming repo's `.nabhold/environment.yaml` against something
+# validate a consuming repo's `.baobab-platform/environment.yaml` against something
 # concrete instead of trusting versions.lock's shape to match the contract
 # schema's shape by convention alone.
 #
@@ -34,7 +34,7 @@
 # Hand-authored for now — generation is a follow-up task, not blocking this
 # release.
 #
-# Governing decision record: ADR-0001 (nabhold/shared/docs/adr/)
+# Governing decision record: ADR-0001 (baobab-platform/shared/docs/adr/)
 # ==============================================================================
 
 schema:
@@ -104,11 +104,11 @@ notes:
     Dockerfile targets that never install a JDK or Maven in the first place.
   - >
     [2026-09-03] Added the `infra` profile (v1.4.0 target) — Terraform +
-    AWS CLI only, for nabhold/infrastructure's local development and
+    AWS CLI only, for baobab-platform/infrastructure's local development and
     testing. Deliberately branches off no other profile (not `extends:
     "full"` or `"frontend"`): it needs none of `full`'s languages/database/
     security domains and none of `frontend`'s Node/pnpm/Turborepo domains.
-    `kubectl`/`helm` are deliberately NOT included — nabhold/infrastructure's
+    `kubectl`/`helm` are deliberately NOT included — baobab-platform/infrastructure's
     own README defers Kubernetes/Helm/Temporal "until operational need
     justifies their additional machinery"; add them here only if that
     decision changes, not preemptively.
