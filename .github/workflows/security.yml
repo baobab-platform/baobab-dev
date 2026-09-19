@@ -9,12 +9,12 @@
 #   the only security scanning here was Trivy's container-filesystem
 #   scan inside publish.yml, which never looks at the repository's own
 #   git history (its Dockerfiles, shell scripts, config/versions.yaml,
-#   etc). Delegates to nabhold/shared's reusable
+#   etc). Delegates to baobab-platform/shared's reusable
 #   security-secrets-scan.yml, same pattern as this repo's pages.yml and
 #   greetings.yml.
 #
-# WHY THIS FILE IS NARROWER THAN nabhold/baobab's security.yml:
-#   nabhold/baobab's equivalent file also runs CodeQL and Bandit/
+# WHY THIS FILE IS NARROWER THAN baobab-platform/baobab's security.yml:
+#   baobab-platform/baobab's equivalent file also runs CodeQL and Bandit/
 #   pip-audit — both are Python-application checks and this repository
 #   has no Python application source to scan (CodeQL has no extractor
 #   for plain shell/Dockerfile, and there is no `security` uv
@@ -28,21 +28,21 @@
 #   complementary, not redundant.
 #
 #   `dependency-review` is GitHub's own actions/dependency-review-action,
-#   invoked directly rather than through another nabhold/shared
-#   workflow_call layer — same reasoning as nabhold/baobab's security.yml.
+#   invoked directly rather than through another baobab-platform/shared
+#   workflow_call layer — same reasoning as baobab-platform/baobab's security.yml.
 #
 # CHANGE LOG (most recent first)
 # ------------------------------------------------------------------------------
-# * Re-pinned the nabhold/shared `uses:` line to the v1.1.0 tag —
+# * Re-pinned the baobab-platform/shared `uses:` line to the v1.1.0 tag —
 #   security-secrets-scan.yml shipped in that release. SHA is the tag's
 #   peeled/dereferenced commit (not the annotated tag object's own SHA),
 #   verified live via `git ls-remote --tags
-#   https://github.com/nabhold/shared.git v1.1.0 v1.1.0^{}` on
+#   https://github.com/baobab-platform/shared.git v1.1.0 v1.1.0^{}` on
 #   2026-08-25 (f8df9b90ffe8fef5cbf6d14a9bcf868f723d1464), and confirmed
 #   present via `git ls-tree -r <that SHA> -- .github/workflows`.
 # * Initial version, this repo's first source-level security workflow.
 #   (Shipped with an honest 0000...0000 placeholder pin at the time,
-#   since security-secrets-scan.yml did not exist yet in nabhold/shared
+#   since security-secrets-scan.yml did not exist yet in baobab-platform/shared
 #   — see this file's git history for that revision.)
 # ==============================================================================
 
@@ -66,10 +66,10 @@ jobs:
     name: Secret scanning
     permissions:
       contents: read
-    # SHA is nabhold/shared's v1.1.0 tag (annotated — peeled commit, not
+    # SHA is baobab-platform/shared's v1.1.0 tag (annotated — peeled commit, not
     # the tag object's own SHA), verified live via `git ls-remote --tags
-    # https://github.com/nabhold/shared.git v1.1.0 v1.1.0^{}` on 2026-08-25.
-    uses: nabhold/shared/.github/workflows/security-secrets-scan.yml@f8df9b90ffe8fef5cbf6d14a9bcf868f723d1464 # v1.1.0
+    # https://github.com/baobab-platform/shared.git v1.1.0 v1.1.0^{}` on 2026-08-25.
+    uses: baobab-platform/shared/.github/workflows/security-secrets-scan.yml@f8df9b90ffe8fef5cbf6d14a9bcf868f723d1464 # v1.1.0
 
   dependency-review:
     name: Dependency review
