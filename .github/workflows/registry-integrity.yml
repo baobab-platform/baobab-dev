@@ -137,7 +137,7 @@ jobs:
 
           body = pathlib.Path("${{ runner.temp }}/release-body.md").read_text()
           pattern = re.compile(
-              r"docker pull\s+(?P<ref>ghcr\.io/nabhold/baobab-dev:[^\s`]+)"
+              r"docker pull\s+(?P<ref>ghcr\.io/baobab-platform/baobab-dev:[^\s`]+)"
               r".*?Verify \(digest `(?P<digest>sha256:[0-9a-f]{64})`\):",
               re.DOTALL,
           )
