@@ -269,7 +269,7 @@ check_major_version() {
     fi
 }
 
-# check_contract: validates the calling repo's own .baobab-platform/environment.yaml
+# check_contract: validates the calling repo's own .baobab/environment.yaml
 # (if one exists) against this image's config/capabilities.yaml, per the
 # Development Environment Contract (baobab-platform/shared, ADR-0001).
 #
@@ -291,7 +291,7 @@ check_contract() {
 
     section "Development Environment Contract"
 
-    local contract_file=".baobab-platform/environment.yaml"
+    local contract_file=".baobab/environment.yaml"
 
     if [[ ! -f "$contract_file" ]]; then
         say "  No environment contract found (${contract_file}) — skipping compatibility check."
