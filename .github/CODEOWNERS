@@ -1,6 +1,6 @@
 * @baobab-platform/platform-engineering
 /.github/ @baobab-platform/platform-engineering @baobab-platform/security
 /.devcontainer/ @baobab-platform/platform-engineering
-/.baobab-platform/ @baobab-platform/platform-engineering
+/.baobab/ @baobab-platform/platform-engineering
 /Dockerfile @baobab-platform/platform-engineering @baobab-platform/security
 /SECURITY.md @baobab-platform/security
