@@ -59,7 +59,7 @@ set -Eeuo pipefail
 
 IMAGE="${1:-ghcr.io/baobab-platform/baobab-dev:v1.0.0}"
 OIDC_ISSUER="https://token.actions.githubusercontent.com"
-EXPECTED_OWNER_REGEXP="^https://github.com/nabhold"
+EXPECTED_OWNER_REGEXP="^https://github.com/baobab-platform"
 
 info() { printf "\033[1;34m[INFO]\033[0m %s\n" "$*"; }
 success() { printf "\033[1;32m[SUCCESS]\033[0m %s\n" "$*"; }
