@@ -138,7 +138,7 @@ for the full pnpm incident this recurrence is modeled on.
   bundles grpc v1.83.2 and clears both CVEs; task has no upstream release
   incorporating a patched grpc yet (latest is v3.53.1, 2026-08-18), so
   both CVEs are recorded in `.trivyignore` pending a go-task/task rebuild.
-- `.baobab-platform/environment.yaml` and `README.md`'s "Foundation 4" section
+- `.baobab/environment.yaml` and `README.md`'s "Foundation 4" section
   still declared this repository's own dogfooded `full` profile at
   1.2.6, out of step with `.devcontainer/devcontainer.json`'s image pin
   (already moved to `ghcr.io/baobab-platform/baobab-dev:1.4.0` ahead of this
