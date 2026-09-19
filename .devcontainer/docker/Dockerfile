@@ -432,7 +432,7 @@ LABEL org.opencontainers.image.title="baobab-dev" \
 # with the full platform port set, since `final` is the only profile that
 # actually runs Django/FastAPI/Postgres/Redis/MinIO/Traefik.
 #
-# Real consumers (e.g. baobab's own .baobab-platform/environment.yaml-driven
+# Real consumers (e.g. baobab's own .baobab/environment.yaml-driven
 # devcontainer.json) still declare their own forwardPorts/portsAttributes —
 # per the union rule those are ADDED to this default, never a replacement
 # of it. This repo's own devcontainer.json keeps the full illustrative port
@@ -898,7 +898,7 @@ CMD ["sleep", "infinity"]
 # Stage: frontend-e2e — extends `frontend` with browser-dependent tooling
 # for end-to-end testing, image processing, and performance auditing.
 #
-# NOT a daily devcontainer image — a repo's own .baobab-platform/environment.yaml
+# NOT a daily devcontainer image — a repo's own .baobab/environment.yaml
 # should declare `profile: frontend`, never `frontend-e2e`; a CI test
 # workflow references this tag directly instead (see baobab-platform/shared's
 # development-environment schema, "frontend-e2e is a CI-only profile").
