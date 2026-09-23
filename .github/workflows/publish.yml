@@ -429,7 +429,7 @@ jobs:
       # uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
 
       - name: Setup Docker Buildx Engine
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # Only needed to PUSH — an unauthenticated build can still pull the
       # public base image and read the GHA cache, so PR/branch validation
@@ -462,7 +462,7 @@ jobs:
       #     target, so a build failure surfaces before a tag is ever cut.
       - name: Build container image with SBOM & SLSA Provenance
         id: build
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: ./.devcontainer/docker/Dockerfile
@@ -568,7 +568,7 @@ jobs:
       # for their own smoke test ("Execute container smoke test (non-final
       # targets)" below).
       - name: Build local single-manifest image for scanning
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: ./.devcontainer/docker/Dockerfile
@@ -891,7 +891,7 @@ jobs:
 
       # FIX: publish job previously had no Buildx setup, relying on the runner's older bundled buildx CLI for imagetools create/inspect — the likely cause of missing provenance in the merged index.
       - name: Setup Docker Buildx Engine
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # FIX (found via a live, reproducible failure — not caught by the
       # earlier verification): `flavor.suffix` correctly applies to the
