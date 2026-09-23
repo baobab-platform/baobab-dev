@@ -943,9 +943,15 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # The `final` target must publish bare version tags (1.4.3, 1.4,
+          # 1, latest) as the shared development-environment contract's
+          # full-profile image_tag_pattern requires. `cond && '' || x` can
+          # never yield '' in a GitHub expression ('' is falsy, so it falls
+          # through to x), which tagged `final` as 1.4.3-final instead;
+          # put the empty string in the fallback position.
           flavor: |
             latest=false
-            suffix=${{ matrix.target == 'final' && '' || format('-{0}', matrix.target) }}
+            suffix=${{ matrix.target != 'final' && format('-{0}', matrix.target) || '' }}
           tags: |
             type=semver,pattern={{version}},value=${{ needs.sanity-check.outputs.release_tag }}
             type=semver,pattern={{major}}.{{minor}},value=${{ needs.sanity-check.outputs.release_tag }}
