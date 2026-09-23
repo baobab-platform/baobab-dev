@@ -1,0 +1,102 @@
+# ==============================================================================
+# BAOBAB Version Lock File
+#
+# Generated automatically by resolve.sh
+#
+# DO NOT EDIT
+# ==============================================================================
+
+export UBUNTU_VERSION=26.04
+
+export PYTHON_VERSION=3.14.6
+export PYTHON_MINOR=3.14
+
+export NODE_MAJOR=24
+
+export JAVA_MAJOR=17
+
+export FLUTTER_VERSION=3.47.5
+export FLUTTER_SHA256=2132e990f236f8d22e7c6314b29a191a95b10d7cbcfec9b4e2e303d996652cbb
+export FLUTTER_SHA256_AMD64=2132e990f236f8d22e7c6314b29a191a95b10d7cbcfec9b4e2e303d996652cbb
+export FLUTTER_GIT_REF=6a19cca56475dbfba1478ee68d7bd0c2ef891da1
+export FLUTTER_ARCHIVE_AMD64=https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.5-stable.tar.xz
+
+export POSTGRES_MAJOR=17
+
+export PNPM_VERSION=11.24.0
+export POETRY_VERSION=2.5.1
+
+export UV_VERSION=0.12.18
+export UV_ASSET_AMD64=uv-x86_64-unknown-linux-gnu.tar.gz
+export UV_SHA256_AMD64=89eadd7c76fc063887959510d5ba0ab1264dfd5f1143b925ddb73021a40acf16
+export UV_ASSET_ARM64=uv-aarch64-unknown-linux-gnu.tar.gz
+export UV_SHA256_ARM64=afb6291f3f0a6b4521fc67b947822506c41dde5b60d2189dd8f3695b2ac8c9e7
+
+export TASK_VERSION=3.53.1
+export TASK_ASSET_AMD64=task_linux_amd64.tar.gz
+export TASK_SHA256_AMD64=a54a408f6861ff921f6e87774180db31bacd8c1e7c944ca696db9fea49a82fc7
+export TASK_ASSET_ARM64=task_linux_arm64.tar.gz
+export TASK_SHA256_ARM64=e3ad19101493a0112e1f22ae8ccc54bf03e533b1076a0ca1e6c782a09ad2e588
+
+export RIPGREP_VERSION=15.2.0
+export RIPGREP_ASSET_AMD64=ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz
+export RIPGREP_SHA256_AMD64=33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c
+export RIPGREP_ASSET_ARM64=ripgrep-15.2.0-aarch64-unknown-linux-gnu.tar.gz
+export RIPGREP_SHA256_ARM64=a740b91c82eaf9914cfedd353572f2791cbe0162c84101ee0951058f4dcbc90d
+
+export FD_VERSION=10.5.0
+export FD_ASSET_AMD64=fd-v10.5.0-x86_64-unknown-linux-musl.tar.gz
+export FD_SHA256_AMD64=761c72dc8e120d85b22292063be8a796e2eeb20eb3e4f38b8fa2343ccf3514a7
+export FD_ASSET_ARM64=fd-v10.5.0-aarch64-unknown-linux-gnu.tar.gz
+export FD_SHA256_ARM64=c0ee43802e3313a317c5af2f4eabd6ba13eeedd595af9775f05e18a13ac4f52c
+
+export BAT_VERSION=0.26.1
+export BAT_ASSET_AMD64=bat-v0.26.1-x86_64-unknown-linux-musl.tar.gz
+export BAT_SHA256_AMD64=0dcd8ac79732c0d5b136f11f4ee00e581440e16a44eab5b3105b611bbf2cf191
+export BAT_ASSET_ARM64=bat-v0.26.1-aarch64-unknown-linux-gnu.tar.gz
+export BAT_SHA256_ARM64=422eb73e11c854fddd99f5ca8461c2f1d6e6dce0a2a8c3d5daade5ffcb6564aa
+
+export EZA_VERSION=0.23.5
+export EZA_ASSET_AMD64=eza_x86_64-unknown-linux-gnu.tar.gz
+export EZA_SHA256_AMD64=35c70c5c43c29108075e58b893234c67ef585f0b53a7eaf8e9e7d4eec9f339b4
+export EZA_ASSET_ARM64=eza_aarch64-unknown-linux-gnu.tar.gz
+export EZA_SHA256_ARM64=40b87ae8628aa2ff0f0d2dc24ab52f689631366385c3da630bae745671fd71ec
+
+export YQ_VERSION=4.53.6
+export YQ_ASSET_AMD64=yq_linux_amd64
+export YQ_SHA256_AMD64=c5f056448f973ae7d39b5401949648a78f2dc1947d6a8eb65be60d5c504b9385
+export YQ_ASSET_ARM64=yq_linux_arm64
+export YQ_SHA256_ARM64=88a1016bc1d657375a35864e4f44b6f333df8ff97b559f51bba0adcb2169df09
+
+export GH_VERSION=2.101.0
+export GH_ASSET_AMD64=gh_2.101.0_linux_amd64.tar.gz
+export GH_SHA256_AMD64=9bca2d1c16825f109907a23307628a2f0698fbf99662b73a5cf0b020293072b8
+export GH_ASSET_ARM64=gh_2.101.0_linux_arm64.tar.gz
+export GH_SHA256_ARM64=b57e8063f18862647c9d22727c32e9da1b963f8bf9db648fe123a6975695640f
+
+export COSIGN_VERSION=3.1.3
+export COSIGN_ASSET_AMD64=cosign-linux-amd64
+export COSIGN_SHA256_AMD64=4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71
+export COSIGN_ASSET_ARM64=cosign-linux-arm64
+export COSIGN_SHA256_ARM64=c5d324e091826b0d7a78eb16fef316450b4eb9aaec045611c08ba06f5e73220a
+
+export MAVEN_VERSION=3.9.16
+export MAVEN_SHA512=831a8591fe20c8243b1dbe7d71e3244f31d1665b0804b2e825e38cbbe5ce0cafb8338851f90780735568773e0a6cd07bbec107cda0b896b008b861075358b6f6
+
+export TERRAFORM_VERSION=1.16.2
+export TERRAFORM_ASSET_AMD64=terraform_1.16.2_linux_amd64.zip
+export TERRAFORM_SHA256_AMD64=0d17011f0c4664539b164b044903d04e296c86c13cb9f28040076c65cfb3985a
+export TERRAFORM_ASSET_ARM64=terraform_1.16.2_linux_arm64.zip
+export TERRAFORM_SHA256_ARM64=c040bd1e3122b4290f70f74288d8c5a54ddd4254a3e52a29e7cc666653f50a0a
+
+export AWS_CLI_VERSION=2.36.38
+export AWS_CLI_ASSET_AMD64=awscli-exe-linux-x86_64-2.36.38.zip
+export AWS_CLI_ASSET_ARM64=awscli-exe-linux-aarch64-2.36.38.zip
+
+export TURBO_VERSION=2.11.3
+export PLAYWRIGHT_VERSION=1.62.1
+export SHARP_VERSION=0.35.4
+export LIGHTHOUSE_VERSION=13.5.0
+export NPM_VERSION=12.1.0
+
+export NPM_BUNDLED_TAR_VERSION=7.5.22
