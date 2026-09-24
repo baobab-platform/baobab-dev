@@ -7,10 +7,10 @@
   // NOTE: GHCR does not enforce tag immutability server-side — this tag is
   // "immutable" only by this repo's release policy. For registry-enforced
   // immutability, pin by digest instead/in addition:
-  //   "image": "ghcr.io/baobab-platform/baobab-dev:1.4.3@sha256:<digest>"
-  // (get <digest> from the v1.4.1 GitHub Release notes, or
-  // `docker buildx imagetools inspect ghcr.io/baobab-platform/baobab-dev:1.4.3`).
-  "image": "ghcr.io/baobab-platform/baobab-dev:1.4.3",
+  //   "image": "ghcr.io/baobab-platform/baobab-dev:1.4.4@sha256:<digest>"
+  // (get <digest> from the v1.4.4 GitHub Release notes, or
+  // `docker buildx imagetools inspect ghcr.io/baobab-platform/baobab-dev:1.4.4`).
+  "image": "ghcr.io/baobab-platform/baobab-dev:1.4.4",
   // "build": {
   //   // Repo root, not .devcontainer — Dockerfile COPYs config/ and scripts/
   //   // from the build context root.
