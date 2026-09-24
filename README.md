@@ -121,6 +121,6 @@ The `docs/` directory is designed to be published through **GitHub Pages**, maki
 
 ## Foundation 4
 
-This repository dogfoods `ghcr.io/baobab-platform/baobab-dev:1.4.3`. Its SHA-pinned
+This repository dogfoods `ghcr.io/baobab-platform/baobab-dev:1.4.4`. Its SHA-pinned
 Foundation gate validates the environment contract and scans both source and
 the development-container build. Consumers must pin v1.4.1 profiles explicitly.
