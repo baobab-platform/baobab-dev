@@ -15,22 +15,22 @@ export NODE_MAJOR=24
 
 export JAVA_MAJOR=17
 
-export FLUTTER_VERSION=3.47.6
-export FLUTTER_SHA256=f1631b9c2c8b3529323db412b0d1beacf4a748f8783b0d7cf599a8fd5f461675
-export FLUTTER_SHA256_AMD64=f1631b9c2c8b3529323db412b0d1beacf4a748f8783b0d7cf599a8fd5f461675
-export FLUTTER_GIT_REF=5fc346839b5d0eef006ed8404392afb4dfae428d
-export FLUTTER_ARCHIVE_AMD64=https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.6-stable.tar.xz
+export FLUTTER_VERSION=3.47.7
+export FLUTTER_SHA256=af7455f540df951184c7953fbe3cf884766e7541dacf8571f9f582db03dd6230
+export FLUTTER_SHA256_AMD64=af7455f540df951184c7953fbe3cf884766e7541dacf8571f9f582db03dd6230
+export FLUTTER_GIT_REF=abaf9c523780a608bd46686fd5e53740a07077f8
+export FLUTTER_ARCHIVE_AMD64=https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.7-stable.tar.xz
 
 export POSTGRES_MAJOR=17
 
 export PNPM_VERSION=11.24.0
 export POETRY_VERSION=2.5.1
 
-export UV_VERSION=0.12.23
+export UV_VERSION=0.13.0
 export UV_ASSET_AMD64=uv-x86_64-unknown-linux-gnu.tar.gz
-export UV_SHA256_AMD64=9167d72b3319674b6303c4cbe071854bba13ebdf3d76b1a7cbdc175471fb66d6
+export UV_SHA256_AMD64=1468ebd5a5541121837c5a2817b9972ba6090fa6caa3d142620850a47fb75154
 export UV_ASSET_ARM64=uv-aarch64-unknown-linux-gnu.tar.gz
-export UV_SHA256_ARM64=6524bd338177ed50d035d39354e12545e993bbeba2ecbddf0480c5b3a81d313f
+export UV_SHA256_ARM64=3ccfb6af6e242433eb552f7d9676abd5412c6595c497e990d9c8cb7b5bd4d2c3
 
 export TASK_VERSION=3.54.0
 export TASK_ASSET_AMD64=task_linux_amd64.tar.gz
