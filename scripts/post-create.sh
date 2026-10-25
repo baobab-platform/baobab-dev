@@ -186,6 +186,11 @@ install_node_project() {
         yarn install --immutable
     else
         command -v npm >/dev/null 2>&1 || die "npm is required."
+        if [ -n "$manager" ]; then
+            [[ "$manager" =~ ^npm@([0-9]+\.[0-9]+\.[0-9]+)$ ]] || die "npm lock requires an exact npm packageManager when declared."
+            local pin="${BASH_REMATCH[1]}"
+            [ "$(npm --version)" = "$pin" ] || die "Project npm version mismatch."
+        fi
         npm ci
     fi
 }
@@ -259,10 +264,25 @@ run_post_create() {
 
         log "Installing frontend dependencies"
 
-        (
-            cd frontend
-            install_node_project
-        )
+        # A root pnpm workspace install already covers declared members.
+        # Prove frontend membership from pnpm's local metadata before skipping
+        # a second install; an unrelated unlocked subproject still fails.
+        if [ -f package.json ] && [ -f pnpm-workspace.yaml ] && [ -f pnpm-lock.yaml ] \
+            && { pnpm list -r --depth -1 --json 2>/dev/null | node -e '
+                const fs=require("fs");
+                try {
+                    const rows=JSON.parse(fs.readFileSync(0,"utf8"));
+                    const target=fs.realpathSync("frontend");
+                    process.exit(Array.isArray(rows) && rows.some(row=>typeof row.path==="string" && fs.realpathSync(row.path)===target)?0:1);
+                } catch { process.exit(1); }
+            ' 2>/dev/null; }; then
+            log "Frontend covered by the root frozen workspace lock."
+        else
+            (
+                cd frontend
+                install_node_project
+            )
+        fi
 
     fi
 

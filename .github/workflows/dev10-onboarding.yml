@@ -32,3 +32,18 @@ jobs:
             -e HOME=/tmp/dev10-home -e WORKSPACE_DIR=/workspace \
             -v "$GITHUB_WORKSPACE:/workspace" -w /workspace "$image" \
             bash -c 'mkdir -p "$HOME"; bash scripts/post-create.sh --stage=post-create; python3 -B -m unittest discover -s tests -v'
+      - name: Root frozen pnpm workspace covers frontend without an unlocked fallback
+        run: |
+          set -euo pipefail
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp/dev10-home -v "$GITHUB_WORKSPACE:/workspace:ro" -w /workspace \
+            ghcr.io/baobab-platform/baobab-dev:1.4.4 bash -c '
+              set -euo pipefail
+              mkdir -p "$HOME"
+              cp -R tests/fixtures/pnpm-workspace /tmp/dev10-workspace
+              cp -R config /tmp/dev10-workspace/config
+              export WORKSPACE_DIR=/tmp/dev10-workspace
+              cd "$WORKSPACE_DIR"
+              bash /workspace/scripts/post-create.sh --stage=post-create
+              test ! -f frontend/package-lock.json
+            '
