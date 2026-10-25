@@ -1,0 +1,34 @@
+name: DEV-10 locked onboarding
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: read
+jobs:
+  source:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: bash -n scripts/post-create.sh && python3 -B -m unittest discover -s tests -v
+  published-image:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Authenticate Actions image read separately from Codespaces credentials
+        env:
+          TOKEN: ${{ github.token }}
+        run: printf '%s' "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin >/dev/null
+      - name: Execute actual locked repository onboarding in the published image
+        run: |
+          set -euo pipefail
+          image=ghcr.io/baobab-platform/baobab-dev:1.4.4
+          docker pull "$image"
+          docker image inspect --format '{{json .RepoDigests}}' "$image"
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp/dev10-home -e WORKSPACE_DIR=/workspace \
+            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace "$image" \
+            bash -c 'mkdir -p "$HOME"; bash scripts/post-create.sh --stage=post-create; python3 -B -m unittest discover -s tests -v'

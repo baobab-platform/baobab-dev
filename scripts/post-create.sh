@@ -67,6 +67,8 @@
 
 set -euo pipefail
 
+export CI=true COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+
 STAGE="post-create"
 
 for arg in "$@"; do
@@ -154,6 +156,40 @@ run_on_create() {
 # Stage: post-create (and update-content — see CHANGE LOG above)
 # -----------------------------------------------------------------------------
 
+install_node_project() {
+    command -v node >/dev/null 2>&1 || die "Node is required by package.json."
+    if [ -f .node-version ]; then
+        local node_pin
+        node_pin=$(tr -d '\r\n' < .node-version)
+        [[ "$node_pin" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Invalid exact .node-version pin."
+        [ "$(node --version)" = "v$node_pin" ] || die "Project Node version mismatch."
+    fi
+    local locks=0
+    for lock in pnpm-lock.yaml yarn.lock package-lock.json; do
+        [ ! -f "$lock" ] || locks=$((locks + 1))
+    done
+    [ "$locks" -eq 1 ] || die "JavaScript project must select exactly one committed lockfile."
+    local manager
+    manager=$(node -p 'JSON.parse(require("fs").readFileSync("package.json", "utf8")).packageManager || ""')
+    if [ -f pnpm-lock.yaml ]; then
+        [[ "$manager" =~ ^pnpm@([0-9]+\.[0-9]+\.[0-9]+)(\+sha(224|512)\.[0-9a-f]+)?$ ]] \
+            || die "package.json must declare an exact pnpm packageManager."
+        local pin="${BASH_REMATCH[1]}"
+        command -v pnpm >/dev/null 2>&1 || die "pnpm is required."
+        [ "$(pnpm --version)" = "$pin" ] || die "Project pnpm version mismatch."
+        pnpm install --frozen-lockfile
+    elif [ -f yarn.lock ]; then
+        [[ "$manager" =~ ^yarn@([0-9]+\.[0-9]+\.[0-9]+)$ ]] || die "Exact Yarn packageManager is required."
+        local pin="${BASH_REMATCH[1]}"
+        command -v yarn >/dev/null 2>&1 || die "Yarn is required."
+        [ "$(yarn --version)" = "$pin" ] || die "Project Yarn version mismatch."
+        yarn install --immutable
+    else
+        command -v npm >/dev/null 2>&1 || die "npm is required."
+        npm ci
+    fi
+}
+
 run_post_create() {
 
     cd "${WORKSPACE_DIR}"
@@ -163,41 +199,27 @@ run_post_create() {
     # -------------------------------------------------------------------------
 
     if [ -f "pyproject.toml" ]; then
-
-        if ! command -v poetry >/dev/null 2>&1; then
-            warn "Poetry not installed. Skipping Python dependency installation."
-        else
-
+        if [ -f "uv.lock" ] && [ -f "poetry.lock" ]; then
+            die "Ambiguous Python lockfiles: select one project package manager."
+        elif [ -f "uv.lock" ]; then
+            command -v uv >/dev/null 2>&1 || die "uv is required by uv.lock."
+            log "Installing Python dependencies with the committed uv lock"
+            uv sync --locked --no-managed-python
+        elif [ -f "poetry.lock" ]; then
+            command -v poetry >/dev/null 2>&1 || die "Poetry is required by poetry.lock."
             PYTHON_BIN="python${PYTHON_MINOR}"
-
-            log "Installing Python dependencies with Poetry"
-
             poetry env use "$(command -v "${PYTHON_BIN}")"
+            poetry check --lock
             poetry install --no-interaction --no-ansi
-
-        fi
-
-    elif [ -f "requirements.txt" ]; then
-
-        if ! command -v uv >/dev/null 2>&1; then
-            warn "uv not installed. Skipping Python dependency installation."
         else
-
-            log "Installing Python dependencies with uv"
-
-            uv venv .venv
-
-            # shellcheck disable=SC1091
-            source .venv/bin/activate
-
-            uv pip install -r requirements.txt
-
+            die "Python project needs a committed uv.lock or poetry.lock."
         fi
-
+    elif [ -f "requirements.txt" ]; then
+        command -v uv >/dev/null 2>&1 || die "uv is required for requirements.txt."
+        uv venv .venv
+        uv pip sync --python .venv/bin/python --require-hashes requirements.txt
     else
-
         log "No Python dependency manifest found."
-
     fi
 
     # -------------------------------------------------------------------------
@@ -205,39 +227,9 @@ run_post_create() {
     # -------------------------------------------------------------------------
 
     if [ -f "package.json" ]; then
-
-        log "Installing JavaScript dependencies"
-
-        if [ -f "pnpm-lock.yaml" ]; then
-
-            if command -v pnpm >/dev/null 2>&1; then
-                pnpm install --frozen-lockfile
-            else
-                warn "pnpm not installed."
-            fi
-
-        elif [ -f "yarn.lock" ]; then
-
-            if command -v yarn >/dev/null 2>&1; then
-                yarn install --immutable
-            else
-                warn "Yarn not installed."
-            fi
-
-        else
-
-            if command -v npm >/dev/null 2>&1; then
-                npm ci || npm install
-            else
-                warn "npm not installed."
-            fi
-
-        fi
-
+        install_node_project
     else
-
         log "No package.json found."
-
     fi
 
     # -------------------------------------------------------------------------
@@ -269,14 +261,7 @@ run_post_create() {
 
         (
             cd frontend
-
-            if [ -f "pnpm-lock.yaml" ] && command -v pnpm >/dev/null 2>&1; then
-                pnpm install --frozen-lockfile
-            elif command -v npm >/dev/null 2>&1; then
-                npm install
-            else
-                warn "No supported JavaScript package manager available."
-            fi
+            install_node_project
         )
 
     fi
