@@ -20,7 +20,9 @@ Actions GHCR login is not evidence that a new user's Codespace can read packages
 Never put tokens into source, image build arguments, `.env` or shell tracing.
 
 The DEV-10 workflow executes this checkout's actual post-create script and locked
-uv dependencies inside the published 1.4.4 image as the runner UID. It records
+uv dependencies inside the published 1.4.4 image as its native vscode user, on an owned copy
+of a read-only source mount. A raw host UID without passwd/cache remapping is
+not treated as a valid Dev Container. It records
 the resolved image digest in the job log. Mock-CLI regressions separately prove
 that failures cannot fall back to an unlocked install. This is container/CLI
 evidence; it is not an observed fresh hosted Codespace or fleet-wide adoption.
@@ -42,3 +44,8 @@ lockfiles together, rebuilds the disposable workspace and reruns frozen installa
 Do not delete a consumer's database or reuse a PostgreSQL physical volume across
 major versions to make a tooling test pass. Revoke only run-owned credentials and
 remove run-owned resources; keep prior receipts and native database restore plans.
+
+The container shell enables errexit before both onboarding and tests. A separate
+fault-injection run forces the final verifier to exit 42 and requires that exact
+container exit status; passing tests cannot mask a failed lifecycle. The fresh
+pnpm workspace fixture proves a frontend member uses its actual root frozen lock.

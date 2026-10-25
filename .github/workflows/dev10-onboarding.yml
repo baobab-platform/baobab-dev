@@ -11,13 +11,17 @@ jobs:
   source:
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: bash -n scripts/post-create.sh && python3 -B -m unittest discover -s tests -v
   published-image:
     runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Authenticate Actions image read separately from Codespaces credentials
         env:
           TOKEN: ${{ github.token }}
@@ -28,15 +32,20 @@ jobs:
           image=ghcr.io/baobab-platform/baobab-dev:1.4.4
           docker pull "$image"
           docker image inspect --format '{{json .RepoDigests}}' "$image"
-          docker run --rm --user "$(id -u):$(id -g)" \
-            -e HOME=/tmp/dev10-home -e WORKSPACE_DIR=/workspace \
-            -v "$GITHUB_WORKSPACE:/workspace" -w /workspace "$image" \
-            bash -c 'mkdir -p "$HOME"; bash scripts/post-create.sh --stage=post-create; python3 -B -m unittest discover -s tests -v'
+          docker run --rm -e HOME=/tmp/dev10-home \
+            -v "$GITHUB_WORKSPACE:/source:ro" "$image" bash -c '
+              set -euo pipefail
+              mkdir -p "$HOME" /tmp/dev10-project
+              cp -R /source/. /tmp/dev10-project/
+              export WORKSPACE_DIR=/tmp/dev10-project
+              cd "$WORKSPACE_DIR"
+              bash scripts/post-create.sh --stage=post-create
+              python3 -B -m unittest discover -s tests -v
+            '
       - name: Root frozen pnpm workspace covers frontend without an unlocked fallback
         run: |
           set -euo pipefail
-          docker run --rm --user "$(id -u):$(id -g)" \
-            -e HOME=/tmp/dev10-home -v "$GITHUB_WORKSPACE:/workspace:ro" -w /workspace \
+          docker run --rm -e HOME=/tmp/dev10-home -v "$GITHUB_WORKSPACE:/workspace:ro" -w /workspace \
             ghcr.io/baobab-platform/baobab-dev:1.4.4 bash -c '
               set -euo pipefail
               mkdir -p "$HOME"
@@ -47,3 +56,20 @@ jobs:
               bash /workspace/scripts/post-create.sh --stage=post-create
               test ! -f frontend/package-lock.json
             '
+      - name: A failed final verifier must fail the actual container lifecycle
+        run: |
+          set -euo pipefail
+          result=0
+          docker run --rm -e HOME=/tmp/dev10-home -v "$GITHUB_WORKSPACE:/source:ro" \
+            ghcr.io/baobab-platform/baobab-dev:1.4.4 bash -c '
+              set -euo pipefail
+              mkdir -p "$HOME" /tmp/dev10-fail/config /tmp/dev10-fail/bin
+              cp -R /source/config/. /tmp/dev10-fail/config/
+              printf "#!/bin/sh\nexit 42\n" > /tmp/dev10-fail/bin/baobab-verify
+              chmod +x /tmp/dev10-fail/bin/baobab-verify
+              export PATH=/tmp/dev10-fail/bin:$PATH WORKSPACE_DIR=/tmp/dev10-fail
+              cd "$WORKSPACE_DIR"
+              bash /source/scripts/post-create.sh --stage=post-create
+              python3 -B -m unittest discover -s /source/tests -v
+            ' || result=$?
+          test "$result" -eq 42
