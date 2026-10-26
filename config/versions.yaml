@@ -184,7 +184,10 @@ development:
     source: "docker"
 
   github_cli:
-    version: "latest"
+    # Security-qualified 2.102.1 carries Go 1.27.3 and x/net 0.60.0.
+    # The newer 2.103.2 binary still embeds vulnerable Go 1.27.1/x/net.
+    # Re-evaluate this temporary explicit pin after a scanned upstream fix.
+    version: "2.102.1"
     source: "github"
 
   maven:
