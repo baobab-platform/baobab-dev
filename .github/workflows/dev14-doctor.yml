@@ -4,6 +4,10 @@ on:
     paths:
       - 'scripts/dev14-doctor.py'
       - 'tests/test_dev14_doctor.py'
+      - 'tests/test_trivy_temporary_exceptions.py'
+      - '.trivyignore'
+      - 'config/versions.yaml'
+      - 'config/versions.lock'
       - 'docs/usage/engine-onboarding.md'
       - '.github/workflows/dev14-doctor.yml'
   push:
@@ -11,6 +15,10 @@ on:
     paths:
       - 'scripts/dev14-doctor.py'
       - 'tests/test_dev14_doctor.py'
+      - 'tests/test_trivy_temporary_exceptions.py'
+      - '.trivyignore'
+      - 'config/versions.yaml'
+      - 'config/versions.lock'
       - 'docs/usage/engine-onboarding.md'
       - '.github/workflows/dev14-doctor.yml'
   workflow_dispatch:
@@ -28,6 +36,8 @@ jobs:
           python-version: '3.14'
       - name: Test non-mutating doctor
         run: python3 -B -m unittest discover -s tests -p 'test_dev14_doctor.py' -v
+      - name: Enforce expiring Trivy exceptions and patched toolchain hashes
+        run: python3 -B -m unittest discover -s tests -p 'test_trivy_temporary_exceptions.py' -v
       - name: Required Rust is absent unless actually installed
         run: |
           python3 -B scripts/dev14-doctor.py --profile payments-sandbox > "$RUNNER_TEMP/doctor.json"
