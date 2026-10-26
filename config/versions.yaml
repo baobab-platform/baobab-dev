@@ -300,7 +300,9 @@ security:
 infra:
 
   terraform:
-    version: "1.16.2"
+    # Security patch on the approved 1.16.x line: Go 1.26.10 and x/net 0.60.0.
+    # Official SHA256SUMS pins for both Linux architectures in versions.lock.
+    version: "1.16.7"
     source: "hashicorp"
     # Explicit pin, NOT "latest" — same rationale as development.maven
     # above: infra tooling is exactly the class of dependency where a
