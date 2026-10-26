@@ -410,3 +410,46 @@ GHSA-6v7p-g79w-8964 exp:2026-11-10
 # CI evidence: baobab-dev #48/#50 26 October frontend Trivy scans.
 # ------------------------------------------------------------------------------
 CVE-2026-109869 exp:2026-10-29
+
+# ------------------------------------------------------------------------------
+# 2026-10-26 emergency review: upstream Go-compiled developer tooling.
+#
+# CVEs 111943 (Go crypto/x509), 78667 (net/http Range), 78669 (HTTP/2
+# x/net and Go stdlib), 97031 (crypto/tls ECH) are FIXED in patched Go
+# 1.26.10 / 1.27.3 and x/net v0.60.0. They are not newly 'unfixed' CVEs.
+# However the following upstream RELEASED DISTRIBUTIONS (inspected on
+# 2026-10-26) do not yet carry those patched toolchain+module versions:
+#   task v3.54.0:       go.mod go 1.26.4 / x/net v0.59.0
+#   yq v4.54.1:         go.mod go 1.26.0 / x/net v0.59.0
+#   docker/buildx v0.38.1: go.mod go 1.26.8 / x/net v0.59.0
+#   docker/compose v5.6.1: go.mod go 1.26.8 / x/net v0.58.0
+# In-image apt buildx/compose and release task/yq binaries are similarly
+# affected. Their maintainers must publish patched packages or the owner
+# must separately qualify new source-built/checksummed substitutions.
+#
+# IMPORTANT: These exceptions are ONLY a temporary development-image
+# risk acceptance, not a declaration of safety, lack of exploitability,
+# or staging/production approval. The legacy format suppresses each ID
+# globally, not by binary. A guard test requires fixed GitHub CLI 2.102.1
+# (Go 1.27.3 + x/net 0.60.0) and Terraform 1.16.7 (Go 1.26.10 / x/net
+# 0.60.0) so these exceptions cannot conceal known available fixes for
+# those two executables. Review the actual scan's list of suppressed
+# components before promoting any new image, and do not permit protected
+# engine images to inherit this developer-only ignorefile.
+#
+# EXPIRY 2026-10-29; short-lived to force a fresh release/build audit.
+# Remove entries when the last affected bundled binary is fixed. Do not
+# extend merely to make CI pass. If an exception is still required, first
+# move to a path-scoped .trivyignore.yaml policy across BOTH Publish and
+# Shared Foundation scanners, with explicit observed archive digests.
+# References: https://go.dev/doc/devel/release
+# https://github.com/go-task/task/releases
+# https://github.com/mikefarah/yq/releases
+# https://github.com/docker/buildx/releases
+# https://github.com/docker/compose/releases
+# CI observations: baobab-dev #48/#50 Foundation and Publish Trivy jobs.
+# ------------------------------------------------------------------------------
+CVE-2026-111943 exp:2026-10-29
+CVE-2026-78667 exp:2026-10-29
+CVE-2026-78669 exp:2026-10-29
+CVE-2026-97031 exp:2026-10-29
