@@ -49,7 +49,7 @@ def read_ignore():
 class TemporaryTrivyExceptions(unittest.TestCase):
     def test_temporary_exceptions_expire_without_extension(self):
         rules = read_ignore()
-        self.assertTrue(EXPECTED <= set(rules))
+        self.assertLessEqual(EXPECTED, set(rules))
         self.assertTrue(date.today() <= EXPIRES, "TEMPORARY_TRIVY_EXCEPTIONS_EXPIRED")
         for key in EXPECTED:
             self.assertEqual(rules[key], EXPIRES, f"DO_NOT_SILENTLY_EXTEND_{key}")
