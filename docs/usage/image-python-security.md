@@ -32,3 +32,14 @@ update workflow retains that mode and opens reviewable changes. Full image scans
 still determine security qualification; selecting an older committed version
 never grants an exemption. Existing unsuppressed security and developer execution
 obligations remain open until actually qualified.
+
+## npm's embedded HTTP client
+
+The 29 October unsuppressed scan finds CVE-2026-109869 in npm's private
+`node_modules/undici` 6.29.0. The upstream v6.29.1 security release fixes it:
+https://github.com/nodejs/undici/releases/tag/v6.29.1 . The image now installs
+exactly 6.29.1 in the existing isolated security-patch scratch project, copies
+that dependency into npm's private tree and reads back its installed version.
+Node 24, npm, pnpm and project lock baselines are unchanged. Task/yq and Docker
+plugin findings remain independently failing; this correction does not qualify
+any image or Codespace.
