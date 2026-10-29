@@ -1136,15 +1136,21 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip 
 # change to where files actually land on disk.
 ENV PIPX_GLOBAL_HOME=/opt/pipx \
     PIPX_GLOBAL_BIN_DIR=/usr/local/bin
+COPY config/python-build-constraints.txt /usr/local/share/baobab/config/python-build-constraints.txt
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
+    export PIP_CONSTRAINT="${BAOBAB_CONFIG_DIR}/python-build-constraints.txt" && \
     python3 -m pip install --no-cache-dir --break-system-packages pipx && \
     export PATH="/usr/local/bin:${PATH}" && \
     python3 -m pipx ensurepath --global && \
     pipx install --global "poetry==${POETRY_VERSION}" && \
     pipx inject --global poetry poetry-plugin-shell && \
-    python3 -m pip install --no-cache-dir --break-system-packages --upgrade "setuptools>=78.1.1" "msgpack>=1.2.1" && \
+    python3 -m pip install --no-cache-dir --break-system-packages --upgrade "setuptools>=78.1.1" "msgpack>=1.2.1" "urllib3==2.8.0" && \
+    python3 -m pip check && \
+    "${PIPX_GLOBAL_HOME}/venvs/poetry/bin/python" -m pip check && \
+    python3 -c 'from importlib.metadata import version; assert version("urllib3") == "2.8.0", "SYSTEM_URLLIB3_PIN_DRIFT"' && \
+    "${PIPX_GLOBAL_HOME}/venvs/poetry/bin/python" -c 'from importlib.metadata import version; assert version("urllib3") == "2.8.0", "POETRY_URLLIB3_PIN_DRIFT"' && \
     chmod -R a+rX "${PIPX_GLOBAL_HOME}"
     
 # Application-specific Python packages and the rest of the project's
