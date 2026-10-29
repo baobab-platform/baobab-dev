@@ -540,6 +540,7 @@ COPY config/versions.yaml /usr/local/share/baobab/config/versions.yaml
 COPY config/versions.lock /usr/local/share/baobab/config/versions.lock
 COPY --chmod=0755 config/resolve.sh /usr/local/share/baobab/config/resolve.sh
 COPY --chmod=0755 scripts/npm-install-retry.sh /usr/local/share/baobab/config/npm-install-retry.sh
+COPY config/npm-build-security.json /usr/local/share/baobab/config/npm-build-security.json
 
 ENV BAOBAB_CONFIG_DIR=/usr/local/share/baobab/config
 
@@ -720,9 +721,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         TAR_SCRATCH_DIR="$(mktemp -d)" && \
         cd "${TAR_SCRATCH_DIR}" && \
         npm init -y --silent >/dev/null && \
-        npm_install_retry "tar@${NPM_BUNDLED_TAR_VERSION}" --no-save --omit=dev && \
+        NPM_BUNDLED_UNDICI_VERSION="$(node -p 'require(process.env.BAOBAB_CONFIG_DIR + "/npm-build-security.json").undici_version')" && \
+        test "${NPM_BUNDLED_UNDICI_VERSION}" = "6.29.1" && \
+        npm_install_retry "tar@${NPM_BUNDLED_TAR_VERSION}" "undici@${NPM_BUNDLED_UNDICI_VERSION}" --no-save --omit=dev && \
         rm -rf "${NPM_GLOBAL_ROOT}/npm/node_modules/tar" && \
+        rm -rf "${NPM_GLOBAL_ROOT}/npm/node_modules/undici" && \
         cp -r node_modules/tar "${NPM_GLOBAL_ROOT}/npm/node_modules/tar" && \
+        cp -r node_modules/undici "${NPM_GLOBAL_ROOT}/npm/node_modules/undici" && \
+        node -e 'const u = require(process.argv[1]); if (u.version !== "6.29.1") process.exit(1)' "${NPM_GLOBAL_ROOT}/npm/node_modules/undici/package.json" && \
         rm -rf "${TAR_SCRATCH_DIR}" \
     ) && \
     corepack enable && \
