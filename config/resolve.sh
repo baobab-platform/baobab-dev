@@ -105,6 +105,36 @@ command -v curl >/dev/null 2>&1 \
 [[ -f "$MANIFEST" ]] \
     || die "Cannot find ${MANIFEST}"
 
+# Frozen verification uses the committed resolution for manifest "latest" keys.
+# It still fetches the exact version's upstream digests below; CI compares the
+# regenerated lock byte-for-byte. Only the separate update workflow discovers
+# newer versions. Never source lock data as executable shell during validation.
+LOCKED_MODE=false
+case "${1:-}" in
+    "") [[ $# -eq 0 ]] || die "Unexpected resolver arguments" ;;
+    --locked) [[ $# -eq 1 ]] || die "Unexpected resolver arguments"; LOCKED_MODE=true ;;
+    *) die "Usage: resolve.sh [--locked]" ;;
+esac
+declare -A LOCKED_VALUES=()
+if $LOCKED_MODE; then
+    [[ -f "$LOCKFILE" ]] || die "Frozen verification requires versions.lock"
+    while IFS= read -r line || [[ -n "$line" ]]; do
+        [[ -z "$line" || "$line" == \#* ]] && continue
+        pattern='^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._:/+-]+)$'
+        [[ "$line" =~ $pattern ]] || die "Invalid frozen lock assignment"
+        key="${BASH_REMATCH[1]}"; value="${BASH_REMATCH[2]}"
+        [[ ! -v "LOCKED_VALUES[$key]" ]] || die "Duplicate frozen lock key: $key"
+        [[ "$value" != null && "$value" != latest && "$value" != system ]] || die "Unresolved frozen lock value: $key"
+        LOCKED_VALUES[$key]="$value"
+    done < "$LOCKFILE"
+fi
+locked_version() {
+    local key="$1"
+    local value="${LOCKED_VALUES[$key]:-}"
+    [[ "$value" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-][A-Za-z0-9.-]+)?$ ]] || die "Missing or invalid frozen version: $key"
+    printf '%s' "$value"
+}
+
 # ------------------------------------------------------------------------------
 # Helper functions
 # ------------------------------------------------------------------------------
@@ -338,12 +368,15 @@ resolve_npm_registry() {
     local yaml_path="$1"
     local package="$2"
 
+    local lock_key="$3"
     local version
 
     version=$(yaml "$yaml_path")
     require_resolved "$version" "versions.yaml key '${yaml_path}' (npm package '${package}')"
 
-    if [[ "$version" == "latest" ]]; then
+    if [[ "$version" == "latest" ]] && $LOCKED_MODE; then
+        locked_version "$lock_key"
+    elif [[ "$version" == "latest" ]]; then
         info "Resolving ${package}@latest from the npm registry..."
         version=$(npm_registry_latest "$package")
         require_resolved "$version" "npm registry lookup for '${package}@latest'"
@@ -358,12 +391,15 @@ resolve_npm() {
     local yaml_path="$1"
     local package="$2"
 
+    local lock_key="$3"
     local version
 
     version=$(yaml "$yaml_path")
     require_resolved "$version" "versions.yaml key '${yaml_path}' (npm package '${package}')"
 
-    if [[ "$version" == "latest" ]]; then
+    if [[ "$version" == "latest" ]] && $LOCKED_MODE; then
+        locked_version "$lock_key"
+    elif [[ "$version" == "latest" ]]; then
         info "Resolving ${package} (npm)..."
         version=$(npm_latest "$package")
         require_resolved "$version" "npm registry lookup for '${package}' latest dist-tag"
@@ -396,7 +432,9 @@ require_resolved "$JAVA_MAJOR" "versions.yaml key '.languages.java.version'"
 
 FLUTTER_VERSION=$(yaml '.languages.flutter.version')
 
-if [[ "$FLUTTER_VERSION" == "latest" ]]; then
+if [[ "$FLUTTER_VERSION" == "latest" ]] && $LOCKED_MODE; then
+    FLUTTER_VERSION=$(locked_version FLUTTER_VERSION)
+elif [[ "$FLUTTER_VERSION" == "latest" ]]; then
     info "Resolving latest Flutter release..."
     FLUTTER_VERSION=$(flutter_latest)
 fi
@@ -450,7 +488,7 @@ FLUTTER_ARCHIVE_AMD64=$(flutter_archive_url_for_version "${FLUTTER_VERSION}")
 # constraint, so it stays here; POETRY_VERSION/UV_VERSION do not.
 # ------------------------------------------------------------------------------
 
-PNPM_VERSION=$(resolve_npm '.package_managers.pnpm.version' 'pnpm')
+PNPM_VERSION=$(resolve_npm '.package_managers.pnpm.version' 'pnpm' 'PNPM_VERSION')
 
 # ------------------------------------------------------------------------------
 # GitHub tools
@@ -461,12 +499,15 @@ resolve_github() {
     local yaml_path="$1"
     local repo="$2"
 
+    local lock_key="$3"
     local version
 
     version=$(yaml "$yaml_path")
     require_resolved "$version" "versions.yaml key '${yaml_path}' (GitHub repo '${repo}')"
 
-    if [[ "$version" == "latest" ]]; then
+    if [[ "$version" == "latest" ]] && $LOCKED_MODE; then
+        locked_version "$lock_key"
+    elif [[ "$version" == "latest" ]]; then
         info "Resolving ${repo}..."
         version=$(github_latest "$repo")
         require_resolved "$version" "GitHub releases/latest lookup for '${repo}'"
@@ -488,29 +529,29 @@ resolve_github() {
 # uv: source: github — a real compiled binary per architecture, needs the
 #   same asset+checksum treatment as ripgrep/fd/bat/eza below, not just a
 #   bare version string (see the checksum block further down).
-POETRY_VERSION=$(resolve_github '.package_managers.poetry.version' 'python-poetry/poetry')
+POETRY_VERSION=$(resolve_github '.package_managers.poetry.version' 'python-poetry/poetry' 'POETRY_VERSION')
 
-UV_VERSION=$(resolve_github '.package_managers.uv.version' 'astral-sh/uv')
+UV_VERSION=$(resolve_github '.package_managers.uv.version' 'astral-sh/uv' 'UV_VERSION')
 
-TASK_VERSION=$(resolve_github '.utilities.task.version' 'go-task/task')
+TASK_VERSION=$(resolve_github '.utilities.task.version' 'go-task/task' 'TASK_VERSION')
 
-RIPGREP_VERSION=$(resolve_github '.utilities.ripgrep.version' 'BurntSushi/ripgrep')
+RIPGREP_VERSION=$(resolve_github '.utilities.ripgrep.version' 'BurntSushi/ripgrep' 'RIPGREP_VERSION')
 
-FD_VERSION=$(resolve_github '.utilities.fd.version' 'sharkdp/fd')
+FD_VERSION=$(resolve_github '.utilities.fd.version' 'sharkdp/fd' 'FD_VERSION')
 
-BAT_VERSION=$(resolve_github '.utilities.bat.version' 'sharkdp/bat')
+BAT_VERSION=$(resolve_github '.utilities.bat.version' 'sharkdp/bat' 'BAT_VERSION')
 
-EZA_VERSION=$(resolve_github '.utilities.eza.version' 'eza-community/eza')
+EZA_VERSION=$(resolve_github '.utilities.eza.version' 'eza-community/eza' 'EZA_VERSION')
 
-YQ_VERSION=$(resolve_github '.utilities.yq.version' 'mikefarah/yq')
+YQ_VERSION=$(resolve_github '.utilities.yq.version' 'mikefarah/yq' 'YQ_VERSION')
 
-GH_VERSION=$(resolve_github '.development.github_cli.version' 'cli/cli')
+GH_VERSION=$(resolve_github '.development.github_cli.version' 'cli/cli' 'GH_VERSION')
 
-COSIGN_VERSION=$(resolve_github '.security.cosign.version' 'sigstore/cosign')
+COSIGN_VERSION=$(resolve_github '.security.cosign.version' 'sigstore/cosign' 'COSIGN_VERSION')
 
-NPM_VERSION=$(resolve_npm_registry '.package_managers.npm.version' 'npm')
+NPM_VERSION=$(resolve_npm_registry '.package_managers.npm.version' 'npm' 'NPM_VERSION')
 
-NPM_BUNDLED_TAR_VERSION=$(resolve_npm_registry '.package_managers.npm_bundled_tar.version' 'tar')
+NPM_BUNDLED_TAR_VERSION=$(resolve_npm_registry '.package_managers.npm_bundled_tar.version' 'tar' 'NPM_BUNDLED_TAR_VERSION')
 # ------------------------------------------------------------------------------
 # Checksums: ripgrep, fd, bat, eza (per target architecture)
 #
@@ -683,13 +724,13 @@ fi
 # to pnpm/Poetry.
 # ------------------------------------------------------------------------------
 
-TURBO_VERSION=$(resolve_npm '.frontend_tooling.turbo.version' 'turbo')
+TURBO_VERSION=$(resolve_npm '.frontend_tooling.turbo.version' 'turbo' 'TURBO_VERSION')
 
-PLAYWRIGHT_VERSION=$(resolve_npm '.frontend_tooling.playwright.version' 'playwright')
+PLAYWRIGHT_VERSION=$(resolve_npm '.frontend_tooling.playwright.version' 'playwright' 'PLAYWRIGHT_VERSION')
 
-SHARP_VERSION=$(resolve_npm '.frontend_tooling.sharp.version' 'sharp')
+SHARP_VERSION=$(resolve_npm '.frontend_tooling.sharp.version' 'sharp' 'SHARP_VERSION')
 
-LIGHTHOUSE_VERSION=$(resolve_npm '.frontend_tooling.lighthouse.version' 'lighthouse')
+LIGHTHOUSE_VERSION=$(resolve_npm '.frontend_tooling.lighthouse.version' 'lighthouse' 'LIGHTHOUSE_VERSION')
 
 # Derived, not resolved from an external source: the minor version (e.g.
 # "3.14" from "3.14.6") selects the python<MINOR> binary name and feeds
