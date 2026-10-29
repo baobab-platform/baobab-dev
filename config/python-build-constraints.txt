@@ -1,0 +1,4 @@
+# Image tooling only; project dependencies retain their own frozen locks.
+# Final-image scans 40360334198 / 40360515417 found CVE-2026-97687 and
+# CVE-2026-97689 in urllib3 2.7.0. Constrain both pipx and Poetry's venv.
+urllib3==2.8.0
