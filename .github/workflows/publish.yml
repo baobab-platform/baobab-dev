@@ -164,7 +164,7 @@ jobs:
   # build always needs a correct lockfile, whether or not this run ever
   # publishes anything.
   sanity-check:
-    name: Lockfile Integrity & Auto-Sync
+    name: Frozen Lockfile Integrity
     runs-on: ubuntu-26.04
     timeout-minutes: 20
 
@@ -270,12 +270,12 @@ jobs:
           sudo install -m 0755 /tmp/yq /usr/local/bin/yq
           rm -f /tmp/yq
 
-      - name: Verify lockfile integrity via resolve.sh
+      - name: Verify committed resolutions and upstream asset checksums
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           chmod +x config/resolve.sh
-          ./config/resolve.sh
+          ./config/resolve.sh --locked
 
       - name: Check for lockfile drift
         id: drift-check
@@ -310,7 +310,7 @@ jobs:
           echo "::error:: This pipeline no longer auto-commits resolved lockfiles. Run config/resolve.sh locally, or trigger .github/workflows/update-lockfile.yml, review and merge the resulting PR, then re-run."
           exit 1
 
-      # Hand off the freshly-resolved lockfile via artifact: build's
+      # Hand off the upstream-verified committed resolution via artifact: build's
       # checkout later in this run is pinned to the same ref this job
       # checked out (read-only) — there is no commit for a later checkout
       # to see, by design (see "Fail on lockfile drift" above). Uploaded
