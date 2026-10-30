@@ -142,6 +142,7 @@ class SignedVEXTests(unittest.TestCase):
     def check(self, signed=None, **kwargs):
         return policy.qualify(self.report, signed or self.sign(), self.trust,
                               register=self.register, image_digest=kwargs.get("digest", self.digest),
+                              source_revision=kwargs.get("revision", "b" * 40),
                               platform=kwargs.get("platform", "linux/amd64"),
                               image_purl=kwargs.get("purl", self.purl), now=self.now)
 
@@ -166,6 +167,10 @@ class SignedVEXTests(unittest.TestCase):
         self.decision["engineering_author_principal"] = "principal-checker"
         with self.assertRaisesRegex(policy.PolicyError, "maker-checker"):
             self.check()
+
+    def test_wrong_reviewed_source_revision_fails(self):
+        with self.assertRaisesRegex(policy.PolicyError, "source revision"):
+            self.check(revision="e" * 40)
 
     def test_wrong_digest_and_architecture_fail(self):
         with self.assertRaisesRegex(policy.PolicyError, "mismatch"):
