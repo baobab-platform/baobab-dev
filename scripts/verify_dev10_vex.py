@@ -86,12 +86,17 @@ def findings(report: dict) -> dict[tuple[str, str, str], dict]:
 
 def qualify(report: dict, signed: dict, trust: dict, *,
             image_digest: str, platform: str, image_purl: str,
-            register: dict, now: dt.datetime | None = None) -> tuple[dict, list]:
+            source_revision: str, register: dict, now: dt.datetime | None = None) -> tuple[dict, list]:
     now = now or dt.datetime.now(dt.timezone.utc)
     require(SHA.fullmatch(image_digest) is not None, "invalid exact OCI digest")
+    require(re.fullmatch(r"[a-f0-9]{40}", source_revision) is not None,
+            "invalid immutable source revision")
     require(platform in ("linux/amd64", "linux/arm64"), "unsupported architecture")
-    require("@" + "sha256:" + image_digest in image_purl and image_purl.startswith("pkg:oci/"),
-            "VEX image PURL must include exact OCI sha256")
+    exact_product = image_purl.split("?", 1)[0]
+    require(exact_product.startswith("pkg:oci/")
+            and exact_product.endswith("@sha256:" + image_digest)
+            and exact_product.count("@") == 1,
+            "VEX image PURL must contain exact OCI sha256 version")
     require(signed.get("signature") and isinstance(signed.get("decision"), dict),
             "unsigned or missing approval")
     d = signed["decision"]
@@ -116,8 +121,8 @@ def qualify(report: dict, signed: dict, trust: dict, *,
     require(d.get("image_digest") == "sha256:" + image_digest
             and d.get("platform") == platform and d.get("image_purl") == image_purl,
             "approval image or architecture mismatch")
-    require(d.get("source_revision") and re.fullmatch(r"[a-f0-9]{40}", d["source_revision"]),
-            "source revision not immutable")
+    require(d.get("source_revision") == source_revision,
+            "reviewed source revision does not match execution commit")
     require(SHA.fullmatch(d.get("evidence_sha256") or "") is not None,
             "missing evidence content digest")
     require(d.get("risk_owner_principal") and len(d.get("risk_acceptance_reason") or "") >= 40
@@ -210,6 +215,7 @@ def main() -> int:
     p.add_argument("--image-digest", required=True)
     p.add_argument("--platform", required=True)
     p.add_argument("--image-purl", required=True)
+    p.add_argument("--source-revision", required=True)
     p.add_argument("--openvex-output", type=Path, required=True)
     args = p.parse_args()
     try:
@@ -217,7 +223,8 @@ def main() -> int:
         vex, blocking = qualify(load(args.raw_trivy), load(args.signed_decision),
                                 load(args.protected_trust),
                                 image_digest=args.image_digest, platform=args.platform,
-                                image_purl=args.image_purl, register=load(args.register))
+                                image_purl=args.image_purl, source_revision=args.source_revision,
+                                register=load(args.register))
         args.openvex_output.write_text(json.dumps(vex, indent=2, sort_keys=True) + "\n")
         if blocking:
             print("BLOCKED unapproved HIGH/CRITICAL findings:", len(blocking), file=sys.stderr)
