@@ -890,6 +890,7 @@ COPY --chmod=0755 scripts/bootstrap.sh    /usr/local/bin/baobab-bootstrap
 COPY --chmod=0755 scripts/post-create.sh  /usr/local/bin/baobab-post-create
 COPY --chmod=0755 scripts/summary.sh      /usr/local/bin/baobab-summary
 COPY --chmod=0755 scripts/verify.sh       /usr/local/bin/baobab-verify
+COPY --chmod=0755 scripts/audit-python-dependencies.sh /usr/local/bin/baobab-audit-python-dependencies
 
 USER vscode
 WORKDIR /workspaces
@@ -1494,6 +1495,16 @@ RUN poetry config virtualenvs.in-project true
 # Runs as `vscode`, after the USER switch above, since baobab-verify checks
 # the runtime user identity.
 # -----------------------------------------------------------------------------
+
+# Independent installed-distribution audit: system Python, pipx shared installer
+# and Poetry's pipx venv. Unlike Trivy, this directly queries the Python
+# advisory feed via pinned pip-audit and fails the build on any finding.
+# The isolated tool cache is removed in the same layer; the published image
+# does not carry pip-audit's transient build-time dependencies.
+RUN set -euo pipefail; \
+    UV_CACHE_DIR=/tmp/baobab-pip-audit-cache \
+      baobab-audit-python-dependencies --installed; \
+    rm -rf /tmp/baobab-pip-audit-cache
 
 RUN baobab-verify
 
