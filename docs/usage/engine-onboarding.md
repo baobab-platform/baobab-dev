@@ -84,3 +84,27 @@ by the doctor; report remaining unsuppressed findings explicitly.
 
 `LOCAL_TOOLCHAIN_OBSERVED` does not supersede independent Infrastructure
 native execution, evidence custody or protected environment approvals.
+
+## Stacked DEV-10 integration and security qualification (30 October 2026)
+
+PR #50 integrates the qualified #48 source head
+`47f76836854d42b7f08b2ee1796d2c902706dacc` and retains the four
+DEV-14-specific developer-doctor additions. GitHub currently treats the pair
+as a **stack**: the immediate merge and auto-merge endpoints rejected #48
+while the dependent PR exists, and changing #50's base directly is blocked.
+This source integration is **not** a claim that #48 was merged to `main`.
+
+The temporary, user-attested DEV-10 *development residual-risk acceptance*
+now explicitly includes **PR #50**, as well as PR #48 and untagged development
+`main`, so the dependent checks exercise the same exact known package
+`linux-libc-dev 7.0.0-42.42` and 295-CVE inventory. The expiry remains
+**13 November 2026 at 00:00 UTC**. It is not a `not_affected` VEX approval,
+a release exemption, a staging/production certification, or a newly fixed
+vendor CVE. All other CVEs, package versions, PR identities and tag pushes
+remain denied. See `scripts/dev10_kernel_risk_gate.py`,
+`tests/test_dev10_kernel_risk_gate.py` and
+`docs/assessments/dev10-linux-libc-dev-risk-decision.md`.
+
+**Merge sequence remains:** merge qualified #48 via GitHub's stack-supported
+merge workflow; retarget #50 to the resulting `main`; requalify the final
+#50 head and perform its required review before considering its merge.
