@@ -46,8 +46,13 @@ The reusable profile-aware Infrastructure controller must independently
 validate the Shared schema/owner declaration, pin source/image digests,
 create a private bounded project, use genuine IAM and CP authority, run
 native adapters, record explicit case outcomes and recover all resources.
-The current Infrastructure DEV-14 source planner is deliberately fail closed
-until a real execution adapter exists.
+Infrastructure [#64](https://github.com/baobab-platform/infrastructure/pull/64)
+is merged and introduces the connected IAM/CP/native engine executor and
+independent evidence/cleanup checks. The existence of that executor and
+its source CI does **not** establish that every ENG-ONB case passed on the
+current owner images or that any protected release is authorised. Consume
+the current Shared #403 bundle and independently inspect executed cases,
+current identity/authority evidence, teardown and immutable receipts.
 
 Keep DEV-15 actual Pulse/Payments database/API tests separate. CMS is not
 required by either headless profile. No developer profile activates a
@@ -61,3 +66,21 @@ roll back. It changes neither `config/versions.lock` nor the published image
 contents. Treat `UNAVAILABLE`, `VERSION_UNSUPPORTED`, and `MISMATCH`
 as actionable blockers, and never turn them into green status by hiding the
 check. Keep SDK and language versions pinned by their owner contract.
+
+
+## DEV-10 security dependency and merge sequencing
+
+This DEV-14 doctor changes source diagnostics, not image trust. The branch
+also carries the same checksum-pinned Terraform 1.17.1, Maven Guava 33.7.2
+replacement, pip-vendored msgpack 1.2.3, setuptools-derived pkg_resources
+78.1.1 and urllib3 2.8.0 security remediations proposed in
+[baobab-dev #48](https://github.com/baobab-platform/baobab-dev/pull/48).
+Both PRs must preserve these fixes when #48 is merged first. A stale
+DEV-14 branch must never revert to Terraform 1.16.7 or the unpatched
+vendored libraries. The vendoring rebuild also requires an upstream-
+compatible pkg_resources patch and must pass full amd64/arm64 image CI
+before merge. No .trivyignore suppression or expiry extension is authorised
+by the doctor; report remaining unsuppressed findings explicitly.
+
+`LOCAL_TOOLCHAIN_OBSERVED` does not supersede independent Infrastructure
+native execution, evidence custody or protected environment approvals.
