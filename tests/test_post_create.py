@@ -10,7 +10,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/post-create.sh'
 
 
 class PostCreateTests(unittest.TestCase):
-    def run_case(self, files, *, fail='', pnpm='11.24.0'):
+    def run_case(self, files, *, fail='', pnpm='11.24.0', members='yes'):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root/'config').mkdir()
@@ -24,13 +24,21 @@ class PostCreateTests(unittest.TestCase):
             for tool in ['uv','poetry','npm','pnpm','node']:
                 body='#!/bin/sh\nprintf "%s\\n" "'+tool+' $*" >> "$TRACE"\n'
                 if tool=='node':
-                    body += "if [ \"$1\" = \"--version\" ]; then printf 'v24.21.0\\n'; else /usr/bin/python3 -c 'import json; print(json.load(open(\"package.json\")).get(\"packageManager\", \"\"))'; fi\n"
+                    body += """if [ "$1" = "--version" ]; then
+  printf 'v24.21.0\\n'
+elif [ "$1" = "-e" ]; then
+  /usr/bin/python3 -c 'import sys,json,pathlib; rows=json.load(sys.stdin); target=(pathlib.Path.cwd()/"frontend").resolve(); sys.exit(0 if isinstance(rows,list) and any(isinstance(row,dict) and pathlib.Path(row.get("path","/nonexistent")).resolve()==target for row in rows) else 1)'
+else
+  /usr/bin/python3 -c 'import json; print(json.load(open("package.json")).get("packageManager", ""))'
+fi
+"""
                 elif tool=='pnpm':
-                    body+='if [ "$1" = "--version" ]; then printf "%s\\n" "'+pnpm+'"; exit 0; fi\n'
+                    body+='if [ "$1" = "--version" ]; then printf "%s\\n" "'+pnpm+'"; exit 0; fi\\n'
+                    body+='if [ "$1" = "list" ]; then if [ "$PNPM_MEMBERS" = "yes" ]; then printf \'[{"path":"%s/frontend"}]\\n\' "$WORKSPACE_DIR"; else printf \'[{"path":"%s"}]\\n\' "$WORKSPACE_DIR"; fi; exit 0; fi\\n'
                 body+='[ "$FAIL_TOOL" != "'+tool+'" ]\n'
                 (binpath/tool).write_text(body);(binpath/tool).chmod(0o755)
             env={**os.environ,'PATH':str(binpath)+':/usr/bin:/bin','WORKSPACE_DIR':str(root),
-                 'TRACE':str(root/'trace'),'FAIL_TOOL':fail}
+                 'TRACE':str(root/'trace'),'FAIL_TOOL':fail,'PNPM_MEMBERS':members}
             result=subprocess.run(['bash',str(SCRIPT),'--stage=post-create'],cwd=root,env=env,
                                   capture_output=True,text=True)
             trace=(root/'trace').read_text() if (root/'trace').exists() else ''
@@ -76,6 +84,34 @@ class PostCreateTests(unittest.TestCase):
         r,t=self.run_case({'frontend/package.json':'{}','frontend/package-lock.json':'{}'},fail='npm')
         self.assertNotEqual(0,r.returncode)
         self.assertNotIn('npm install',t)
+
+    def test_root_pnpm_workspace_requires_declared_frontend_membership(self):
+        files = {
+            'package.json': json.dumps({'packageManager': 'pnpm@11.24.0'}),
+            'pnpm-workspace.yaml': 'packages:\\n  - packages/*\\n',
+            'pnpm-lock.yaml': 'lockfileVersion: 9.0\\n',
+            'frontend/package.json': json.dumps({'name': 'frontend'}),
+        }
+        r, trace = self.run_case(files, members='no')
+        self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('not a declared member', r.stderr)
+        self.assertIn('pnpm list -r --depth -1 --json', trace)
+        self.assertNotIn('npm ci', trace)
+        self.assertEqual(1, trace.count('pnpm install --frozen-lockfile'))
+        r, trace = self.run_case(files, members='yes')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        self.assertIn('Frontend covered by the root frozen pnpm workspace lock', r.stdout)
+        self.assertEqual(1, trace.count('pnpm install --frozen-lockfile'))
+
+    def test_root_pnpm_workspace_without_lock_fails_closed(self):
+        r, trace = self.run_case({
+            'package.json': json.dumps({'packageManager': 'pnpm@11.24.0'}),
+            'pnpm-workspace.yaml': 'packages:\\n  - frontend\\n',
+            'package-lock.json': '{}',
+            'frontend/package.json': '{}',
+        })
+        self.assertNotEqual(r.returncode, 0)
+        self.assertNotIn('npm ci', trace)
 
     def test_conflicting_node_locks_and_wrong_node_pin_refused(self):
         for files in ({'package.json':'{}','package-lock.json':'','pnpm-lock.yaml':''},
