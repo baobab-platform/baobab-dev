@@ -23,7 +23,7 @@ case "${1:-}" in
     echo "Auditing committed uv.lock (all declared dependency groups)"
     uv export --locked --all-groups --no-emit-project \
       --format requirements-txt --output-file "$tmp/uv-requirements.txt"
-    grep -q '^.*==.*--hash=sha256:' "$tmp/uv-requirements.txt" || {
+    { grep -q '==' "$tmp/uv-requirements.txt" && grep -q -- '--hash=sha256:' "$tmp/uv-requirements.txt"; } || {
       echo "Locked uv export lacks hashed pinned dependencies" >&2; exit 1;
     }
     audit --require-hashes --no-deps -r "$tmp/uv-requirements.txt"
