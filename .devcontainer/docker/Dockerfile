@@ -279,6 +279,17 @@ RUN set -euo pipefail; \
 # filenames also come exclusively from versions.lock's *_ASSET_* variables,
 # not reconstructed inline, so a filename typo simply 404s at build time
 # instead of silently verifying against the wrong file.
+# Security rebuild of the adopted Task/yq releases; project Go baselines do
+# not change. Sources, compiler and patched dependency graphs are pinned.
+FROM ubuntu:${UBUNTU_VERSION} AS patched-go-clis
+ARG TARGETARCH
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tar git && rm -rf /var/lib/apt/lists/*
+COPY config/versions.lock /build/versions.lock
+COPY config/security/ /build/security/
+COPY scripts/build-security-clis.sh /build/build-security-clis.sh
+RUN bash /build/build-security-clis.sh "${TARGETARCH}"
+
 FROM ubuntu:${UBUNTU_VERSION} AS cli-tools
 ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -291,6 +302,8 @@ RUN apt-get update && \
 # config/resolve.sh outside of Docker). This stage never executes resolve.sh
 # and never re-derives a version on its own.
 COPY config/versions.lock /tmp/baobab-config/versions.lock
+
+COPY --from=patched-go-clis /out/ /opt/cli-tools/bin/
 
 WORKDIR /tmp/cli-tools
 RUN set -euo pipefail; \
@@ -348,11 +361,6 @@ RUN set -euo pipefail; \
     fetch_verify "https://github.com/eza-community/eza/releases/download/v${EZA_VERSION}/${!EZA_ASSET}" "${!EZA_ASSET}" "${!EZA_SHA}"; \
     extract_binary "${!EZA_ASSET}" eza; \
     \
-    # task — tar.gz
-    TASK_ASSET="TASK_ASSET_${ARCH_SUFFIX}"; TASK_SHA="TASK_SHA256_${ARCH_SUFFIX}"; \
-    fetch_verify "https://github.com/go-task/task/releases/download/v${TASK_VERSION}/${!TASK_ASSET}" "${!TASK_ASSET}" "${!TASK_SHA}"; \
-    extract_binary "${!TASK_ASSET}" task; \
-    \
     # uv — tar.gz, ships both uv and uvx in the same archive
     UV_ASSET="UV_ASSET_${ARCH_SUFFIX}"; UV_SHA="UV_SHA256_${ARCH_SUFFIX}"; \
     fetch_verify "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/${!UV_ASSET}" "${!UV_ASSET}" "${!UV_SHA}"; \
@@ -363,11 +371,6 @@ RUN set -euo pipefail; \
     GH_ASSET="GH_ASSET_${ARCH_SUFFIX}"; GH_SHA="GH_SHA256_${ARCH_SUFFIX}"; \
     fetch_verify "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${!GH_ASSET}" "${!GH_ASSET}" "${!GH_SHA}"; \
     extract_binary "${!GH_ASSET}" gh; \
-    \
-    # yq — raw binary, no archive to extract
-    YQ_ASSET="YQ_ASSET_${ARCH_SUFFIX}"; YQ_SHA="YQ_SHA256_${ARCH_SUFFIX}"; \
-    fetch_verify "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/${!YQ_ASSET}" "${!YQ_ASSET}" "${!YQ_SHA}"; \
-    cp "${!YQ_ASSET}" /opt/cli-tools/bin/yq; \
     \
     # cosign — raw binary, no archive to extract
     COSIGN_ASSET="COSIGN_ASSET_${ARCH_SUFFIX}"; COSIGN_SHA="COSIGN_SHA256_${ARCH_SUFFIX}"; \
@@ -1329,6 +1332,14 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CO
       docker-compose-plugin \
       docker-buildx-plugin
 
+# Keep the adopted plugin release versions, replacing their vulnerable Go
+# dependencies with the checksum-pinned security rebuilds. Apt drift fails closed.
+RUN dpkg-query -W -f='${Version}' docker-buildx-plugin | grep -E '^0\.38\.1-' && \
+    dpkg-query -W -f='${Version}' docker-compose-plugin | grep -E '^5\.6\.1-'
+COPY --from=patched-go-clis /out/docker-buildx /usr/libexec/docker/cli-plugins/docker-buildx
+COPY --from=patched-go-clis /out/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
+RUN docker buildx version && docker compose version
+
 # -----------------------------------------------------------------------------
 # 8. Shell productivity & GitHub Actions-adjacent utilities
 #    fzf and tmux come from Ubuntu's own repos (small, stable, low-churn).
@@ -1515,6 +1526,14 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CO
       docker-ce-cli \
       docker-compose-plugin \
       docker-buildx-plugin
+
+# Keep the adopted plugin release versions, replacing their vulnerable Go
+# dependencies with the checksum-pinned security rebuilds. Apt drift fails closed.
+RUN dpkg-query -W -f='${Version}' docker-buildx-plugin | grep -E '^0\.38\.1-' && \
+    dpkg-query -W -f='${Version}' docker-compose-plugin | grep -E '^5\.6\.1-'
+COPY --from=patched-go-clis /out/docker-buildx /usr/libexec/docker/cli-plugins/docker-buildx
+COPY --from=patched-go-clis /out/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
+RUN docker buildx version && docker compose version
 
 # -----------------------------------------------------------------------------
 # HashiCorp Terraform
