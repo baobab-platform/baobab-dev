@@ -1,0 +1,141 @@
+name: DEV-10 immutable v1.4.4 retrospective and pnpm 12 preview
+# Evidence-only: neither the blocking Publish gate nor the image pnpm pin changes.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dev10-v144-retrospective.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: read
+jobs:
+  immutable-image-scan:
+    name: v1.4.4 current-policy evidence (${{ matrix.target }}, ${{ matrix.platform }})
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        target: [final, infra, frontend, frontend-e2e]
+        platform: [linux/amd64, linux/arm64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Authenticate to GHCR (read-only)
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin >/dev/null
+      - name: Install checksum-pinned Trivy 0.73.0
+        run: |
+          set -euo pipefail
+          asset=trivy_0.73.0_Linux-64bit.tar.gz
+          curl -fsSL --retry 4 -o "$asset" "https://github.com/aquasecurity/trivy/releases/download/v0.73.0/$asset"
+          echo "2edd39da482bb4e9831962487b68f68e3928ec3137794757f54d00383d79547b  $asset" | sha256sum -c --strict -
+          tar -xzf "$asset" trivy
+          chmod +x trivy
+          sudo mv trivy /usr/local/bin/trivy
+      - name: Inspect the immutable released digest with no exceptions
+        env:
+          TARGET: ${{ matrix.target }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          case "$TARGET" in
+            final) digest=sha256:9603f0e7402aa85771e904db1c20f2ecc02f705131b266cb4ec3d1c24ea58ae4 ;;
+            infra) digest=sha256:0f73f3e6093ab5c955cbbb341e5731681ee4283cae75f13c56f3e38373467ecc ;;
+            frontend) digest=sha256:1b3165067912eacbca96b576efb67e0428850b1ff1a953aa9013127a01635371 ;;
+            frontend-e2e) digest=sha256:eb9c401cea16c4f333c28b250dd455e505752dfc6d11e9779a182a02bc207213 ;;
+            *) exit 2 ;;
+          esac
+          image="ghcr.io/baobab-platform/baobab-dev@$digest"
+          report="$RUNNER_TEMP/v144-evidence"
+          mkdir -p "$report"
+          printf '%s\n' "$image" > "$report/immutable-image-ref.txt"
+          # Advisory findings are observations here, NOT release approval.
+          # Infrastructure errors and malformed/missing evidence still fail.
+          trivy image --image-src remote --platform "$PLATFORM" \
+            --scanners vuln,secret --ignorefile /dev/null \
+            --pkg-types os,library --severity CRITICAL,HIGH \
+            --exit-code 0 --skip-version-check --format json \
+            --output "$RUNNER_TEMP/v144-trivy-raw.json" "$image"
+          # Never upload Trivy Secrets payloads.
+          python3 scripts/summarize-trivy-vulnerabilities.py \
+            "$RUNNER_TEMP/v144-trivy-raw.json" \
+            "$report/findings.json" "$TARGET" "$PLATFORM"
+          python3 - "$report/findings.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, pathlib, sys
+          x = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          print(f"### v1.4.4 {x['image_target']} {x['platform']}")
+          print(f"Unfiltered HIGH/CRITICAL findings: {x['total_findings']}")
+          for p in x["package_inventory"]:
+              print(f"- {p['name']} {p['installed_version']}: {p['finding_count']}")
+          PY
+      - name: Keep a secret-redacted, full vulnerability inventory
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: v144-${{ matrix.target }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
+          path: ${{ runner.temp }}/v144-evidence/
+          retention-days: 30
+          if-no-files-found: error
+  pnpm12-preview:
+    name: pnpm 12.16.1 frozen workspace (${{ matrix.platform }})
+    runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download SHA256-pinned pnpm 12.16.1 native binary
+        run: |
+          set -euo pipefail
+          case "${{ matrix.platform }}" in
+            linux/amd64) asset=pnpm-linux-x64.tar.gz; hash=565ff81174a14f6f7bd5d84c1b17e51031a80230d370a1fe24be5d16bd02a825 ;;
+            linux/arm64) asset=pnpm-linux-arm64.tar.gz; hash=f5847699e5d528f8f8e9bcfb385e58cb9fba7482af1b1aa7b70737be42277f81 ;;
+            *) exit 2 ;;
+          esac
+          curl -fsSL --retry 4 -o "$asset" "https://github.com/pnpm/pnpm/releases/download/v12.16.1/$asset"
+          echo "$hash  $asset" | sha256sum -c --strict -
+          mkdir -p "$RUNNER_TEMP/pnpm12-archive" "$RUNNER_TEMP/pnpm12-bin"
+          tar -xzf "$asset" -C "$RUNNER_TEMP/pnpm12-archive"
+          candidate="$(find "$RUNNER_TEMP/pnpm12-archive" -type f -name pnpm -print -quit)"
+          test -n "$candidate"
+          install -m 755 "$candidate" "$RUNNER_TEMP/pnpm12-bin/pnpm12"
+          test "$("$RUNNER_TEMP/pnpm12-bin/pnpm12" --version)" = 12.16.1
+      - name: Authenticate to known-good immutable frontend image
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin >/dev/null
+      - name: Run offline frozen pnpm 11 lockfile with pnpm 12
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint bash \
+            -v "$GITHUB_WORKSPACE/tests/fixtures/pnpm-workspace:/fixture:ro" \
+            -v "$RUNNER_TEMP/pnpm12-bin/pnpm12:/usr/local/bin/pnpm12:ro" \
+            ghcr.io/baobab-platform/baobab-dev@sha256:1b3165067912eacbca96b576efb67e0428850b1ff1a953aa9013127a01635371 \
+            -euo pipefail -c '
+              mkdir -p /tmp/dev10-pnpm12
+              cp -R /fixture/. /tmp/dev10-pnpm12/
+              cd /tmp/dev10-pnpm12
+              node -e "const fs=require(\"fs\");let p=JSON.parse(fs.readFileSync(\"package.json\"));p.packageManager=\"pnpm@12.16.1\";fs.writeFileSync(\"package.json\",JSON.stringify(p)+\"\\n\")"
+              export COREPACK_ENABLE_NETWORK=0 COREPACK_DEFAULT_TO_LATEST=0
+              test "$(/usr/local/bin/pnpm12 --version)" = 12.16.1
+              sha256sum pnpm-lock.yaml > /tmp/dev10-pnpm12-lock.sha
+              /usr/local/bin/pnpm12 install --offline --frozen-lockfile
+              sha256sum -c --strict /tmp/dev10-pnpm12-lock.sha
+              /usr/local/bin/pnpm12 list -r --depth -1 --json | node -e "let s=\"\";process.stdin.on(\"data\",d=>s+=d);process.stdin.on(\"end\",()=>{if(!JSON.parse(s).some(x=>x.name===\"dev10-frontend-fixture\"))process.exit(1)})"
+            '
+      - name: Document evidence limits
+        run: |
+          echo "pnpm 12.16.1 preview: immutable v1.4.4 image, exact upstream asset SHA256, offline pnpm 11 format lockfile." >> "$GITHUB_STEP_SUMMARY"
+          echo "No Baobab consumer, default image pin, or production release changed." >> "$GITHUB_STEP_SUMMARY"
