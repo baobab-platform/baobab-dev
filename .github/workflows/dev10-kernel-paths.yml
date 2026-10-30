@@ -70,7 +70,17 @@ jobs:
             sleep "$((2 ** attempt))"
           done
           git -C "$UPSTREAM_ROOT" sparse-checkout init --cone
-          git -C "$UPSTREAM_ROOT" sparse-checkout set cve/published/2026
+          # The inventory includes CVEs from prior years; never assume 2026.
+          mapfile -t YEARS < <(tail -n +2 docs/assessments/dev10-kernel-cves.tsv \
+            | cut -f1 \
+            | sed -nE 's/^CVE-([0-9]{4})-[0-9]{4,}$/\1/p' \
+            | sort -u)
+          ((${#YEARS[@]} > 0)) || { echo "::error::No valid CVE years"; exit 1; }
+          SPARSE_PATHS=()
+          for year in "${YEARS[@]}"; do
+            SPARSE_PATHS+=("cve/published/${year}")
+          done
+          git -C "$UPSTREAM_ROOT" sparse-checkout set "${SPARSE_PATHS[@]}"
           git -C "$UPSTREAM_ROOT" checkout --detach --quiet FETCH_HEAD
           test "$(git -C "$UPSTREAM_ROOT" rev-parse HEAD)" = "$UPSTREAM_SHA"
           test -f "$UPSTREAM_ROOT/cve/published/2026/CVE-2026-89530.json"
