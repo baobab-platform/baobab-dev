@@ -11,8 +11,15 @@ python - <<'PY'
 from pathlib import Path
 p = Path('src/pip/_vendor/vendor.txt')
 s = p.read_text()
-assert s.count('urllib3==2.7.0') == 1, 'UPSTREAM_VENDOR_DRIFT'
-p.write_text(s.replace('urllib3==2.7.0', 'urllib3==2.8.0'))
+replacements = {
+    'urllib3==2.7.0': 'urllib3==2.8.0',
+    'msgpack==1.1.2': 'msgpack==1.2.3',
+    'setuptools==70.3.0': 'setuptools==78.1.1',
+}
+for old, new in replacements.items():
+    assert s.count(old) == 1, f'UPSTREAM_VENDOR_DRIFT: {old}'
+    s = s.replace(old, new)
+p.write_text(s)
 p = Path('src/pip/__init__.py')
 s = p.read_text()
 assert s.count('__version__ = "26.2.2"') == 1, 'UPSTREAM_PIP_VERSION_DRIFT'
@@ -25,10 +32,14 @@ python -m venv /build/check
 /build/check/bin/python -m pip install --no-index --no-deps /out/pip-26.2.2+baobab.1-py3-none-any.whl
 /build/check/bin/python - <<'PY'
 import pip
-from pip._vendor import urllib3
+from pip._vendor import urllib3, msgpack, setuptools
 from pip._vendor.requests.adapters import HTTPAdapter
 assert pip.__version__ == '26.2.2+baobab.1'
 assert urllib3.__version__ == '2.8.0'
+assert msgpack.version >= (1, 2, 3), f'VENDORED_MSGPACK_DRIFT: {msgpack.version}'
+assert tuple(int(x) for x in setuptools.__version__.split('.')[:3]) >= (78, 1, 1), (
+    f'VENDORED_SETUPTOOLS_DRIFT: {setuptools.__version__}'
+)
 assert HTTPAdapter().poolmanager.__class__ is urllib3.PoolManager
 PY
 /build/check/bin/python -m pip check
