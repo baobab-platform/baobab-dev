@@ -43,3 +43,21 @@ that dependency into npm's private tree and reads back its installed version.
 Node 24, npm, pnpm and project lock baselines are unchanged. Task/yq and Docker
 plugin findings remain independently failing; this correction does not qualify
 any image or Codespace.
+# Vendored pip dependency remediation
+
+The final-image scan at run 40912583068 still found urllib3 2.7.0 inside
+pip 26.2.2, independently of the already-patched system and Poetry distributions.
+The `patched-pip` builder verifies the upstream source archive and uses pip's
+documented `vendoring sync` process to regenerate code, licensing and SBOM data
+with urllib3 2.8.0. Build-tool dependencies are pinned with wheel hashes.
+The result is explicitly versioned `26.2.2+baobab.1`; it is not represented as
+an unmodified upstream release. Both the system installer and pipx's shared
+installer receive the wheel and check the actual vendored import at build time.
+
+An isolated local installation of the rebuilt wheel reports the patched
+vendored version and successfully installs, checks and uninstalls a local wheel.
+This is component testing only. Final image scans, multi-architecture builds,
+Codespaces and the full DEV-10/DEV-14 acceptance remain required. Earlier failed
+receipts are retained. All historical `.trivyignore` rules are retired as comments;
+newly exposed findings remain blockers, without extensions or suppression.
+

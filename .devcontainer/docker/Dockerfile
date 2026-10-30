@@ -395,6 +395,17 @@ RUN set -euo pipefail; \
 # with-node/frontend/frontend-e2e/final below do, each pulling in only what
 # their profile actually needs.
 # -----------------------------------------------------------------------------
+# pip 26.2.2 bundles urllib3 independently of system/Poetry packages.
+# Rebuild using upstream's vendoring process and identify the downstream wheel.
+FROM ubuntu:${UBUNTU_VERSION} AS patched-pip
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git python3 python3-venv && rm -rf /var/lib/apt/lists/*
+RUN python3 -m venv /build/tools
+ENV PATH="/build/tools/bin:${PATH}" PIP_NO_CACHE_DIR=1
+COPY config/security/pip-vendoring-requirements.txt /build/requirements.txt
+RUN python -m pip install --require-hashes --only-binary=:all: -r /build/requirements.txt
+COPY scripts/build-security-pip.sh /build/build-security-pip.sh
+RUN bash /build/build-security-pip.sh
+
 FROM ubuntu:${UBUNTU_VERSION} AS base
 
 ARG TARGETARCH
@@ -1162,6 +1173,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     "${PIPX_GLOBAL_HOME}/venvs/poetry/bin/python" -c 'from importlib.metadata import version; assert version("urllib3") == "2.8.0", "POETRY_URLLIB3_PIN_DRIFT"' && \
     chmod -R a+rX "${PIPX_GLOBAL_HOME}"
     
+# Replace both executable pip installations, including pipx's shared installer.
+COPY --from=patched-pip /out/pip-26.2.2+baobab.1-py3-none-any.whl /tmp/baobab-pip.whl
+RUN mv /tmp/baobab-pip.whl /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
+    python3 -m pip install --no-index --no-deps --break-system-packages /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
+    "${PIPX_GLOBAL_HOME}/shared/bin/python" -m pip install --no-index --no-deps /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
+    python3 -c 'from pip._vendor import urllib3; assert urllib3.__version__ == "2.8.0"' && \
+    "${PIPX_GLOBAL_HOME}/shared/bin/python" -c 'from pip._vendor import urllib3; assert urllib3.__version__ == "2.8.0"' && \
+    rm /tmp/pip-26.2.2+baobab.1-py3-none-any.whl
+
 # Application-specific Python packages and the rest of the project's
 # dependencies are intentionally NOT baked in here — they belong to the
 # project's own pyproject.toml / poetry.lock and are installed by
