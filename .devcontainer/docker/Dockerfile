@@ -1331,7 +1331,19 @@ RUN set -euo pipefail; \
     mkdir -p /opt/maven; \
     tar -xzf /tmp/maven.tar.gz -C /opt/maven --strip-components=1; \
     rm -f /tmp/maven.tar.gz; \
-    python3 -c "import re; p = '/opt/maven/conf/settings.xml'; c = open(p).read(); open(p, 'w').write(re.sub(r'<!--.*?-->', '', c, flags=re.DOTALL))"
+    # Maven 3.9.16 embeds Guava 33.6.0-jre (CVE-2026-102554). \
+    # Replace only that bundled JAR with the upstream 33.7.2-jre, using \
+    # a reviewed and frozen Maven Central artifact SHA-256. Fail closed \
+    # when the Maven distribution layout changes. \
+    test -f /opt/maven/lib/guava-33.6.0-jre.jar; \
+    test "$(find /opt/maven/lib -maxdepth 1 -name 'guava-*.jar' | wc -l)" -eq 1; \
+    curl -fsSL --retry 5 -o /opt/maven/lib/guava-33.7.2-jre.jar \
+      "https://repo.maven.apache.org/maven2/com/google/guava/guava/33.7.2-jre/guava-33.7.2-jre.jar"; \
+    echo "b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c  /opt/maven/lib/guava-33.7.2-jre.jar" | sha256sum --check --strict; \
+    rm /opt/maven/lib/guava-33.6.0-jre.jar; \
+    test "$(find /opt/maven/lib -maxdepth 1 -name 'guava-*.jar' | wc -l)" -eq 1; \
+    python3 -c "import re; p = '/opt/maven/conf/settings.xml'; c = open(p).read(); open(p, 'w').write(re.sub(r'<!--.*?-->', '', c, flags=re.DOTALL))"; \
+    /opt/maven/bin/mvn --version
 
 # -----------------------------------------------------------------------------
 # 7. Docker CLI + Compose plugin (client only — Codespaces mounts the host
