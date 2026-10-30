@@ -95,9 +95,11 @@ jobs:
         with:
           persist-credentials: false
       - name: Download SHA256-pinned pnpm 12.16.1 native binary
+        env:
+          PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          case "${{ matrix.platform }}" in
+          case "$PLATFORM" in
             linux/amd64) asset=pnpm-linux-x64.tar.gz; hash=565ff81174a14f6f7bd5d84c1b17e51031a80230d370a1fe24be5d16bd02a825 ;;
             linux/arm64) asset=pnpm-linux-arm64.tar.gz; hash=f5847699e5d528f8f8e9bcfb385e58cb9fba7482af1b1aa7b70737be42277f81 ;;
             *) exit 2 ;;
