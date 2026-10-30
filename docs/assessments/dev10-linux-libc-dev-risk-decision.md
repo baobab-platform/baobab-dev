@@ -1,0 +1,49 @@
+# Baobab DEV-10 / PR #48 — Linux development-header advisory decision register
+
+**Assessment:** 30 October 2026 | **Governing gate:** strict, unfiltered Trivy HIGH/CRITICAL, exit 1
+**Scope:** Ubuntu 26.04, `linux-libc-dev 7.0.0-42.42`, the four baobab-dev image profiles on AMD64 and ARM64
+**Decision:** **SECURITY HELD — exception NOT approved.** Not a waiver or release certificate.
+
+## 1. What is established
+
+1. Trivy Foundation run [41023886081](https://github.com/baobab-platform/baobab-dev/actions/runs/41023886081) reported exactly **295 distinct CVEs**, 12 critical and 283 high, against the Ubuntu `linux-libc-dev` package. There was no listed fixed version in that Trivy result. The [full inventory](dev10-kernel-cves.tsv) is preserved with original Trivy titles.
+2. In an actual `ubuntu:26.04` container, the **exact pinned package version** `7.0.0-42.42` was installed from the Ubuntu archive and its `dpkg-query -L` manifest inspected. It contains **1,041 regular files: 1,039 `.h` headers plus two documentation files** (`changelog.Debian.gz`, `copyright`), with **zero ELF, PE or shebang executable files**. Diagnostic run: [41026633079](https://github.com/baobab-platform/baobab-dev/actions/runs/41026633079). The observed kernel implementation code, running kernel image, and kernel modules are *not* packaged as binaries inside `linux-libc-dev`. This is package-specific evidence, **not** a statement about the host kernel.
+3. The [Canonical per-CVE audit](https://github.com/baobab-platform/baobab-dev/actions/runs/41026867063) queried **all 295** official `https://ubuntu.com/security/cves/CVE-NNNN-NNNN.json` records, selecting `packages[].name == "linux"`, `statuses[].release_codename == "resolute"`, and `pocket == "security"`. All **295 vendor records** were retrieved and matched. **287 `pending`**, **8 `needed`**, **zero `released`** and zero `not-affected` for the Ubuntu *kernel source package*. Canonical's source-package status does not independently establish applicability of executable kernel vulnerabilities to this headers-only binary subpackage. The exact case-by-case status is [here](dev10-canonical-cve-status-20261030.tsv).
+4. The eight `needed` kernel source issues are: `CVE-2022-50240`, `CVE-2025-40190`, `CVE-2026-68103`, `CVE-2026-72198`, `CVE-2026-74578`, `CVE-2026-89805`, `CVE-2026-98376`, `CVE-2026-98420`. All other source CVEs are pending. Canonical's data reports versions including `7.0.0-43.43` as **pending**, not available fixes.
+5. The current official Ubuntu `resolute-updates` archive lists `linux-libc-dev 7.0.0-42.42`; `7.0.0-43.43` occurs in the Canonical kernel team *proposed PPA*, **not** as an approved security update. Do not install a PPA/proposed package to turn a scanner green without ordinary release qualification.
+
+## 2. Per-CVE applicability: bounded statement, no blanket exemption
+
+Every advisory in the linked register has an independently sourced Ubuntu source status and a *binary applicability review pending* marker. The **candidate non-applicability** is that the vulnerabilities described concern Linux kernel implementation code, whereas this binary package contains only UAPI development headers and documentation. A kernel bug is not executable from the header package simply because its Ubuntu `linux` source package also builds a vulnerable kernel. However:
+
+- User-accessible *header inline functions, macros or UAPI definitions* could still affect code compiled against those headers; keyword-only classification would miss this. **No per-CVE patched-source file-diff review has yet established that these cases do not affect the shipped headers.**
+- A container shares the host kernel. This inventory does **not** assess vulnerabilities in GitHub-hosted/ Codespaces host kernels. That is a separate operator assurance boundary.
+- No safe conclusion can be drawn about arbitrary resulting C/C++ binaries without examining how headers are used.
+- The 295 upstream kernel-source vulnerabilities are **real vendor-tracked issues**. Calling them all false positives without scope and code-path evidence would be inaccurate.
+
+**Preliminary technical assessment:** the 295 reported matches are *kernel-source-level* advisory matches against an installed **header-only** binary; package runtime exploitability is **not demonstrated**. This supports a *request for case-specific applicability review*, not a final `not_affected` decision.
+
+## 3. Security authority decision and permitted routes
+
+**Current enforceable decision: no exception; PR #48 remains HELD by Foundation and Publish Trivy.** Existing `--exit-code 1`, `--ignorefile /dev/null`, full-file coverage and no `--ignore-unfixed` remain unchanged.
+
+Before any CVE-specific `not_affected`/OpenVEX decision is adopted:
+- Security reviewer must compare each CVE's actual kernel patch paths against the installed `dpkg-query -L` header inventory. For any changed `include/uapi/*` or compiler-visible inline/macro code that ships in the binary, assess the downstream userspace exposure rather than waiving it.
+- Obtain independent, attributable **security approval** for the exact image digest(s), CVE IDs, reviewed patch paths, justification and expiry/re-review trigger; protect the decision from self-approval. Keep the actual underlying vendor CVE status intact.
+- If a vulnerability truly applies to shipped functionality, use Canonical's supported patched package when released, rebuild both architectures, repeat the entire scanning/functional suite and reject a `not_affected` assertion.
+- If approved as `vulnerable_code_not_present`, issue scoped and reviewable VEX statements using normal policy controls, **not** `.trivyignore`, `--skip-files`, `--ignore-unfixed` or dropping necessary headers. Independently qualify VEX input, age, exact image identity, and scanner interpretation before changing any blocking CI semantics.
+- Independently verify the Codespaces/CI host's kernel security lifecycle; never use this headers-only result as host-kernel clearance.
+
+The current source-level CodeQL finding (#2, cache poisoning) was separately remediated in [commit 1611c30b](https://github.com/baobab-platform/baobab-dev/commit/1611c30be679462dfcab1daf5279038274d2af42); its check passed with zero new alerts. This does not clear the separate Trivy gate.
+
+## 4. Reproducible evidence and custody
+
+- Scanned CVE IDs/titles: `docs/assessments/dev10-kernel-cves.tsv`
+- Canonical source-by-source statuses (all 295): `docs/assessments/dev10-canonical-cve-status-20261030.tsv`
+- Vendor retrieval script: `scripts/audit_ubuntu_linux_headers.py`
+- Canonical full description evidence artifact (30-day Actions retention): [run 41026867063](https://github.com/baobab-platform/baobab-dev/actions/runs/41026867063), `canonical-cves.json`
+- Exact package content log: [run 41026633079](https://github.com/baobab-platform/baobab-dev/actions/runs/41026633079)
+- Ubuntu package archive: https://packages.ubuntu.com/en/resolute-updates/amd64/devel/ ; Canonical API: https://ubuntu.com/security/api/docs
+- Canonical VEX semantics: https://documentation.ubuntu.com/security/security-updates/vex/
+
+**Reassessment triggers:** new Ubuntu 26.04 security package / USN, changed C UAPI headers, changes to toolchain/kernel privileges, new devcontainer image digest, altered Trivy data or new CVEs, and before staging/production promotion.
