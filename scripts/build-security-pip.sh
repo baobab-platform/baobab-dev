@@ -25,49 +25,53 @@ s = p.read_text()
 assert s.count('__version__ = "26.2.2"') == 1, 'UPSTREAM_PIP_VERSION_DRIFT'
 p.write_text(s.replace('__version__ = "26.2.2"', '__version__ = "26.2.2+baobab.1"'))
 PY
-# pip intentionally strips msgpack's compiled extensions from its vendored tree.
-# Pip's stock pkg_resources patch targets setuptools 70.3.0. After raising
-# the vendored copy to the fixed 78.1.1, that patch no longer applies:
-# new pkg_resources imports jaraco.text via a different path. Remove ONLY
-# the incompatible upstream patch and apply its two semantic changes with
-# strict source guards below. Other pip vendoring patches still apply.
+# Pip's original pkg_resources patch assumed setuptools 70.3.0.
+# Pip vendoring refuses dotted imports in setuptools 78.1.1, so replace
+# ONLY that patch with an audited 78.1.1-compatible version. Import rewriting
+# still runs through the upstream vendoring tool; no security controls skipped.
 test -f tools/vendoring/patches/pkg_resources.patch
 grep -q 'pip._internal.utils._jaraco_text' tools/vendoring/patches/pkg_resources.patch
-rm tools/vendoring/patches/pkg_resources.patch
+cat > tools/vendoring/patches/pkg_resources.patch <<'PKG_RESOURCES_78_PATCH'
+diff --git a/src/pip/_vendor/pkg_resources/__init__.py b/src/pip/_vendor/pkg_resources/__init__.py
+--- a/src/pip/_vendor/pkg_resources/__init__.py
++++ b/src/pip/_vendor/pkg_resources/__init__.py
+@@ -82,13 +82,11 @@ except ImportError:
+     WRITE_SUPPORT = False
+ 
+-import packaging.markers
+-import packaging.requirements
+-import packaging.specifiers
+-import packaging.utils
+-import packaging.version
+-from jaraco.text import drop_comment, join_continuation, yield_lines
++import packaging
++from packaging import markers, requirements, specifiers, utils, version
++from pip._internal.utils._jaraco_text import drop_comment, join_continuation, yield_lines
+ from platformdirs import user_cache_dir as _user_cache_dir
+ 
+ if TYPE_CHECKING:
+@@ -96,12 +94,7 @@ if TYPE_CHECKING:
+     from _typeshed.importlib import LoaderProtocol
+     from typing_extensions import Self, TypeAlias
+ 
+-warnings.warn(
+-    "pkg_resources is deprecated as an API. "
+-    "See https://setuptools.pypa.io/en/latest/pkg_resources.html",
+-    DeprecationWarning,
+-    stacklevel=2,
+-)
++# As in pip's upstream patch, do not emit the vendored deprecation warning.
+ 
+ _T = TypeVar("_T")
+PKG_RESOURCES_78_PATCH
 MSGPACK_PUREPYTHON=1 vendoring sync
 python - <<'PY'
 from pathlib import Path
-
 p = Path('src/pip/_vendor/pkg_resources/__init__.py')
 s = p.read_text()
-# pkg_resources 78.1.1 no longer uses pkg_resources.extern.jaraco.text.
-# An unexpected import shape indicates upstream has changed: refuse.
-candidates = (
-    'from jaraco.text import drop_comment, join_continuation, yield_lines',
-    'from pkg_resources.extern.jaraco.text import (\n'
-    '    yield_lines,\n'
-    '    drop_comment,\n'
-    '    join_continuation,\n'
-    ')',
-)
-hits = [source for source in candidates if s.count(source) == 1]
-assert len(hits) == 1, 'PKG_RESOURCES_JARACO_IMPORT_DRIFT'
-s = s.replace(
-    hits[0],
-    'from pip._internal.utils._jaraco_text import '
-    'drop_comment, join_continuation, yield_lines',
-)
-warning = (
-    'warnings.warn(\n'
-    '    "pkg_resources is deprecated as an API. "\n'
-    '    "See https://setuptools.pypa.io/en/latest/pkg_resources.html",\n'
-    '    DeprecationWarning,\n'
-    '    stacklevel=2,\n'
-    ')'
-)
-assert s.count(warning) == 1, 'PKG_RESOURCES_DEPRECATION_WARNING_DRIFT'
-s = s.replace(warning, '# Vendored pkg_resources: omit deprecation warning (pip upstream policy).')
-p.write_text(s)
+assert 'pip._internal.utils._jaraco_text' in s, 'PKG_RESOURCES_JARACO_PATCH_MISSING'
+assert 'warnings.warn(\\n    "pkg_resources is deprecated as an API.' not in s, 'PKG_RESOURCES_DEPRECATION_PATCH_MISSING'
+assert 'import packaging.markers' not in s, 'PKG_RESOURCES_DOTTED_IMPORT_DRIFT'
 PY
 python -m pip wheel --no-build-isolation --no-deps . -w /out
 python -m venv /build/check
