@@ -1,22 +1,8 @@
-"""Temporary .trivyignore exceptions must not hide already-patchable CLIs.
-
-The repository uses the legacy global-ID format. A short-lived exception
-therefore requires stricter owner-pin checks than a path-scoped YAML rule.
-"""
-from datetime import date
+"""Security rebuilds may not reactivate historical vulnerability suppressions."""
 from pathlib import Path
-import re
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPECTED = {
-    "CVE-2026-109869",
-    "CVE-2026-111943",
-    "CVE-2026-78667",
-    "CVE-2026-78669",
-    "CVE-2026-97031",
-}
-EXPIRES = date(2026, 10, 29)
 REQUIRED_PINS = {
     "GH_VERSION": "2.102.1",
     "GH_ASSET_AMD64": "gh_2.102.1_linux_amd64.tar.gz",
@@ -31,35 +17,13 @@ REQUIRED_PINS = {
 }
 
 
-def read_ignore():
-    ids = {}
-    for line in (ROOT / ".trivyignore").read_text().splitlines():
-        if not line or line.startswith("#"):
-            continue
-        match = re.fullmatch(r"([A-Z]+-[0-9a-zA-Z-]+) exp:(\d{4}-\d{2}-\d{2})", line)
-        if match is None:
-            raise ValueError("UNBOUNDED_OR_MALFORMED_TRIVY_EXCEPTION")
-        key, until = match.groups()
-        if key in ids:
-            raise ValueError("DUPLICATE_TRIVY_EXCEPTION")
-        ids[key] = date.fromisoformat(until)
-    return ids
-
-
 class TemporaryTrivyExceptions(unittest.TestCase):
-    def test_temporary_exceptions_expire_without_extension(self):
-        rules = read_ignore()
-        self.assertLessEqual(EXPECTED, set(rules))
-        self.assertTrue(date.today() <= EXPIRES, "TEMPORARY_TRIVY_EXCEPTIONS_EXPIRED")
-        for key in EXPECTED:
-            self.assertEqual(rules[key], EXPIRES, f"DO_NOT_SILENTLY_EXTEND_{key}")
+    def test_no_active_suppression_rules(self):
+        active = [line for line in (ROOT / ".trivyignore").read_text().splitlines()
+                  if line.strip() and not line.lstrip().startswith("#")]
+        self.assertEqual(active, [], "VULNERABILITY_SUPPRESSIONS_ARE_NOT_PERMITTED")
 
-    def test_legacy_exceptions_have_expiry_and_are_unique(self):
-        rules = read_ignore()
-        self.assertTrue(rules)
-        self.assertTrue(all(expires >= date.today() for expires in rules.values()))
-
-    def test_patched_binaries_remain_pinned_during_global_exception(self):
+    def test_previously_patched_binaries_remain_pinned(self):
         lock = dict(
             line[len("export "):].split("=", 1)
             for line in (ROOT / "config/versions.lock").read_text().splitlines()
