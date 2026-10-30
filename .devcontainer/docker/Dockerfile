@@ -505,6 +505,24 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata
 
+# Preserve the exact native-build dependency chain and installed UAPI header
+# paths as immutable in-image package-provenance evidence. These compiler
+# prerequisites are intentionally retained, not removed to make Trivy green.
+# The test compiles and executes a small binary against glibc and Linux UAPI
+# headers on the actual image architecture. The installed package manifest
+# can be read from each built profile even while its security gate is HELD.
+RUN set -euo pipefail; \
+    mkdir -p /usr/local/share/baobab/security; \
+    dpkg-query -W -f='${Package}\t${Version}\t${source:Package}\n' \
+      build-essential libc6-dev linux-libc-dev \
+      > /usr/local/share/baobab/security/native-build-dependencies.tsv; \
+    dpkg-query -L linux-libc-dev \
+      > /usr/local/share/baobab/security/linux-libc-dev-installed-paths.txt; \
+    printf '#include <linux/types.h>\n#include <sys/types.h>\nint main(void) { return 0; }\n' \
+      | cc -x c -o /tmp/baobab-native-uapi-check -; \
+    /tmp/baobab-native-uapi-check; \
+    rm -f /tmp/baobab-native-uapi-check
+
 # Ubuntu 26.04's own base image ships /usr/bin/pebble (Canonical's Pebble
 # service manager, github.com/canonical/pebble) baked directly into the
 # rootfs — it is NOT an apt package we install (confirmed: `apt-cache

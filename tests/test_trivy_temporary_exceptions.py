@@ -25,6 +25,11 @@ class TemporaryTrivyExceptions(unittest.TestCase):
         for forbidden in ('--ignore-unfixed', '--skip-files', '--skip-dirs'):
             self.assertNotIn(forbidden, active)
         self.assertIn('--ignorefile /dev/null', active)
+        self.assertIn('--format json', active)
+        self.assertIn('--exit-code 1', active)
+        self.assertIn('trivy-vulnerabilities.py', active)
+        self.assertIn('if-no-files-found: error', active)
+        self.assertIn("steps.trivy-scan.outcome != 'skipped'", active)
         foundation = (ROOT / '.github/workflows/foundation.yml').read_text()
         self.assertIn('container_ignore_unfixed: false', foundation)
 
