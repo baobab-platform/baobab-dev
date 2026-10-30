@@ -18,6 +18,16 @@ REQUIRED_PINS = {
 
 
 class TemporaryTrivyExceptions(unittest.TestCase):
+    def test_image_workflows_do_not_hide_vulnerabilities(self):
+        publish = (ROOT / '.github/workflows/publish.yml').read_text()
+        active = '\n'.join(line for line in publish.splitlines()
+                           if not line.lstrip().startswith('#'))
+        for forbidden in ('--ignore-unfixed', '--skip-files', '--skip-dirs'):
+            self.assertNotIn(forbidden, active)
+        self.assertIn('--ignorefile /dev/null', active)
+        foundation = (ROOT / '.github/workflows/foundation.yml').read_text()
+        self.assertIn('container_ignore_unfixed: false', foundation)
+
     def test_no_active_suppression_rules(self):
         active = [line for line in (ROOT / ".trivyignore").read_text().splitlines()
                   if line.strip() and not line.lstrip().startswith("#")]
