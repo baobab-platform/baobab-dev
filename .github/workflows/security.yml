@@ -83,3 +83,26 @@ jobs:
 
       - name: Dependency Review
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+
+  cli-source-graphs:
+    name: Security rebuild dependency graphs
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install checksum-verified Trivy
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 -o /tmp/trivy.tar.gz https://github.com/aquasecurity/trivy/releases/download/v0.73.0/trivy_0.73.0_Linux-64bit.tar.gz
+          echo '2edd39da482bb4e9831962487b68f68e3928ec3137794757f54d00383d79547b  /tmp/trivy.tar.gz' | sha256sum --check --strict
+          tar -xzf /tmp/trivy.tar.gz -C /tmp trivy
+      - name: Audit complete locked source graphs without suppressions
+        run: |
+          set -euo pipefail
+          audit=$(mktemp -d)
+          trap 'rm -rf "$audit"' EXIT
+          for tool in task yq buildx compose; do
+            mkdir "$audit/$tool"
+            cp "config/security/$tool/go.mod.lock" "$audit/$tool/go.mod"
+            cp "config/security/$tool/go.sum" "$audit/$tool/go.sum"
+          done
+          /tmp/trivy fs --scanners vuln --ignorefile /dev/null --severity HIGH,CRITICAL --exit-code 1 "$audit"
