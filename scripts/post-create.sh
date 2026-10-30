@@ -260,24 +260,30 @@ run_post_create() {
     # Monorepo support
     # -------------------------------------------------------------------------
 
-    if [ -d "frontend" ] && [ -f "frontend/package.json" ] && [ ! -f "package.json" ]; then
+    if [ -d "frontend" ] && [ -f "frontend/package.json" ]; then
 
         log "Installing frontend dependencies"
 
-        # A root pnpm workspace install already covers declared members.
-        # Prove frontend membership from pnpm's local metadata before skipping
-        # a second install; an unrelated unlocked subproject still fails.
-        if [ -f package.json ] && [ -f pnpm-workspace.yaml ] && [ -f pnpm-lock.yaml ] \
-            && { pnpm list -r --depth -1 --json 2>/dev/null | node -e '
+        # A root pnpm workspace install covers ONLY declared members.
+        # Never silently attempt a nested fallback for an undeclared member:
+        # that would bypass the root's committed lock and workspace policy.
+        if [ -f package.json ] && [ -f pnpm-workspace.yaml ]; then
+            [ -f pnpm-lock.yaml ] || die "Root pnpm workspace requires a committed pnpm-lock.yaml."
+            command -v pnpm >/dev/null 2>&1 || die "pnpm is required by the root workspace."
+            if ! { pnpm list -r --depth -1 --json | node -e '
                 const fs=require("fs");
                 try {
                     const rows=JSON.parse(fs.readFileSync(0,"utf8"));
                     const target=fs.realpathSync("frontend");
-                    process.exit(Array.isArray(rows) && rows.some(row=>typeof row.path==="string" && fs.realpathSync(row.path)===target)?0:1);
+                    process.exit(Array.isArray(rows) && rows.some(row=>
+                        typeof row.path==="string" && fs.realpathSync(row.path)===target)?0:1);
                 } catch { process.exit(1); }
-            ' 2>/dev/null; }; then
-            log "Frontend covered by the root frozen workspace lock."
+            '; }; then
+                die "frontend/package.json is not a declared member of the root pnpm workspace."
+            fi
+            log "Frontend covered by the root frozen pnpm workspace lock."
         else
+            # No root pnpm workspace: this is an independently locked project.
             (
                 cd frontend
                 install_node_project
