@@ -8,6 +8,9 @@ on:
       - tests/test_kernel_cve_paths.py
       - docs/assessments/dev10-kernel-cves.tsv
       - docs/assessments/dev10-canonical-cve-status-20261030.tsv
+      - scripts/build_dev10_applicability_register.py
+      - scripts/verify_dev10_vex.py
+      - tests/test_dev10_security_authorisation.py
 
 permissions:
   contents: read
@@ -23,6 +26,10 @@ jobs:
           persist-credentials: false
       - name: Test conservative advisory classification
         run: python3 -B -m unittest discover -s tests -p test_kernel_cve_paths.py -v
+      - name: Test conservative CVE register and real signed-policy negative cases
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s tests -p test_dev10_security_authorisation.py -v
       - name: Capture actual binary-file manifest from exact Ubuntu package
         run: |
           set -euo pipefail
@@ -60,6 +67,22 @@ jobs:
           print("Upstream immutable revision:", data["upstream_commit"])
           print("Classification counts:", data["counts"])
           print("No VEX, release approval, exception or Trivy policy change.")
+          PY
+      - name: Join Canonical, upstream and exact-binary evidence into 295 review records
+        run: |
+          set -euo pipefail
+          python3 -B scripts/build_dev10_applicability_register.py \
+            --trivy docs/assessments/dev10-kernel-cves.tsv \
+            --canonical docs/assessments/dev10-canonical-cve-status-20261030.tsv \
+            --upstream "$RUNNER_TEMP/kernel-evidence/affected-source-files.json" \
+            --output "$RUNNER_TEMP/kernel-evidence/dev10-cve-applicability-register.json"
+          python3 - "$RUNNER_TEMP/kernel-evidence/dev10-cve-applicability-register.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1]))
+          assert data["advisory_count"] == 295
+          assert data["counts"] == {"under_investigation":295}
+          print("### Ubuntu header package applicability: 295 under investigation")
+          print("0 approved exceptions; downstream patch, ABI and reviewer authority still pending.")
           PY
       - name: Retain auditable per-CVE path evidence
         if: always()
