@@ -84,6 +84,41 @@ jobs:
       - name: Dependency Review
         uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
 
+  python-dependency-audit:
+    name: Independent Python dependencies (committed locks)
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    timeout-minutes: 25
+    steps:
+      - name: Checkout committed dependency manifests
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Python 3.14
+        uses: actions/setup-python@ad3497abcd142e169a10aac37abd5175c44f33c4 # v7.0.0+6
+        with:
+          python-version: '3.14'
+      - name: Install exact checksum-verified uv / uvx from committed lock
+        run: |
+          set -euo pipefail
+          . config/versions.lock
+          work=$(mktemp -d)
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/${UV_ASSET_AMD64}" \
+            -o "$work/uv.tar.gz"
+          echo "${UV_SHA256_AMD64}  $work/uv.tar.gz" | sha256sum --check --strict
+          tar -xzf "$work/uv.tar.gz" -C "$work"
+          install -m 0755 "$(find "$work" -type f -name uv -print -quit)" "$RUNNER_TEMP/uv"
+          install -m 0755 "$(find "$work" -type f -name uvx -print -quit)" "$RUNNER_TEMP/uvx"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          rm -rf "$work"
+      - name: Audit all committed Python dependency pins without exemptions
+        run: |
+          set -euo pipefail
+          bash -n scripts/audit-python-dependencies.sh
+          bash scripts/audit-python-dependencies.sh --source
+
   cli-source-graphs:
     name: Security rebuild dependency graphs
     runs-on: ubuntu-26.04
