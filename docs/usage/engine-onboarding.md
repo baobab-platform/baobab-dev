@@ -5,8 +5,12 @@ Pulse, Payments or any new provider, and does not change the active image lock.
 
 DEV-14 introduces a *fourth* contract: Shared's
 `contracts/development/v1/engine-integration-profile.schema.json`, merged via
-[Shared #402](https://github.com/baobab-platform/shared/pull/402) at SHA
-`9fa1bbd6ad9b5c9d4ec406c721bd75227803dcea`.
+[Shared #402](https://github.com/baobab-platform/shared/pull/402) and
+subsequently amended by [Shared #403](https://github.com/baobab-platform/shared/pull/403).
+The current exact qualified checkout is Shared #403's merge SHA
+`32b71f3335e566daeb58246f17fcbbf162cf7f53`; the older #402
+pin `9fa1bbd6ad9b5c9d4ec406c721bd75227803dcea` must be rejected
+because it lacks the Payments invocation re-registration fix.
 
 It selects IAM, CP, one subject engine and its owner-native dependencies. It
 references, but never replaces, each engine's:
@@ -25,7 +29,7 @@ python3 scripts/dev14-doctor.py --profile pulse-intelligence --shared-root ../sh
 
 The tool checks relevant installed binaries/versions, Docker daemon and
 Compose reachability, and (when supplied) the **exact clean Shared commit**.
-For Pulse the owner needs Python >=3.14; Payments needs Rust >=1.88 plus
+For Pulse the current qualified interpreter line is Python 3.14.x (not 3.15); Payments needs Rust >=1.88 plus
 Cargo. An absent Rust toolchain is a BLOCKED prerequisite, not a simulated
 native build or permission to silently change the global image. Use a
 reviewed and owner-qualified Rust Dev Container feature/layer if necessary.
