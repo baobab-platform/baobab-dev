@@ -93,6 +93,8 @@ The `docs/` directory is designed to be published through **GitHub Pages**, maki
 * [Running Locally](docs/usage/running-locally.md)
 * [GitHub Codespaces](docs/usage/github-codespaces.md)
 * [VS Code Dev Containers](docs/usage/vscode-devcontainers.md)
+* [Toolchain Upgrade Playbook](docs/usage/toolchain-upgrade-playbook.md) — mandatory upgrade, CI, security and rollback gates
+* [DEV-10/DEV-14 Lessons Learned](docs/incidents/2026-10-30-dev10-dev14-toolchain-retrospective.md) — evidence-based 2026 retrospective
 
 ### Reference
 

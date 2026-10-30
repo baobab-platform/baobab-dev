@@ -97,7 +97,7 @@ The artifact also includes `upstream-commit.txt`. Source and regression tests ar
 **Decision type:** a *temporary DEV-only ACCEPTANCE OF RESIDUAL RISK* for already identified advisory matches; this does **not** change the vendor CVE statuses, scientific per-CVE applicability state (all still under investigation), or the release security requirement.
 
 **Exact limited scope:**
-- Repository: baobab-platform/baobab-dev; PR #48 and untagged development-main, not version-tag release/staging/production.
+- Repository: baobab-platform/baobab-dev; specifically PR #48, the dependent DEV-14 doctor PR #50, and untagged development-main. All other PRs and version-tag release/staging/production are outside this temporary scope. The PR #50 extension does not extend the 2026-11-13 expiry or broaden the permitted CVE/package set.
 - Image profiles: final, infra, frontend and frontend-e2e; architectures: AMD64 and ARM64.
 - Package: Ubuntu 26.04 linux-libc-dev **7.0.0-42.42 only**.
 - CVE allow-set: exactly the original 295 entries from docs/assessments/dev10-kernel-cves.tsv, pinned to Git blob SHA1 a98090feb9e3df2d9df72654516df69c64daf50e (12 CRITICAL, 283 HIGH). Partial remediation naturally reduces the permitted subset. No newly discovered CVEs, other packages, changed versions, changed severity or supported-fixed versions are accepted.
