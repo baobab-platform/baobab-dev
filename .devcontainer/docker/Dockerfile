@@ -890,7 +890,6 @@ COPY --chmod=0755 scripts/bootstrap.sh    /usr/local/bin/baobab-bootstrap
 COPY --chmod=0755 scripts/post-create.sh  /usr/local/bin/baobab-post-create
 COPY --chmod=0755 scripts/summary.sh      /usr/local/bin/baobab-summary
 COPY --chmod=0755 scripts/verify.sh       /usr/local/bin/baobab-verify
-COPY --chmod=0755 scripts/audit-python-dependencies.sh /usr/local/bin/baobab-audit-python-dependencies
 
 USER vscode
 WORKDIR /workspaces
@@ -1477,6 +1476,7 @@ COPY --chmod=0755 scripts/bootstrap.sh    /usr/local/bin/baobab-bootstrap
 COPY --chmod=0755 scripts/post-create.sh  /usr/local/bin/baobab-post-create
 COPY --chmod=0755 scripts/summary.sh      /usr/local/bin/baobab-summary
 COPY --chmod=0755 scripts/verify.sh       /usr/local/bin/baobab-verify
+COPY --chmod=0755 scripts/audit-python-dependencies.sh /usr/local/bin/baobab-audit-python-dependencies
 
 USER vscode
 WORKDIR /workspaces
