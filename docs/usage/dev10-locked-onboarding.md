@@ -107,3 +107,35 @@ Foundation scan, all eight Publish platform/profile combinations, DEV-10
 real image onboarding, required security/CI gates and independent
 Codespaces/consumer qualification pass. PR #50's DEV-14 doctor is a separate
 non-mutating assurance surface and cannot confer that evidence.
+
+
+## Independent Python dependency vulnerability audit
+
+The Security workflow now runs `Independent Python dependencies (committed locks)`
+on every PR, main push and scheduled scan. The runner installs the image's
+exact checksum-locked `uv/uvx` CLI, invokes **pip-audit 2.10.1** separately
+from Trivy and audits: (1) an `uv export --locked --all-groups` of the
+committed `uv.lock` with package hashes and no resolution, (2) the
+SHA256-pinned pip vendoring build requirements, and (3) exact image-tool
+Python constraints. Any failed audit or missing pinned evidence fails CI.
+
+The `final` image also runs `baobab-audit-python-dependencies --installed`
+at build time to examine actual installed Python distribution metadata in
+system Python, pipx's shared installer and the isolated Poetry environment
+using `pip-audit --path`. It refuses missing expected environments and does
+not treat a source audit as evidence for an image. The isolated scanner and
+its tool cache do not become runtime dependencies of the resulting image.
+
+This is a live-advisory audit of committed and installed *distributions*;
+it does not claim to detect vendored libraries without independent Python
+distribution metadata. Trivy and the explicit vendored pip readback checks
+remain mandatory for those files. Pinning the pip-audit release and the
+source dependency graphs makes the requested assessment repeatable, but
+advisory data can change over time. No CVE suppression or fail-open exception
+was added; re-run after any dependency or security database update.
+
+The root pnpm workspace now **requires frontend membership** whenever root
+`package.json`, `pnpm-workspace.yaml` and `frontend/package.json` exist.
+A missing workspace lock or undeclared frontend fails the container lifecycle
+rather than falling back to an unrelated nested lock. A frontend not within
+a root pnpm workspace retains its explicitly locked standalone install.
