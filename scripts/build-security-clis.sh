@@ -47,12 +47,28 @@ for tool in task yq buildx compose; do
   tar -xzf "/build/${tool}.tar.gz" -C "/build/$tool" --strip-components=1
   cp "/build/security/$tool/go.mod.lock" "/build/$tool/go.mod"
   cp "/build/security/$tool/go.sum" "/build/$tool/go.sum"
+  if [[ "$tool" == task ]]; then
+    (cd "/build/$tool" && git apply /build/security/task/params-test.patch)
+  fi
+  if [[ "$tool" == buildx ]]; then
+    # Only the frozen name generator is imported from the legacy engine module.
+    # Reuse its exact upstream bytes and retain its licence, without that module.
+    cd "/build/$tool"
+    echo 'cd2f9528ad47ae7519d78e6381e0b2313fa9b5ff541814e95e06ebb187aa9b64  vendor/github.com/docker/docker/pkg/namesgenerator/names-generator.go' | sha256sum --check --strict
+    mkdir -p internal/namesgenerator /out/licenses
+    cp vendor/github.com/docker/docker/pkg/namesgenerator/names-generator.go internal/namesgenerator/
+    cp vendor/github.com/docker/docker/LICENSE /out/licenses/moby-namesgenerator-LICENSE
+    grep -q '"github.com/docker/docker/pkg/namesgenerator"' store/util.go
+    sed -i 's#github.com/docker/docker/pkg/namesgenerator#github.com/docker/buildx/internal/namesgenerator#' store/util.go
+    cp /build/security/buildx/qualification_test.go.in store/baobab_qualification_test.go
+    rm -rf vendor/github.com/docker/docker
+  fi
   cd "/build/$tool"
   go mod download
   go mod verify
   case "$tool" in
     task|yq) go test ./... ;;
-    buildx) go test ./version ./util/buildflags ;;
+    buildx) go test ./version ./util/buildflags ./store ;;
     compose) go test ./pkg/api ./pkg/utils ;;
   esac
   go build -trimpath -buildvcs=false -ldflags="$ldflags" -o "/out/$binary" "$package"

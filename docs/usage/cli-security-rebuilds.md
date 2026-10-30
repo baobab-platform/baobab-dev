@@ -39,3 +39,17 @@ throwaway audit directory and scans every dependency without ignore rules.
 The image builder copies them into their upstream source trees, runs real
 source tests and refuses lock drift. This keeps dependency coverage explicit
 without pretending a directory containing only locks has runnable Go packages.
+
+Buildx imports the legacy Docker Engine module only for its frozen name generator.
+The security builder verifies and copies that exact source file from the pinned
+upstream archive into an internal package, changes the one import, and preserves
+its Apache licence in the resulting image. The legacy engine dependency is removed
+from the committed graph. An added test exercises generation, validation, native
+store writes and readback through a real store transaction; existing store tests
+also run. This is source dependency removal, not a vulnerability suppression.
+
+The upstream Task `TestParams` golden output is line-sorted even though its
+three dependencies write concurrently. Run 40912583068 demonstrated two messages
+interleaving within a line. The explicit `params-test.patch` serialises only that
+parameter-substitution test. Its assertions and expected output remain unchanged;
+all other concurrency tests still run. No production Task code is patched.

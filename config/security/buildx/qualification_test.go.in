@@ -1,0 +1,35 @@
+package store
+
+import (
+	"testing"
+
+	"github.com/docker/buildx/util/confutil"
+)
+
+// Exercise the unchanged upstream generator through the real store transaction.
+func TestBaobabExtractedNameGenerator(t *testing.T) {
+	s, err := New(confutil.NewConfig(nil, confutil.WithDir(t.TempDir())))
+	if err != nil {
+		t.Fatal(err)
+	}
+	txn, release, err := s.Txn()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer release()
+	for i := 0; i < 64; i++ {
+		name, err := GenerateName(txn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if normalized, err := ValidateName(name); err != nil || normalized != name {
+			t.Fatalf("invalid generated name %q: %v", name, err)
+		}
+		if err := txn.Save(&NodeGroup{Name: name}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := txn.NodeGroupByName(name); err != nil {
+			t.Fatal(err)
+		}
+	}
+}

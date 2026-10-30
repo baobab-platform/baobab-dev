@@ -60,4 +60,3 @@ This is component testing only. Final image scans, multi-architecture builds,
 Codespaces and the full DEV-10/DEV-14 acceptance remain required. Earlier failed
 receipts are retained. All historical `.trivyignore` rules are retired as comments;
 newly exposed findings remain blockers, without extensions or suppression.
-
