@@ -1,0 +1,94 @@
+name: DEV-10 upstream Linux CVE path evidence
+# Diagnostic only. No release action, scanner exemptions, shared caches, or secrets.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dev10-kernel-paths.yml
+      - scripts/audit_kernel_cve_paths.py
+      - tests/test_kernel_cve_paths.py
+      - docs/assessments/dev10-kernel-cves.tsv
+      - docs/assessments/dev10-canonical-cve-status-20261030.tsv
+      - scripts/build_dev10_applicability_register.py
+      - scripts/verify_dev10_vex.py
+      - tests/test_dev10_security_authorisation.py
+
+permissions:
+  contents: read
+
+jobs:
+  upstream-evidence:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Test conservative advisory classification
+        run: python3 -B -m unittest discover -s tests -p test_kernel_cve_paths.py -v
+      - name: Test conservative CVE register and real signed-policy negative cases
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s tests -p test_dev10_security_authorisation.py -v
+      - name: Capture actual binary-file manifest from exact Ubuntu package
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/kernel-evidence"
+          docker run --rm --platform linux/amd64 ubuntu:26.04 bash -c '
+            set -euo pipefail
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq >/dev/null
+            apt-get install -y -qq --no-install-recommends linux-libc-dev=7.0.0-42.42 >/dev/null
+            test "$(dpkg-query -W linux-libc-dev | awk "{print \$2}")" = "7.0.0-42.42"
+            dpkg-query -L linux-libc-dev
+          ' > "$RUNNER_TEMP/kernel-evidence/installed-paths.txt"
+          grep -q '^/usr/include/linux/types.h$' "$RUNNER_TEMP/kernel-evidence/installed-paths.txt"
+      - name: Identify upstream Linux CVE tracker immutable revision
+        run: |
+          set -euo pipefail
+          sha="$(git ls-remote https://kernel.googlesource.com/pub/scm/linux/security/vulns refs/heads/master | awk '{print $1}')"
+          [[ "$sha" =~ ^[a-f0-9]{40}$ ]]
+          printf 'UPSTREAM_SHA=%s\n' "$sha" >> "$GITHUB_ENV"
+          printf '%s\n' "$sha" > "$RUNNER_TEMP/kernel-evidence/upstream-commit.txt"
+      - name: Fetch and conservatively classify 295 upstream CVE file paths
+        run: |
+          set -euo pipefail
+          python3 -B scripts/audit_kernel_cve_paths.py \
+            --trivy docs/assessments/dev10-kernel-cves.tsv \
+            --vendor docs/assessments/dev10-canonical-cve-status-20261030.tsv \
+            --manifest "$RUNNER_TEMP/kernel-evidence/installed-paths.txt" \
+            --upstream-sha "$UPSTREAM_SHA" \
+            --output "$RUNNER_TEMP/kernel-evidence/affected-source-files.json"
+          python3 - "$RUNNER_TEMP/kernel-evidence/affected-source-files.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          with open(sys.argv[1]) as f: data=json.load(f)
+          print("### Upstream CVE affected-file evidence; security HELD")
+          print("Canonical CVEs:", len(data["records"]))
+          print("Upstream immutable revision:", data["upstream_commit"])
+          print("Classification counts:", data["counts"])
+          print("No VEX, release approval, exception or Trivy policy change.")
+          PY
+      - name: Join Canonical, upstream and exact-binary evidence into 295 review records
+        run: |
+          set -euo pipefail
+          python3 -B scripts/build_dev10_applicability_register.py \
+            --trivy docs/assessments/dev10-kernel-cves.tsv \
+            --canonical docs/assessments/dev10-canonical-cve-status-20261030.tsv \
+            --upstream "$RUNNER_TEMP/kernel-evidence/affected-source-files.json" \
+            --output "$RUNNER_TEMP/kernel-evidence/dev10-cve-applicability-register.json"
+          python3 - "$RUNNER_TEMP/kernel-evidence/dev10-cve-applicability-register.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1]))
+          assert data["advisory_count"] == 295
+          assert data["counts"] == {"under_investigation":295}
+          print("### Ubuntu header package applicability: 295 under investigation")
+          print("0 approved exceptions; downstream patch, ABI and reviewer authority still pending.")
+          PY
+      - name: Retain auditable per-CVE path evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dev10-upstream-kernel-file-path-evidence
+          path: ${{ runner.temp }}/kernel-evidence/
+          if-no-files-found: error
+          retention-days: 30
