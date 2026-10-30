@@ -19,11 +19,13 @@ https://github.com/baobab-platform/baobab-dev/actions/runs/41022963883
   platform selection and immutable GHCR digests. They used --exit-code 0
   deliberately to record historical findings without treating an old release
   as the current release gate. Errors and missing inventory evidence failed.
-- The temporary execution workflow generated a new CodeQL high-severity check
-  alert; rather than leave an unqualified additional Actions workflow in a
-  production development repo, preserve these completed results here and
-  remove the temporary workflow. The existing blocking Foundation/Publish
-  gates are unchanged.
+- A CodeQL high-severity check appeared while the temporary workflow was
+  under qualification. It continued to fail after that workflow was removed.
+  Its cause is NOT established by this assessment and must be investigated
+  separately, without attributing it to the temporary workflow. The temporary
+  workflow was removed because the diagnostic evidence had been captured and
+  ongoing CI execution was no longer needed; the Foundation and Publish
+  release gates are unchanged.
 
 ## Historical immutable profiles and present-day findings
 
