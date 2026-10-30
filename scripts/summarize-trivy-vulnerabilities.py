@@ -68,11 +68,24 @@ def main(argv: list[str]) -> int:
     try:
         source = Path(argv[1])
         output = Path(argv[2])
-        summary = summarize(json.loads(source.read_text()), argv[3], argv[4])
+        data = json.loads(source.read_text())
+        summary = summarize(data, argv[3], argv[4])
+        # Trivy --scanners vuln,secret may include credential-match payloads
+        # in Results[*].Secrets. Preserve all vulnerability metadata, but
+        # never expose secret payloads in the downloadable CI artifact.
+        safe_report = {
+            **data,
+            "Results": [
+                {key: value for key, value in result.items() if key != "Secrets"}
+                for result in data["Results"]
+            ],
+        }
+        safe_path = output.parent / "trivy-vulnerabilities.json"
+        safe_path.write_text(json.dumps(safe_report, indent=2, sort_keys=True) + "\n")
         output.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
         print(f"Trivy evidence: {summary['total_findings']} findings; "
               f"severities={summary['severity_counts']}; "
-              f"full results at {source}; normalized evidence at {output}")
+              f"sanitized vulnerability report at {safe_path}; normalized evidence at {output}")
         for package in summary["package_inventory"]:
             print(f"  {package['name']} {package['installed_version']}: "
                   f"{package['finding_count']} advisory matches")

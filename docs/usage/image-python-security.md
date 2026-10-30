@@ -137,9 +137,9 @@ interfaces requires independent deployment-specific analysis.
 
 The Publish workflow retains the original strict Trivy HIGH/CRITICAL policy,
 empty ignore rules, secret scanning and unrestricted OS/library scope. It now
-writes Trivy's **full JSON**, including advisory source, installed version,
+writes a **full vulnerability JSON without secret-match payloads**, including\nadvisory source, installed version,
 available fix and package path metadata when provided, followed by a normalized
-per-finding JSON report. Both are uploaded as immutable per-job CI artifacts
+per-finding JSON report. The original Trivy JSON stays in the ephemeral runner's temporary directory:\nonly secret-redacted vulnerability JSON and the normalized finding inventory are\nuploaded as immutable per-job CI artifacts
 even when the scanner exits nonzero. Missing or malformed JSON is itself a
 failed gate. Nothing changes Foundation's separate blocking scan.
 
