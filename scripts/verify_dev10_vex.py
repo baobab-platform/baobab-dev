@@ -124,7 +124,8 @@ def qualify(report: dict, signed: dict, trust: dict, *,
     require(time_utc(authority["valid_from"]) <= now < time_utc(authority["valid_until"]),
             "reviewer appointment inactive or expired")
     require(d.get("raw_trivy_sha256") == hashlib.sha256(canonical(report)).hexdigest(),
-            "reviewed scanner evidence does not match this unfiltered inventory")\n    verify_signature(d, signed["signature"], authority["public_key_pem"])
+            "reviewed scanner evidence does not match this unfiltered inventory")
+    verify_signature(d, signed["signature"], authority["public_key_pem"])
     require(d["decision"] == "approved", "reviewer rejected or requested evidence")
     require(register.get("advisory_count") == 295
             and len(register.get("records", [])) == 295,
