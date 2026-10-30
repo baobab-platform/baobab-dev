@@ -1323,6 +1323,9 @@ RUN ln -s "$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")" /opt/
 # are unaffected. Real credentials, if a developer ever configures any,
 # belong in their own ~/.m2/settings.xml at the container's runtime, never
 # in this image.
+# Maven 3.9.16 bundles Guava 33.6.0-jre; CVE-2026-102554 is resolved by
+# a checksum-pinned 33.7.2-jre replacement in the same extraction layer.
+# The layout/compatibility guards fail closed instead of suppressing the scan.
 RUN set -euo pipefail; \
     . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
     curl -fsSL -o /tmp/maven.tar.gz \
@@ -1331,10 +1334,6 @@ RUN set -euo pipefail; \
     mkdir -p /opt/maven; \
     tar -xzf /tmp/maven.tar.gz -C /opt/maven --strip-components=1; \
     rm -f /tmp/maven.tar.gz; \
-    # Maven 3.9.16 embeds Guava 33.6.0-jre (CVE-2026-102554). \
-    # Replace only that bundled JAR with the upstream 33.7.2-jre, using \
-    # a reviewed and frozen Maven Central artifact SHA-256. Fail closed \
-    # when the Maven distribution layout changes. \
     test -f /opt/maven/lib/guava-33.6.0-jre.jar; \
     test "$(find /opt/maven/lib -maxdepth 1 -name 'guava-*.jar' | wc -l)" -eq 1; \
     curl -fsSL --retry 5 -o /opt/maven/lib/guava-33.7.2-jre.jar \
