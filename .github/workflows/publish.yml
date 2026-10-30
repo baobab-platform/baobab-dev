@@ -696,7 +696,8 @@ jobs:
           fi
 
           # The same unfiltered HIGH/CRITICAL scan is the blocking gate.
-          # Persist full JSON even when vulnerabilities make Trivy exit 1.
+          # Persist vulnerability JSON even when vulnerabilities make Trivy exit 1.
+          # Raw Trivy output can contain secret-match payloads: never upload it.
           # Never reinterpret missing/invalid report evidence as success.
           REPORT_DIR="${RUNNER_TEMP}/trivy-evidence"
           mkdir -p "${REPORT_DIR}"
@@ -710,13 +711,13 @@ jobs:
             --exit-code 1 \
             --skip-version-check \
             --format json \
-            --output "${REPORT_DIR}/trivy.json" \
+            --output "${RUNNER_TEMP}/trivy-raw.json" \
             "${SCAN_SOURCE_ARGS[@]}"
           scan_rc=$?
           set -e
 
           python3 scripts/summarize-trivy-vulnerabilities.py \
-            "${REPORT_DIR}/trivy.json" \
+            "${RUNNER_TEMP}/trivy-raw.json" \
             "${REPORT_DIR}/findings.json" \
             "${{ matrix.target }}" "${{ matrix.platform }}"
 
