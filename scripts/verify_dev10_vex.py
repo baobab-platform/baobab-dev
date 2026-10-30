@@ -68,7 +68,7 @@ def verify_signature(decision: dict, signature_b64: str, public_key_pem: str) ->
 
 
 def findings(report: dict) -> dict[tuple[str, str, str], dict]:
-    require(isinstance(report.get("Results"), list), "missing full Trivy Results inventory")
+    require(isinstance(report.get("Results"), list) and report["Results"],\n            "missing full Trivy Results inventory")
     found = {}
     for result in report["Results"]:
         for item in result.get("Vulnerabilities") or []:
@@ -122,7 +122,7 @@ def qualify(report: dict, signed: dict, trust: dict, *,
             "approval expired or not yet active")
     require(time_utc(authority["valid_from"]) <= now < time_utc(authority["valid_until"]),
             "reviewer appointment inactive or expired")
-    verify_signature(d, signed["signature"], authority["public_key_pem"])
+    require(d.get("raw_trivy_sha256") == hashlib.sha256(canonical(report)).hexdigest(),\n            "reviewed scanner evidence does not match this unfiltered inventory")\n    verify_signature(d, signed["signature"], authority["public_key_pem"])
     require(d["decision"] == "approved", "reviewer rejected or requested evidence")
     require(register.get("advisory_count") == 295
             and len(register.get("records", [])) == 295,
