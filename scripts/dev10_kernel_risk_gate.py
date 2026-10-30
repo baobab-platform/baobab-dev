@@ -3,7 +3,7 @@
 
 This is not VEX "not_affected", an Ubuntu patch, or a release security approval.
 Preserve an unfiltered Trivy report and fail closed for any outside CVE/package.
-Only applies to dev PR #48 / development-main until 2026-11-13 UTC.
+Only applies to dev PRs #48/#50 or development-main until 2026-11-13 UTC.
 Directive / audit: https://github.com/baobab-platform/baobab-dev/issues/54
 """
 from __future__ import annotations
@@ -58,10 +58,12 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
     require(now.tzinfo is not None and now < EXPIRY, "risk decision expired")
     require(repository == "baobab-platform/baobab-dev",
             "outside Baobab development repository")
-    is_pr48 = event == "pull_request" and pr_number == 48 and ref == "refs/pull/48/merge"
+    is_qualified_dev_pr = (event == "pull_request" and pr_number in {48, 50}
+                           and ref == f"refs/pull/{pr_number}/merge")
     is_dev_main = event == "push" and ref == "refs/heads/main" and pr_number == 0
-    require(is_pr48 or is_dev_main,
-            "risk acceptance only valid for PR #48 or untagged development main")
+    require(is_qualified_dev_pr or is_dev_main,
+            "risk acceptance only valid for explicitly scoped PR #48/#50 "
+            "or untagged development main")
     require(target in TARGETS and platform in PLATFORMS,
             "unapproved target or architecture")
     results = report.get("Results")
