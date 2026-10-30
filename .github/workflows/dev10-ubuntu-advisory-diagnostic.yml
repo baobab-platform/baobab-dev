@@ -1,0 +1,57 @@
+name: DEV-10 Ubuntu advisory evidence (diagnostic)
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dev10-ubuntu-advisory-diagnostic.yml
+      - docs/assessments/dev10-kernel-cves.tsv
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  canonical-sample:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Inspect official Canonical CVE JSON schema
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          url="https://ubuntu.com/security/cves/CVE-2026-89530.json"
+          with urllib.request.urlopen(url,timeout=20) as r:
+              obj=json.load(r)
+          print("Canonical top-level keys:", sorted(obj))
+          for key in ("packages","statuses","references","priority","updated_at"):
+              value=obj.get(key)
+              print(key,"type",type(value).__name__,"sample",str(value)[:3000])
+          PY
+      - name: Inspect exact linux-libc-dev package file categories
+        run: |
+          set -euo pipefail
+          docker run --rm ubuntu:26.04 bash -euo pipefail -c '
+            apt-get update -qq
+            apt-get install -y --no-install-recommends linux-libc-dev=7.0.0-42.42 python3 >/dev/null
+            python3 - <<"PY"
+          import pathlib, subprocess, stat, json
+          pkg="linux-libc-dev"
+          version=subprocess.check_output(["dpkg-query","-W","-f=${Version}",pkg],text=True).strip()
+          paths=subprocess.check_output(["dpkg-query","-L",pkg],text=True).splitlines()
+          regular=[]; other=[]; binaries=[]
+          for p in paths:
+              x=pathlib.Path(p)
+              if not x.exists() or x.is_dir():continue
+              if x.is_symlink():other.append(p);continue
+              if x.is_file():
+                  regular.append(p)
+                  if x.suffix!=".h":other.append(p)
+                  with x.open("rb") as f:magic=f.read(4)
+                  if magic.startswith(b"\\x7fELF") or magic.startswith(b"MZ") or magic.startswith(b"#!"):
+                      binaries.append(p)
+          print(json.dumps({"package":pkg,"version":version,"file_count":len(regular),"non_h":other[:50],"non_h_total":len(other),"executables":binaries},indent=2))
+          assert version=="7.0.0-42.42"
+          assert not binaries
+          PY
+          '
