@@ -126,6 +126,15 @@ def main() -> int:
         a.output.parent.mkdir(parents=True, exist_ok=True)
         a.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         print("Upstream CVE file path evidence:", result["counts"])
+        print("Pinned upstream Linux CVE revision:", result["upstream_commit"])
+        for item in result["records"]:
+            if item["classification"] == "HEADER_PATH_REVIEW_REQUIRED":
+                print("HEADER_REVIEW " + json.dumps({
+                    "cve": item["cve"], "severity": item["severity"],
+                    "upstream_headers": item["affected_headers"],
+                    "shipped_uapi_path_matches": item["matching_shipped_uapi_headers"],
+                    "status": item["canonical_ubuntu_linux_status"]
+                }, separators=(",", ":"), sort_keys=True))
         print("All binary dispositions: PENDING_INDEPENDENT_SECURITY_REVIEW")
         return 2 if result["counts"].get("UPSTREAM_UNVERIFIED") else 0
     except (KeyError, ValueError, OSError) as exc:
