@@ -12,6 +12,7 @@ import csv
 import json
 from collections import Counter
 from pathlib import Path
+import re
 
 COUNT = 295
 SOURCE_SHA = "604accad567eb6e7fb4c7fdc422470c25f35f467"
@@ -38,9 +39,11 @@ def build(scanner: list[dict], canonical: list[dict],
     if set(by_scanner) != set(by_vendor):
         raise ValueError("Trivy and Canonical CVE IDs differ")
     upstream_rows = {}
+    source_sha = SOURCE_SHA  # Historical reference only when no live upstream input is provided.
     if upstream is not None:
-        if upstream.get("upstream_commit") != SOURCE_SHA:
-            raise ValueError("upstream source revision differs from independently captured evidence")
+        source_sha = upstream.get("upstream_commit")
+        if not isinstance(source_sha, str) or not re.fullmatch(r"[a-f0-9]{40}", source_sha):
+            raise ValueError("upstream source revision must be an immutable 40-character Git SHA")
         upstream_rows = unique(upstream["records"], "upstream")
         if set(upstream_rows) != set(by_scanner):
             raise ValueError("upstream CVE IDs differ")
@@ -71,8 +74,8 @@ def build(scanner: list[dict], canonical: list[dict],
                           "pending_version_or_detail": v["canonical_pending_version_or_detail"],
                           "last_updated": v["canonical_updated_at"], "url": v["vendor_url"]},
             "upstream": {
-                "source_revision": SOURCE_SHA, "url": u.get("upstream_url",
-                    f"https://kernel.googlesource.com/pub/scm/linux/security/vulns/+/{SOURCE_SHA}/cve/published/{cve[4:8]}/{cve}.json"),
+                "source_revision": source_sha, "url": u.get("upstream_url",
+                    f"https://kernel.googlesource.com/pub/scm/linux/security/vulns/+/{source_sha}/cve/published/{cve[4:8]}/{cve}.json"),
                 "affected_paths": paths,
                 "candidate_fix_references": u.get("candidate_upstream_fix_references", []),
                 "kernel_private_headers": internal, "direct_shipped_uapi_matches": matched,
@@ -111,7 +114,7 @@ def build(scanner: list[dict], canonical: list[dict],
         "schema": "baobab.dev10.cve-applicability-register.v1",
         "decision": "SECURITY_HELD_NO_EXCEPTION_APPROVED",
         "advisory_count": COUNT,
-        "source_provenance": {"upstream_linux_cna_revision": SOURCE_SHA,
+        "source_provenance": {"upstream_linux_cna_revision": source_sha,
                               "historical_upstream_artifact_sha256": ARTIFACT_SHA256,
                               "binary_manifest_sha256": MANIFEST_SHA256},
         "counts": dict(Counter(r["proposed_disposition"] for r in records)),
