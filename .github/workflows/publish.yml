@@ -51,25 +51,10 @@
 #   just cache-hit — a restore-keys prefix match populates the dir but
 #   still reports cache-hit: false) because hardcoding either flag
 #   breaks the very first run with "cannot be specified on the first
-#   run". `--skip-files` exempts `flutter_web_sdk/**/dart_sdk.js`
-#   (~14-16MB compiled Flutter bundle) from SECRET scanning only — it has
-#   no effect on CVE coverage and only stops the secret scanner flagging a
-#   large first-party bundle as "too large" (observed 2026-08-17). It ALSO
-#   exempts `flutter/bin/cache/artifacts/engine/**/*.jar` from scanning
-#   entirely (both scanners): this Flutter-SDK-bundled JAR
-#   (`android-*/flutter.jar`) is the ONLY Java artifact `final` ships, and
-#   is therefore the sole reason Trivy pulls its own ~922MB Java DB for
-#   this target — a real, deliberately-accepted trade: this JAR is Google's
-#   own prebuilt Flutter engine binary, versioned and shipped by the
-#   Flutter SDK release itself (not something `pip`/`npm`/OS-package-style
-#   CVE tracking meaningfully covers per-jar), used only as local dev
-#   tooling in this devcontainer image, never a production runtime
-#   dependency exposed to end users — unlike the OS/library packages
-#   `--pkg-types os,library` still fully covers. Complements the OCI-layout
-#   scan-target fix below (see "Build local single-manifest image for
-#   scanning") rather than replacing it: removing the one Java artifact
-#   removes the Java DB download's ~922MB disk cost entirely, on top of
-#   that fix's removal of the daemon-loaded duplicate image.
+#   run". Vulnerability and secret scanning covers all shipped paths,
+#   including Flutter engine JARs and bundled package-manager dependencies.
+#   Unfixed HIGH/CRITICAL findings remain blocking; disk pressure must be
+#   addressed through runner/build layout, never by removing scan coverage.
 #   `--skip-version-check` drops Trivy's own unrelated, unpinned
 #   "newer CLI available" network check.
 #
@@ -712,11 +697,10 @@ jobs:
           trivy image \
             --scanners vuln,secret \
             ${TRIVY_SKIP_FLAGS} \
-            --skip-files "**/corepack/**,**/cacache/**,**/flutter_web_sdk/**/dart_sdk.js,**/devtools/**,**/flutter/bin/cache/artifacts/engine/**/*.jar" \
+            --ignorefile /dev/null \
             --pkg-types os,library \
             --severity CRITICAL,HIGH \
             --exit-code 1 \
-            --ignore-unfixed \
             --skip-version-check \
             --format table \
             "${SCAN_SOURCE_ARGS[@]}"

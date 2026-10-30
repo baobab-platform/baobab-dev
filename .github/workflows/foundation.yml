@@ -20,4 +20,4 @@ jobs:
     with:
       foundation_ref: "31de2bc3dcd56128c019c640dc7e12c10ae9ca69"
       dependency_review_enabled: false
-      container_ignore_unfixed: true
+      container_ignore_unfixed: false
