@@ -111,3 +111,44 @@ native compiler support and installed-distribution auditing remain enabled.
 Fresh builds must establish whether all five reported packages are eliminated
 or whether another dependency still requires remediation; no clean result is
 inferred from this source change.
+
+## 30 October: evidence-preserving scan qualification follow-up
+
+The final-head scans in #48 run `41013986362` failed on all eight target/
+architecture combinations. Foundation run `41013987217` failed its image scan
+and aggregate result; #50 inherited the same image failure. The installed
+`linux-libc-dev` release is `7.0.0-42.42` on amd64 and arm64. Trivy reports
+295 HIGH/CRITICAL advisory matches (283 HIGH, 12 CRITICAL), all associated
+with that package in the inspected scans. No available fix was recorded in
+those scan tables. These are **blocking findings**, not an approved exception.
+
+The dependency chain is the common base stage's `build-essential` installation,
+which brings in `libc6-dev` and `linux-libc-dev` for C compilation and Linux
+user-space API headers. The image now records the actual package/source versions
+and `dpkg-query -L` installed paths under
+`/usr/local/share/baobab/security/` and runs a real compiler/UAPI smoke check
+during *both* architecture builds. This proves compiler/header usability, not
+the safety of the host's kernel or the absence of a vulnerable kernel implementation.
+An ordinary development container does not ship or boot the host kernel; kernel
+advisory matching against its UAPI header package does not alone demonstrate
+that affected kernel implementation code can execute inside the image. Nor does
+that observation clear the advisory. Exposure through a host kernel or kernel
+interfaces requires independent deployment-specific analysis.
+
+The Publish workflow retains the original strict Trivy HIGH/CRITICAL policy,
+empty ignore rules, secret scanning and unrestricted OS/library scope. It now
+writes Trivy's **full JSON**, including advisory source, installed version,
+available fix and package path metadata when provided, followed by a normalized
+per-finding JSON report. Both are uploaded as immutable per-job CI artifacts
+even when the scanner exits nonzero. Missing or malformed JSON is itself a
+failed gate. Nothing changes Foundation's separate blocking scan.
+
+Vendor status must be verified against Ubuntu's 26.04 security tracker for
+**each applicable CVE**, not just representative CVEs. A 26.04 proposed kernel
+package must not be treated as a supported security update. Until a supported
+fixed version is shipped and the *unrestricted* scans pass, or an independently
+approved time-bounded applicability decision is recorded outside this PR, both
+PRs remain HELD. No waiver, VEX `not_affected`, scan filtering, package
+removal or release activation is introduced here. Existing image consumers must
+stay on independently qualified digests; rollback requires a known-good digest
+and separate consumer verification.

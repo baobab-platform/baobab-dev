@@ -678,6 +678,7 @@ jobs:
       # the one target where every byte of headroom matters (see the
       # previous step's comment on the disk-quota root cause).
       - name: Scan built container with Trivy
+        id: trivy-scan
         env:
           # Read via shell var (not interpolated inline) so an empty value contributes zero words, not a blank arg.
           TRIVY_SKIP_FLAGS: ${{ steps.trivy-db-cache-state.outputs.flags }}
@@ -694,6 +695,12 @@ jobs:
             SCAN_SOURCE_ARGS=(baobab-dev:scan)
           fi
 
+          # The same unfiltered HIGH/CRITICAL scan is the blocking gate.
+          # Persist full JSON even when vulnerabilities make Trivy exit 1.
+          # Never reinterpret missing/invalid report evidence as success.
+          REPORT_DIR="${RUNNER_TEMP}/trivy-evidence"
+          mkdir -p "${REPORT_DIR}"
+          set +e
           trivy image \
             --scanners vuln,secret \
             ${TRIVY_SKIP_FLAGS} \
@@ -702,12 +709,33 @@ jobs:
             --severity CRITICAL,HIGH \
             --exit-code 1 \
             --skip-version-check \
-            --format table \
+            --format json \
+            --output "${REPORT_DIR}/trivy.json" \
             "${SCAN_SOURCE_ARGS[@]}"
+          scan_rc=$?
+          set -e
+
+          python3 scripts/summarize-trivy-vulnerabilities.py \
+            "${REPORT_DIR}/trivy.json" \
+            "${REPORT_DIR}/findings.json" \
+            "${{ matrix.target }}" "${{ matrix.platform }}"
 
           if [[ "${{ matrix.target }}" == "final" ]]; then
             rm -rf "${SCAN_DIR}"
           fi
+          if (( scan_rc != 0 )); then
+            echo "::error::Trivy HIGH/CRITICAL gate failed (exit ${scan_rc}); see complete retained report."
+            exit "${scan_rc}"
+          fi
+
+      - name: Retain unfiltered Trivy vulnerability evidence
+        if: ${{ always() && steps.trivy-scan.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: trivy-${{ matrix.target }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}-${{ github.sha }}
+          path: ${{ runner.temp }}/trivy-evidence/
+          if-no-files-found: error
+          retention-days: 30
 
       # Container Smoke Test (final — tests the actual to-be-published image)
       # Still tag-gated and now also final-only: steps.build.outputs.digest
