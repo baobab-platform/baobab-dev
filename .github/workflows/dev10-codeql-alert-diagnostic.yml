@@ -25,9 +25,8 @@ jobs:
           branch = os.environ.get("PR_BRANCH", "")
           if not branch or any(c not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_./" for c in branch):
               raise SystemExit("Invalid PR ref")
-          ref = "refs/heads/" + branch
           url = "https://api.github.com/repos/" + repo + "/code-scanning/alerts?" + urllib.parse.urlencode({
-              "state": "open", "ref": ref, "per_page": 100
+              "state": "open", "pr": 48, "per_page": 100
           })
           req = urllib.request.Request(url, headers={
               "Accept": "application/vnd.github+json",
