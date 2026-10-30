@@ -80,14 +80,14 @@ python -m venv /build/check
 /build/check/bin/python -m pip install --no-index --no-deps /out/pip-26.2.2+baobab.1-py3-none-any.whl
 /build/check/bin/python - <<'PY'
 import pip
-from pip._vendor import urllib3, msgpack, setuptools
+from pip._vendor import urllib3, msgpack, pkg_resources
 from pip._vendor.requests.adapters import HTTPAdapter
 assert pip.__version__ == '26.2.2+baobab.1'
 assert urllib3.__version__ == '2.8.0'
 assert msgpack.version >= (1, 2, 3), f'VENDORED_MSGPACK_DRIFT: {msgpack.version}'
-assert tuple(int(x) for x in setuptools.__version__.split('.')[:3]) >= (78, 1, 1), (
-    f'VENDORED_SETUPTOOLS_DRIFT: {setuptools.__version__}'
-)
+# pip vendors pkg_resources FROM setuptools, not setuptools itself.
+# Strict source version is pinned above in vendor.txt; exercise real API here.
+assert str(pkg_resources.parse_version('1.2.3')) == '1.2.3'
 assert HTTPAdapter().poolmanager.__class__ is urllib3.PoolManager
 PY
 /build/check/bin/python -m pip check
