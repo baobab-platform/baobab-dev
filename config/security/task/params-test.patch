@@ -1,0 +1,11 @@
+--- a/executor_test.go
++++ b/executor_test.go
+@@ -504,6 +504,8 @@
+ 	t.Parallel()
+ 	NewExecutorTest(t,
+ 		WithExecutorOptions(
++			// Parameter substitution is independent of concurrent output framing.
++			task.WithConcurrency(1),
+ 			task.WithDir("testdata/params"),
+ 			task.WithSilent(true),
+ 		),

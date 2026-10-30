@@ -1356,6 +1356,7 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CO
 # dependencies with the checksum-pinned security rebuilds. Apt drift fails closed.
 RUN dpkg-query -W -f='${Version}' docker-buildx-plugin | grep -E '^0\.38\.1-' && \
     dpkg-query -W -f='${Version}' docker-compose-plugin | grep -E '^5\.6\.1-'
+COPY --from=patched-go-clis /out/licenses/ /usr/share/licenses/baobab-cli/
 COPY --from=patched-go-clis /out/docker-buildx /usr/libexec/docker/cli-plugins/docker-buildx
 COPY --from=patched-go-clis /out/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
 RUN docker buildx version && docker compose version
@@ -1551,6 +1552,7 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CO
 # dependencies with the checksum-pinned security rebuilds. Apt drift fails closed.
 RUN dpkg-query -W -f='${Version}' docker-buildx-plugin | grep -E '^0\.38\.1-' && \
     dpkg-query -W -f='${Version}' docker-compose-plugin | grep -E '^5\.6\.1-'
+COPY --from=patched-go-clis /out/licenses/ /usr/share/licenses/baobab-cli/
 COPY --from=patched-go-clis /out/docker-buildx /usr/libexec/docker/cli-plugins/docker-buildx
 COPY --from=patched-go-clis /out/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
 RUN docker buildx version && docker compose version
