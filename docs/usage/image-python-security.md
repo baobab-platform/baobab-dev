@@ -96,3 +96,18 @@ reviewed applicability resolution remains required. Removing native compiler
 headers merely to reduce scanner output would break the developer contract.
 This is an open development-security dependency, not a protected-release hold
 and not permission to merge or declare DEV-10/DEV-14 complete.
+
+After the CLI correction, the full ARM64 build (run 41012859493, job
+123922672295) reaches the installed distro-Python audit and fails on 39
+advisory entries across cryptography, httplib2, jaraco-context, oauthlib and
+PyJWT. These are genuine scanner observations, not an accepted applicability
+assessment of distro backports. The base image no longer installs
+`software-properties-common` unconditionally: it is needed only to configure
+the optional deadsnakes fallback, not by any supported runtime command. The
+fallback installs it temporarily and removes it with its orphan dependencies
+after explicitly installing the selected Python interpreter/dev/venv packages.
+Ubuntu's native Python path never installs that helper dependency tree. Both
+native compiler support and installed-distribution auditing remain enabled.
+Fresh builds must establish whether all five reported packages are eliminated
+or whether another dependency still requires remediation; no clean result is
+inferred from this source change.
