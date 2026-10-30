@@ -199,8 +199,9 @@ def qualify(report: dict, signed: dict, trust: dict, *,
             "status_notes": "Independent decision " + d["decision_id"]
                 + "; Canonical source status " + row["canonical_vendor_status"],
         })
-    vex = {"@context": CONTEXT, "@id": "https://baobab.invalid/vex/"
-           + d["decision_id"], "author": principal,
+    vex = {"@context": CONTEXT,
+           "@id": "urn:baobab:dev10:vex:" + hashlib.sha256(canonical(d)).hexdigest(),
+           "author": principal,
            "timestamp": d["issued_at"], "version": 1,
            "statements": statements}
     return vex, unresolved
