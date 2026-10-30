@@ -23,6 +23,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # Use an immutable, reviewed source for fixtures/evidence formatter.
+          ref: 80ed46843076f4d2f5809c8659799f79f3b790cb
       - name: Authenticate to GHCR (read-only)
         env:
           GHCR_TOKEN: ${{ github.token }}
@@ -94,6 +96,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # Use an immutable, reviewed source for fixtures/evidence formatter.
+          ref: 80ed46843076f4d2f5809c8659799f79f3b790cb
       - name: Download SHA256-pinned pnpm 12.16.1 native binary
         env:
           PLATFORM: ${{ matrix.platform }}
