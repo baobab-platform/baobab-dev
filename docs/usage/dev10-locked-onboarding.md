@@ -67,3 +67,43 @@ exception or expiry was added or extended by this remediation. Do not release,
 publish a new version or promote a consumer digest on the strength of this source
 change. Roll back only to a previously qualified digest; an image with the original
 finding is not a security rollback target.
+
+### 30 October final-head security remediation (PR #48)
+
+Latest pre-fix head `e68c5691` passed DEV-10 source/published-image onboarding
+and the Security workflow, but blocked Foundation and Publish Trivy image gates.
+Both infra architectures identified Terraform 1.16.7 embedding
+`github.com/go-jose/go-jose/v4@v4.1.4` (CVE-2026-116587); both full
+architectures identified Maven's Guava 33.6.0-jre (CVE-2026-102554) and pip's
+internally vendored msgpack 1.1.2 (CVE-2026-114613 /
+GHSA-6v7p-g79w-8964) and setuptools 70.3.0 (CVE-2025-47273).
+This is observed scan evidence, not an inference from upstream release notes.
+
+The fixes deliberately preserve the Python 3.14 / Node 24 / PostgreSQL 17
+project baselines and frozen onboarding behavior:
+
+- Terraform upgrades to vendor release 1.17.1 on the infra profile, with
+  its amd64/arm64 SHA-256 digests pinned from HashiCorp's official
+  `hashicorp/homebrew-tap` formula. Its upstream source now requires
+  go-jose v4.1.6; replacing an older binary in-place without validating the
+  embedded module would *not* be a security fix. Infra consumers must still
+  verify compatibility with 1.17 before adopting a new image digest.
+- Maven remains on reviewed 3.9.16 for ERP compatibility. The full profile
+  replaces only its original Guava JAR with Maven Central 33.7.2-jre
+  (SHA-256 `b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c`).
+  The old JAR must exist exactly once; the replacement is digest-checked,
+  the old copy removed and `mvn --version` exercised. If the upstream
+  Maven layout changes, the build fails instead of guessing a path.
+- The pinned pip source's vendoring manifest is updated through its
+  **actual vendoring tool** to msgpack 1.2.3 and setuptools 78.1.1,
+  alongside the existing urllib3 2.8.0 remediation. The isolated wheel
+  build asserts all three actual vendored imports before installing into
+  the final system and pipx-shared environments.
+
+No CVE exceptions were introduced or extended; previously retired rules
+remain retired. These source changes are candidate remediations, **not**
+clearance: merge and image promotion remain HELD until the *new* final-head
+Foundation scan, all eight Publish platform/profile combinations, DEV-10
+real image onboarding, required security/CI gates and independent
+Codespaces/consumer qualification pass. PR #50's DEV-14 doctor is a separate
+non-mutating assurance surface and cannot confer that evidence.
