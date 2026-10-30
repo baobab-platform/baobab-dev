@@ -34,7 +34,8 @@ def upstream_url(cve: str, sha: str) -> str:
     return f"{GITILES}/+/{sha}/cve/published/{cve[4:8]}/{cve}.json?format=TEXT"
 
 
-def parse_upstream(blob: bytes) -> list[str]:
+def parse_upstream_details(blob: bytes) -> tuple[list[str], list[str]]:
+    """Return upstream candidate paths and reference URLs, not fix attestations."""
     data = json.loads(base64.b64decode(blob, validate=True))
     if data.get("dataType") != "CVE_RECORD":
         raise ValueError("upstream source is not a published CVE record")
@@ -48,13 +49,23 @@ def parse_upstream(blob: bytes) -> list[str]:
                 paths.add(path)
     if not paths:
         raise ValueError("kernel CVE has no validated affected-file paths")
-    return sorted(paths)
+    refs: set[str] = set()
+    for entry in cna.get("references", []):
+        url = entry.get("url") if isinstance(entry, dict) else None
+        if isinstance(url, str) and url.startswith("https://") and len(url) < 1024:
+            refs.add(url)
+    return sorted(paths), sorted(refs)
+
+
+def parse_upstream(blob: bytes) -> list[str]:
+    """Backward-compatible affected-path reader for existing verified tests."""
+    return parse_upstream_details(blob)[0]
 
 
 def inspect(cve: str, sha: str, manifest: set[str]) -> dict:
     url = upstream_url(cve, sha)
     record: dict = {
-        "cve": cve, "upstream_url": url, "upstream_paths": [],
+        "cve": cve, "upstream_url": url, "upstream_paths": [], "candidate_upstream_fix_references": [],
         "affected_headers": [], "matching_shipped_uapi_headers": [],
         "classification": "UPSTREAM_UNVERIFIED", "error": "",
         "binary_disposition": "PENDING_INDEPENDENT_SECURITY_REVIEW",
@@ -63,7 +74,7 @@ def inspect(cve: str, sha: str, manifest: set[str]) -> dict:
         try:
             req = request.Request(url, headers={"Accept": "text/plain", "User-Agent": "Baobab-DEV10-Kernel-Path-Audit/1"})
             with request.urlopen(req, timeout=28) as result:
-                paths = parse_upstream(result.read(1024 * 1024))
+                paths, refs = parse_upstream_details(result.read(1024 * 1024))
             headers = [path for path in paths if path.endswith(".h")]
             matches = []
             for path in headers:
@@ -72,7 +83,8 @@ def inspect(cve: str, sha: str, manifest: set[str]) -> dict:
                 if suffix and "/usr/include/" + suffix in manifest:
                     matches.append(path)
             record.update({
-                "upstream_paths": paths, "affected_headers": headers,
+                "upstream_paths": paths, "candidate_upstream_fix_references": refs,
+                "affected_headers": headers,
                 "matching_shipped_uapi_headers": sorted(matches),
                 "classification": "HEADER_PATH_REVIEW_REQUIRED" if headers
                     else "KERNEL_IMPLEMENTATION_PATHS_REVIEW_REQUIRED",
