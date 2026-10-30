@@ -57,14 +57,12 @@ def inspect(upstream: dict, repo: Path, paths: set[str], *,
         for path in row["upstream_paths"]:
             if path.startswith("/") or ".." in path.split("/"):
                 raise ValueError(cve + ": invalid upstream source path")
-            if git(repo, "cat-file", "-e", sha + ":" + path, check=False) == "":
-                # git cat-file -e intentionally prints nothing on BOTH success
-                # and failure; inspect exit status separately below.
-                proc = subprocess.run(["git", "-C", str(repo), "cat-file",
-                                       "-e", sha + ":" + path],
-                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                      timeout=15, check=False)
-                (present if proc.returncode == 0 else missing).append(path)
+            # Check source object presence without inferring any fix/backport.
+            proc = subprocess.run(["git", "-C", str(repo), "cat-file",
+                                   "-e", sha + ":" + path],
+                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                  timeout=15, check=False)
+            (present if proc.returncode == 0 else missing).append(path)
         direct = []
         for path in row.get("affected_headers", []):
             if path.startswith("include/uapi/"):
