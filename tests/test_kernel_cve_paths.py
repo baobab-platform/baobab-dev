@@ -52,6 +52,19 @@ class KernelPathTests(unittest.TestCase):
             self.assertEqual(row["classification"], "KERNEL_IMPLEMENTATION_PATHS_REVIEW_REQUIRED")
             self.assertEqual(row["error"], "")
 
+    def test_local_snapshot_accepts_prior_published_years(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            import base64
+            for year in ("2022", "2025", "2026"):
+                cve = f"CVE-{year}-50240"
+                path = root / "cve" / "published" / year / (cve + ".json")
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(base64.b64decode(self.sample(["kernel/example.c"])))
+                with patch.object(module.request, "urlopen", side_effect=AssertionError("no HTTP")):
+                    row = module.inspect(cve, "a"*40, {"/usr/include/linux/types.h"}, root)
+                self.assertEqual(row["classification"], "KERNEL_IMPLEMENTATION_PATHS_REVIEW_REQUIRED")
+
     def test_missing_local_cve_fails_closed_without_http(self):
         with TemporaryDirectory() as tmp:
             with patch.object(module.time, "sleep", return_value=None), \
