@@ -496,7 +496,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && \
     apt-get install -y --no-install-recommends \
       sudo curl wget git unzip zip tar jq tree nano vim less htop procps \
-      ca-certificates gnupg software-properties-common build-essential \
+      ca-certificates gnupg build-essential \
       pkg-config locales tzdata xz-utils apt-transport-https \
       openssh-client dnsutils iproute2 \
     && \
@@ -1074,7 +1074,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
     PYTHON_MINOR="${PYTHON_VERSION%.*}" && \
     apt-get update && \
-    apt-get install -y --no-install-recommends curl ca-certificates software-properties-common && \
+    apt-get install -y --no-install-recommends curl ca-certificates && \
     if apt-cache show "python${PYTHON_MINOR}" >/dev/null 2>&1; then \
         apt-get install -y --no-install-recommends \
             "python${PYTHON_MINOR}" \
@@ -1084,13 +1084,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
             && apt-get install -y --no-install-recommends "python${PYTHON_MINOR}-pip" \
             || curl -fsSL https://bootstrap.pypa.io/get-pip.py | "python${PYTHON_MINOR}" - --no-cache-dir --break-system-packages ); \
     else \
+        apt-get install -y --no-install-recommends software-properties-common && \
         add-apt-repository -y ppa:deadsnakes/ppa && \
         apt-get update && \
         apt-get install -y --no-install-recommends \
             "python${PYTHON_MINOR}" \
             "python${PYTHON_MINOR}-venv" \
             "python${PYTHON_MINOR}-dev" && \
-        curl -fsSL https://bootstrap.pypa.io/get-pip.py | "python${PYTHON_MINOR}" - --no-cache-dir --break-system-packages; \
+        curl -fsSL https://bootstrap.pypa.io/get-pip.py | "python${PYTHON_MINOR}" - --no-cache-dir --break-system-packages && \
+        apt-get purge -y --auto-remove software-properties-common; \
     fi && \
     update-alternatives --install /usr/bin/python3 python3 "/usr/bin/python${PYTHON_MINOR}" 1 && \
     update-alternatives --install /usr/bin/python  python  /usr/bin/python3 1
