@@ -24,6 +24,12 @@ release-pocket status, compiler-visible headers, downstream userspace
 compilation effects, and independent human review have been established.
 The initial register's empty Ubuntu patch fields are deliberate unknowns.
 The upstream JSON and manifest are bound to their recorded SHA256 hashes.
+The 295-entry permanent preliminary TSV is
+`docs/assessments/dev10-cve-applicability-review-register-20261030.tsv`.
+Read-only `.github/workflows/dev10-ubuntu-source.yml` checks actual source
+paths at a Canonical Ubuntu 26.04 kernel release tag. That check is **not** a
+verified per-CVE Ubuntu fix/backport history, nor a byte-for-byte vendor header
+diff across fixed revisions.
 The Ubuntu patch input is optional for engineering collection and must not
 be mislabeled as independent approval.
 
@@ -86,7 +92,12 @@ register, a real signed independent decision and a protected trust bundle.
 It enforces exact digest, platform, package identity/version, full scanner
 evidence integrity, per-CVE approval references, expiry, revocation and
 maker/checker separation. It emits an OpenVEX projection only AFTER verified
-authorisation; a signed approval for one CVE does not permit another.
+authorisation; each product statement binds the OCI digest with a package PURL
+subcomponent. A signed approval for one CVE does not permit another. The
+per-CVE register must independently mark actual Ubuntu source diffs,
+shipped-header comparisons, header inline/macro impact, UAPI/ABI/compiled
+userspace impacts as reviewed before a signed decision can be applied.
+Missing fields or unresolved impacts keep the CVE blocked.
 It never changes the Canonical source status. Tests cover positive and
 negative policy cases with ephemeral cryptographic keys.
 
@@ -124,7 +135,9 @@ Release tags and registry writes remain separately protected.
 new source/binary or OCI digest, scanner/version/database changes, compiler
 or UAPI changes, changed privilege or host kernel assurance, expiry,
 revocation, changes to maker/checker authority and release promotion.
-Thirty-day CI artifacts are not sufficient alone for permanent custody.
+The GitHub repository currently enforces **15 days maximum artifact retention**
+(even for workflows requesting 30 days). That is not sufficient for immutable
+approval/evidence custody. Independent longer-term signed storage is required.
 
 ## Development vs authorization vs release
 
