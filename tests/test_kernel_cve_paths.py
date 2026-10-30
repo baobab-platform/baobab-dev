@@ -4,6 +4,7 @@ import base64
 import importlib.util
 import json
 import unittest
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 SRC = Path(__file__).resolve().parents[1] / "scripts/audit_kernel_cve_paths.py"
@@ -35,6 +36,43 @@ class KernelPathTests(unittest.TestCase):
             result = module.inspect("CVE-2026-90162", "a"*40, {"/usr/include/linux/example.h"})
         self.assertEqual(result["classification"], "HEADER_PATH_REVIEW_REQUIRED")
         self.assertEqual(result["matching_shipped_uapi_headers"], ["include/uapi/linux/example.h"])
+
+    def test_single_immutable_local_git_snapshot_is_used_without_http(self):
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            path = root / "cve/published/2026/CVE-2026-89530.json"
+            path.parent.mkdir(parents=True)
+            import base64
+            path.write_bytes(base64.b64decode(self.sample(
+                ["net/sunrpc/xprtrdma/svc_rdma_sendto.c"]
+            )))
+            with patch.object(module.request, "urlopen", side_effect=AssertionError("network must not be contacted")):
+                row = module.inspect("CVE-2026-89530", "a"*40,
+                                     {"/usr/include/linux/types.h"}, root)
+            self.assertEqual(row["classification"], "KERNEL_IMPLEMENTATION_PATHS_REVIEW_REQUIRED")
+            self.assertEqual(row["error"], "")
+
+    def test_missing_local_cve_fails_closed_without_http(self):
+        with TemporaryDirectory() as tmp:
+            with patch.object(module.time, "sleep", return_value=None), \
+                 patch.object(module.request, "urlopen", side_effect=AssertionError("unexpected network")):
+                row = module.inspect("CVE-2026-89530", "a"*40,
+                                     {"/usr/include/linux/types.h"}, Path(tmp))
+            self.assertEqual(row["classification"], "UPSTREAM_UNVERIFIED")
+            self.assertIn("FileNotFoundError", row["error"])
+
+    def test_git_checkout_revision_mismatch_is_rejected(self):
+        with TemporaryDirectory() as tmp:
+            ids = [f"CVE-2026-{i:05d}" for i in range(10000, 10295)]
+            trivy = [{"cve": cve, "severity": "HIGH"} for cve in ids]
+            vendor = [{"cve": cve, "ubuntu_linux_resolute_status": "pending"} for cve in ids]
+            class GitResult:
+                returncode = 0
+                stdout = "b"*40 + "\\n"
+            with patch.object(module.subprocess, "run", return_value=GitResult()):
+                with self.assertRaisesRegex(ValueError, "revision mismatch"):
+                    module.audit(trivy, vendor, {"/usr/include/linux/types.h"},
+                                 "a"*40, Path(tmp))
 
     def test_missing_upstream_evidence_rejected(self):
         with self.assertRaises(ValueError):
