@@ -397,13 +397,15 @@ if [[ "$BAOBAB_BUILD_PROFILE" == "full" ]]; then
 
     # Check the actual pip-vendored imports: upgrading site-packages alone
     # does not remediate CVEs inside pip/_vendor.
-    if python3 -c 'from pip._vendor import msgpack, setuptools, urllib3
+    if python3 -c 'import pip
+from pip._vendor import msgpack, pkg_resources, urllib3
+assert pip.__version__ == "26.2.2+baobab.1"
 assert msgpack.version >= (1, 2, 3)
-assert tuple(int(x) for x in setuptools.__version__.split(".")[:3]) >= (78, 1, 1)
+assert str(pkg_resources.parse_version("1.2.3")) == "1.2.3"
 assert urllib3.__version__ == "2.8.0"' >/dev/null 2>&1; then
-        ok "pip vendored msgpack/setuptools/urllib3 security baselines"
+        ok "patched pip vendored msgpack/pkg_resources/urllib3 security baselines"
     else
-        bad "pip vendored dependency regression (msgpack>=1.2.3, setuptools>=78.1.1, urllib3=2.8.0)"
+        bad "patched pip vendored dependency or API regression"
     fi
 
     if command -v poetry >/dev/null; then
