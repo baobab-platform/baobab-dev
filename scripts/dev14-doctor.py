@@ -14,7 +14,7 @@ import shutil
 import subprocess
 import sys
 
-SHARED_PIN = "9fa1bbd6ad9b5c9d4ec406c721bd75227803dcea"
+SHARED_PIN = "32b71f3335e566daeb58246f17fcbbf162cf7f53"
 SHA = re.compile(r"^[0-9a-f]{40}$")
 VERSION = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
 REQUIREMENTS = {
@@ -41,6 +41,12 @@ def meets_version(text: str, minimum: tuple[int, int]) -> bool:
     return bool(match and tuple(map(int, match.groups()[:2])) >= minimum)
 
 
+def python_line_supported(observed: str) -> bool:
+    """DEV-14 qualifies Python 3.14.x, not newer unqualified major/minor lines."""
+    match = VERSION.search(observed)
+    return bool(match and tuple(map(int, match.groups()[:2])) == (3, 14))
+
+
 def inspect(profile: str, shared_root: Path | None = None) -> dict:
     if profile not in REQUIREMENTS:
         raise ValueError("UNKNOWN_DEV14_PROFILE")
@@ -53,7 +59,11 @@ def inspect(profile: str, shared_root: Path | None = None) -> dict:
         command = ([executable, "--version"] if tool == "python" else
                    [executable, "--version"])
         ok, observed = probe(command)
-        checks[tool] = ("SUPPORTED" if ok and (minimum is None or meets_version(observed, minimum))
+        version_supported = (
+            python_line_supported(observed) if tool == "python"
+            else minimum is None or meets_version(observed, minimum)
+        )
+        checks[tool] = ("SUPPORTED" if ok and version_supported
                         else "VERSION_UNSUPPORTED" if ok else "UNAVAILABLE")
     docker_ok, _ = probe(["docker", "info", "--format", "{{.ServerVersion}}"]) if checks["docker"] == "SUPPORTED" else (False, "")
     compose_ok, _ = probe(["docker", "compose", "version", "--short"]) if checks["docker"] == "SUPPORTED" else (False, "")
