@@ -8,7 +8,6 @@ authorise VEX. Uses official Canonical kernel Git checkout supplied by caller.
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import re
 import subprocess
