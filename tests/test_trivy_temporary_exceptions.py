@@ -9,11 +9,11 @@ REQUIRED_PINS = {
     "GH_SHA256_AMD64": "77b9e297e94c50336823d0f84de7ef1be60cba704601fa0d98f129f47a94987b",
     "GH_ASSET_ARM64": "gh_2.102.1_linux_arm64.tar.gz",
     "GH_SHA256_ARM64": "5019b3cc6e8a03bb4d88600f8dbda2add8e6407705c159b0c63151036e77a1af",
-    "TERRAFORM_VERSION": "1.16.7",
-    "TERRAFORM_ASSET_AMD64": "terraform_1.16.7_linux_amd64.zip",
-    "TERRAFORM_SHA256_AMD64": "5454efcf7fc87f0c2113111b9a5c7182f0ca1c6f0f23a1e110a50770a8fe473b",
-    "TERRAFORM_ASSET_ARM64": "terraform_1.16.7_linux_arm64.zip",
-    "TERRAFORM_SHA256_ARM64": "2d6a3f1098de94f1672aaa4e6873ef91ade9eac38851d3a403e2009193208de4",
+    "TERRAFORM_VERSION": "1.17.1",
+    "TERRAFORM_ASSET_AMD64": "terraform_1.17.1_linux_amd64.zip",
+    "TERRAFORM_SHA256_AMD64": "4638628058e71a55212b1c563712eac03b902128f40740f3dc8174df12135061",
+    "TERRAFORM_ASSET_ARM64": "terraform_1.17.1_linux_arm64.zip",
+    "TERRAFORM_SHA256_ARM64": "988e950a1c23058093b0e66ab2d5fb53fc18345ecfbd5871acf51dbac9325edd",
 }
 
 
@@ -33,7 +33,7 @@ class TemporaryTrivyExceptions(unittest.TestCase):
             self.assertEqual(lock.get(key), expected, f"SECURITY_PIN_DRIFT_{key}")
         manifest = (ROOT / "config/versions.yaml").read_text()
         self.assertRegex(manifest, r"github_cli:\s*(?:#[^\n]*\n\s*)*version: \"2\.102\.1\"")
-        self.assertRegex(manifest, r"terraform:\s*(?:#[^\n]*\n\s*)*version: \"1\.16\.7\"")
+        self.assertRegex(manifest, r"terraform:\s*(?:#[^\n]*\n\s*)*version: \"1\.17\.1\"")
 
 
 if __name__ == "__main__":
