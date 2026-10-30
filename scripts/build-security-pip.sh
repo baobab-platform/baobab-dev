@@ -35,7 +35,8 @@ cat > tools/vendoring/patches/pkg_resources.patch <<'PKG_RESOURCES_78_PATCH'
 diff --git a/src/pip/_vendor/pkg_resources/__init__.py b/src/pip/_vendor/pkg_resources/__init__.py
 --- a/src/pip/_vendor/pkg_resources/__init__.py
 +++ b/src/pip/_vendor/pkg_resources/__init__.py
-@@ -82,13 +82,11 @@ except ImportError:
+@@ -82,12 +82,9 @@
+     # no write support, probably under GAE
      WRITE_SUPPORT = False
  
 -import packaging.markers
@@ -50,7 +51,7 @@ diff --git a/src/pip/_vendor/pkg_resources/__init__.py b/src/pip/_vendor/pkg_res
  from platformdirs import user_cache_dir as _user_cache_dir
  
  if TYPE_CHECKING:
-@@ -96,12 +94,7 @@ if TYPE_CHECKING:
+@@ -95,12 +92,7 @@
      from _typeshed.importlib import LoaderProtocol
      from typing_extensions import Self, TypeAlias
  
@@ -63,6 +64,7 @@ diff --git a/src/pip/_vendor/pkg_resources/__init__.py b/src/pip/_vendor/pkg_res
 +# As in pip's upstream patch, do not emit the vendored deprecation warning.
  
  _T = TypeVar("_T")
+ _DistributionT = TypeVar("_DistributionT", bound="Distribution")
 PKG_RESOURCES_78_PATCH
 MSGPACK_PUREPYTHON=1 vendoring sync
 python - <<'PY'
