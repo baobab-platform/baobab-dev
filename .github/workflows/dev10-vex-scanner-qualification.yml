@@ -1,0 +1,129 @@
+name: DEV-10 Trivy OpenVEX parser qualification (diagnostic only)
+# Security HELD: this deliberately tests unsigned synthetic VEX as an unsafe
+# input. It NEVER supplies this fixture to Foundation/Publish or issues approval.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dev10-vex-scanner-qualification.yml
+      - scripts/verify_dev10_vex.py
+      - tests/test_dev10_security_authorisation.py
+      - docs/assessments/dev10-vex-independent-authorisation.md
+
+permissions:
+  contents: read
+
+jobs:
+  trivy-vex-behavior:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout immutable pull-request revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Build isolated exact-header test image
+        run: |
+          set -euo pipefail
+          docker build --pull --tag baobab-dev10-vex-fixture:local - <<'DOCKER'
+          FROM ubuntu:26.04
+          ENV DEBIAN_FRONTEND=noninteractive
+          RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends linux-libc-dev=7.0.0-42.42 && \
+              dpkg-query -W -f='${Version}' linux-libc-dev | grep -Fx '7.0.0-42.42' && \
+              rm -rf /var/lib/apt/lists/*
+          DOCKER
+      - name: Install exact checksum-verified Trivy
+        run: |
+          set -euo pipefail
+          curl -fsSL --retry 5 -o "$RUNNER_TEMP/trivy.tar.gz" \
+            https://github.com/aquasecurity/trivy/releases/download/v0.73.0/trivy_0.73.0_Linux-64bit.tar.gz
+          echo "2edd39da482bb4e9831962487b68f68e3928ec3137794757f54d00383d79547b  $RUNNER_TEMP/trivy.tar.gz" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/trivy.tar.gz" -C "$RUNNER_TEMP" trivy
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Original unfiltered Trivy evidence (diagnostic strict exit)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/dev10-vex-diagnostic"
+          set +e
+          trivy image --scanners vuln --pkg-types os,library \
+            --severity HIGH,CRITICAL --ignorefile /dev/null \
+            --skip-version-check --exit-code 1 --format json \
+            --output "$RUNNER_TEMP/dev10-vex-diagnostic/raw.json" \
+            baobab-dev10-vex-fixture:local
+          result=$?
+          set -e
+          if [[ "$result" != 1 ]]; then
+            echo "::error::Expected strict advisory blocker, Trivy result=$result"
+            exit 1
+          fi
+      - name: Construct explicitly UNAUTHORISED parser fixtures
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/dev10-vex-diagnostic" <<'PY'
+          import json,sys
+          from pathlib import Path
+          folder=Path(sys.argv[1])
+          data=json.loads((folder/"raw.json").read_text())
+          vulns=[v for r in data.get("Results",[]) for v in r.get("Vulnerabilities",[])
+                 if v.get("PkgName")=="linux-libc-dev" and v.get("InstalledVersion")=="7.0.0-42.42"
+                 and v.get("Severity") in ("HIGH","CRITICAL")]
+          if not vulns: raise SystemExit("No exact-package CVE in unfiltered Trivy report")
+          v=vulns[0]
+          purl=(v.get("PkgIdentifier") or {}).get("PURL")
+          if not purl: raise SystemExit("Trivy did not expose a precise package PURL")
+          def document(product):
+              return {"@context":"https://openvex.dev/ns/v0.2.0",
+                      "@id":"urn:baobab:dev10:synthetic-parser-test",
+                      "author":"synthetic-unsigned-test-only","timestamp":"2026-10-30T00:00:00Z",
+                      "version":1,"statements":[{"vulnerability":{"name":v["VulnerabilityID"]},
+                      "products":[{"@id":product}],"status":"not_affected",
+                      "justification":"vulnerable_code_not_present"}]}
+          (folder/"test-cve.txt").write_text(v["VulnerabilityID"])
+          (folder/"synthetic-matching.json").write_text(json.dumps(document(purl)))
+          (folder/"synthetic-mismatch.json").write_text(json.dumps(document("pkg:deb/ubuntu/not-this-package@1.0.0")))
+          print("Synthetic CVE and package PURL for parser test:",v["VulnerabilityID"],purl)
+          print("THIS IS NOT A SECURITY APPROVAL OR A REAL APPLICABILITY ASSERTION")
+          PY
+      - name: Prove actual Trivy parser applies matching VEX but rejects mismatched PURL
+        run: |
+          set -euo pipefail
+          d="$RUNNER_TEMP/dev10-vex-diagnostic"
+          for scenario in matching mismatch; do
+            set +e
+            trivy image --scanners vuln --pkg-types os,library \
+              --severity HIGH,CRITICAL --ignorefile /dev/null \
+              --skip-version-check --exit-code 1 --format json \
+              --vex "$d/synthetic-${scenario}.json" \
+              --output "$d/${scenario}.json" \
+              baobab-dev10-vex-fixture:local
+            rc=$?
+            set -e
+            if [[ "$rc" != 1 ]]; then
+              echo "::error::Unexpected Trivy status $rc for scenario $scenario"
+              exit 1
+            fi
+          done
+          python3 - "$d" <<'PY'
+          import json,sys
+          from pathlib import Path
+          p=Path(sys.argv[1]); cve=(p/"test-cve.txt").read_text()
+          def count(name):
+              data=json.loads((p/name).read_text())
+              return sum(v.get("VulnerabilityID")==cve and v.get("PkgName")=="linux-libc-dev"
+                         for r in data.get("Results",[]) for v in r.get("Vulnerabilities",[]))
+          raw,matching,mismatch=count("raw.json"),count("matching.json"),count("mismatch.json")
+          assert raw>0, "original CVE missing"
+          assert matching==0, f"Trivy did not filter synthetic matching PURL: {matching}"
+          assert mismatch==raw, "wrong-PURL VEX unexpectedly filtered a CVE"
+          print("Trivy 0.73.0 synthetic parser tests: positive/mismatched PURL PASS")
+          print("IMPORTANT: unsigned VEX DID suppress the advisory; external signature/authority fence REQUIRED.")
+          print("Original raw findings preserved. NOT an approval; not a release gate.")
+          PY
+      - name: Retain synthetic diagnostic and original unsuppressed inventory
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dev10-openvex-unsigned-parser-diagnostic
+          path: ${{ runner.temp }}/dev10-vex-diagnostic/
+          if-no-files-found: warn
+          retention-days: 30

@@ -1,0 +1,296 @@
+cve	severity	trivy_title
+CVE-2026-89530	CRITICAL	kernel: svcrdma: Reject inline replies that overflow the pull-up buffer
+CVE-2026-89652	CRITICAL	kernel: ceph: bound copied dentry name length in NFS export get_name
+CVE-2026-89659	CRITICAL	kernel: NFSD: Prevent client use-after-free during delegation revoke
+CVE-2026-89708	CRITICAL	kernel: nfsd: RCU-protect cl_cb_session to fix use-after-free on session teardown
+CVE-2026-90037	CRITICAL	In the Linux kernel, the following vulnerability has been resolved: N...
+CVE-2026-90162	CRITICAL	kernel: ksmbd: defer publishing granted locks to prevent UAF/double-free race
+CVE-2026-93221	CRITICAL	kernel: nfsd: convert nfsd_net boolean flags to unsigned long flags word
+CVE-2026-98365	CRITICAL	kernel: RDMA/rxe: Fix integer overflow in mr_check_range() leading to OOB access
+CVE-2026-98571	CRITICAL	kernel: net: stmmac: clear stale buf->page after recycling on skb build failure...
+CVE-2026-98621	CRITICAL	kernel: net: gue: reject invalid REMCSUM offsets
+CVE-2026-98725	CRITICAL	kernel: nvmet-auth: fix out-of-bounds write in nvmet_auth_challenge()
+CVE-2026-98805	CRITICAL	In the Linux kernel, the following vulnerability has been resolved: t...
+CVE-2022-50240	HIGH	kernel: binder: fix UAF of alloc->vma in race with munmap()
+CVE-2025-40190	HIGH	kernel: ext4: guard against EA inode refcount underflow in xattr update
+CVE-2026-100074	HIGH	In the Linux kernel, the following vulnerability has been resolved: b...
+CVE-2026-68103	HIGH	kernel: drm/amdgpu: reject mapping a reserved doorbell to a new queue
+CVE-2026-68451	HIGH	kernel: s390/zcrypt: Validate length for CCA ECC private key requests
+CVE-2026-72198	HIGH	kernel: ntfs: reject non-resident records for resident-only attributes
+CVE-2026-72497	HIGH	kernel: RDMA/bnxt_re: Add a max slot check for SQ
+CVE-2026-74446	HIGH	kernel: drm/amdkfd: hold event_mutex while checkpointing CRIU events
+CVE-2026-74454	HIGH	kernel: drm/vc4: Supply the overflow slot size in BPOS, not the whole...
+CVE-2026-74465	HIGH	kernel: net: openvswitch: fix potential UAF on meter attach failure
+CVE-2026-74470	HIGH	kernel: scsi: scsi_debug: Fix REPORT ZONES alloc_len underflow OOB write
+CVE-2026-74506	HIGH	kernel: afs: Fix UAF when sending a message
+CVE-2026-74510	HIGH	kernel: Bluetooth: mgmt: fix UAF in pair command cancellation
+CVE-2026-74522	HIGH	kernel: ksmbd: fix use-after-free in __close_file_table_ids()
+CVE-2026-74529	HIGH	kernel: Bluetooth: hci_sync: hold conn in hci_connect_pa_sync() callback
+CVE-2026-74530	HIGH	kernel: Bluetooth: hci_sync: hold conn in hci_connect_big_sync() callback
+CVE-2026-74533	HIGH	kernel: Bluetooth: ISO: fix race of kfree vs kref_get_unless_zero
+CVE-2026-74534	HIGH	kernel: Bluetooth: ISO: fix refcounting of iso_conn
+CVE-2026-74535	HIGH	kernel: Bluetooth: ISO: avoid deadlocks in iso_sock_timeout
+CVE-2026-74537	HIGH	kernel: Bluetooth: ISO: hold sk properly in iso_conn_ready
+CVE-2026-74565	HIGH	kernel: netfilter: nf_tables: make nft_object rhltable per table
+CVE-2026-74578	HIGH	kernel: crypto: algif_skcipher - force synchronous processing on trees without ctx->state
+CVE-2026-74677	HIGH	kernel: net: usb: ipheth: fix carrier_work UAF on disconnect
+CVE-2026-74684	HIGH	kernel: net: tap: set skb->dev before parsing virtio net header in tap_get_user_xdp()...
+CVE-2026-74700	HIGH	kernel: net/sched: cls_api: Always acquire rtnl_lock when destroying locked classifiers
+CVE-2026-74714	HIGH	kernel: bpf: tcp: Fix use-after-free in bpf_iter_tcp_established_batch()
+CVE-2026-74715	HIGH	kernel: bpf: Fix netns reference imbalance in conntrack kfuncs
+CVE-2026-74723	HIGH	kernel: btrfs: lzo: reject inline extents without valid headers
+CVE-2026-74724	HIGH	kernel: ipvs: avoid out-of-bounds write in ip_vs_nat_icmp
+CVE-2026-74744	HIGH	kernel: ipvlan: inherit needed_headroom and needed_tailroom from phy_dev
+CVE-2026-74752	HIGH	kernel: sctp: validate cookie AUTH state before use
+CVE-2026-80551	HIGH	kernel: s390/vfio_ccw: Ensure first IDAW remains constant
+CVE-2026-80554	HIGH	kernel: s390/vfio_ccw: Limit the number of channel program segments
+CVE-2026-80681	HIGH	kernel: vxlan: re-fetch eth header after route_shortcircuit()
+CVE-2026-80683	HIGH	kernel: Bluetooth: SCO: give the socket its own sco_conn reference
+CVE-2026-80691	HIGH	kernel: scsi: target: iblock: Fix wrong PR ops NULL check for PREEMPT/RELEASE...
+CVE-2026-80692	HIGH	kernel: Bluetooth: hci_sync: hold conn in hci_connect_acl/le_sync() callbacks
+CVE-2026-80693	HIGH	kernel: idpf: bound interrupt-vector register fill to the allocated array
+CVE-2026-80700	HIGH	kernel: drm/vmwgfx: validate external BO copy bounds for both stride paths
+CVE-2026-80702	HIGH	kernel: drm/vmwgfx: fix guest_memory_dirty bitfield clobbered as size
+CVE-2026-80710	HIGH	kernel: s390/dasd: Fix undersized format-check buffer
+CVE-2026-80714	HIGH	kernel: ipvs: do not propagate one-packet flag to synced conns
+CVE-2026-80716	HIGH	kernel: ALSA: pcm: wake linked drain waiters on unlink
+CVE-2026-80718	HIGH	kernel: mm/percpu-km: fix bitmap overflow and accounting in pcpu_create_chunk()
+CVE-2026-80721	HIGH	kernel: Bluetooth: ISO: ensure no dangling hcon references in iso_conn
+CVE-2026-80837	HIGH	kernel: netfilter: nf_tables: don't queue packet path object notifications
+CVE-2026-80841	HIGH	kernel: net/packet: defer vmalloc TX_RING free until skbs finish
+CVE-2026-80852	HIGH	kernel: tls: device: fix out-of-bounds write in tls_append_frag()
+CVE-2026-80864	HIGH	kernel: RDMA/rxe: Fix responder UAF on IB_QP_MAX_DEST_RD_ATOMIC modify_qp
+CVE-2026-80891	HIGH	kernel: KVM: s390: pci: Validate AIBV and AISB before pinning guest pages...
+CVE-2026-80905	HIGH	kernel: net: tap: fix wrong transport_header when sending VLAN-tagged frame
+CVE-2026-80937	HIGH	kernel: wifi: mt76: mt7915: bound the device EEPROM address before the EFUSE...
+CVE-2026-80980	HIGH	kernel: net/smc: stop killed, freed and out_of_sync sharing a byte
+CVE-2026-80982	HIGH	kernel: net/smc: fix use-after-free in smc_rx_pipe_buf_release()
+CVE-2026-80991	HIGH	kernel: net: ravb: serialize PTP clock teardown
+CVE-2026-89448	HIGH	kernel: iommu/vt-d: Force requesting ACS when tboot is enabled
+CVE-2026-89481	HIGH	kernel: nvme-tcp: fix host memory disclosure on R2T for a read command...
+CVE-2026-89492	HIGH	kernel: ocfs2: validate directory-index entry counts when reading metadata
+CVE-2026-89520	HIGH	kernel: sched/core: Make core-sched flips wait for in-flight selections
+CVE-2026-89526	HIGH	kernel: svcrdma: Validate Read chunk positions before reconstruction
+CVE-2026-89528	HIGH	kernel: svcrdma: Reject Read lists that exceed the page budget
+CVE-2026-89531	HIGH	kernel: svcrdma: Reject connection when transport allocation fails
+CVE-2026-89537	HIGH	kernel: SUNRPC: Reject short RFC 4121 MIC tokens in gss_krb5_verify_mic_v2
+CVE-2026-89544	HIGH	kernel: SUNRPC: fix gssx_dec_option_array error path bugs
+CVE-2026-89550	HIGH	kernel: SUNRPC: svcauth_gss: enforce krb5 token minimum length
+CVE-2026-89564	HIGH	kernel: ip: orphan prefetched skbs before multicast forwarding
+CVE-2026-89565	HIGH	kernel: ipip: fix skb leak in collect_md mode when metadata_dst allocation fails...
+CVE-2026-89580	HIGH	kernel: bpf: Disable preemption in __bpf_get_stack
+CVE-2026-89622	HIGH	kernel: HID: mcp2221: clear rxbuf after I2C/SMBus transfer completes
+CVE-2026-89631	HIGH	kernel: smb: client: reject a tree connect response whose byte count is...
+CVE-2026-89633	HIGH	kernel: smb: client: fix OOB read/write from unvalidated DataOffset in coalesce_t2()
+CVE-2026-89637	HIGH	kernel: smb: client: fix UAF and buffer leak in cifs_check_trans2() for malformed...
+CVE-2026-89638	HIGH	kernel: smb: client: clear setuid/setgid bit on write with cifsacl/modefromsid/posix extensions
+CVE-2026-89675	HIGH	kernel: nfsd: fix UAF in async copy cancel and shutdown
+CVE-2026-89676	HIGH	kernel: nfsd: fix stale s2s_cp_stateids IDR entry for async COPY
+CVE-2026-89680	HIGH	kernel: nfsd: fix nfsd_file leak on inter-server COPY setup failure
+CVE-2026-89685	HIGH	kernel: nfsd: fix clock domain mismatch in clients_still_reclaiming()
+CVE-2026-89707	HIGH	kernel: nfsd: release path refs on follow_down() error
+CVE-2026-89788	HIGH	In the Linux kernel, the following vulnerability has been resolved: k...
+CVE-2026-89803	HIGH	In the Linux kernel, the following vulnerability has been resolved: d...
+CVE-2026-89805	HIGH	In the Linux kernel, the following vulnerability has been resolved: d...
+CVE-2026-89810	HIGH	kernel: drm/amdkfd: Fix error path at svm_migrate_copy_to_ram
+CVE-2026-89837	HIGH	kernel: f2fs: fix dentry folio leak in find_in_level
+CVE-2026-89907	HIGH	In the Linux kernel, the following vulnerability has been resolved: L...
+CVE-2026-89913	HIGH	kernel: KVM: arm64: vgic-v3: take an LPI reference in vgic_v3_save_pending_tables
+CVE-2026-89922	HIGH	In the Linux kernel, the following vulnerability has been resolved: K...
+CVE-2026-90003	HIGH	kernel: futex: Prevent rcuwait use-after-free during requeue PI
+CVE-2026-90048	HIGH	In the Linux kernel, the following vulnerability has been resolved: f...
+CVE-2026-90057	HIGH	kernel: slip: remove slip_hangup() to fix use-after-free in slip_receive_buf()
+CVE-2026-90092	HIGH	kernel: Bluetooth: L2CAP: reject accept queue add unless BT_LISTEN
+CVE-2026-90093	HIGH	kernel: Bluetooth: L2CAP: access chan->conn safely in get/setsockopt
+CVE-2026-90104	HIGH	kernel: NFSv4.1: zero referring call lists before decoding
+CVE-2026-90108	HIGH	kernel: net/smc: free stashed qentry before overwrite in REQ_ADD_LINK to ADD_LINK transition...
+CVE-2026-90111	HIGH	kernel: ip6mr: do not clone dst in ip6mr_cache_report()
+CVE-2026-90148	HIGH	kernel: NFSv4: Fix incorrect argument passed to nfs4_delete_lease() in nfs4_add_lease()
+CVE-2026-90149	HIGH	kernel: NFSv4/flexfiles: fix NULL dereference for NFSv4.0 data servers
+CVE-2026-90150	HIGH	kernel: pnfs/blocklayout: Fix device leaks on parse failure
+CVE-2026-90152	HIGH	kernel: smb/server: fix session leak in ksmbd_session_register()
+CVE-2026-90155	HIGH	kernel: ksmbd: detach blocked lock requests before freeing
+CVE-2026-90161	HIGH	kernel: erofs: fix interlaced ztailpacking pclusters
+CVE-2026-90167	HIGH	kernel: ksmbd: serialize oplock close with pending break ownership
+CVE-2026-90169	HIGH	kernel: ksmbd: free preauth sessions on connection teardown
+CVE-2026-90199	HIGH	kernel: fs/ntfs3: reject out-of-range evcn in mi_enum_attr()
+CVE-2026-90200	HIGH	kernel: fs/ntfs3: fix integer overflow in MFT cluster validation
+CVE-2026-90204	HIGH	kernel: ocfs2: validate DIO orphan slot during inode read
+CVE-2026-90205	HIGH	kernel: ocfs2: validate orphan slot during inode read
+CVE-2026-90217	HIGH	kernel: bpf: Compare iterator types during state pruning
+CVE-2026-90227	HIGH	kernel: nvme/ioctl: check SUBMIT_IO with nvme_cmd_allowed()
+CVE-2026-90237	HIGH	kernel: netfilter: nft_ct: move custom expectation support to helper
+CVE-2026-90256	HIGH	kernel: Bluetooth: L2CAP: use proto_lock for l2cap_data to fix l2cap_disconn_ind
+CVE-2026-90313	HIGH	kernel: bpf, cgroup: Fix invalid storage access after __cgroup_bpf_attach failed
+CVE-2026-90317	HIGH	kernel: bpf: Invalidate RCU pointers after final spin unlock
+CVE-2026-90320	HIGH	kernel: ocfs2: validate external xattr entries when reading metadata
+CVE-2026-90321	HIGH	kernel: ocfs2: validate inline xattrs during inode block validation
+CVE-2026-90324	HIGH	kernel: ublk: check import_ubuf() return value
+CVE-2026-90343	HIGH	kernel: wifi: cfg80211: stop PMSR before P2P and NAN teardown
+CVE-2026-90375	HIGH	kernel: wifi: mt76: fix non-AQL packet accounting for MLO stations
+CVE-2026-90380	HIGH	kernel: wifi: mt76: mt792x: fix use-after-free in mt76_rx_poll_complete
+CVE-2026-90392	HIGH	kernel: bpf: Fix potential UAF when reading bpf link info
+CVE-2026-90398	HIGH	kernel: wifi: ath11k: fix stride mismatch in mac_phy_caps_parse()
+CVE-2026-90417	HIGH	kernel: RDMA/cxgb4: Fix dereg_skb leak and double free in write_tpt_entry()
+CVE-2026-92499	HIGH	kernel: ext4: validate readdir offset before accessing dirent
+CVE-2026-92507	HIGH	kernel: RDMA/core: Fix potential use after free in ib_dealloc_pd_user()
+CVE-2026-92509	HIGH	kernel: RDMA/core: Fix potential use after free in counter_release()
+CVE-2026-92510	HIGH	kernel: RDMA/core: Fix potential use after free in ib_destroy_srq_user()
+CVE-2026-92511	HIGH	kernel: RDMA/core: Fix potential use after free in ib_destroy_cq_user()
+CVE-2026-92512	HIGH	kernel: RDMA/core: Fix use after free in ib_query_qp()
+CVE-2026-93105	HIGH	kernel: esp: do not unref managed frag pages in esp_ssg_unref()
+CVE-2026-93125	HIGH	kernel: bpf: Reject rdonly/rdwr_buf_size kfunc arguments that exceed u32 max
+CVE-2026-93144	HIGH	kernel: bpf: Reject writes through untrusted BTF pointers
+CVE-2026-93148	HIGH	kernel: bpf: Reject MEM_ALLOC BTF accesses past object bounds
+CVE-2026-93154	HIGH	kernel: RDMA/irdma: Add refcounting to user ring MRs
+CVE-2026-93175	HIGH	kernel: drm/amd/display: Fix dangling pointer in CRTC reset function
+CVE-2026-93176	HIGH	kernel: drm/amd/display: Fix dangling pointer in plane reset function
+CVE-2026-93192	HIGH	kernel: drm/v3d: Clear queue->active_job when v3d_fence_create() fails
+CVE-2026-93196	HIGH	kernel: nvdimm: virtio_pmem: refcount requests for token lifetime
+CVE-2026-93199	HIGH	kernel: i3c: master: Do not treat master device as a duplicate target...
+CVE-2026-93210	HIGH	kernel: smb: client: harden DFS cache against invalid target hints
+CVE-2026-93282	HIGH	kernel: ksmbd: fix maximum allowed access checks
+CVE-2026-93787	HIGH	kernel: smb: client: bound dirent name against end of SMB response in...
+CVE-2026-93790	HIGH	kernel: wifi: iwlwifi: mvm: fix out-of-bounds tid_data access in BA notif
+CVE-2026-93792	HIGH	In the Linux kernel, the following vulnerability has been resolved: w...
+CVE-2026-93796	HIGH	kernel: wifi: iwlwifi: pcie: null RX pointers after free
+CVE-2026-93806	HIGH	kernel: wifi: cfg80211: validate assoc response length before status and IE access...
+CVE-2026-93817	HIGH	kernel: perf: Fix addr_filter_ranges lifetime
+CVE-2026-93824	HIGH	kernel: tls: reject the combination of TLS and sockmap
+CVE-2026-93828	HIGH	kernel: exfat: fix handling of damaged volume in exfat_create_upcase_table()
+CVE-2026-97415	HIGH	kernel: btrfs: tree-checker: validate names in ROOT_REF and ROOT_BACKREF
+CVE-2026-97429	HIGH	kernel: drm/amdkfd: fix UAF race in destroy_queue_cpsch
+CVE-2026-97442	HIGH	kernel: wifi: ath11k: fix invalid data access in ath11k_dp_rx_h_undecap_nwifi
+CVE-2026-97493	HIGH	kernel: drm/amdgpu: Bound GPIO I2C table entry count from VBIOS
+CVE-2026-97497	HIGH	kernel: drm/amdkfd: Check bounds for allocate_sdma_queue restore_sdma_id
+CVE-2026-97513	HIGH	kernel: media: chips-media: wave5: Release m2m_ctx after Instance Removed from List
+CVE-2026-97530	HIGH	kernel: scsi: qla2xxx: Fix soft lockup polling continuation IOCB signature
+CVE-2026-97555	HIGH	kernel: smb: client: fix heap overflow in DACL owner/group rewrite
+CVE-2026-97557	HIGH	kernel: smb: client: avoid leaking refcount in cifs_queue_oplock_break()
+CVE-2026-97562	HIGH	kernel: smb: client: pin DFS superblock in iterator callback
+CVE-2026-97564	HIGH	kernel: smb: client: reject userspace cifs.idmap descriptions
+CVE-2026-97565	HIGH	kernel: smb: client: reject short READ responses in CIFSSMBRead()
+CVE-2026-97581	HIGH	kernel: media: verisilicon: hantro: bound G2 HEVC tile loop to the buffer...
+CVE-2026-97603	HIGH	kernel: idpf: disable DIM work before freeing q_vectors
+CVE-2026-97615	HIGH	kernel: net: bridge: use option bits for CFM/MRP frame handlers
+CVE-2026-97906	HIGH	kernel: bootconfig: Fix integer overflow in initrd size check
+CVE-2026-97960	HIGH	kernel: perf/x86/intel: Prevent drain_pebs() reentry
+CVE-2026-97988	HIGH	kernel: vhost: invalidate vring access on IOTLB transitions
+CVE-2026-98017	HIGH	kernel: net/sched: defer qdisc freeing after failed creation
+CVE-2026-98019	HIGH	kernel: bpf: mark a NULL call argument precise
+CVE-2026-98033	HIGH	kernel: bpf: Preserve inner map identity in callback frames
+CVE-2026-98034	HIGH	kernel: bpf: Mark NULL kptr stores precise
+CVE-2026-98041	HIGH	kernel: bpf: Don't predict JMP32 pointer vs zero comparisons
+CVE-2026-98056	HIGH	kernel: nvme: remove stale namespaces by NSID range during scan
+CVE-2026-98084	HIGH	In the Linux kernel, the following vulnerability has been resolved: b...
+CVE-2026-98085	HIGH	kernel: bpf: backtrack_insn(): Handle ld_{abs,ind} subprog exit edge
+CVE-2026-98104	HIGH	kernel: net/sched: cls_u32: fix duplicate handle when node ID pool is exhausted...
+CVE-2026-98107	HIGH	kernel: Bluetooth: L2CAP: fix out-of-bounds write in l2cap_ecred_connect
+CVE-2026-98115	HIGH	kernel: ksmbd: safely drain sessions during logoff
+CVE-2026-98134	HIGH	kernel: bpf: check_cond_jmp_op(): properly infer if register is null
+CVE-2026-98164	HIGH	kernel: KVM: x86/mmu: Check write tracking in all address spaces
+CVE-2026-98167	HIGH	kernel: smb: client: fix server->total_read for compound encrypted PDUs
+CVE-2026-98171	HIGH	In the Linux kernel, the following vulnerability has been resolved: s...
+CVE-2026-98222	HIGH	kernel: KEYS: encrypted: fix integer overflow of datablob_len
+CVE-2026-98229	HIGH	kernel: xfrm: save input state data before secpath resets
+CVE-2026-98260	HIGH	kernel: exec: Cleanup POSIX timers right after de_thread()
+CVE-2026-98283	HIGH	kernel: KVM: PPC: Book3S HV: fix use-after-free in kvmhv_emulate_tlbie_all_lpid()
+CVE-2026-98332	HIGH	kernel: wifi: mac80211: only operate on TDLS peers in the TDLS code...
+CVE-2026-98333	HIGH	kernel: wifi: mac80211: reset the LED state when ifup fails
+CVE-2026-98341	HIGH	kernel: wifi: cfg80211: don't free driver-owned scan requests
+CVE-2026-98359	HIGH	kernel: RDMA/core: Reject unregistering netdevs in ib_get_eth_speed
+CVE-2026-98364	HIGH	kernel: xfrm: hold net_device reference under RCU in bundle creation
+CVE-2026-98376	HIGH	kernel: bpf: Use array_map_meta_equal for percpu array inner map replacement
+CVE-2026-98420	HIGH	kernel: ksmbd: follow SMB2 session expiration semantics
+CVE-2026-98432	HIGH	kernel: ipv4: free inet_opt and ireq_opt after an RCU grace period
+CVE-2026-98439	HIGH	kernel: smb/server: cancel async requests when closing connection
+CVE-2026-98440	HIGH	kernel: KVM: arm64: nv: Delay freeing of shadow S2 structures until VM...
+CVE-2026-98441	HIGH	kernel: net/sched: act_ct: avoid modifying shared unconfirmed ct entry
+CVE-2026-98442	HIGH	kernel: net/sched: act_ct: fix helper UAF due to extensions realloc
+CVE-2026-98446	HIGH	kernel: xfs: don't let hidden_space go negative in xfs_metafile_resv_init
+CVE-2026-98454	HIGH	kernel: smb: client: fix create context out-of-bounds reads
+CVE-2026-98456	HIGH	kernel: Bluetooth: mgmt: fix race in read_unconf_index_list()
+CVE-2026-98457	HIGH	kernel: Bluetooth: L2CAP: validate frame length before control and FCS access
+CVE-2026-98459	HIGH	kernel: Bluetooth: ISO: balance the parent hold in hci_bind_bis()
+CVE-2026-98462	HIGH	kernel: Bluetooth: hci_conn: fix CIS hold ownership on reuse
+CVE-2026-98464	HIGH	kernel: RISC-V: KVM: Synchronize hrtimer callback during teardown
+CVE-2026-98479	HIGH	kernel: scsi: libiscsi_tcp: Check the data direction of a Data-In PDU
+CVE-2026-98487	HIGH	kernel: net: bridge: mdb: restart port group walk after deletion
+CVE-2026-98490	HIGH	kernel: net: openvswitch: conntrack: fix helper UAF due to extensions realloc
+CVE-2026-98491	HIGH	kernel: net: openvswitch: conntrack: avoid modifying shared unconfirmed ct entry
+CVE-2026-98503	HIGH	kernel: packet: use ubuf_info completion for TX_RING packets
+CVE-2026-98515	HIGH	kernel: drm/nouveau: fix double-free in nvif_vmm_dtor
+CVE-2026-98524	HIGH	kernel: rds: ib: Clear the sg list when mapping an MR fails...
+CVE-2026-98526	HIGH	kernel: llc: reserve device headroom for allocated frames
+CVE-2026-98532	HIGH	kernel: ipv6: do not let ipv6_find_hdr() return an offset past the packet...
+CVE-2026-98548	HIGH	kernel: sctp: discard the rest of the packet on a stale-cookie error...
+CVE-2026-98561	HIGH	kernel: nfp: hold IPsec RX state under the XArray lock
+CVE-2026-98567	HIGH	kernel: net: xps: reject an out of range traffic class
+CVE-2026-98568	HIGH	kernel: vxlan: use one headroom snapshot for neighbour replies
+CVE-2026-98570	HIGH	kernel: net: ipv6: keep room for the mac header in dst_dev_overhead()
+CVE-2026-98572	HIGH	kernel: bpf: Fix immediate JMP JEQ/JNE on MIPS32
+CVE-2026-98573	HIGH	kernel: net: skbuff: fix pull-bound underflow in skb_checksum_setup_ipv6()
+CVE-2026-98580	HIGH	kernel: nfc: llcp: Fix race condition in accept_queue lifecycle
+CVE-2026-98586	HIGH	kernel: sctp: hold asoc or transport before mod_timer() in timer handlers
+CVE-2026-98588	HIGH	kernel: bpf, sockmap: Reject max_entries > INT_MAX in sock_map_alloc
+CVE-2026-98589	HIGH	kernel: bpf: Reject pkt arguments in mutating subprogs
+CVE-2026-98590	HIGH	kernel: bpf: Fix bpf_sock context code generation
+CVE-2026-98591	HIGH	kernel: bpf: Fix bounds check for skb-backed dynptrs
+CVE-2026-98599	HIGH	kernel: bpf: Reject non-negative offsets in stack_slot_obj_get_spi()
+CVE-2026-98601	HIGH	kernel: Bluetooth: btintel_pcie: validate device-supplied DMA indices
+CVE-2026-98606	HIGH	kernel: drm/virtio: release the GEM object on virtio_gpu_vram_create() errors
+CVE-2026-98624	HIGH	kernel: netfilter: nfnetlink_queue: hold nfnl mutex in event notifier
+CVE-2026-98625	HIGH	kernel: netfilter: flowtable: publish HW_DEAD after worker is done
+CVE-2026-98626	HIGH	kernel: bpf: Restrict CO-RE poisoning to relocatable instructions
+CVE-2026-98632	HIGH	kernel: Bluetooth: mgmt: Dequeue pending mesh_send_sync entries on cancel
+CVE-2026-98634	HIGH	kernel: scsi: sd_zbc: Reject disks with too many zones
+CVE-2026-98635	HIGH	kernel: scsi: block: Fix zones_cond out-of-bounds write on zone report
+CVE-2026-98641	HIGH	kernel: bpf, arm64: set up the frame pointer for the exception callback...
+CVE-2026-98642	HIGH	kernel: bpf: Fix UAF due to concurrent consumption of ttrace lists in...
+CVE-2026-98649	HIGH	kernel: KVM: s390: Fix race in _destroy_pages_crste()
+CVE-2026-98651	HIGH	kernel: KVM: s390: Properly handle NULL pointer in dat_cond_set_storage_key()
+CVE-2026-98652	HIGH	kernel: KVM: s390: Add missing srcu in kvm_s390_set_irq_state()
+CVE-2026-98689	HIGH	kernel: thunderbolt: Don't access a DP tunnel after its DPRX read was...
+CVE-2026-98699	HIGH	kernel: wifi: mac80211: fix mesh fast xmit path deletion UAF
+CVE-2026-98701	HIGH	kernel: wifi: mac80211: release mesh path quota on failed additions
+CVE-2026-98702	HIGH	kernel: kernel: Denial of Service via invalid channel switch frame in mac80211...
+CVE-2026-98704	HIGH	kernel: wifi: mac80211: keep fallback association elements alive
+CVE-2026-98706	HIGH	kernel: wifi: mac80211: drain PS delivery work during station teardown
+CVE-2026-98707	HIGH	kernel: wifi: mac80211: shut down RX BA session timer on teardown
+CVE-2026-98708	HIGH	kernel: kernel: mac80211: Denial of Service via use-after-free in channel context replacement...
+CVE-2026-98709	HIGH	kernel: kernel: mac80211: Denial of Service via use-after-free during channel switching
+CVE-2026-98712	HIGH	kernel: KVM: arm64: vgic: Take a refcount on IRQs referenced by last_lr_irq...
+CVE-2026-98719	HIGH	kernel: KVM: SEV: Nullify "have run CPUs" mask pointer when freeing it...
+CVE-2026-98730	HIGH	kernel: Bluetooth: btintel_pcie: reject oversized TX packets in send_frame()
+CVE-2026-98733	HIGH	kernel: kernel: Denial of Service via use-after-free in Bluetooth ISO packet queueing...
+CVE-2026-98734	HIGH	kernel: kernel: Denial of Service via use-after-free in Bluetooth connection scheduling
+CVE-2026-98735	HIGH	kernel: Bluetooth: hci_core: Serialize ACL scheduling with channel deletion
+CVE-2026-98737	HIGH	kernel: kernel: Denial of service via Bluetooth inquiry cache use-after-free
+CVE-2026-98738	HIGH	kernel: kernel: denial of service via race condition in Bluetooth SMP remote...
+CVE-2026-98739	HIGH	kernel: Bluetooth: RFCOMM: Fix initial port reference race
+CVE-2026-98741	HIGH	kernel: ALSA: ua101: reject mismatched capture/playback packet sizes
+CVE-2026-98742	HIGH	kernel: kernel: Use-after-free via race condition in ALSA sequencer compatibility ioctls
+CVE-2026-98752	HIGH	kernel: tty: port: fix tty_port_tty_vhangup() race
+CVE-2026-98754	HIGH	kernel: tty: vcc: hold port lock when clearing tty pointer in vcc_cleanup...
+CVE-2026-98763	HIGH	kernel: usb: core: clear both ep_in and ep_out for non-ep0 control endpoints...
+CVE-2026-98776	HIGH	kernel: kernel: Privilege escalation via binderfs use-after-free
+CVE-2026-98788	HIGH	kernel: kernel: Privilege escalation via use-after-free during futex hash resizing
+CVE-2026-98792	HIGH	In the Linux kernel, the following vulnerability has been resolved: n...
+CVE-2026-98794	HIGH	In the Linux kernel, the following vulnerability has been resolved: i...
+CVE-2026-98797	HIGH	kernel: net: cap skb->queue_mapping when the tx queue is picked
+CVE-2026-98799	HIGH	In the Linux kernel, the following vulnerability has been resolved: b...
+CVE-2026-98800	HIGH	kernel: kernel: Denial of Service via use-after-free in BPF trampoline
+CVE-2026-98803	HIGH	kernel: net: stmmac: fix rx Scatter-Gather support
+CVE-2026-98804	HIGH	In the Linux kernel, the following vulnerability has been resolved: n...
+CVE-2026-98813	HIGH	kernel: bpf: Hold map BTF for the memory allocator destructor record
+CVE-2026-98823	HIGH	kernel: wifi: cfg80211: preserve hidden-group beacon IE ownership
+CVE-2026-98824	HIGH	kernel: wifi: mac80211: validate TX status rate metadata
+CVE-2026-98827	HIGH	In the Linux kernel, the following vulnerability has been resolved: w...
+CVE-2026-98829	HIGH	kernel: wifi: mac80211: drop oversized fragments to avoid extra_len overflow
+CVE-2026-98836	HIGH	In the Linux kernel, the following vulnerability has been resolved: A...
+CVE-2026-98837	HIGH	kernel: ALSA: caiaq: unregister the input device when probe fails
+CVE-2026-98846	HIGH	In the Linux kernel, the following vulnerability has been resolved: s...
+CVE-2026-98858	HIGH	In the Linux kernel, the following vulnerability has been resolved: i...
+CVE-2026-98861	HIGH	kernel: kernel: Denial of Service via fprobe use-after-free
+CVE-2026-98862	HIGH	kernel: audit: fix exe mark UAF in kill_rules()
+CVE-2026-98863	HIGH	kernel: KVM: x86: Re-pend GET_NESTED_STATE_PAGES if getting said pages fails

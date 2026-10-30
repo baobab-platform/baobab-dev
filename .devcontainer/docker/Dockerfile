@@ -279,6 +279,17 @@ RUN set -euo pipefail; \
 # filenames also come exclusively from versions.lock's *_ASSET_* variables,
 # not reconstructed inline, so a filename typo simply 404s at build time
 # instead of silently verifying against the wrong file.
+# Security rebuild of the adopted Task/yq releases; project Go baselines do
+# not change. Sources, compiler and patched dependency graphs are pinned.
+FROM ubuntu:${UBUNTU_VERSION} AS patched-go-clis
+ARG TARGETARCH
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tar git && rm -rf /var/lib/apt/lists/*
+COPY config/versions.lock /build/versions.lock
+COPY config/security/ /build/security/
+COPY scripts/build-security-clis.sh /build/build-security-clis.sh
+RUN bash /build/build-security-clis.sh "${TARGETARCH}"
+
 FROM ubuntu:${UBUNTU_VERSION} AS cli-tools
 ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -291,6 +302,8 @@ RUN apt-get update && \
 # config/resolve.sh outside of Docker). This stage never executes resolve.sh
 # and never re-derives a version on its own.
 COPY config/versions.lock /tmp/baobab-config/versions.lock
+
+COPY --from=patched-go-clis /out/ /opt/cli-tools/bin/
 
 WORKDIR /tmp/cli-tools
 RUN set -euo pipefail; \
@@ -348,11 +361,6 @@ RUN set -euo pipefail; \
     fetch_verify "https://github.com/eza-community/eza/releases/download/v${EZA_VERSION}/${!EZA_ASSET}" "${!EZA_ASSET}" "${!EZA_SHA}"; \
     extract_binary "${!EZA_ASSET}" eza; \
     \
-    # task — tar.gz
-    TASK_ASSET="TASK_ASSET_${ARCH_SUFFIX}"; TASK_SHA="TASK_SHA256_${ARCH_SUFFIX}"; \
-    fetch_verify "https://github.com/go-task/task/releases/download/v${TASK_VERSION}/${!TASK_ASSET}" "${!TASK_ASSET}" "${!TASK_SHA}"; \
-    extract_binary "${!TASK_ASSET}" task; \
-    \
     # uv — tar.gz, ships both uv and uvx in the same archive
     UV_ASSET="UV_ASSET_${ARCH_SUFFIX}"; UV_SHA="UV_SHA256_${ARCH_SUFFIX}"; \
     fetch_verify "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/${!UV_ASSET}" "${!UV_ASSET}" "${!UV_SHA}"; \
@@ -363,11 +371,6 @@ RUN set -euo pipefail; \
     GH_ASSET="GH_ASSET_${ARCH_SUFFIX}"; GH_SHA="GH_SHA256_${ARCH_SUFFIX}"; \
     fetch_verify "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${!GH_ASSET}" "${!GH_ASSET}" "${!GH_SHA}"; \
     extract_binary "${!GH_ASSET}" gh; \
-    \
-    # yq — raw binary, no archive to extract
-    YQ_ASSET="YQ_ASSET_${ARCH_SUFFIX}"; YQ_SHA="YQ_SHA256_${ARCH_SUFFIX}"; \
-    fetch_verify "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/${!YQ_ASSET}" "${!YQ_ASSET}" "${!YQ_SHA}"; \
-    cp "${!YQ_ASSET}" /opt/cli-tools/bin/yq; \
     \
     # cosign — raw binary, no archive to extract
     COSIGN_ASSET="COSIGN_ASSET_${ARCH_SUFFIX}"; COSIGN_SHA="COSIGN_SHA256_${ARCH_SUFFIX}"; \
@@ -392,6 +395,17 @@ RUN set -euo pipefail; \
 # with-node/frontend/frontend-e2e/final below do, each pulling in only what
 # their profile actually needs.
 # -----------------------------------------------------------------------------
+# pip 26.2.2 bundles urllib3 independently of system/Poetry packages.
+# Rebuild using upstream's vendoring process and identify the downstream wheel.
+FROM ubuntu:${UBUNTU_VERSION} AS patched-pip
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git python3 python3-venv && rm -rf /var/lib/apt/lists/*
+RUN python3 -m venv /build/tools
+ENV PATH="/build/tools/bin:${PATH}" PIP_NO_CACHE_DIR=1
+COPY config/security/pip-vendoring-requirements.txt /build/requirements.txt
+RUN python -m pip install --require-hashes --only-binary=:all: -r /build/requirements.txt
+COPY scripts/build-security-pip.sh /build/build-security-pip.sh
+RUN bash /build/build-security-pip.sh
+
 FROM ubuntu:${UBUNTU_VERSION} AS base
 
 ARG TARGETARCH
@@ -482,7 +496,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get update && \
     apt-get install -y --no-install-recommends \
       sudo curl wget git unzip zip tar jq tree nano vim less htop procps \
-      ca-certificates gnupg software-properties-common build-essential \
+      ca-certificates gnupg build-essential \
       pkg-config locales tzdata xz-utils apt-transport-https \
       openssh-client dnsutils iproute2 \
     && \
@@ -490,6 +504,24 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     update-locale LANG=en_US.UTF-8 LANGUAGE=en_US:en && \
     ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime && \
     dpkg-reconfigure -f noninteractive tzdata
+
+# Preserve the exact native-build dependency chain and installed UAPI header
+# paths as immutable in-image package-provenance evidence. These compiler
+# prerequisites are intentionally retained, not removed to make Trivy green.
+# The test compiles and executes a small binary against glibc and Linux UAPI
+# headers on the actual image architecture. The installed package manifest
+# can be read from each built profile even while its security gate is HELD.
+RUN set -euo pipefail; \
+    mkdir -p /usr/local/share/baobab/security; \
+    dpkg-query -W -f='${Package}\t${Version}\t${source:Package}\n' \
+      build-essential libc6-dev linux-libc-dev \
+      > /usr/local/share/baobab/security/native-build-dependencies.tsv; \
+    dpkg-query -L linux-libc-dev \
+      > /usr/local/share/baobab/security/linux-libc-dev-installed-paths.txt; \
+    printf '#include <linux/types.h>\n#include <sys/types.h>\nint main(void) { return 0; }\n' \
+      | cc -x c -o /tmp/baobab-native-uapi-check -; \
+    /tmp/baobab-native-uapi-check; \
+    rm -f /tmp/baobab-native-uapi-check
 
 # Ubuntu 26.04's own base image ships /usr/bin/pebble (Canonical's Pebble
 # service manager, github.com/canonical/pebble) baked directly into the
@@ -540,6 +572,7 @@ COPY config/versions.yaml /usr/local/share/baobab/config/versions.yaml
 COPY config/versions.lock /usr/local/share/baobab/config/versions.lock
 COPY --chmod=0755 config/resolve.sh /usr/local/share/baobab/config/resolve.sh
 COPY --chmod=0755 scripts/npm-install-retry.sh /usr/local/share/baobab/config/npm-install-retry.sh
+COPY config/npm-build-security.json /usr/local/share/baobab/config/npm-build-security.json
 
 ENV BAOBAB_CONFIG_DIR=/usr/local/share/baobab/config
 
@@ -720,13 +753,26 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         TAR_SCRATCH_DIR="$(mktemp -d)" && \
         cd "${TAR_SCRATCH_DIR}" && \
         npm init -y --silent >/dev/null && \
-        npm_install_retry "tar@${NPM_BUNDLED_TAR_VERSION}" --no-save --omit=dev && \
+        NPM_BUNDLED_UNDICI_VERSION="$(node -p 'require(process.env.BAOBAB_CONFIG_DIR + "/npm-build-security.json").undici_version')" && \
+        test "${NPM_BUNDLED_UNDICI_VERSION}" = "6.29.1" && \
+        npm_install_retry "tar@${NPM_BUNDLED_TAR_VERSION}" "undici@${NPM_BUNDLED_UNDICI_VERSION}" --no-save --omit=dev && \
         rm -rf "${NPM_GLOBAL_ROOT}/npm/node_modules/tar" && \
+        rm -rf "${NPM_GLOBAL_ROOT}/npm/node_modules/undici" && \
         cp -r node_modules/tar "${NPM_GLOBAL_ROOT}/npm/node_modules/tar" && \
+        cp -r node_modules/undici "${NPM_GLOBAL_ROOT}/npm/node_modules/undici" && \
+        node -e 'const u = require(process.argv[1]); if (u.version !== "6.29.1") process.exit(1)' "${NPM_GLOBAL_ROOT}/npm/node_modules/undici/package.json" && \
         rm -rf "${TAR_SCRATCH_DIR}" \
     ) && \
     corepack enable && \
     corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
+    # pnpm also ships its own undici; patch real code, retaining the adopted
+    # pnpm release and failing closed if its upstream layout/version changes.
+    PNPM_UNDICI="${COREPACK_HOME}/v1/pnpm/${PNPM_VERSION}/dist/node_modules/undici" && \
+    node -e 'if (require(process.argv[1]).version !== "6.28.0") process.exit(1)' "${PNPM_UNDICI}/package.json" && \
+    rm -rf "${PNPM_UNDICI}" && \
+    cp -r "$(npm root -g)/npm/node_modules/undici" "${PNPM_UNDICI}" && \
+    node -e 'const p=process.argv[1]; if (require(p+"/package.json").version !== "6.29.1" || typeof require(p).request !== "function") process.exit(1)' "${PNPM_UNDICI}" && \
+    test "$(pnpm --version)" = "${PNPM_VERSION}" && \
     corepack prepare yarn@stable --activate && \
     chmod -R a+rX "${COREPACK_HOME}"
 
@@ -1046,7 +1092,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
     PYTHON_MINOR="${PYTHON_VERSION%.*}" && \
     apt-get update && \
-    apt-get install -y --no-install-recommends curl ca-certificates software-properties-common && \
+    apt-get install -y --no-install-recommends curl ca-certificates && \
     if apt-cache show "python${PYTHON_MINOR}" >/dev/null 2>&1; then \
         apt-get install -y --no-install-recommends \
             "python${PYTHON_MINOR}" \
@@ -1056,13 +1102,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
             && apt-get install -y --no-install-recommends "python${PYTHON_MINOR}-pip" \
             || curl -fsSL https://bootstrap.pypa.io/get-pip.py | "python${PYTHON_MINOR}" - --no-cache-dir --break-system-packages ); \
     else \
+        apt-get install -y --no-install-recommends software-properties-common && \
         add-apt-repository -y ppa:deadsnakes/ppa && \
         apt-get update && \
         apt-get install -y --no-install-recommends \
             "python${PYTHON_MINOR}" \
             "python${PYTHON_MINOR}-venv" \
             "python${PYTHON_MINOR}-dev" && \
-        curl -fsSL https://bootstrap.pypa.io/get-pip.py | "python${PYTHON_MINOR}" - --no-cache-dir --break-system-packages; \
+        curl -fsSL https://bootstrap.pypa.io/get-pip.py | "python${PYTHON_MINOR}" - --no-cache-dir --break-system-packages && \
+        apt-get purge -y --auto-remove software-properties-common; \
     fi && \
     update-alternatives --install /usr/bin/python3 python3 "/usr/bin/python${PYTHON_MINOR}" 1 && \
     update-alternatives --install /usr/bin/python  python  /usr/bin/python3 1
@@ -1136,17 +1184,32 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages --upgrade pip 
 # change to where files actually land on disk.
 ENV PIPX_GLOBAL_HOME=/opt/pipx \
     PIPX_GLOBAL_BIN_DIR=/usr/local/bin
+COPY config/python-build-constraints.txt /usr/local/share/baobab/config/python-build-constraints.txt
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
+    export PIP_CONSTRAINT="${BAOBAB_CONFIG_DIR}/python-build-constraints.txt" && \
     python3 -m pip install --no-cache-dir --break-system-packages pipx && \
     export PATH="/usr/local/bin:${PATH}" && \
     python3 -m pipx ensurepath --global && \
     pipx install --global "poetry==${POETRY_VERSION}" && \
     pipx inject --global poetry poetry-plugin-shell && \
-    python3 -m pip install --no-cache-dir --break-system-packages --upgrade "setuptools>=78.1.1" "msgpack>=1.2.1" && \
+    python3 -m pip install --no-cache-dir --break-system-packages --upgrade "setuptools>=78.1.1" "msgpack>=1.2.1" "urllib3==2.8.0" && \
+    python3 -m pip check && \
+    "${PIPX_GLOBAL_HOME}/venvs/poetry/bin/python" -m pip check && \
+    python3 -c 'from importlib.metadata import version; assert version("urllib3") == "2.8.0", "SYSTEM_URLLIB3_PIN_DRIFT"' && \
+    "${PIPX_GLOBAL_HOME}/venvs/poetry/bin/python" -c 'from importlib.metadata import version; assert version("urllib3") == "2.8.0", "POETRY_URLLIB3_PIN_DRIFT"' && \
     chmod -R a+rX "${PIPX_GLOBAL_HOME}"
     
+# Replace both executable pip installations, including pipx's shared installer.
+COPY --from=patched-pip /out/pip-26.2.2+baobab.1-py3-none-any.whl /tmp/baobab-pip.whl
+RUN mv /tmp/baobab-pip.whl /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
+    python3 -m pip install --no-index --no-deps --break-system-packages /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
+    "${PIPX_GLOBAL_HOME}/shared/bin/python" -m pip install --no-index --no-deps /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
+    python3 -c 'from pip._vendor import urllib3; assert urllib3.__version__ == "2.8.0"' && \
+    "${PIPX_GLOBAL_HOME}/shared/bin/python" -c 'from pip._vendor import urllib3; assert urllib3.__version__ == "2.8.0"' && \
+    rm /tmp/pip-26.2.2+baobab.1-py3-none-any.whl
+
 # Application-specific Python packages and the rest of the project's
 # dependencies are intentionally NOT baked in here — they belong to the
 # project's own pyproject.toml / poetry.lock and are installed by
@@ -1288,6 +1351,9 @@ RUN ln -s "$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")" /opt/
 # are unaffected. Real credentials, if a developer ever configures any,
 # belong in their own ~/.m2/settings.xml at the container's runtime, never
 # in this image.
+# Maven 3.9.16 bundles Guava 33.6.0-jre; CVE-2026-102554 is resolved by
+# a checksum-pinned 33.7.2-jre replacement in the same extraction layer.
+# The layout/compatibility guards fail closed instead of suppressing the scan.
 RUN set -euo pipefail; \
     . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
     curl -fsSL -o /tmp/maven.tar.gz \
@@ -1296,7 +1362,15 @@ RUN set -euo pipefail; \
     mkdir -p /opt/maven; \
     tar -xzf /tmp/maven.tar.gz -C /opt/maven --strip-components=1; \
     rm -f /tmp/maven.tar.gz; \
-    python3 -c "import re; p = '/opt/maven/conf/settings.xml'; c = open(p).read(); open(p, 'w').write(re.sub(r'<!--.*?-->', '', c, flags=re.DOTALL))"
+    test -f /opt/maven/lib/guava-33.6.0-jre.jar; \
+    test "$(find /opt/maven/lib -maxdepth 1 -name 'guava-*.jar' | wc -l)" -eq 1; \
+    curl -fsSL --retry 5 -o /opt/maven/lib/guava-33.7.2-jre.jar \
+      "https://repo.maven.apache.org/maven2/com/google/guava/guava/33.7.2-jre/guava-33.7.2-jre.jar"; \
+    echo "b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c  /opt/maven/lib/guava-33.7.2-jre.jar" | sha256sum --check --strict; \
+    rm /opt/maven/lib/guava-33.6.0-jre.jar; \
+    test "$(find /opt/maven/lib -maxdepth 1 -name 'guava-*.jar' | wc -l)" -eq 1; \
+    python3 -c "import re; p = '/opt/maven/conf/settings.xml'; c = open(p).read(); open(p, 'w').write(re.sub(r'<!--.*?-->', '', c, flags=re.DOTALL))"; \
+    /opt/maven/bin/mvn --version
 
 # -----------------------------------------------------------------------------
 # 7. Docker CLI + Compose plugin (client only — Codespaces mounts the host
@@ -1316,6 +1390,15 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CO
       docker-ce-cli \
       docker-compose-plugin \
       docker-buildx-plugin
+
+# Keep the adopted plugin release versions, replacing their vulnerable Go
+# dependencies with the checksum-pinned security rebuilds. Apt drift fails closed.
+RUN dpkg-query -W -f='${Version}' docker-buildx-plugin | grep -E '^0\.38\.1-' && \
+    dpkg-query -W -f='${Version}' docker-compose-plugin | grep -E '^5\.6\.1-'
+COPY --from=patched-go-clis /out/licenses/ /usr/share/licenses/baobab-cli/
+COPY --from=patched-go-clis /out/docker-buildx /usr/libexec/docker/cli-plugins/docker-buildx
+COPY --from=patched-go-clis /out/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
+RUN docker buildx version && docker compose version
 
 # -----------------------------------------------------------------------------
 # 8. Shell productivity & GitHub Actions-adjacent utilities
@@ -1421,6 +1504,7 @@ COPY --chmod=0755 scripts/bootstrap.sh    /usr/local/bin/baobab-bootstrap
 COPY --chmod=0755 scripts/post-create.sh  /usr/local/bin/baobab-post-create
 COPY --chmod=0755 scripts/summary.sh      /usr/local/bin/baobab-summary
 COPY --chmod=0755 scripts/verify.sh       /usr/local/bin/baobab-verify
+COPY --chmod=0755 scripts/audit-python-dependencies.sh /usr/local/bin/baobab-audit-python-dependencies
 
 USER vscode
 WORKDIR /workspaces
@@ -1439,6 +1523,16 @@ RUN poetry config virtualenvs.in-project true
 # Runs as `vscode`, after the USER switch above, since baobab-verify checks
 # the runtime user identity.
 # -----------------------------------------------------------------------------
+
+# Independent installed-distribution audit: system Python, pipx shared installer
+# and Poetry's pipx venv. Unlike Trivy, this directly queries the Python
+# advisory feed via pinned pip-audit and fails the build on any finding.
+# The isolated tool cache is removed in the same layer; the published image
+# does not carry pip-audit's transient build-time dependencies.
+RUN set -euo pipefail; \
+    UV_CACHE_DIR=/tmp/baobab-pip-audit-cache \
+      baobab-audit-python-dependencies --installed; \
+    rm -rf /tmp/baobab-pip-audit-cache
 
 RUN baobab-verify
 
@@ -1503,6 +1597,15 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CO
       docker-ce-cli \
       docker-compose-plugin \
       docker-buildx-plugin
+
+# Keep the adopted plugin release versions, replacing their vulnerable Go
+# dependencies with the checksum-pinned security rebuilds. Apt drift fails closed.
+RUN dpkg-query -W -f='${Version}' docker-buildx-plugin | grep -E '^0\.38\.1-' && \
+    dpkg-query -W -f='${Version}' docker-compose-plugin | grep -E '^5\.6\.1-'
+COPY --from=patched-go-clis /out/licenses/ /usr/share/licenses/baobab-cli/
+COPY --from=patched-go-clis /out/docker-buildx /usr/libexec/docker/cli-plugins/docker-buildx
+COPY --from=patched-go-clis /out/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
+RUN docker buildx version && docker compose version
 
 # -----------------------------------------------------------------------------
 # HashiCorp Terraform

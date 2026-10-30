@@ -14,22 +14,13 @@
 #   7. Tag-gated publish, shift-left security — see policies below.
 #
 # PUBLISH TRIGGER POLICY:
-#   Build + Trivy gate run on every push/PR to `main`. Registry push,
-#   signing, attestation, and GitHub Release wait for an actual `v*.*.*`
-#   tag — a deliberate, reviewed release action, not a side effect of
-#   merging to `main` — OR a workflow_dispatch explicitly requesting an
-#   existing tag rebuild (`workflow_dispatch.inputs.tag`), which follows
-#   the identical path. Every gating `if:` reads
-#   `needs.sanity-check.outputs.is_release` (resolved once, in
-#   sanity-check's "Resolve release context" step, from either
-#   `startsWith(github.ref, 'refs/tags/')` or a validated dispatch tag
-#   input — never `github.event_name != 'pull_request'`, which would also
-#   fire on `main` pushes) — see GHCR auth, the real build, digest
-#   export/upload, and the smoke-test steps, plus the `publish` job's own
-#   `if:`. `metadata-action`'s semver tag rules and the `latest` tag's
-#   `enable:` check likewise read `needs.sanity-check.outputs.release_tag`
-#   rather than the raw ref, since `github.ref` on a workflow_dispatch run
-#   is the dispatched branch, not the tag being rebuilt.
+#   Build and unrestricted Trivy checks run on PR, main and tag pushes.
+#   Only a reviewed v*.*.* tag PUSH can publish an image, sign a digest,
+#   or create a GitHub Release. Manual workflow_dispatch is validation-only
+#   on main; it cannot substitute an alternate tag or source revision.
+#   Every checkout uses github.sha, the GitHub-supplied immutable event SHA.
+#   This closes CodeQL actions/cache-poisoning/poisonable-step (#2) by never
+#   executing a caller-chosen ref in the default-branch dispatch context.
 #
 # SECURITY SCAN TRIGGER POLICY (shift-left):
 #   The Trivy gate ("Build local single-manifest image for scanning"
@@ -51,25 +42,10 @@
 #   just cache-hit — a restore-keys prefix match populates the dir but
 #   still reports cache-hit: false) because hardcoding either flag
 #   breaks the very first run with "cannot be specified on the first
-#   run". `--skip-files` exempts `flutter_web_sdk/**/dart_sdk.js`
-#   (~14-16MB compiled Flutter bundle) from SECRET scanning only — it has
-#   no effect on CVE coverage and only stops the secret scanner flagging a
-#   large first-party bundle as "too large" (observed 2026-08-17). It ALSO
-#   exempts `flutter/bin/cache/artifacts/engine/**/*.jar` from scanning
-#   entirely (both scanners): this Flutter-SDK-bundled JAR
-#   (`android-*/flutter.jar`) is the ONLY Java artifact `final` ships, and
-#   is therefore the sole reason Trivy pulls its own ~922MB Java DB for
-#   this target — a real, deliberately-accepted trade: this JAR is Google's
-#   own prebuilt Flutter engine binary, versioned and shipped by the
-#   Flutter SDK release itself (not something `pip`/`npm`/OS-package-style
-#   CVE tracking meaningfully covers per-jar), used only as local dev
-#   tooling in this devcontainer image, never a production runtime
-#   dependency exposed to end users — unlike the OS/library packages
-#   `--pkg-types os,library` still fully covers. Complements the OCI-layout
-#   scan-target fix below (see "Build local single-manifest image for
-#   scanning") rather than replacing it: removing the one Java artifact
-#   removes the Java DB download's ~922MB disk cost entirely, on top of
-#   that fix's removal of the daemon-loaded duplicate image.
+#   run". Vulnerability and secret scanning covers all shipped paths,
+#   including Flutter engine JARs and bundled package-manager dependencies.
+#   Unfixed HIGH/CRITICAL findings remain blocking; disk pressure must be
+#   addressed through runner/build layout, never by removing scan coverage.
 #   `--skip-version-check` drops Trivy's own unrelated, unpinned
 #   "newer CLI available" network check.
 #
@@ -121,12 +97,9 @@ on:
       - "scripts/**"
       - ".github/workflows/publish.yml"
 
+  # Manual validation is main-only. Rebuilding an arbitrary tag in the
+  # privileged dispatch context is forbidden; publishing requires a tag push.
   workflow_dispatch:
-    inputs:
-      tag:
-        description: Existing tag to rebuild (optional)
-        required: false
-        default: ""
 
 # Cancels superseded PR/branch runs to save CI time; never cancels a `main`
 # or tag run, so production deploy tracks are never interrupted mid-flight.
@@ -152,19 +125,11 @@ defaults:
 
 jobs:
 
-  # Job 1: Pre-flight Lockfile Integrity & Release Context Resolution
-  # Verifies config/versions.lock matches config/versions.yaml and hard-fails
-  # on any drift (PR, branch push, tag push, or workflow_dispatch rebuild
-  # alike — see "Fail on lockfile drift" below; auto-resolution now lives
-  # exclusively in .github/workflows/update-lockfile.yml, never here). Also
-  # resolves which ref every downstream job should build from and whether
-  # this run should publish, so a workflow_dispatch rebuild of an existing
-  # tag (workflow_dispatch.inputs.tag) behaves identically to a real tag
-  # push (see "Resolve release context" below). Runs on every trigger —
-  # build always needs a correct lockfile, whether or not this run ever
-  # publishes anything.
+  # Job 1: Pre-flight immutable event commit verification.
+  # Manual runs validate main only. Only a version-tag push enables
+  # publishing; no dispatch input can override checkout source.
   sanity-check:
-    name: Lockfile Integrity & Auto-Sync
+    name: Frozen Lockfile Integrity
     runs-on: ubuntu-26.04
     timeout-minutes: 20
 
@@ -175,83 +140,51 @@ jobs:
       contents: read
 
     outputs:
-      # Empty/'false' unless this run is a real `v*.*.*` tag push OR a
-      # workflow_dispatch requesting an existing tag rebuild — see "Resolve
-      # release context" below. This is what wires up
-      # workflow_dispatch.inputs.tag (previously declared but never read by
-      # any gating `if:` in this file).
+      # Nonempty / true only on a version-tag push. Manual dispatch is
+      # validation-only on main and cannot set a release tag.
       release_tag: ${{ steps.release-context.outputs.release_tag }}
       is_release: ${{ steps.release-context.outputs.is_release }}
       is_stable_release: ${{ steps.release-context.outputs.is_stable_release }}
-      checkout_ref: ${{ steps.release-context.outputs.checkout_ref }}
 
     steps:
-      # Resolves, in one place, what every downstream job/step needs to
-      # agree on: which ref to check out, whether this run should publish,
-      # and which tag string release metadata should use. Runs before
-      # checkout on purpose — it only needs GitHub Actions context, no repo
-      # files.
-      #
-      # A workflow_dispatch with `tag` set now behaves like rebuilding that
-      # exact tag: checks it out, builds, and — if validation passes —
-      # publishes and releases exactly as a real tag push would. A dispatch
-      # with `tag` left empty behaves as before: validation-only, against
-      # whichever branch was selected in the dispatch UI.
-      #
-      # Tag format is validated here, not left to fail later at checkout or
-      # deep inside "docker/metadata-action produced zero tags" — a
-      # malformed dispatch input fails immediately with a clear message
-      # instead of surfacing as a confusing downstream symptom.
+      # Resolve release status without checking out caller-selected refs.
+      # GitHub sets GITHUB_SHA to the immutable event commit (PR merge SHA
+      # for pull_request, tagged commit for tag push). Manual dispatch runs
+      # only on main and is strictly validation-only.
       - name: Resolve release context
         id: release-context
         run: |
           set -euo pipefail
-          DISPATCH_TAG="${{ github.event.inputs.tag }}"
 
-          # is_stable_release: true only for a tag with no '-' suffix (e.g.
-          # v1.2.5, not v1.2.5-rc.6) — the SAME boundary already used by
-          # docker/metadata-action's 'latest' tag enable: check below,
-          # computed once here as the single source of truth. Feeds the
-          # release job's prerelease: input — it does NOT gate whether the
-          # release job runs at all. RC tags still get a full GitHub
-          # Release with all pull/cosign commands, same as today; they're
-          # just correctly flagged as a pre-release, which GitHub itself
-          # then automatically excludes from ever being shown as "Latest".
           is_stable_release() {
             local tag="$1"
-            if [[ "${tag}" == *-* ]]; then
-              echo "false"
-            else
-              echo "true"
-            fi
+            if [[ "$tag" == *-* ]]; then echo false; else echo true; fi
           }
 
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${DISPATCH_TAG}" ]]; then
-            if [[ ! "${DISPATCH_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.+)?$ ]]; then
-              echo "::error:: workflow_dispatch 'tag' input '${DISPATCH_TAG}' does not match this workflow's own tag pattern (v*.*.* or v*.*.*-*)."
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" && "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "::error:: Manual validation is permitted only on main. Publish from a reviewed release tag push."
+            exit 1
+          fi
+
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == refs/tags/* ]]; then
+            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+              echo "::error:: Release tag does not meet the approved version format."
               exit 1
             fi
-            echo "::notice:: Rebuilding existing tag '${DISPATCH_TAG}' via workflow_dispatch — this run will check out that tag and publish/release exactly as a real tag push would."
-            echo "release_tag=${DISPATCH_TAG}" >> "$GITHUB_OUTPUT"
+            echo "release_tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
             echo "is_release=true" >> "$GITHUB_OUTPUT"
-            echo "is_stable_release=$(is_stable_release "${DISPATCH_TAG}")" >> "$GITHUB_OUTPUT"
-            echo "checkout_ref=${DISPATCH_TAG}" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]]; then
-            echo "release_tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
-            echo "is_release=true" >> "$GITHUB_OUTPUT"
-            echo "is_stable_release=$(is_stable_release "${{ github.ref_name }}")" >> "$GITHUB_OUTPUT"
-            echo "checkout_ref=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            echo "is_stable_release=$(is_stable_release "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
           else
             echo "release_tag=" >> "$GITHUB_OUTPUT"
             echo "is_release=false" >> "$GITHUB_OUTPUT"
             echo "is_stable_release=false" >> "$GITHUB_OUTPUT"
-            echo "checkout_ref=${{ github.event.pull_request.head.ref || github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout source code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ steps.release-context.outputs.checkout_ref }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
       # Pinned + checksummed (not "latest") per this project's binary-pinning
@@ -270,12 +203,12 @@ jobs:
           sudo install -m 0755 /tmp/yq /usr/local/bin/yq
           rm -f /tmp/yq
 
-      - name: Verify lockfile integrity via resolve.sh
+      - name: Verify committed resolutions and upstream asset checksums
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           chmod +x config/resolve.sh
-          ./config/resolve.sh
+          ./config/resolve.sh --locked
 
       - name: Check for lockfile drift
         id: drift-check
@@ -287,7 +220,7 @@ jobs:
           fi
 
       # Lockfile drift is now ALWAYS a hard failure — on PRs, branch
-      # pushes, tag pushes, and workflow_dispatch rebuilds alike. CHANGED:
+      # pushes, tag pushes, and manual main validations alike. CHANGED:
       # this pipeline previously auto-committed resolved drift on branch
       # pushes via git-auto-commit-action, and only hard-failed on tag
       # pushes. That auto-commit was removed:
@@ -306,14 +239,12 @@ jobs:
       - name: Fail on lockfile drift
         if: steps.drift-check.outputs.drift == 'true'
         run: |
-          echo "::error:: config/versions.lock is out of date with config/versions.yaml on ref '${{ steps.release-context.outputs.checkout_ref }}'."
+          echo "::error:: config/versions.lock is out of date with config/versions.yaml on immutable commit '$GITHUB_SHA'."
           echo "::error:: This pipeline no longer auto-commits resolved lockfiles. Run config/resolve.sh locally, or trigger .github/workflows/update-lockfile.yml, review and merge the resulting PR, then re-run."
           exit 1
 
-      # Hand off the freshly-resolved lockfile via artifact: build's
-      # checkout later in this run is pinned to the same ref this job
-      # checked out (read-only) — there is no commit for a later checkout
-      # to see, by design (see "Fail on lockfile drift" above). Uploaded
+      # Hand off the upstream-verified committed resolution via artifact.
+      # Both verification and build check out the same immutable event SHA. Uploaded
       # unconditionally — pull_request and non-release builds alike still
       # need a lockfile.
       - name: Upload resolved lockfile
@@ -387,7 +318,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.sanity-check.outputs.checkout_ref }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
       # Free disk space (final target only)
       # `final` is the only target combining Python+Node+Flutter+Java+Maven+
@@ -693,6 +625,7 @@ jobs:
       # the one target where every byte of headroom matters (see the
       # previous step's comment on the disk-quota root cause).
       - name: Scan built container with Trivy
+        id: trivy-scan
         env:
           # Read via shell var (not interpolated inline) so an empty value contributes zero words, not a blank arg.
           TRIVY_SKIP_FLAGS: ${{ steps.trivy-db-cache-state.outputs.flags }}
@@ -709,21 +642,62 @@ jobs:
             SCAN_SOURCE_ARGS=(baobab-dev:scan)
           fi
 
+          # The same unfiltered HIGH/CRITICAL scan is the blocking gate.
+          # Persist vulnerability JSON even when vulnerabilities make Trivy exit 1.
+          # Raw Trivy output can contain secret-match payloads: never upload it.
+          # Never reinterpret missing/invalid report evidence as success.
+          REPORT_DIR="${RUNNER_TEMP}/trivy-evidence"
+          mkdir -p "${REPORT_DIR}"
+          set +e
           trivy image \
             --scanners vuln,secret \
             ${TRIVY_SKIP_FLAGS} \
-            --skip-files "**/corepack/**,**/cacache/**,**/flutter_web_sdk/**/dart_sdk.js,**/devtools/**,**/flutter/bin/cache/artifacts/engine/**/*.jar" \
+            --ignorefile /dev/null \
             --pkg-types os,library \
             --severity CRITICAL,HIGH \
             --exit-code 1 \
-            --ignore-unfixed \
             --skip-version-check \
-            --format table \
+            --format json \
+            --output "${RUNNER_TEMP}/trivy-raw.json" \
             "${SCAN_SOURCE_ARGS[@]}"
+          scan_rc=$?
+          set -e
+
+          python3 scripts/summarize-trivy-vulnerabilities.py \
+            "${RUNNER_TEMP}/trivy-raw.json" \
+            "${REPORT_DIR}/findings.json" \
+            "${{ matrix.target }}" "${{ matrix.platform }}"
 
           if [[ "${{ matrix.target }}" == "final" ]]; then
             rm -rf "${SCAN_DIR}"
           fi
+          if (( scan_rc != 0 )); then
+            # The owner-approved, short-lived DEV-10 risk treatment is *not* VEX
+            # "not_affected"; validate the complete unfiltered scanner report.
+            # Unknown CVEs, packages, secrets, expired approval and releases fail.
+            if (( scan_rc != 1 )); then
+              echo "::error::Trivy scan execution failed (exit ${scan_rc}); not a vulnerability risk decision."
+              exit "${scan_rc}"
+            fi
+            python3 scripts/dev10_kernel_risk_gate.py \
+              --raw-trivy "${RUNNER_TEMP}/trivy-raw.json" \
+              --inventory docs/assessments/dev10-kernel-cves.tsv \
+              --target "${{ matrix.target }}" --platform "${{ matrix.platform }}" \
+              --event "${GITHUB_EVENT_NAME}" --ref "${GITHUB_REF}" \
+              --repository "${GITHUB_REPOSITORY}" \
+              --pr-number "${{ github.event.pull_request.number || 0 }}" \
+              --output "${REPORT_DIR}/dev10-executive-risk-acceptance.json"
+            echo "::warning::Unfixed kernel-source advisories remain; DEVELOPMENT risk accepted under issue #54, not remediated."
+          fi
+
+      - name: Retain unfiltered Trivy vulnerability evidence
+        if: ${{ always() && steps.trivy-scan.outcome != 'skipped' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: trivy-${{ matrix.target }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}-${{ github.sha }}
+          path: ${{ runner.temp }}/trivy-evidence/
+          if-no-files-found: error
+          retention-days: 30
 
       # Container Smoke Test (final — tests the actual to-be-published image)
       # Still tag-gated and now also final-only: steps.build.outputs.digest
@@ -864,14 +838,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.sanity-check.outputs.checkout_ref }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
-      # Same reasoning as build's identical step: this job's checkout is
-      # pinned to the resolved release context ref, which for a
-      # workflow_dispatch rebuild is the target tag, not the branch the
-      # dispatch was run against — and can't see sanity-check's own-run
-      # commit regardless. Needed so "Create GitHub Release" has
-      # versions.lock to attach.
+      # Release jobs check out the immutable tag-push event commit only.
+      # No independently selected ref can be substituted at dispatch time.
       - name: Download resolved lockfile
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -1705,7 +1676,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.sanity-check.outputs.checkout_ref }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
       # Needed so the release can attach versions.lock as a release asset,
       # same as the old single-job version did.
