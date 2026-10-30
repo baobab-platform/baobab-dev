@@ -14,6 +14,7 @@ import csv
 import json
 from pathlib import Path
 import re
+import subprocess
 import sys
 import time
 from urllib import request
@@ -62,7 +63,7 @@ def parse_upstream(blob: bytes) -> list[str]:
     return parse_upstream_details(blob)[0]
 
 
-def inspect(cve: str, sha: str, manifest: set[str]) -> dict:
+def inspect(cve: str, sha: str, manifest: set[str], source_root: Path | None = None) -> dict:
     url = upstream_url(cve, sha)
     record: dict = {
         "cve": cve, "upstream_url": url, "upstream_paths": [], "candidate_upstream_fix_references": [],
@@ -72,9 +73,19 @@ def inspect(cve: str, sha: str, manifest: set[str]) -> dict:
     }
     for attempt in range(5):
         try:
-            req = request.Request(url, headers={"Accept": "text/plain", "User-Agent": "Baobab-DEV10-Kernel-Path-Audit/1"})
-            with request.urlopen(req, timeout=28) as result:
-                paths, refs = parse_upstream_details(result.read(1024 * 1024))
+            if source_root is not None:
+                # The workflow checks out ONE immutable Git revision. Reading
+                # its files avoids hundreds of concurrent Gitiles GETs/429s.
+                local = source_root / "cve" / "published" / cve[4:8] / (cve + ".json")
+                blob = local.read_bytes()
+                if len(blob) > 1024 * 1024:
+                    raise ValueError("upstream CVE JSON exceeds 1 MiB")
+                paths, refs = parse_upstream_details(base64.b64encode(blob))
+            else:
+                # Backwards-compatible diagnostic fallback, not used by CI.
+                req = request.Request(url, headers={"Accept": "text/plain", "User-Agent": "Baobab-DEV10-Kernel-Path-Audit/1"})
+                with request.urlopen(req, timeout=28) as result:
+                    paths, refs = parse_upstream_details(result.read(1024 * 1024))
             headers = [path for path in paths if path.endswith(".h")]
             matches = []
             for path in headers:
@@ -99,7 +110,7 @@ def inspect(cve: str, sha: str, manifest: set[str]) -> dict:
 
 
 def audit(trivy: list[dict[str, str]], vendor: list[dict[str, str]],
-          manifest: set[str], sha: str) -> dict:
+          manifest: set[str], sha: str, source_root: Path | None = None) -> dict:
     ids = {row["cve"] for row in trivy}
     vendors = {row["cve"]: row for row in vendor}
     if len(trivy) != 295 or len(ids) != 295 or ids != set(vendors) or len(vendor) != 295:
@@ -108,8 +119,15 @@ def audit(trivy: list[dict[str, str]], vendor: list[dict[str, str]],
         raise ValueError("invalid CVE or upstream commit")
     if not any(p.endswith(".h") for p in manifest):
         raise ValueError("exact binary manifest has no development headers")
+    if source_root is not None:
+        # A mutable branch checkout is not sufficient evidence. Validate
+        # the local Git object identity independently of the workflow.
+        checked = subprocess.run(["git", "-C", str(source_root), "rev-parse", "HEAD"],
+                                 text=True, capture_output=True, check=False, timeout=15)
+        if checked.returncode != 0 or checked.stdout.strip() != sha:
+            raise ValueError("upstream Git checkout revision mismatch")
     with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
-        rows = list(pool.map(lambda item: inspect(item["cve"], sha, manifest), trivy))
+        rows = list(pool.map(lambda item: inspect(item["cve"], sha, manifest, source_root), trivy))
     for row, item in zip(trivy, rows):
         item["severity"] = row["severity"]
         item["canonical_ubuntu_linux_status"] = vendors[row["cve"]]["ubuntu_linux_resolute_status"]
@@ -129,12 +147,13 @@ def main() -> int:
     p.add_argument("--vendor", type=Path, required=True)
     p.add_argument("--manifest", type=Path, required=True)
     p.add_argument("--upstream-sha", required=True)
+    p.add_argument("--upstream-root", type=Path, help="immutable Git checkout; preferred to individual HTTP CVE fetches")
     p.add_argument("--output", type=Path, required=True)
     a = p.parse_args()
     try:
         result = audit(read_tsv(a.trivy), read_tsv(a.vendor),
                        set(a.manifest.read_text(encoding="utf-8").splitlines()),
-                       a.upstream_sha)
+                       a.upstream_sha, a.upstream_root)
         a.output.parent.mkdir(parents=True, exist_ok=True)
         a.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         print("Upstream CVE file path evidence:", result["counts"])
@@ -153,7 +172,7 @@ def main() -> int:
                 }, separators=(",", ":"), sort_keys=True))
         print("All binary dispositions: PENDING_INDEPENDENT_SECURITY_REVIEW")
         return 2 if result["counts"].get("UPSTREAM_UNVERIFIED") else 0
-    except (KeyError, ValueError, OSError) as exc:
+    except (KeyError, ValueError, OSError, subprocess.TimeoutExpired) as exc:
         print("::error::Incomplete upstream CVE path evidence:", str(exc), file=sys.stderr)
         return 2
 
