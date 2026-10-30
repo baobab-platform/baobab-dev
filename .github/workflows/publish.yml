@@ -672,8 +672,22 @@ jobs:
             rm -rf "${SCAN_DIR}"
           fi
           if (( scan_rc != 0 )); then
-            echo "::error::Trivy HIGH/CRITICAL gate failed (exit ${scan_rc}); see complete retained report."
-            exit "${scan_rc}"
+            # The owner-approved, short-lived DEV-10 risk treatment is *not* VEX
+            # "not_affected"; validate the complete unfiltered scanner report.
+            # Unknown CVEs, packages, secrets, expired approval and releases fail.
+            if (( scan_rc != 1 )); then
+              echo "::error::Trivy scan execution failed (exit ${scan_rc}); not a vulnerability risk decision."
+              exit "${scan_rc}"
+            fi
+            python3 scripts/dev10_kernel_risk_gate.py \
+              --raw-trivy "${RUNNER_TEMP}/trivy-raw.json" \
+              --inventory docs/assessments/dev10-kernel-cves.tsv \
+              --target "${{ matrix.target }}" --platform "${{ matrix.platform }}" \
+              --event "${GITHUB_EVENT_NAME}" --ref "${GITHUB_REF}" \
+              --repository "${GITHUB_REPOSITORY}" \
+              --pr-number "${{ github.event.pull_request.number || 0 }}" \
+              --output "${REPORT_DIR}/dev10-executive-risk-acceptance.json"
+            echo "::warning::Unfixed kernel-source advisories remain; DEVELOPMENT risk accepted under issue #54, not remediated."
           fi
 
       - name: Retain unfiltered Trivy vulnerability evidence
