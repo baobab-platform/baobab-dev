@@ -1,6 +1,7 @@
 """Exercise the actual lifecycle script with controlled CLI processes."""
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -27,7 +28,7 @@ class PostCreateTests(unittest.TestCase):
                     body += """if [ "$1" = "--version" ]; then
   printf 'v24.21.0\\n'
 elif [ "$1" = "-e" ]; then
-  /usr/bin/python3 -c 'import sys,json,pathlib; rows=json.load(sys.stdin); target=(pathlib.Path.cwd()/"frontend").resolve(); sys.exit(0 if isinstance(rows,list) and any(isinstance(row,dict) and pathlib.Path(row.get("path","/nonexistent")).resolve()==target for row in rows) else 1)'
+  exec "$REAL_NODE" "$@"
 else
   /usr/bin/python3 -c 'import json; print(json.load(open("package.json")).get("packageManager", ""))'
 fi
@@ -49,7 +50,8 @@ fi
                 body+='[ "$FAIL_TOOL" != "'+tool+'" ]\n'
                 (binpath/tool).write_text(body);(binpath/tool).chmod(0o755)
             env={**os.environ,'PATH':str(binpath)+':/usr/bin:/bin','WORKSPACE_DIR':str(root),
-                 'TRACE':str(root/'trace'),'FAIL_TOOL':fail,'PNPM_MEMBERS':members}
+                 'TRACE':str(root/'trace'),'FAIL_TOOL':fail,'PNPM_MEMBERS':members,
+                 'REAL_NODE':shutil.which('node') or '/usr/bin/node'}
             result=subprocess.run(['bash',str(SCRIPT),'--stage=post-create'],cwd=root,env=env,
                                   capture_output=True,text=True)
             trace=(root/'trace').read_text() if (root/'trace').exists() else ''
@@ -99,8 +101,8 @@ fi
     def test_root_pnpm_workspace_requires_declared_frontend_membership(self):
         files = {
             'package.json': json.dumps({'packageManager': 'pnpm@11.24.0'}),
-            'pnpm-workspace.yaml': 'packages:\\n  - packages/*\\n',
-            'pnpm-lock.yaml': 'lockfileVersion: 9.0\\n',
+            'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+            'pnpm-lock.yaml': 'lockfileVersion: 9.0\n',
             'frontend/package.json': json.dumps({'name': 'frontend'}),
         }
         r, trace = self.run_case(files, members='no')
@@ -117,7 +119,7 @@ fi
     def test_root_pnpm_workspace_without_lock_fails_closed(self):
         r, trace = self.run_case({
             'package.json': json.dumps({'packageManager': 'pnpm@11.24.0'}),
-            'pnpm-workspace.yaml': 'packages:\\n  - frontend\\n',
+            'pnpm-workspace.yaml': 'packages:\n  - frontend\n',
             'package-lock.json': '{}',
             'frontend/package.json': '{}',
         })

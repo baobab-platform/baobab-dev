@@ -57,7 +57,9 @@ case "${1:-}" in
         /opt/pipx/venvs/poetry/*) found_poetry=1 ;;
       esac
       echo "Auditing installed Python distributions in $root"
-      audit --disable-pip --path "$root"
+      # --path reads installed metadata directly. --disable-pip is valid only
+      # with -r and would abort before auditing any installed distribution.
+      audit --path "$root"
       audited=$((audited + 1))
     done
     test "$audited" -gt 0 && test "$found_system" -eq 1 &&
