@@ -102,7 +102,8 @@ class SignedVEXTests(unittest.TestCase):
             "engineering_author_principal": "principal-author",
             "source_revision": "b" * 40,
             "raw_trivy_sha256": hashlib.sha256(policy.canonical(self.report)).hexdigest(),
-            "evidence_sha256": "c" * 64, "platform": "linux/amd64",
+            "evidence_sha256": hashlib.sha256(policy.canonical(self.register)).hexdigest(),
+            "platform": "linux/amd64",
             "risk_owner_principal": "principal-risk-owner",
             "risk_acceptance_reason": "Test-only scoped synthetic risk ownership to validate enforcement.",
             "re_review_triggers": ["new image digest", "new CVE", "expiry"],
@@ -119,9 +120,15 @@ class SignedVEXTests(unittest.TestCase):
                 "indirect_uapi_abi_review_reference": "fixture-uapi-evidence",
                 "review_reference": "fixture-independent-review",
                 "package_purl": self.package_purl,
-                "per_cve_evidence_sha256": "d" * 64
+                "per_cve_evidence_sha256": hashlib.sha256(policy.canonical(reviewed)).hexdigest()
             }]
         }
+
+    def refresh_register_digests(self):
+        reviewed = next(row for row in self.register["records"] if row["cve"] == self.cve)
+        self.decision["evidence_sha256"] = hashlib.sha256(policy.canonical(self.register)).hexdigest()
+        self.decision["cve_decisions"][0]["per_cve_evidence_sha256"] = (
+            hashlib.sha256(policy.canonical(reviewed)).hexdigest())
 
     def sign(self):
         folder = Path(self.temp.name)
@@ -200,13 +207,28 @@ class SignedVEXTests(unittest.TestCase):
     def test_incomplete_ubuntu_patch_review_blocks_even_signed_approval(self):
         reviewed = next(row for row in self.register["records"] if row["cve"] == self.cve)
         reviewed["ubuntu_source"]["binary_header_diff_verified"] = False
+        self.refresh_register_digests()
         with self.assertRaisesRegex(policy.PolicyError, "completed Ubuntu patch"):
             self.check()
 
     def test_unresolved_transitive_header_impact_blocks_even_signed_approval(self):
         reviewed = next(row for row in self.register["records"] if row["cve"] == self.cve)
         reviewed["binary_exposure"]["abi_uapi_compiler_transitive"] = "under_investigation"
+        self.refresh_register_digests()
         with self.assertRaisesRegex(policy.PolicyError, "ABI and downstream"):
+            self.check()
+
+    def test_tampered_reviewed_register_invalidates_signed_evidence(self):
+        reviewed = next(row for row in self.register["records"] if row["cve"] == self.cve)
+        reviewed["technical_reasoning"] += " author-modified after approval"
+        with self.assertRaisesRegex(policy.PolicyError, "applicability evidence digest mismatch"):
+            self.check()
+
+    def test_tampered_individual_cve_evidence_is_rejected(self):
+        reviewed = next(row for row in self.register["records"] if row["cve"] == self.cve)
+        reviewed["technical_reasoning"] += " author-modified after approval"
+        self.decision["evidence_sha256"] = hashlib.sha256(policy.canonical(self.register)).hexdigest()
+        with self.assertRaisesRegex(policy.PolicyError, "individual CVE evidence"):
             self.check()
 
     def test_missing_evidence_fails(self):
