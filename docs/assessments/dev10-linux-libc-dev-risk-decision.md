@@ -89,3 +89,24 @@ actual `installed-paths.txt` SHA256
 The artifact also includes `upstream-commit.txt`. Source and regression tests are committed as `scripts/audit_kernel_cve_paths.py` and `tests/test_kernel_cve_paths.py`; the read-only workflow is `.github/workflows/dev10-kernel-paths.yml`.
 
 **Decision remains SECURITY HELD.** The Linux CNA `programFiles` entries are upstream affected-file assertions, not complete Canonical-specific patch diffs. No direct UAPI path match supports a bounded `vulnerable_code_not_present` *candidate*, not a final exploitability verdict. An independent security reviewer must verify the Ubuntu 26.04 patch changes and binary-package derivation, indirect UAPI/ABI effects, host-kernel separation, exact resulting image digest, and an accountable expiring CVE-by-CVE decision. No blanket VEX, scanner ignores, relaxed HIGH/CRITICAL exit codes or release approval is justified by these observations.
+
+## Development-only executive risk acceptance (30 October 2026)
+
+**Authorisation source:** the user's explicit 30 October 2026 executive instruction to consider security approval granted and permit bounded governance overrides, recorded transparently in [issue #54](https://github.com/baobab-platform/baobab-dev/issues/54). The named responsible security personnel is **Wekhaso Nabusiu**. The instruction is recorded as **user-attested**, not as a forged GitHub-authenticated Wekhaso signature, Ubuntu remediation, or CVE-specific OpenVEX not-affected conclusion.
+
+**Decision type:** a *temporary DEV-only ACCEPTANCE OF RESIDUAL RISK* for already identified advisory matches; this does **not** change the vendor CVE statuses, scientific per-CVE applicability state (all still under investigation), or the release security requirement.
+
+**Exact limited scope:**
+- Repository: baobab-platform/baobab-dev; PR #48 and untagged development-main, not version-tag release/staging/production.
+- Image profiles: final, infra, frontend and frontend-e2e; architectures: AMD64 and ARM64.
+- Package: Ubuntu 26.04 linux-libc-dev **7.0.0-42.42 only**.
+- CVE allow-set: exactly the original 295 entries from docs/assessments/dev10-kernel-cves.tsv, pinned to Git blob SHA1 a98090feb9e3df2d9df72654516df69c64daf50e (12 CRITICAL, 283 HIGH). Partial remediation naturally reduces the permitted subset. No newly discovered CVEs, other packages, changed versions, changed severity or supported-fixed versions are accepted.
+- Expiry: 2026-11-13 00:00 UTC. Repository exception expires 2026-11-12; renewal requires a new explicit security decision.
+- Preserve unfiltered Trivy scan output and sanitized retained evidence. Trivy continues to run with --exit-code 1. Development risk evaluation only follows a vulnerability-triggered exit 1 and is fail closed on scanner/runtime errors or missing evidence.
+- No accepted secret findings, no release-tag exception. Source-level tests cover denial cases.
+
+**Implementation:** .baobab/repository.yaml records a temporary **existing Shared Foundation container-scan implementation exception**, because the pinned reusable gate cannot natively consume a package-specific risk decision. Instead of leaving an unscanned gap, .github/workflows/foundation.yml defines a **replacement unfiltered DEV-10 / Foundation container CVE gate** that builds and scans the actual Foundation image and applies the same bounded policy as the eight .github/workflows/publish.yml image scans. The policy is in scripts/dev10_kernel_risk_gate.py with negative tests in tests/test_dev10_kernel_risk_gate.py.
+
+**Verification and escalation:** both replacement Foundation and Publish remain required to pass on the final PR head, including raw vulnerability evidence and all negative tests. The independent signed not-affected/VEX path remains unactivated and reserved for a genuine, evidence-complete decision. No runtime claim or production safety is derived from this temporary DEV risk acceptance. Issue #54 remains open for patch-level applicability, supported remediation and durable governed approvals.
+
+**Risk owner:** Wekhaso Nabusiu, designated by the user. **Approval authentication:** chat-level user direction only; GitHub account binding and cryptographic signature have not been independently verified, and must not be portrayed as such.
