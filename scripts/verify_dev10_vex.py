@@ -108,7 +108,8 @@ def qualify(report: dict, signed: dict, trust: dict, *,
     require(d.get("decision_id") not in trust.get("revoked_decisions", []),
             "approval decision revoked")
     require(d.get("preparer_principal") != principal
-            and d.get("engineering_author_principal") != principal,
+            and d.get("engineering_author_principal") != principal
+            and d.get("preparer_principal") != d.get("engineering_author_principal"),
             "maker-checker separation violated")
     require(d.get("decision") in ("approved", "rejected", "needs_evidence"),
             "unknown reviewer decision")
@@ -142,6 +143,17 @@ def qualify(report: dict, signed: dict, trust: dict, *,
         require(isinstance(cve, str) and CVE.fullmatch(cve) is not None
                 and cve in by_cve, "unknown CVE in reviewer decision")
         require(cve not in exceptions, "duplicate CVE approval")
+        source = by_cve[cve].get("ubuntu_source", {})
+        exposure = by_cve[cve].get("binary_exposure", {})
+        require(source.get("source_diff_verified") is True
+                and source.get("binary_header_diff_verified") is True
+                and bool(source.get("patch_commit_references"))
+                and bool(source.get("downstream_changed_paths")),
+                "CVE lacks completed Ubuntu patch and shipped-header assessment")
+        require(exposure.get("shipped_header_inline_macro") == "not_affected"
+                and exposure.get("abi_uapi_compiler_transitive") == "not_affected"
+                and exposure.get("downstream_userspace_compilation") == "not_affected",
+                "CVE lacks reviewed inline/macro ABI and downstream userspace disposition")
         require(row.get("status") == "not_affected"
                 and row.get("justification") in ALLOWED,
                 "unsupported VEX exception status or justification")
