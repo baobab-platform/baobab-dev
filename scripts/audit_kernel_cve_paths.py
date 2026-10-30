@@ -70,7 +70,7 @@ def inspect(cve: str, sha: str, manifest: set[str]) -> dict:
         "classification": "UPSTREAM_UNVERIFIED", "error": "",
         "binary_disposition": "PENDING_INDEPENDENT_SECURITY_REVIEW",
     }
-    for attempt in range(3):
+    for attempt in range(5):
         try:
             req = request.Request(url, headers={"Accept": "text/plain", "User-Agent": "Baobab-DEV10-Kernel-Path-Audit/1"})
             with request.urlopen(req, timeout=28) as result:
@@ -93,8 +93,8 @@ def inspect(cve: str, sha: str, manifest: set[str]) -> dict:
             break
         except (OSError, ValueError, TypeError, KeyError) as exc:
             record["error"] = f"{type(exc).__name__}: {str(exc)[:180]}"
-            if attempt < 2:
-                time.sleep(attempt + 1)
+            if attempt < 4:
+                time.sleep(min(16, 2 ** (attempt + 1)))
     return record
 
 
@@ -140,6 +140,10 @@ def main() -> int:
         print("Upstream CVE file path evidence:", result["counts"])
         print("Pinned upstream Linux CVE revision:", result["upstream_commit"])
         for item in result["records"]:
+            if item["classification"] == "UPSTREAM_UNVERIFIED":
+                print("::error::UPSTREAM_UNVERIFIED " + json.dumps({
+                    "cve": item["cve"], "url": item["upstream_url"],
+                    "reason": item["error"]}, sort_keys=True))
             if item["classification"] == "HEADER_PATH_REVIEW_REQUIRED":
                 print("HEADER_REVIEW " + json.dumps({
                     "cve": item["cve"], "severity": item["severity"],
