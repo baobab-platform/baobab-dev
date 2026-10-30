@@ -33,8 +33,19 @@ else
 fi
 """
                 elif tool=='pnpm':
-                    body+='if [ "$1" = "--version" ]; then printf "%s\\n" "'+pnpm+'"; exit 0; fi\\n'
-                    body+='if [ "$1" = "list" ]; then if [ "$PNPM_MEMBERS" = "yes" ]; then printf \'[{"path":"%s/frontend"}]\\n\' "$WORKSPACE_DIR"; else printf \'[{"path":"%s"}]\\n\' "$WORKSPACE_DIR"; fi; exit 0; fi\\n'
+                    body += """if [ "$1" = "--version" ]; then
+  printf '%s\\n' 'VERSION_PIN'
+  exit 0
+fi
+if [ "$1" = "list" ]; then
+  if [ "$PNPM_MEMBERS" = "yes" ]; then
+    printf '[{"path":"%s/frontend"}]\\n' "$WORKSPACE_DIR"
+  else
+    printf '[{"path":"%s"}]\\n' "$WORKSPACE_DIR"
+  fi
+  exit 0
+fi
+""".replace("VERSION_PIN", pnpm)
                 body+='[ "$FAIL_TOOL" != "'+tool+'" ]\n'
                 (binpath/tool).write_text(body);(binpath/tool).chmod(0o755)
             env={**os.environ,'PATH':str(binpath)+':/usr/bin:/bin','WORKSPACE_DIR':str(root),
