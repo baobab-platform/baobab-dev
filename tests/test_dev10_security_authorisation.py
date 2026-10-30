@@ -66,10 +66,12 @@ class SignedVEXTests(unittest.TestCase):
         self.digest = "a" * 64
         self.purl = "pkg:oci/baobab-dev@sha256:" + self.digest + "?repository_url=ghcr.io/baobab-platform/baobab-dev"
         self.cve = "CVE-2026-89530"
+        self.package_purl = "pkg:deb/ubuntu/linux-libc-dev@7.0.0-42.42?arch=amd64"
         self.report = {"ArtifactName": "dev10-scan-image", "Results": [
             {"Target": "ubuntu:26.04", "Vulnerabilities": [
                 {"VulnerabilityID": self.cve, "PkgName": "linux-libc-dev",
-                 "InstalledVersion": "7.0.0-42.42", "Severity": "CRITICAL"}]}]}
+                 "InstalledVersion": "7.0.0-42.42", "Severity": "CRITICAL",
+                 "PkgIdentifier": {"PURL": self.package_purl}}]}]}
         self.register = builder.build(
             builder.tsv(ROOT / "docs/assessments/dev10-kernel-cves.tsv"),
             builder.tsv(ROOT / "docs/assessments/dev10-canonical-cve-status-20261030.tsv"))
@@ -89,6 +91,9 @@ class SignedVEXTests(unittest.TestCase):
             "source_revision": "b" * 40,
             "raw_trivy_sha256": hashlib.sha256(policy.canonical(self.report)).hexdigest(),
             "evidence_sha256": "c" * 64, "platform": "linux/amd64",
+            "risk_owner_principal": "principal-risk-owner",
+            "risk_acceptance_reason": "Test-only scoped synthetic risk ownership to validate enforcement.",
+            "re_review_triggers": ["new image digest", "new CVE", "expiry"],
             "image_digest": "sha256:" + self.digest, "image_purl": self.purl,
             "issued_at": "2026-10-30T09:00:00Z", "expires_at": "2026-11-07T09:00:00Z",
             "cve_decisions": [{
@@ -101,6 +106,7 @@ class SignedVEXTests(unittest.TestCase):
                 "ubuntu_patch_review_reference": "fixture-ubuntu-diff",
                 "indirect_uapi_abi_review_reference": "fixture-uapi-evidence",
                 "review_reference": "fixture-independent-review",
+                "package_purl": self.package_purl,
                 "per_cve_evidence_sha256": "d" * 64
             }]
         }
@@ -125,6 +131,7 @@ class SignedVEXTests(unittest.TestCase):
         self.assertEqual(remaining, [])
         self.assertEqual(len(vex["statements"]), 1)
         self.assertEqual(vex["statements"][0]["products"][0]["@id"], self.purl)
+        self.assertEqual(vex["statements"][0]["products"][0]["subcomponents"][0]["@id"], self.package_purl)
 
     def test_missing_or_unsigned_approval_fails(self):
         with self.assertRaises(policy.PolicyError):
@@ -170,6 +177,13 @@ class SignedVEXTests(unittest.TestCase):
         vex, remaining = self.check()
         self.assertEqual(len(vex["statements"]), 1)
         self.assertEqual(remaining, [("CVE-2026-98863", "linux-libc-dev", "7.0.0-42.42")])
+
+    def test_same_cve_unapproved_package_purl_not_suppressed(self):
+        self.report["Results"][0]["Vulnerabilities"][0]["PkgIdentifier"]["PURL"] = "pkg:deb/ubuntu/other@1.0"
+        self.decision["raw_trivy_sha256"] = hashlib.sha256(policy.canonical(self.report)).hexdigest()
+        vex, blocking = self.check()
+        self.assertEqual(len(vex["statements"]), 0)
+        self.assertEqual(len(blocking), 1)
 
     def test_missing_evidence_fails(self):
         self.decision["cve_decisions"][0]["indirect_uapi_abi_review_reference"] = ""
