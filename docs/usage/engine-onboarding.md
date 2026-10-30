@@ -108,3 +108,15 @@ remain denied. See `scripts/dev10_kernel_risk_gate.py`,
 **Merge sequence remains:** merge qualified #48 via GitHub's stack-supported
 merge workflow; retarget #50 to the resulting `main`; requalify the final
 #50 head and perform its required review before considering its merge.
+
+
+## Future toolchain upgrades
+
+Do not repeat the DEV-10 integration difficulties when bringing new engines
+onto Codespaces. See the
+[Toolchain Upgrade Playbook](toolchain-upgrade-playbook.md) for exact version
+coupling, native/embedded dependency qualification, mandatory denial tests,
+multi-architecture scanning and consumer rollout. The
+[DEV-10/DEV-14 retrospective](../incidents/2026-10-30-dev10-dev14-toolchain-retrospective.md)
+records observed failures and distinguishes passing source checks from
+actual engine/runtime and protected release evidence.
