@@ -44,10 +44,10 @@ s = p.read_text()
 # An unexpected import shape indicates upstream has changed: refuse.
 candidates = (
     'from jaraco.text import drop_comment, join_continuation, yield_lines',
-    'from pkg_resources.extern.jaraco.text import (\\n'
-    '    yield_lines,\\n'
-    '    drop_comment,\\n'
-    '    join_continuation,\\n'
+    'from pkg_resources.extern.jaraco.text import (\n'
+    '    yield_lines,\n'
+    '    drop_comment,\n'
+    '    join_continuation,\n'
     ')',
 )
 hits = [source for source in candidates if s.count(source) == 1]
@@ -58,11 +58,11 @@ s = s.replace(
     'drop_comment, join_continuation, yield_lines',
 )
 warning = (
-    'warnings.warn(\\n'
-    '    "pkg_resources is deprecated as an API. "\\n'
-    '    "See https://setuptools.pypa.io/en/latest/pkg_resources.html",\\n'
-    '    DeprecationWarning,\\n'
-    '    stacklevel=2,\\n'
+    'warnings.warn(\n'
+    '    "pkg_resources is deprecated as an API. "\n'
+    '    "See https://setuptools.pypa.io/en/latest/pkg_resources.html",\n'
+    '    DeprecationWarning,\n'
+    '    stacklevel=2,\n'
     ')'
 )
 assert s.count(warning) == 1, 'PKG_RESOURCES_DEPRECATION_WARNING_DRIFT'
