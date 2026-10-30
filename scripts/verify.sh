@@ -395,6 +395,17 @@ if [[ "$BAOBAB_BUILD_PROFILE" == "full" ]]; then
     check_required "uv" uv
     check_required "Poetry" poetry
 
+    # Check the actual pip-vendored imports: upgrading site-packages alone
+    # does not remediate CVEs inside pip/_vendor.
+    if python3 -c 'from pip._vendor import msgpack, setuptools, urllib3
+assert msgpack.version >= (1, 2, 3)
+assert tuple(int(x) for x in setuptools.__version__.split(".")[:3]) >= (78, 1, 1)
+assert urllib3.__version__ == "2.8.0"' >/dev/null 2>&1; then
+        ok "pip vendored msgpack/setuptools/urllib3 security baselines"
+    else
+        bad "pip vendored dependency regression (msgpack>=1.2.3, setuptools>=78.1.1, urllib3=2.8.0)"
+    fi
+
     if command -v poetry >/dev/null; then
 
         poetry_setting=""
@@ -477,6 +488,15 @@ if [[ "$BAOBAB_BUILD_PROFILE" == "full" ]]; then
     check_required "javac" javac "javac --version"
     check_required "Maven" mvn "mvn --version"
 
+    # Guard the pinned Maven 3.9.16 Guava replacement, including bytes.
+    if [[ -f /opt/maven/lib/guava-33.7.2-jre.jar ]] &&
+       [[ "$(find /opt/maven/lib -maxdepth 1 -name 'guava-*.jar' | wc -l)" -eq 1 ]] &&
+       echo "b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c  /opt/maven/lib/guava-33.7.2-jre.jar" | sha256sum --check --strict >/dev/null 2>&1; then
+        ok "Maven Guava 33.7.2-jre pinned integrity"
+    else
+        bad "Maven Guava version/integrity mismatch"
+    fi
+
 else
     say "  Skipped — profile '${BAOBAB_BUILD_PROFILE}' does not include Java/Maven"
 fi
@@ -543,7 +563,7 @@ section "Infrastructure"
 # under `infra`.
 if [[ "$BAOBAB_BUILD_PROFILE" == "infra" ]]; then
 
-    check_required "Terraform" terraform "terraform version"
+    check_exact_version "Terraform" terraform "${TERRAFORM_VERSION}" 'terraform version -json | jq -r .terraform_version'
     check_required "AWS CLI" aws "aws --version"
 
 else
