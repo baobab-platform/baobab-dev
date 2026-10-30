@@ -127,6 +127,8 @@ def qualify(report: dict, signed: dict, trust: dict, *,
             "approval expired or not yet active")
     require(time_utc(authority["valid_from"]) <= now < time_utc(authority["valid_until"]),
             "reviewer appointment inactive or expired")
+    require(d.get("evidence_sha256") == hashlib.sha256(canonical(register)).hexdigest(),
+            "reviewed 295-CVE applicability evidence digest mismatch")
     require(d.get("raw_trivy_sha256") == hashlib.sha256(canonical(report)).hexdigest(),
             "reviewed scanner evidence does not match this unfiltered inventory")
     verify_signature(d, signed["signature"], authority["public_key_pem"])
@@ -163,6 +165,9 @@ def qualify(report: dict, signed: dict, trust: dict, *,
                 and row.get("review_reference") and row.get("package_purl")
                 and SHA.fullmatch(row.get("per_cve_evidence_sha256") or ""),
                 "missing individual Ubuntu source/UAPI/ABI evidence")
+        require(row.get("per_cve_evidence_sha256") ==
+                hashlib.sha256(canonical(by_cve[cve])).hexdigest(),
+                "reviewed individual CVE evidence digest mismatch")
         require(row.get("canonical_vendor_status") ==
                 by_cve[cve]["canonical"]["status"], "vendor status changed by VEX")
         exceptions[cve] = row
