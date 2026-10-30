@@ -75,6 +75,18 @@ class SignedVEXTests(unittest.TestCase):
         self.register = builder.build(
             builder.tsv(ROOT / "docs/assessments/dev10-kernel-cves.tsv"),
             builder.tsv(ROOT / "docs/assessments/dev10-canonical-cve-status-20261030.tsv"))
+        # Ephemeral test-only proof flags; no production evidence or approval.
+        reviewed = next(row for row in self.register["records"] if row["cve"] == self.cve)
+        reviewed["ubuntu_source"].update({
+            "source_diff_verified": True, "binary_header_diff_verified": True,
+            "patch_commit_references": ["fixture-upstream-commit"],
+            "downstream_changed_paths": ["net/fixture.c"],
+        })
+        reviewed["binary_exposure"].update({
+            "shipped_header_inline_macro": "not_affected",
+            "abi_uapi_compiler_transitive": "not_affected",
+            "downstream_userspace_compilation": "not_affected",
+        })
         self.vendor = next(row["canonical"]["status"] for row in self.register["records"]
                            if row["cve"] == self.cve)
         self.trust = {"authorised_approvers": {"principal-checker": {
@@ -184,6 +196,18 @@ class SignedVEXTests(unittest.TestCase):
         vex, blocking = self.check()
         self.assertEqual(len(vex["statements"]), 0)
         self.assertEqual(len(blocking), 1)
+
+    def test_incomplete_ubuntu_patch_review_blocks_even_signed_approval(self):
+        reviewed = next(row for row in self.register["records"] if row["cve"] == self.cve)
+        reviewed["ubuntu_source"]["binary_header_diff_verified"] = False
+        with self.assertRaisesRegex(policy.PolicyError, "completed Ubuntu patch"):
+            self.check()
+
+    def test_unresolved_transitive_header_impact_blocks_even_signed_approval(self):
+        reviewed = next(row for row in self.register["records"] if row["cve"] == self.cve)
+        reviewed["binary_exposure"]["abi_uapi_compiler_transitive"] = "under_investigation"
+        with self.assertRaisesRegex(policy.PolicyError, "ABI and downstream"):
+            self.check()
 
     def test_missing_evidence_fails(self):
         self.decision["cve_decisions"][0]["indirect_uapi_abi_review_reference"] = ""
