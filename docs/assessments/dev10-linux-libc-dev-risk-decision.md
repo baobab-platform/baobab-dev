@@ -47,3 +47,23 @@ The current source-level CodeQL finding (#2, cache poisoning) was separately rem
 - Canonical VEX semantics: https://documentation.ubuntu.com/security/security-updates/vex/
 
 **Reassessment triggers:** new Ubuntu 26.04 security package / USN, changed C UAPI headers, changes to toolchain/kernel privileges, new devcontainer image digest, altered Trivy data or new CVEs, and before staging/production promotion.
+
+## 5. Additional upstream CVE source-path qualification (in progress)
+
+The upstream Linux CVE team publishes affected source-file paths in its official
+CVE CNA records. A **read-only, PR-scoped** qualification job records a pinned
+upstream repository commit and compares all 295 affected-file claims against
+the exact Ubuntu 26.04 linux-libc-dev 7.0.0-42.42 installed package manifest.
+The review distinguishes source paths containing ".h" from implementation-only
+paths, but both remain PENDING_INDEPENDENT_SECURITY_REVIEW. Missing data fails
+closed; a matching header is escalated. This is an upstream affected-files
+**triage**, not an Ubuntu-specific patch-diff or independent VEX attestation.
+
+Code: scripts/audit_kernel_cve_paths.py; conservative tests:
+tests/test_kernel_cve_paths.py; workflow:
+.github/workflows/dev10-kernel-paths.yml.
+
+A reviewed final disposition still requires the Canonical-specific patches
+and shipped-header diff analysis for every CVE, host-kernel separation, bounded
+image identity, accountable independent approval, and expiry/re-review controls.
+No policy or scanner exemptions are authorized by this added evidence.
