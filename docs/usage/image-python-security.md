@@ -60,3 +60,39 @@ This is component testing only. Final image scans, multi-architecture builds,
 Codespaces and the full DEV-10/DEV-14 acceptance remain required. Earlier failed
 receipts are retained. All historical `.trivyignore` rules are retired as comments;
 newly exposed findings remain blockers, without extensions or suppression.
+
+## 30 October: unrestricted image scan and pnpm's separate client
+
+Heads `0cfb74e2020e430b9252b480a294ff90efb26b3e` (#48) and
+`000c037ceff34c7ee96b6f33194085dbfdebfaff` (#50) remove Publish's
+whole-path exclusions and unfixed-vulnerability filtering. Foundation also
+explicitly disables unfixed filtering. Historical filtered passes do not
+qualify these new candidates. The installed pip-audit invocation is corrected
+to `--path` without the incompatible requirement-only `--disable-pip` flag.
+The workspace test harness now executes the real Node membership checker and
+preserves its denial status instead of overwriting it with a successful shell
+command. DEV-10 run 41012858820 passes both source and published-image jobs.
+
+The unrestricted #50 frontend scans (run 41012859493, jobs 123922672290 and
+123922672323) expose a second undici copy inside the Corepack pnpm cache:
+`pnpm/11.24.0/dist/node_modules/undici`, version 6.28.0. Its four HIGH findings
+are CVE-2026-109383, CVE-2026-109869, CVE-2026-19534 and CVE-2026-87018.
+The Node build stage now replaces that actual library with the same 6.29.1
+code already installed for npm, checks the original version/layout before
+replacement, imports the patched request API and verifies pnpm's adopted
+11.24.0 version. It does not change project package-manager declarations or
+project lockfiles. Local component testing exercises a real HTTP request and
+frozen offline workspace installation; image qualification remains separate.
+
+Both scans also report 295 HIGH/CRITICAL findings against Ubuntu's
+`linux-libc-dev` 7.0.0-42.42, with no fixed version listed. These are source
+package/kernel advisory matches; this observation is not proof that an
+exploitable kernel runs inside the image. However, no applicability waiver,
+VEX exclusion or scanner suppression has been applied. Ubuntu's current
+[CVE-2026-89530](https://ubuntu.com/security/CVE-2026-89530) and
+[CVE-2026-98863](https://ubuntu.com/security/CVE-2026-98863) records still mark
+26.04 vulnerable/work in progress. A qualified distribution fix or separately
+reviewed applicability resolution remains required. Removing native compiler
+headers merely to reduce scanner output would break the developer contract.
+This is an open development-security dependency, not a protected-release hold
+and not permission to merge or declare DEV-10/DEV-14 complete.
