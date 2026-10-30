@@ -44,10 +44,17 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         self.assertEqual(result["critical"], 12)
         self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
 
+    def test_dependent_dev14_pr50_allowed_under_same_expiry(self):
+        result = self.qualify(pr_number=50, ref="refs/pull/50/merge")
+        self.assertEqual(result["known_cves_observed"], 295)
+        self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
+
     def test_development_main_allowed_but_never_a_tag(self):
         self.qualify(event="push", ref="refs/heads/main", pr_number=0)
         with self.assertRaises(mod.RiskGateError):
             self.qualify(event="push", ref="refs/tags/v1.5.0", pr_number=0)
+        with self.assertRaises(mod.RiskGateError):
+            self.qualify(pr_number=50, ref="refs/pull/48/merge")
 
     def test_wrong_pr_arch_and_repo_denied(self):
         for kwargs in (
