@@ -747,6 +747,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     ) && \
     corepack enable && \
     corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
+    # pnpm also ships its own undici; patch real code, retaining the adopted
+    # pnpm release and failing closed if its upstream layout/version changes.
+    PNPM_UNDICI="${COREPACK_HOME}/v1/pnpm/${PNPM_VERSION}/dist/node_modules/undici" && \
+    node -e 'if (require(process.argv[1]).version !== "6.28.0") process.exit(1)' "${PNPM_UNDICI}/package.json" && \
+    rm -rf "${PNPM_UNDICI}" && \
+    cp -r "$(npm root -g)/npm/node_modules/undici" "${PNPM_UNDICI}" && \
+    node -e 'const p=process.argv[1]; if (require(p+"/package.json").version !== "6.29.1" || typeof require(p).request !== "function") process.exit(1)' "${PNPM_UNDICI}" && \
+    test "$(pnpm --version)" = "${PNPM_VERSION}" && \
     corepack prepare yarn@stable --activate && \
     chmod -R a+rX "${COREPACK_HOME}"
 
