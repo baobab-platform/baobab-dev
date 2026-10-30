@@ -67,3 +67,25 @@ A reviewed final disposition still requires the Canonical-specific patches
 and shipped-header diff analysis for every CVE, host-kernel separation, bounded
 image identity, accountable independent approval, and expiry/re-review controls.
 No policy or scanner exemptions are authorized by this added evidence.
+
+### Completed upstream Linux CVE affected-path classification — 30 October 2026
+
+**Evidence run:** [41032607645](https://github.com/baobab-platform/baobab-dev/actions/runs/41032607645) (PASS). All **295/295** official Linux CNA JSON CVE records were retrieved at immutable upstream commit `604accad567eb6e7fb4c7fdc422470c25f35f467` and cross-checked against the actual Ubuntu `linux-libc-dev=7.0.0-42.42` binary's `dpkg-query -L` manifest (1,039 shipped headers). Every binary disposition remains `PENDING_INDEPENDENT_SECURITY_REVIEW`.
+
+| Source path classification | CVEs | Meaning |
+| --- | ---: | --- |
+| Implementation-only affected paths | **248** | No `.h` paths in upstream CNA affected-file list |
+| Internal kernel header paths | **47** | 4 CRITICAL, 43 HIGH; all outside `include/uapi/*` |
+| Direct matching shipped UAPI headers | **0** | No affected-file path directly corresponds to an installed `/usr/include` header |
+| Unverified/missing upstream records | **0** | All 295 records retrieved with exact SHA-identified source |
+| Approved security exceptions / VEX | **0** | None authorized or applied |
+
+The 47 cases include `CVE-2026-89659` (`fs/nfsd/netns.h`), `CVE-2026-89708` (`fs/nfsd/state.h`, `fs/nfsd/trace.h`), `CVE-2026-98621` (`include/net/gue.h`), and `CVE-2026-98503` (`include/linux/skbuff.h`). The complete 295-row list, all 47 header names, Canonical status and upstream paths are retained in the evidence artifact `affected-source-files.json`.
+
+**Evidence hashes/custody:** `affected-source-files.json` SHA256
+`bd2730b71a5dc7302373a7953d67dfbbe37a44ae2ede01039a63ba2df00398d4`;
+actual `installed-paths.txt` SHA256
+`688453ae46c07ec19b3bf6734eb2f23b0dfe5625c16d76d75149b8194da91fa3`.
+The artifact also includes `upstream-commit.txt`. Source and regression tests are committed as `scripts/audit_kernel_cve_paths.py` and `tests/test_kernel_cve_paths.py`; the read-only workflow is `.github/workflows/dev10-kernel-paths.yml`.
+
+**Decision remains SECURITY HELD.** The Linux CNA `programFiles` entries are upstream affected-file assertions, not complete Canonical-specific patch diffs. No direct UAPI path match supports a bounded `vulnerable_code_not_present` *candidate*, not a final exploitability verdict. An independent security reviewer must verify the Ubuntu 26.04 patch changes and binary-package derivation, indirect UAPI/ABI effects, host-kernel separation, exact resulting image digest, and an accountable expiring CVE-by-CVE decision. No blanket VEX, scanner ignores, relaxed HIGH/CRITICAL exit codes or release approval is justified by these observations.
