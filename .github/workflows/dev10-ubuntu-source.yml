@@ -33,7 +33,7 @@ jobs:
             export DEBIAN_FRONTEND=noninteractive
             apt-get update -qq >/dev/null
             apt-get install -qq -y --no-install-recommends linux-libc-dev=7.0.0-42.42 >/dev/null
-            test "$(dpkg-query -W -f="${Version}" linux-libc-dev)" = "7.0.0-42.42"
+            test "$(dpkg-query -W linux-libc-dev | cut -f 2)" = "7.0.0-42.42"
             dpkg-query -L linux-libc-dev
           ' > "$RUNNER_TEMP/dev10-ubuntu-source/installed-paths.txt"
       - name: Reproduce immutable Linux CNA source paths
