@@ -121,7 +121,8 @@ def qualify(report: dict, signed: dict, trust: dict, *,
             "missing evidence content digest")
     require(d.get("risk_owner_principal") and len(d.get("risk_acceptance_reason") or "") >= 40
             and isinstance(d.get("re_review_triggers"), list)
-            and len(d["re_review_triggers"]) >= 3, "missing risk owner, acceptance rationale or re-review triggers")\n    require(time_utc(d["issued_at"]) <= now < time_utc(d["expires_at"]),
+            and len(d["re_review_triggers"]) >= 3, "missing risk owner, acceptance rationale or re-review triggers")
+    require(time_utc(d["issued_at"]) <= now < time_utc(d["expires_at"]),
             "approval expired or not yet active")
     require(time_utc(authority["valid_from"]) <= now < time_utc(authority["valid_until"]),
             "reviewer appointment inactive or expired")
