@@ -119,7 +119,9 @@ def qualify(report: dict, signed: dict, trust: dict, *,
             "source revision not immutable")
     require(SHA.fullmatch(d.get("evidence_sha256") or "") is not None,
             "missing evidence content digest")
-    require(time_utc(d["issued_at"]) <= now < time_utc(d["expires_at"]),
+    require(d.get("risk_owner_principal") and len(d.get("risk_acceptance_reason") or "") >= 40
+            and isinstance(d.get("re_review_triggers"), list)
+            and len(d["re_review_triggers"]) >= 3, "missing risk owner, acceptance rationale or re-review triggers")\n    require(time_utc(d["issued_at"]) <= now < time_utc(d["expires_at"]),
             "approval expired or not yet active")
     require(time_utc(authority["valid_from"]) <= now < time_utc(authority["valid_until"]),
             "reviewer appointment inactive or expired")
@@ -145,7 +147,7 @@ def qualify(report: dict, signed: dict, trust: dict, *,
         require(len(row.get("review_reasoning") or "") >= 80
                 and row.get("ubuntu_patch_review_reference")
                 and row.get("indirect_uapi_abi_review_reference")
-                and row.get("review_reference")
+                and row.get("review_reference") and row.get("package_purl")
                 and SHA.fullmatch(row.get("per_cve_evidence_sha256") or ""),
                 "missing individual Ubuntu source/UAPI/ABI evidence")
         require(row.get("canonical_vendor_status") ==
@@ -157,14 +159,18 @@ def qualify(report: dict, signed: dict, trust: dict, *,
     statements = []
     for (cve, pkg, version), finding in raw.items():
         row = exceptions.get(cve)
-        if row is None or pkg != "linux-libc-dev" or version != "7.0.0-42.42":
+        observed_purl = (finding.get("PkgIdentifier") or {}).get("PURL")
+        if (row is None or pkg != "linux-libc-dev" or version != "7.0.0-42.42"
+                or not isinstance(observed_purl, str)
+                or row["package_purl"] != observed_purl):
             unresolved.append((cve, pkg, version))
             continue
         # A scanner match is scoped to the exact package, version, digest
         # and platform; never turn an unrelated package match into an exemption.
         statements.append({
             "vulnerability": {"name": cve},
-            "products": [{"@id": image_purl}],
+            "products": [{"@id": image_purl,
+                          "subcomponents": [{"@id": observed_purl}]}],
             "status": "not_affected", "justification": row["justification"],
             "impact_statement": row["review_reasoning"],
             "status_notes": "Independent decision " + d["decision_id"]
