@@ -17,6 +17,13 @@ class DoctorTests(unittest.TestCase):
         self.assertFalse(doctor.meets_version("Python 3.13.16", (3, 14)))
         self.assertTrue(doctor.meets_version("rustc 1.88.0 (123)", (1, 88)))
         self.assertFalse(doctor.meets_version("rustc 1.87.9", (1, 88)))
+        self.assertTrue(doctor.python_line_supported("Python 3.14.6"))
+        self.assertFalse(doctor.python_line_supported("Python 3.13.16"))
+        self.assertFalse(doctor.python_line_supported("Python 3.15.0"))
+        self.assertEqual(
+            doctor.SHARED_PIN,
+            "32b71f3335e566daeb58246f17fcbbf162cf7f53",
+        )
 
     def test_missing_rust_and_docker_block_payments(self):
         with patch.object(doctor.shutil, "which", return_value=None):
@@ -49,6 +56,21 @@ class DoctorTests(unittest.TestCase):
             self.assertEqual(result["result"], "LOCAL_TOOLCHAIN_OBSERVED")
             self.assertEqual(result["scope"], "TOOLCHAIN_DIAGNOSTIC_ONLY")
             self.assertFalse(result["protected_acceptance"])
+
+    def test_python_315_is_blocked_even_with_other_prerequisites(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            with patch.object(doctor.shutil, "which", return_value="/usr/bin/tool"):
+                with patch.object(doctor, "probe", side_effect=lambda cmd, **kw: (
+                    (True, doctor.SHARED_PIN) if "rev-parse" in cmd else
+                    (True, "OBSERVED") if "status" in cmd else
+                    (True, "Python 3.15.0") if "--version" in cmd and cmd[0] == doctor.sys.executable else
+                    (True, "Docker version 29.0.0")
+                )):
+                    result = doctor.inspect("pulse-intelligence", root)
+        self.assertEqual(result["checks"]["python"], "VERSION_UNSUPPORTED")
+        self.assertIn("python", result["blocked_prerequisites"])
+        self.assertEqual(result["result"], "BLOCKED")
 
     def test_unknown_profile_rejected(self):
         with self.assertRaisesRegex(ValueError, "UNKNOWN_DEV14_PROFILE"):
