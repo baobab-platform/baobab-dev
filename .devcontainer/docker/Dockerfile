@@ -1360,8 +1360,10 @@ https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSI
       > /etc/apt/sources.list.d/adoptium.list && \
     apt-get update && \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
+    # Keep Java 17 as default for iDempiere, with Java 21 available to
+    # Subscriptions through an explicit JAVA_HOME/PATH selection.
     apt-get install -y --no-install-recommends \
-      temurin-${JAVA_MAJOR}-jdk
+      "temurin-${JAVA_MAJOR}-jdk" "temurin-${JAVA_SUBSCRIPTIONS_MAJOR}-jdk"
 
 # Adoptium's package installs under a version- and arch-suffixed path
 # (/usr/lib/jvm/temurin-${JAVA_MAJOR}-jdk-<arch>) rather than a stable one.
@@ -1371,7 +1373,18 @@ https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSI
 # "stable path, whatever the underlying vendor path really is" approach
 # already used by /opt/flutter and (below) /opt/maven, so JAVA_HOME in
 # section 10's global ENV block never has to hardcode a version/arch suffix.
-RUN ln -s "$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")" /opt/java
+RUN set -euo pipefail; \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
+    java17="$(find /usr/lib/jvm -maxdepth 1 -type d -name "temurin-${JAVA_MAJOR}-jdk-*" -print -quit)"; \
+    java21="$(find /usr/lib/jvm -maxdepth 1 -type d -name "temurin-${JAVA_SUBSCRIPTIONS_MAJOR}-jdk-*" -print -quit)"; \
+    test -n "$java17" && test -n "$java21"; \
+    test -x "$java17/bin/javac" && test -x "$java21/bin/javac"; \
+    ln -s "$java17" /opt/java17; \
+    ln -s "$java21" /opt/java21; \
+    ln -s /opt/java17 /opt/java; \
+    /opt/java17/bin/javac -version 2>&1 | grep -E "^javac 17[.]"; \
+    /opt/java21/bin/javac -version 2>&1 | grep -E "^javac 21[.]"; \
+    test "$(readlink /opt/java)" = /opt/java17
 
 # FIX (2026-09-03): the Trivy "scan built container" CI step failed on both
 # platforms after Maven was added — not a real secret. Maven's own stock
