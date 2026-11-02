@@ -49,6 +49,18 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         self.assertEqual(result["known_cves_observed"], 295)
         self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
 
+    def test_candidate_pr57_allowed_but_not_release_authority(self):
+        result = self.qualify(pr_number=57, ref="refs/pull/57/merge")
+        self.assertEqual(result["known_cves_observed"], 295)
+        self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
+        for event, ref, number in (
+            ("push", "refs/tags/v1.5.0", 0),
+            ("workflow_dispatch", "refs/heads/main", 57),
+            ("pull_request", "refs/pull/58/merge", 57),
+        ):
+            with self.subTest(event=event, ref=ref), self.assertRaises(mod.RiskGateError):
+                self.qualify(event=event, ref=ref, pr_number=number)
+
     def test_development_main_allowed_but_never_a_tag(self):
         self.qualify(event="push", ref="refs/heads/main", pr_number=0)
         with self.assertRaises(mod.RiskGateError):
