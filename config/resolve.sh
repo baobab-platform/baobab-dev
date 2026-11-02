@@ -426,7 +426,11 @@ POSTGRES_MAJOR=$(yaml '.database.postgresql.major')
 # dependency resolver picks the exact point release at build time from
 # Eclipse Temurin's repository (see versions.yaml's languages.java comment).
 JAVA_MAJOR=$(yaml '.languages.java.version')
+JAVA_SUBSCRIPTIONS_MAJOR=$(yaml '.languages.java.subscriptions_major')
 require_resolved "$JAVA_MAJOR" "versions.yaml key '.languages.java.version'"
+require_resolved "$JAVA_SUBSCRIPTIONS_MAJOR" "versions.yaml key '.languages.java.subscriptions_major'"
+[[ "$JAVA_MAJOR" == 17 && "$JAVA_SUBSCRIPTIONS_MAJOR" == 21 ]] ||
+    die "DEV10-R4 requires Java 17 default with independently selected Java 21 Subscriptions overlay"
 
 # ------------------------------------------------------------------------------
 # Flutter
@@ -774,6 +778,7 @@ export NODE_MAJOR=${NODE_MAJOR}
 export NODE_VERSION=${NODE_VERSION}
 
 export JAVA_MAJOR=${JAVA_MAJOR}
+export JAVA_SUBSCRIPTIONS_MAJOR=${JAVA_SUBSCRIPTIONS_MAJOR}
 
 export FLUTTER_VERSION=${FLUTTER_VERSION}
 export FLUTTER_SHA256=${FLUTTER_SHA256}
