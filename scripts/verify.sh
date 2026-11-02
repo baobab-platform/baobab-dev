@@ -486,9 +486,18 @@ section "Java"
 # `languages.java`/`development.maven` under `full`.
 if [[ "$BAOBAB_BUILD_PROFILE" == "full" ]]; then
 
-    check_required "Java ${JAVA_MAJOR}" java "java --version"
-    check_required "javac" javac "javac --version"
+    check_required "Java ${JAVA_MAJOR} (ERP default)" java "java --version"
+    check_required "javac ${JAVA_MAJOR}" javac "javac --version"
     check_required "Maven" mvn "mvn --version"
+    # Java 21 is installed in parallel, never silently replaces the ERP JDK.
+    if [[ -x /opt/java17/bin/javac && -x /opt/java21/bin/javac &&
+          "$(readlink /opt/java 2>/dev/null)" == /opt/java17 ]] &&
+       /opt/java17/bin/javac -version 2>&1 | grep -Eq '^javac 17[.]' &&
+       /opt/java21/bin/javac -version 2>&1 | grep -Eq '^javac 21[.]'; then
+        ok "Java 17 default and Java 21 Subscriptions opt-in"
+    else
+        bad "Java 17/Java 21 dual JDK selection is missing or drifted"
+    fi
 
     # Guard the pinned Maven 3.9.16 Guava replacement, including bytes.
     if [[ -f /opt/maven/lib/guava-33.7.2-jre.jar ]] &&
