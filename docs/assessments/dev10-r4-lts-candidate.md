@@ -42,3 +42,19 @@ not use the normal publish/release tags or be treated as deployment authority.
 
 If any native engine cannot pass, document that precise incompatibility, owner
 evidence and the isolated temporary pin; do not silently downgrade the platform.
+
+## 2026-11-02 correction — publisher binary / Corepack precedence
+
+GitHub Actions owner probes reproduced a global Corepack shim that tried to
+fetch the **existing pnpm 11.24.0 project pin** despite installation of the
+pnpm 12 npm package. This is a test failure, **not compatibility evidence**.
+The candidate now verifies publisher-provided SHA-256 for separate pnpm 12.16.1
+native x64/arm64 release archives and places that binary ahead of Corepack;
+Corepack 0.36.0 remains a separately pinned Yarn tool. No unidentified npm
+postinstall scripts, abandoned pnpm 11 vendored-undici patch, or disabled
+security scans are permitted. R3 checks install these identical immutable
+pnpm release bytes in disposable CI workspaces.
+
+pnpm 12.17.0 was released 30 October but is still under npm's `next-12`
+channel; `12.16.1` is the current published `latest` as observed 2 November.
+No prerelease-channel promotion without a later explicit decision.

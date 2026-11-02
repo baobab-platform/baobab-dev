@@ -764,20 +764,34 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         node -e 'const u = require(process.argv[1]); if (u.version !== "6.29.1") process.exit(1)' "${NPM_GLOBAL_ROOT}/npm/node_modules/undici/package.json" && \
         rm -rf "${TAR_SCRATCH_DIR}" \
     ) && \
-    # Node 26 no longer ships Corepack; install a separately pinned CLI.
-    # pnpm 12 is a native executable: Corepack prepare alone does not give
-    # an offline-resolvable binary. Install both exact npm-distributed tools.
-    # Corepack remains available for explicit legacy Yarn consumers, but the
-    # trusted pnpm entrypoint is the exact installed native executable.
-    npm_install_retry -g "corepack@${COREPACK_VERSION}" "pnpm@${PNPM_VERSION}" && \
+    # Node 26 no longer bundles Corepack. Keep an exact independent Corepack
+    # for Yarn, but NEVER let its project-specific pnpm shim silently download
+    # an old release or masquerade as the installed native pnpm 12.
+    npm_install_retry -g "corepack@${COREPACK_VERSION}" && \
     test "$(corepack --version)" = "${COREPACK_VERSION}" && \
-    test "$(pnpm --version)" = "${PNPM_VERSION}" && \
-    # pnpm 12 is a native executable. The old pnpm-11 dist/node_modules/undici
-    # hotpatch target no longer exists; rely on strict whole-image CVE scans,
-    # not a fictitious modification to an absent dependency.
     test "${PNPM_VERSION%%.*}" = "12" && \
+    PNPM_PLATFORM="$(dpkg --print-architecture)" && \
+    case "${PNPM_PLATFORM}" in \
+      amd64) PNPM_ASSET=pnpm-linux-x64.tar.gz; PNPM_DIGEST="${PNPM_SHA256_AMD64}" ;; \
+      arm64) PNPM_ASSET=pnpm-linux-arm64.tar.gz; PNPM_DIGEST="${PNPM_SHA256_ARM64}" ;; \
+      *) echo "Unsupported native pnpm architecture" >&2; exit 1 ;; \
+    esac && \
+    mkdir -p /tmp/dev10-pnpm-native && \
+    curl --fail --location --silent --show-error --retry 3 \
+      "https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/${PNPM_ASSET}" \
+      --output /tmp/dev10-pnpm-native/archive.tar.gz && \
+    printf '%s  %s\n' "${PNPM_DIGEST}" /tmp/dev10-pnpm-native/archive.tar.gz | sha256sum -c - && \
+    tar -xzf /tmp/dev10-pnpm-native/archive.tar.gz -C /tmp/dev10-pnpm-native && \
+    PNPM_BIN="$(find /tmp/dev10-pnpm-native -type f \
+      \( -name pnpm -o -name pnpm-linux-x64 -o -name pnpm-linux-arm64 \) -print -quit)" && \
+    test -n "${PNPM_BIN}" && \
+    install -m 0755 "${PNPM_BIN}" /usr/local/bin/pnpm && \
     test "$(pnpm --version)" = "${PNPM_VERSION}" && \
+    rm -rf /tmp/dev10-pnpm-native && \
+    # Legacy Yarn is Corepack-managed, pnpm stays the publisher binary.
+    corepack enable yarn && \
     corepack prepare yarn@stable --activate && \
+    test "$(pnpm --version)" = "${PNPM_VERSION}" && \
     chmod -R a+rX "${COREPACK_HOME}"
 
 # Non-interactive-by-construction guard, not a suppression of the prompt —

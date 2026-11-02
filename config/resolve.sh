@@ -491,6 +491,14 @@ FLUTTER_ARCHIVE_AMD64=$(flutter_archive_url_for_version "${FLUTTER_VERSION}")
 # ------------------------------------------------------------------------------
 
 PNPM_VERSION=$(resolve_npm '.package_managers.pnpm.version' 'pnpm' 'PNPM_VERSION')
+# Native pnpm 12 is downloaded from the signed publisher release, not npm.
+# Frozen source has explicit per-architecture digests, and every Docker
+# download verifies the exact declared bytes on its target architecture.
+PNPM_SHA256_AMD64=$(yaml '.package_managers.pnpm.sha256_amd64')
+PNPM_SHA256_ARM64=$(yaml '.package_managers.pnpm.sha256_arm64')
+[[ "$PNPM_SHA256_AMD64" =~ ^[a-f0-9]{64}$ &&
+   "$PNPM_SHA256_ARM64" =~ ^[a-f0-9]{64}$ ]] ||
+    die "Missing/invalid native pnpm 12 publisher SHA256 digest"
 COREPACK_VERSION=$(resolve_npm '.package_managers.corepack.version' 'corepack' 'COREPACK_VERSION')
 
 # ------------------------------------------------------------------------------
@@ -776,6 +784,8 @@ export FLUTTER_ARCHIVE_AMD64=${FLUTTER_ARCHIVE_AMD64}
 export POSTGRES_MAJOR=${POSTGRES_MAJOR}
 
 export PNPM_VERSION=${PNPM_VERSION}
+export PNPM_SHA256_AMD64=${PNPM_SHA256_AMD64}
+export PNPM_SHA256_ARM64=${PNPM_SHA256_ARM64}
 export COREPACK_VERSION=${COREPACK_VERSION}
 export POETRY_VERSION=${POETRY_VERSION}
 
