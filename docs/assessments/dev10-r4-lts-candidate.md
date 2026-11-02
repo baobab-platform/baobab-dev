@@ -11,7 +11,7 @@ affected owners execute real native acceptance.
 | Python | 3.14.10 built from PSF source tarball with public sha256 |
 | Node | 26.13.0 Active LTS from NodeSource signed apt, exact runtime assertion, libatomic1 |
 | pnpm | 12.16.1 native executable through separately installed Corepack 0.36.0 |
-| Java | Temurin 17 default for ERP + explicit Temurin 21 Subscriptions overlay |
+| Java | Temurin 21 default for iDempiere v13 and Subscriptions |
 | PostgreSQL | client 17 only; physical migration separately owned DEV-12 |
 | Playwright | 1.64.1 with exactly matching browser binaries |
 
@@ -63,23 +63,28 @@ pnpm 12.17.0 was released 30 October but is still under npm's `next-12`
 channel; `12.16.1` is the current published `latest` as observed 2 November.
 No prerelease-channel promotion without a later explicit decision.
 
-## Java 17 / Java 21 compatibility separation (issue #52)
+## Java 21 shared default (issue #52; iDempiere v13)
 
-The full-profile default JAVA_HOME remains `/opt/java` → `/opt/java17`
-for native iDempiere/ERP. Both `/opt/java17` and `/opt/java21` come from
-Temurin's signed apt repository. Subscriptions may opt into Java 21 in its
-owner devcontainer, without changing the group-wide default:
+Temurin **21** is the only JDK installed by the full candidate image and
+the default `JAVA_HOME=/opt/java`. iDempiere's official prerequisites
+document a JDK >=17 and use Java 17 as an example, not as a maximum.
+Actual iDempiere v13 OSGi/JVM bundle startup, database integration and
+owner build on Java 21 must still pass in the consuming engine; avoid
+claiming native acceptance based on a version floor alone.
 
 ```sh
-JAVA_HOME=/opt/java21 PATH=/opt/java21/bin:$PATH ./mvnw --version
-JAVA_HOME=/opt/java21 PATH=/opt/java21/bin:$PATH ./mvnw verify
+java --version
+javac --version
+mvn --version
+./mvnw verify
 ```
 
-The source verifies both `javac` majors, the original default symlink and
-Maven. Actual owner Subscriptions `./mvnw verify` with PostgreSQL 17 in a
-new disposable Codespace, private package access and AMD64/ARM64 image
-readback remain qualification requirements. Do not mark issue #52 closed
-on image-source checks alone.
+The source checks the running JVM's Java specification version **21**,
+`javac 21` and the original `JAVA_HOME` contract. Actual Subscriptions
+`./mvnw verify` with PostgreSQL 17 in a disposable Codespace, iDempiere v13
+native tests, private package access and AMD64/ARM64 image readback remain
+qualification requirements. Do not mark issue #52 closed on image-source
+checks alone.
 
 ## Security disposition and v1.5.0 release boundary
 
