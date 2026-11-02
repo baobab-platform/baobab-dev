@@ -28,11 +28,12 @@ platform:
 languages:
 
   python:
-    version: "3.14.6"
+    version: "3.14.10"
     source: "python.org"
 
   node:
-    major: "24"
+    major: "26"
+    exact: "26.13.0"
     source: "nodesource"
 
   flutter:
@@ -41,7 +42,7 @@ languages:
     source: "flutter"
 
   java:
-    version: "17"
+    version: "21"
     source: "apt"
     # OpenJDK 17 (JDK, not JRE), via Eclipse Temurin's own apt repository —
     # NOT Ubuntu's own openjdk-17-jdk package. Same reasoning already applied
@@ -79,7 +80,7 @@ package_managers:
     source: "github"
 
   pnpm:
-    version: "11.24.0"
+    version: "12.16.1"
     source: "npm"
     # Explicit pin, NOT "latest" — unlike npm/npm_bundled_tar below, whose
     # float is deliberate (see their own comments: CVE freshness for a
@@ -104,6 +105,12 @@ package_managers:
     # bump this in lockstep whenever those repos bump theirs, exactly like
     # the "Version upgrade procedure" documented in docs/frontend-image-
     # contract.md.
+
+  corepack:
+    version: "0.36.0"
+    source: "npm"
+    # Node 26 does not bundle Corepack. Exact package + npm-registry integrity
+    # is mandatory, before any noninteractive pnpm activation.
 
   npm:
     version: "latest"
@@ -243,7 +250,7 @@ frontend_tooling:
     stage: "frontend"
 
   playwright:
-    version: "1.62.1"
+    version: "1.64.1"
     source: "npm"
     stage: "frontend-e2e"
     note: >

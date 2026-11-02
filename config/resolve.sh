@@ -416,6 +416,8 @@ resolve_npm() {
 PYTHON_VERSION=$(yaml '.languages.python.version')
 
 NODE_MAJOR=$(yaml '.languages.node.major')
+NODE_VERSION=$(yaml '.languages.node.exact')
+require_resolved "$NODE_VERSION" "versions.yaml exact Node release"
 
 POSTGRES_MAJOR=$(yaml '.database.postgresql.major')
 
@@ -489,6 +491,7 @@ FLUTTER_ARCHIVE_AMD64=$(flutter_archive_url_for_version "${FLUTTER_VERSION}")
 # ------------------------------------------------------------------------------
 
 PNPM_VERSION=$(resolve_npm '.package_managers.pnpm.version' 'pnpm' 'PNPM_VERSION')
+COREPACK_VERSION=$(resolve_npm '.package_managers.corepack.version' 'corepack' 'COREPACK_VERSION')
 
 # ------------------------------------------------------------------------------
 # GitHub tools
@@ -760,6 +763,7 @@ export PYTHON_VERSION=${PYTHON_VERSION}
 export PYTHON_MINOR=${PYTHON_MINOR}
 
 export NODE_MAJOR=${NODE_MAJOR}
+export NODE_VERSION=${NODE_VERSION}
 
 export JAVA_MAJOR=${JAVA_MAJOR}
 
@@ -772,6 +776,7 @@ export FLUTTER_ARCHIVE_AMD64=${FLUTTER_ARCHIVE_AMD64}
 export POSTGRES_MAJOR=${POSTGRES_MAJOR}
 
 export PNPM_VERSION=${PNPM_VERSION}
+export COREPACK_VERSION=${COREPACK_VERSION}
 export POETRY_VERSION=${POETRY_VERSION}
 
 export UV_VERSION=${UV_VERSION}

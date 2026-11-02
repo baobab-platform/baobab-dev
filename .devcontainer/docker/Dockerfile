@@ -733,7 +733,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" \
       > /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends nodejs && \
+    apt-get install -y --no-install-recommends libatomic1 nodejs && \
+    test "$(node --version)" = "v${NODE_VERSION}" && \
     \
     # npm_install_retry() wraps the two npm-registry-published installs
     # below (npm itself, and its bundled tar) with bounded exponential
@@ -763,15 +764,15 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         node -e 'const u = require(process.argv[1]); if (u.version !== "6.29.1") process.exit(1)' "${NPM_GLOBAL_ROOT}/npm/node_modules/undici/package.json" && \
         rm -rf "${TAR_SCRATCH_DIR}" \
     ) && \
+    # Node 26 no longer ships Corepack; install a separately pinned CLI.
+    npm_install_retry -g "corepack@${COREPACK_VERSION}" && \
+    test "$(corepack --version)" = "${COREPACK_VERSION}" && \
     corepack enable && \
     corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
-    # pnpm also ships its own undici; patch real code, retaining the adopted
-    # pnpm release and failing closed if its upstream layout/version changes.
-    PNPM_UNDICI="${COREPACK_HOME}/v1/pnpm/${PNPM_VERSION}/dist/node_modules/undici" && \
-    node -e 'if (require(process.argv[1]).version !== "6.28.0") process.exit(1)' "${PNPM_UNDICI}/package.json" && \
-    rm -rf "${PNPM_UNDICI}" && \
-    cp -r "$(npm root -g)/npm/node_modules/undici" "${PNPM_UNDICI}" && \
-    node -e 'const p=process.argv[1]; if (require(p+"/package.json").version !== "6.29.1" || typeof require(p).request !== "function") process.exit(1)' "${PNPM_UNDICI}" && \
+    # pnpm 12 is a native executable. The old pnpm-11 dist/node_modules/undici
+    # hotpatch target no longer exists; rely on strict whole-image CVE scans,
+    # not a fictitious modification to an absent dependency.
+    test "${PNPM_VERSION%%.*}" = "12" && \
     test "$(pnpm --version)" = "${PNPM_VERSION}" && \
     corepack prepare yarn@stable --activate && \
     chmod -R a+rX "${COREPACK_HOME}"
@@ -1114,6 +1115,36 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     fi && \
     update-alternatives --install /usr/bin/python3 python3 "/usr/bin/python${PYTHON_MINOR}" 1 && \
     update-alternatives --install /usr/bin/python  python  /usr/bin/python3 1
+
+# DEV10-R4: Ubuntu's python3.14 apt package guarantees the minor, NOT the
+# Python 3.14.10 security patch. Fetch PSF's exact signed-release tarball with
+# its published SHA-256; compile independently on amd64 and arm64. Do not
+# report a patch level that the actual binary does not provide.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    set -euo pipefail; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
+      libsqlite3-dev libffi-dev liblzma-dev libncurses-dev xz-utils; \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
+    test "${PYTHON_VERSION}" = "3.14.10"; \
+    curl --fail --location --silent --show-error \
+      "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz" \
+      --output /tmp/baobab-python.tar.xz; \
+    echo "de414a57119abef52784d8993e341d53aed635fc2b05c2607d9f98a2c5b72032  /tmp/baobab-python.tar.xz" | sha256sum -c -; \
+    mkdir -p /tmp/baobab-python-source; \
+    tar --no-same-owner -xf /tmp/baobab-python.tar.xz -C /tmp/baobab-python-source --strip-components=1; \
+    cd /tmp/baobab-python-source; \
+    ./configure --prefix="/opt/baobab-python/${PYTHON_VERSION}" --with-ensurepip=install; \
+    make -j 4; \
+    make altinstall; \
+    ln -sfn "/opt/baobab-python/${PYTHON_VERSION}/bin/python3.14" /usr/local/bin/python3.14; \
+    ln -sfn /usr/local/bin/python3.14 /usr/local/bin/python3; \
+    ln -sfn /usr/local/bin/python3.14 /usr/local/bin/python; \
+    /usr/local/bin/python3 -V 2>&1 | grep -Fx "Python ${PYTHON_VERSION}"; \
+    /usr/local/bin/python3 -c 'import ssl,sqlite3,bz2,lzma,ctypes,venv; print(ssl.OPENSSL_VERSION)'; \
+    rm -rf /tmp/baobab-python-source /tmp/baobab-python.tar.xz
 
 # pip self-upgrade + explicit setuptools/msgpack upgrade.
 #
