@@ -34,6 +34,24 @@ class ApplicabilityTests(unittest.TestCase):
         self.assertTrue(all(x["binary_exposure"]["abi_uapi_compiler_transitive"]
                             == "under_investigation" for x in result["records"]))
 
+    def test_live_upstream_revision_is_propagated_without_security_clearance(self):
+        scanner = builder.tsv(ROOT / "docs/assessments/dev10-kernel-cves.tsv")
+        vendor = builder.tsv(ROOT / "docs/assessments/dev10-canonical-cve-status-20261030.tsv")
+        current_sha = "6e051cebb25cdd17a28267fbf1a4de5c9c8164f8"
+        upstream = {"upstream_commit": current_sha, "records": [
+            {"cve": row["cve"], "upstream_paths": ["net/driver.c"],
+             "affected_headers": [], "matching_shipped_uapi_headers": [],
+             "classification": "KERNEL_IMPLEMENTATION_PATHS_REVIEW_REQUIRED",
+             "error": ""} for row in scanner]}
+        report = builder.build(scanner, vendor, upstream)
+        self.assertEqual(report["source_provenance"]["upstream_linux_cna_revision"], current_sha)
+        self.assertTrue(all(row["upstream"]["source_revision"] == current_sha
+                            and row["approved_disposition"] is None for row in report["records"]))
+        self.assertEqual(report["decision"], "SECURITY_HELD_NO_EXCEPTION_APPROVED")
+        upstream["upstream_commit"] = "master"
+        with self.assertRaisesRegex(ValueError, "immutable"):
+            builder.build(scanner, vendor, upstream)
+
     def test_missing_ubuntu_patch_never_becomes_not_affected(self):
         scanner = builder.tsv(ROOT / "docs/assessments/dev10-kernel-cves.tsv")
         vendor = builder.tsv(ROOT / "docs/assessments/dev10-canonical-cve-status-20261030.tsv")
