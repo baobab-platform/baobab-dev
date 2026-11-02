@@ -1223,8 +1223,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     python3 -m pip install --no-cache-dir --break-system-packages pipx && \
     export PATH="/usr/local/bin:${PATH}" && \
     python3 -m pipx ensurepath --global && \
-    pipx install --global "poetry==${POETRY_VERSION}" && \
-    pipx inject --global poetry poetry-plugin-shell && \
+    python3 -m pipx install --global "poetry==${POETRY_VERSION}" && \
+    python3 -m pipx inject --global poetry poetry-plugin-shell && \
     python3 -m pip install --no-cache-dir --break-system-packages --upgrade "setuptools>=78.1.1" "msgpack>=1.2.1" "urllib3==2.8.0" && \
     python3 -m pip check && \
     "${PIPX_GLOBAL_HOME}/venvs/poetry/bin/python" -m pip check && \
