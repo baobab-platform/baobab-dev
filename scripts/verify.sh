@@ -486,17 +486,187 @@ section "Java"
 # `languages.java`/`development.maven` under `full`.
 if [[ "$BAOBAB_BUILD_PROFILE" == "full" ]]; then
 
-    check_required "Java ${JAVA_MAJOR} (ERP default)" java "java --version"
+    check_required "Java ${JAVA_MAJOR} (ERP and Subscriptions)" java "java --version"
     check_required "javac ${JAVA_MAJOR}" javac "javac --version"
     check_required "Maven" mvn "mvn --version"
-    # Java 21 is installed in parallel, never silently replaces the ERP JDK.
-    if [[ -x /opt/java17/bin/javac && -x /opt/java21/bin/javac &&
-          "$(readlink /opt/java 2>/dev/null)" == /opt/java17 ]] &&
-       /opt/java17/bin/javac -version 2>&1 | grep -Eq '^javac 17[.]' &&
-       /opt/java21/bin/javac -version 2>&1 | grep -Eq '^javac 21[.]'; then
-        ok "Java 17 default and Java 21 Subscriptions opt-in"
+    # Enforce the actual runtime/JDK major instead of trusting a descriptive label.
+    if [[ "${JAVA_MAJOR}" == 21 && -x /opt/java/bin/javac ]] &&
+       java -XshowSettings:properties -version 2>&1 | grep -Eq 'java.specification.version = 21
+
+    # Guard the pinned Maven 3.9.16 Guava replacement, including bytes.
+    if [[ -f /opt/maven/lib/guava-33.7.2-jre.jar ]] &&
+       [[ "$(find /opt/maven/lib -maxdepth 1 -name 'guava-*.jar' | wc -l)" -eq 1 ]] &&
+       echo "b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c  /opt/maven/lib/guava-33.7.2-jre.jar" | sha256sum --check --strict >/dev/null 2>&1; then
+        ok "Maven Guava 33.7.2-jre pinned integrity"
     else
-        bad "Java 17/Java 21 dual JDK selection is missing or drifted"
+        bad "Maven Guava version/integrity mismatch"
+    fi
+
+else
+    say "  Skipped — profile '${BAOBAB_BUILD_PROFILE}' does not include Java/Maven"
+fi
+
+###############################################################################
+# Databases
+###############################################################################
+
+section "Database"
+
+if [[ "$BAOBAB_BUILD_PROFILE" == "full" ]]; then
+    check_required "PostgreSQL client" psql
+    check_required "Redis CLI" redis-cli
+else
+    say "  Skipped — profile '${BAOBAB_BUILD_PROFILE}' does not include database clients"
+fi
+
+###############################################################################
+# Docker
+###############################################################################
+
+section "Containers"
+
+# `infra` added alongside `full` (2026-09-03) — it installs Docker CLI +
+# Compose plugin too (baobab-platform/infrastructure's own compose stack), matching
+# capabilities.yaml's `development.docker: true` under both profiles.
+if [[ "$BAOBAB_BUILD_PROFILE" == "full" || "$BAOBAB_BUILD_PROFILE" == "infra" ]]; then
+
+    check_required "Docker CLI" docker
+
+    if command -v docker >/dev/null; then
+
+        if docker compose version >/dev/null 2>&1; then
+            ok "Docker Compose plugin"
+        else
+            bad "Docker Compose plugin missing"
+        fi
+
+        if docker info >/dev/null 2>&1; then
+            ok "Docker daemon reachable"
+        else
+            warnc "Docker daemon unavailable"
+        fi
+
+    fi
+
+else
+    # ASSUMPTION: neither frontend nor frontend-e2e includes Docker CLI —
+    # matches capabilities.yaml, which only lists `docker` under `full`/
+    # `infra`. Revisit if a digital-estate repo later needs local
+    # containerized services (e.g. a local mock backend).
+    say "  Skipped — profile '${BAOBAB_BUILD_PROFILE}' does not include Docker CLI"
+fi
+
+###############################################################################
+# Infrastructure
+###############################################################################
+
+section "Infrastructure"
+
+# Needed only for baobab-platform/infrastructure's Terraform-managed AWS
+# infrastructure — not by any other BAOBAB repo today. Matches
+# capabilities.yaml, which only lists `development.terraform`/`aws_cli`
+# under `infra`.
+if [[ "$BAOBAB_BUILD_PROFILE" == "infra" ]]; then
+
+    check_exact_version "Terraform" terraform "${TERRAFORM_VERSION}" 'terraform version -json | jq -r .terraform_version'
+    check_required "AWS CLI" aws "aws --version"
+
+else
+    say "  Skipped — profile '${BAOBAB_BUILD_PROFILE}' does not include Terraform/AWS CLI"
+fi
+
+###############################################################################
+# GitHub
+###############################################################################
+
+section "GitHub"
+
+check_required "GitHub CLI" gh
+
+if command -v gh >/dev/null; then
+
+    if gh auth status >/dev/null 2>&1; then
+        ok "GitHub authentication"
+    else
+        warnc "GitHub CLI not authenticated"
+    fi
+
+fi
+
+###############################################################################
+# Utilities
+###############################################################################
+
+section "Utilities"
+
+check_required "ripgrep" rg
+check_required "fd" fd
+check_required "bat" bat
+check_required "eza" eza
+check_required "fzf" fzf
+check_optional "tmux" tmux
+
+###############################################################################
+# User
+###############################################################################
+
+section "User"
+
+[[ "$(id -u)" == "${EXPECTED_UID}" ]] \
+    && ok "UID ${EXPECTED_UID}" \
+    || bad "Expected UID ${EXPECTED_UID}, got $(id -u)"
+
+[[ "$(id -g)" == "${EXPECTED_GID}" ]] \
+    && ok "GID ${EXPECTED_GID}" \
+    || bad "Expected GID ${EXPECTED_GID}, got $(id -g)"
+
+[[ "$(whoami)" == "${EXPECTED_USER}" ]] \
+    && ok "User ${EXPECTED_USER}" \
+    || bad "Expected user ${EXPECTED_USER}, got $(whoami)"
+
+sudo -n true >/dev/null 2>&1 \
+    && ok "Passwordless sudo" \
+    || bad "Passwordless sudo unavailable"
+
+###############################################################################
+# Development Environment Contract (opt-in — see check_contract() above)
+###############################################################################
+
+if [[ "$CONTRACT" -eq 1 ]]; then
+    check_contract
+fi
+
+###############################################################################
+# Summary
+###############################################################################
+
+say ""
+say "------------------------------------------------"
+
+say "Passed   : ${PASS}"
+say "Warnings : ${WARN}"
+say "Failed   : ${FAIL}"
+
+if [[ "$FAIL" -eq 0 ]]; then
+
+    say ""
+    say "\033[1;32mEnvironment Status : HEALTHY\033[0m"
+
+    exit 0
+
+else
+
+    say ""
+    say "\033[1;31mEnvironment Status : FAILED\033[0m"
+
+    exit 1
+
+fi &&
+       javac -version 2>&1 | grep -Eq '^javac 21([.]|$)' &&
+       [[ "${JAVA_HOME:-}" == /opt/java ]]; then
+        ok "Java 21 JVM, compiler and JAVA_HOME"
+    else
+        bad "Java 21 runtime/compile/JAVA_HOME contract mismatch"
     fi
 
     # Guard the pinned Maven 3.9.16 Guava replacement, including bytes.
