@@ -1238,7 +1238,14 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
     export PIP_CONSTRAINT="${BAOBAB_CONFIG_DIR}/python-build-constraints.txt" && \
     python3 -m pip install --no-cache-dir --break-system-packages pipx && \
+    # PSF CPython installed under /opt places its pipx CLI in the Python
+    # script directory, not /usr/local/bin; expose that verified executable
+    # for the non-root vscode user and baobab-verify rather than skipping it.
+    PIPX_SCRIPT_DIR="$(python3 -c 'import sysconfig;print(sysconfig.get_path("scripts"))')" && \
+    test -x "${PIPX_SCRIPT_DIR}/pipx" && \
+    ln -sfn "${PIPX_SCRIPT_DIR}/pipx" /usr/local/bin/pipx && \
     export PATH="/usr/local/bin:${PATH}" && \
+    test -x "$(command -v pipx)" && \
     python3 -m pipx ensurepath --global && \
     python3 -m pipx install --global "poetry==${POETRY_VERSION}" && \
     python3 -m pipx inject --global poetry poetry-plugin-shell && \
