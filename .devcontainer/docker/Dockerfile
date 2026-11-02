@@ -765,10 +765,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         rm -rf "${TAR_SCRATCH_DIR}" \
     ) && \
     # Node 26 no longer ships Corepack; install a separately pinned CLI.
-    npm_install_retry -g "corepack@${COREPACK_VERSION}" && \
+    # pnpm 12 is a native executable: Corepack prepare alone does not give
+    # an offline-resolvable binary. Install both exact npm-distributed tools.
+    # Corepack remains available for explicit legacy Yarn consumers, but the
+    # trusted pnpm entrypoint is the exact installed native executable.
+    npm_install_retry -g "corepack@${COREPACK_VERSION}" "pnpm@${PNPM_VERSION}" && \
     test "$(corepack --version)" = "${COREPACK_VERSION}" && \
-    corepack enable && \
-    corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
+    test "$(pnpm --version)" = "${PNPM_VERSION}" && \
     # pnpm 12 is a native executable. The old pnpm-11 dist/node_modules/undici
     # hotpatch target no longer exists; rely on strict whole-image CVE scans,
     # not a fictitious modification to an absent dependency.
