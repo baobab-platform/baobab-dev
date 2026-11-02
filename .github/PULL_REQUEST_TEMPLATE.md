@@ -174,6 +174,27 @@ Confirm the following before requesting review.
 
 ---
 
+## Developer Toolchain Upgrade Gate (when applicable)
+
+If this PR updates a Baobab Dev Container runtime, operating-system package,
+package manager, build CLI, browser toolchain, Dockerfile, image supply chain or
+consumer image reference, follow the
+[Toolchain Upgrade Playbook](../docs/usage/toolchain-upgrade-playbook.md)
+and review the
+[DEV-10 / DEV-14 lessons learned](../docs/incidents/2026-10-30-dev10-dev14-toolchain-retrospective.md).
+
+- [ ] Not applicable; this PR changes no development toolchain/image contract
+- [ ] Exact old/new versions, archive hashes, image digests, dependent consumers and rollback recorded
+- [ ] Frozen lock verification, actual installed and embedded dependencies audited
+- [ ] Noninteractive Codespaces lifecycle, real command results and denial cases verified
+- [ ] Four profiles × AMD64/ARM64 build/scans, Foundation and CodeQL qualified on the final head
+- [ ] Original findings and any approved environment-scoped security risk, owner and expiry retained
+- [ ] Consumer-owned fresh Codespaces and private-package access evidence attached where adopting images
+- [ ] Publication, SBOM/signing, registry readback and release approvals separately qualified
+- [ ] Outstanding gates clearly marked NOT DEMONSTRATED with owners; no protected release inferred from DEV CI
+
+---
+
 ## Reviewer Checklist
 
 For reviewers.

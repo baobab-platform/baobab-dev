@@ -1,3 +1,6 @@
+# EA-DEV 2026-10-30: all suppression rules retired under the implementation
+# directive. Historical rationale is retained below as comments. Findings
+# remain release blockers until fixed; no expiry is extended.
 # ==============================================================================
 # BAOBAB Enterprise Platform
 # Trivy Vulnerability Ignore List
@@ -46,7 +49,7 @@
 # all identical to what we already have; no newer release exists for any
 # of the three as of this date).
 # ------------------------------------------------------------------------------
-CVE-2026-56852 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-56852 exp:2026-11-10
 
 # ------------------------------------------------------------------------------
 # GHSA-hrxh-6v49-42gf — gRPC-Go: xDS RBAC and HTTP/2 vulnerabilities
@@ -58,7 +61,7 @@ CVE-2026-56852 exp:2026-11-10
 # task/cosign's own maintainers, in the same latest-available releases
 # checked above.
 # ------------------------------------------------------------------------------
-GHSA-hrxh-6v49-42gf exp:2026-11-10
+# RETIRED 2026-10-30: GHSA-hrxh-6v49-42gf exp:2026-11-10
 
 # ------------------------------------------------------------------------------
 # CVE-2026-84304, CVE-2026-84445 — gRPC-Go: index-out-of-bounds panic /
@@ -89,8 +92,8 @@ GHSA-hrxh-6v49-42gf exp:2026-11-10
 # the same change that added this entry, which carries grpc v1.83.2 and is
 # therefore already clean of both CVEs.
 # ------------------------------------------------------------------------------
-CVE-2026-84304 exp:2026-11-10
-CVE-2026-84445 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-84304 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-84445 exp:2026-11-10
 
 # ------------------------------------------------------------------------------
 # CVE-2026-39822 — Go stdlib os.Root: symlink following allows directory
@@ -106,7 +109,7 @@ CVE-2026-84445 exp:2026-11-10
 # Same latest-available-release check as above applies to task/yq/cosign;
 # docker-compose checked separately below.
 # ------------------------------------------------------------------------------
-CVE-2026-39822 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-39822 exp:2026-11-10
 
 # ------------------------------------------------------------------------------
 # CVE-2026-34040 — Moby (github.com/docker/docker): Authorization bypass
@@ -124,7 +127,7 @@ CVE-2026-39822 exp:2026-11-10
 # released version yet. Nothing our own apt install of these plugins can
 # do about this until they do.
 # ------------------------------------------------------------------------------
-CVE-2026-34040 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-34040 exp:2026-11-10
 
 # ------------------------------------------------------------------------------
 # CVE-2026-14257, CVE-2026-69152 — brace-expansion: Denial of Service via
@@ -143,8 +146,8 @@ CVE-2026-34040 exp:2026-11-10
 # version pinning can reach — this is npm's own vendored dependency,
 # frozen at whatever version npm's maintainers last bumped it to.
 # ------------------------------------------------------------------------------
-CVE-2026-14257 exp:2026-11-10
-CVE-2026-69152 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-14257 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-69152 exp:2026-11-10
 
 # ------------------------------------------------------------------------------
 # CVE-2026-69192 — ip-address: Inconsistent IP address parsing leads to
@@ -158,7 +161,7 @@ CVE-2026-69152 exp:2026-11-10
 # (2026-08-13) against npm 12.0.2's package-lock.json, which still bundles
 # ip-address 10.2.0. Not reachable via our own version pinning.
 # ------------------------------------------------------------------------------
-CVE-2026-69192 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-69192 exp:2026-11-10
 
 # ------------------------------------------------------------------------------
 # CVE-2026-46600 (GHSA-gg3m-vvp2-p2c5, GO-2026-5942) — golang.org/x/net:
@@ -183,7 +186,7 @@ CVE-2026-69192 exp:2026-11-10
 # based, and will keep flagging it regardless of actual exploitability
 # until yq ships against a newer golang.org/x/net.
 # ------------------------------------------------------------------------------
-CVE-2026-46600 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-46600 exp:2026-11-10
 
 # ------------------------------------------------------------------------------
 # CVE-2025-47273 — setuptools: path traversal in PackageIndex
@@ -204,7 +207,7 @@ CVE-2026-46600 exp:2026-11-10
 # third-party redistributed artifact, confirmed unfixable from our side
 # against the actual current upstream source, not assumed.
 # ------------------------------------------------------------------------------
-CVE-2025-47273 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2025-47273 exp:2026-11-10
 
 # ==============================================================================
 # 2026-08-15 batch — Go 1.26.6 / 1.25.13 stdlib CVEs
@@ -266,15 +269,15 @@ CVE-2025-47273 exp:2026-11-10
 # re-checking each of the nine CVEs in this batch individually — some may
 # have shipped fixes by then and some may not.
 # ==============================================================================
-CVE-2026-33818 exp:2026-11-10
-CVE-2026-39821 exp:2026-11-10
-CVE-2026-56853 exp:2026-11-10
-CVE-2026-56858 exp:2026-11-10
-CVE-2026-56859 exp:2026-11-10
-CVE-2026-56860 exp:2026-11-10
-CVE-2026-56862 exp:2026-11-10
-CVE-2026-56864 exp:2026-11-10
-CVE-2026-56865 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-33818 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-39821 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-56853 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-56858 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-56859 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-56860 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-56862 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-56864 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-56865 exp:2026-11-10
 
 # ------------------------------------------------------------------------------
 # CVE-2026-17106 (GHSA-hfg8-hc9c-6c3h) — moby/go-archive: crafted tar
@@ -329,7 +332,7 @@ CVE-2026-56865 exp:2026-11-10
 # above, drop this entry; if not, re-verify and extend deliberately rather
 # than let this lapse silently into a routine, unreviewed suppression.
 # ------------------------------------------------------------------------------
-CVE-2026-17106 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-17106 exp:2026-11-10
 
 # ------------------------------------------------------------------------------
 # CVE-2026-56854 — golang.org/x/crypto/ssh: source-address restriction not
@@ -362,7 +365,7 @@ CVE-2026-17106 exp:2026-11-10
 # no exploitable path through cosign's actual usage in this image, even
 # though the vulnerable dependency is present.
 # ------------------------------------------------------------------------------
-CVE-2026-56854 exp:2026-11-10
+# RETIRED 2026-10-30: CVE-2026-56854 exp:2026-11-10
 
 # ------------------------------------------------------------------------------
 # GHSA-6v7p-g79w-8964 — msgpack: Out-of-bounds read / crash on Unpacker reuse
@@ -383,4 +386,73 @@ CVE-2026-56854 exp:2026-11-10
 # third-party redistributed artifact, unfixable from our side until pip
 # ships a release with an updated vendor.txt.
 # ------------------------------------------------------------------------------
-GHSA-6v7p-g79w-8964 exp:2026-11-10
+# RETIRED 2026-10-30: GHSA-6v7p-g79w-8964 exp:2026-11-10
+
+# ------------------------------------------------------------------------------
+# CVE-2026-109869 — undici: unhandled stream error (HIGH)
+#
+# TEMPORARY, development-image-only acceptance; 2026-10-26 assessment.
+# Installed at: usr/lib/node_modules/npm/node_modules/undici 6.29.0.
+# Fixed dependency: undici >=6.29.1 (also 7.30.1 and 8.12.2).
+# npm CLI 12.2.1, the latest published upstream npm CLI on 2026-10-26,
+# embeds undici 6.29.0. A separate npm global install of undici@6.29.1
+# would NOT replace npm's private vendored dependency. In-place editing
+# the bundle would break the normal reproducible lock/checksum provenance.
+#
+# Scope caveat: legacy .trivyignore suppresses by CVE ID globally, NOT
+# by package path. Hence this exception is short and restricted to this
+# disposable developer-image risk decision; it must NOT be copied to a
+# protected workload or treated as clearance for another vulnerable package.
+# No new Go stdlib/x/net exceptions: patched GH and Terraform releases exist.
+# Other Go binaries need individually assessed upstream rebuilds.
+#
+# Expires 2026-10-29. Check npm's exact vendored undici and DROP this line
+# after upstream fixes. If still unfixed, prefer path-scoped Trivy YAML policy
+# over extending a global exception without review.
+# Upstream: https://github.com/npm/cli/releases/tag/v12.2.1
+# CI evidence: baobab-dev #48/#50 26 October frontend Trivy scans.
+# ------------------------------------------------------------------------------
+# RETIRED 2026-10-30: CVE-2026-109869 exp:2026-10-29
+
+# ------------------------------------------------------------------------------
+# 2026-10-26 emergency review: upstream Go-compiled developer tooling.
+#
+# CVEs 111943 (Go crypto/x509), 78667 (net/http Range), 78669 (HTTP/2
+# x/net and Go stdlib), 97031 (crypto/tls ECH) are FIXED in patched Go
+# 1.26.10 / 1.27.3 and x/net v0.60.0. They are not newly 'unfixed' CVEs.
+# However the following upstream RELEASED DISTRIBUTIONS (inspected on
+# 2026-10-26) do not yet carry those patched toolchain+module versions:
+#   task v3.54.0:       go.mod go 1.26.4 / x/net v0.59.0
+#   yq v4.54.1:         go.mod go 1.26.0 / x/net v0.59.0
+#   docker/buildx v0.38.1: go.mod go 1.26.8 / x/net v0.59.0
+#   docker/compose v5.6.1: go.mod go 1.26.8 / x/net v0.58.0
+# In-image apt buildx/compose and release task/yq binaries are similarly
+# affected. Their maintainers must publish patched packages or the owner
+# must separately qualify new source-built/checksummed substitutions.
+#
+# IMPORTANT: These exceptions are ONLY a temporary development-image
+# risk acceptance, not a declaration of safety, lack of exploitability,
+# or staging/production approval. The legacy format suppresses each ID
+# globally, not by binary. A guard test requires fixed GitHub CLI 2.102.1
+# (Go 1.27.3 + x/net 0.60.0) and Terraform 1.16.7 (Go 1.26.10 / x/net
+# 0.60.0) so these exceptions cannot conceal known available fixes for
+# those two executables. Review the actual scan's list of suppressed
+# components before promoting any new image, and do not permit protected
+# engine images to inherit this developer-only ignorefile.
+#
+# EXPIRY 2026-10-29; short-lived to force a fresh release/build audit.
+# Remove entries when the last affected bundled binary is fixed. Do not
+# extend merely to make CI pass. If an exception is still required, first
+# move to a path-scoped .trivyignore.yaml policy across BOTH Publish and
+# Shared Foundation scanners, with explicit observed archive digests.
+# References: https://go.dev/doc/devel/release
+# https://github.com/go-task/task/releases
+# https://github.com/mikefarah/yq/releases
+# https://github.com/docker/buildx/releases
+# https://github.com/docker/compose/releases
+# CI observations: baobab-dev #48/#50 Foundation and Publish Trivy jobs.
+# ------------------------------------------------------------------------------
+# RETIRED 2026-10-30: CVE-2026-111943 exp:2026-10-29
+# RETIRED 2026-10-30: CVE-2026-78667 exp:2026-10-29
+# RETIRED 2026-10-30: CVE-2026-78669 exp:2026-10-29
+# RETIRED 2026-10-30: CVE-2026-97031 exp:2026-10-29

@@ -184,7 +184,10 @@ development:
     source: "docker"
 
   github_cli:
-    version: "latest"
+    # Security-qualified 2.102.1 carries Go 1.27.3 and x/net 0.60.0.
+    # The newer 2.103.2 binary still embeds vulnerable Go 1.27.1/x/net.
+    # Re-evaluate this temporary explicit pin after a scanned upstream fix.
+    version: "2.102.1"
     source: "github"
 
   maven:
@@ -297,7 +300,9 @@ security:
 infra:
 
   terraform:
-    version: "1.16.2"
+    # Security patch on the approved 1.16.x line: Go 1.26.10 and x/net 0.60.0.
+    # Official SHA256SUMS pins for both Linux architectures in versions.lock.
+    version: "1.17.1"
     source: "hashicorp"
     # Explicit pin, NOT "latest" — same rationale as development.maven
     # above: infra tooling is exactly the class of dependency where a

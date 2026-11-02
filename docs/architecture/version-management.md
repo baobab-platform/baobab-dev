@@ -234,3 +234,15 @@ These enhancements can be incorporated without changing the Dockerfile's fundame
 ---
 
 The version management system is a cornerstone of the BAOBAB Development Container. By resolving software versions before the build begins and treating the generated lock file as the authoritative build input, the project achieves a development environment that is reproducible, maintainable, and predictable across every supported platform and every stage of the software lifecycle.
+
+
+## Maintainer qualification requirement (DEV-10 / DEV-14)
+
+The ``config/versions.yaml` → `resolve.sh` → `versions.lock` contract is a
+**necessary version-selection control, not complete change acceptance**.
+Before upgrading a coupled package manager, browser downloader, runtime or
+native CLI, use the [Toolchain Upgrade Playbook](../usage/toolchain-upgrade-playbook.md)
+and verify the published bytes, embedded dependencies, exact consumer pins,
+noninteractive lifecycle, both CPU architectures, security decisions and
+rollback. Historical failure evidence is recorded in the
+[2026 DEV-10/DEV-14 retrospective](../incidents/2026-10-30-dev10-dev14-toolchain-retrospective.md).

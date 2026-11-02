@@ -20,3 +20,13 @@ artifacts:
     runtime: true
 security:
   sast_provider: fallback
+
+exceptions:
+  # Owner-directed, temporary exception to the SHARED scanner implementation only.
+  # The replacement DEV-10 Foundation scan and all eight Publish scans remain
+  # unfiltered and enforce exact-package/CVE/expiry risk acceptance.
+  # This is NOT a "not_affected" VEX or a release exception.
+  container-scan:
+    reason: "DEV-10 executive development-only acceptance of 295 known linux-libc-dev 7.0.0-42.42 kernel-source advisories. Full scans and exact-CVE decision remain mandatory in Baobab DEV-10 Foundation replacement and Publish; review baobab-dev issue 54."
+    approved_by: "@wekhason"
+    expires: "2026-11-12"
