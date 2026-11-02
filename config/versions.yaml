@@ -42,13 +42,12 @@ languages:
     source: "flutter"
 
   java:
-    version: "17"
-    subscriptions_major: "21"
+    version: "21"
     source: "apt"
-    # ERP / iDempiere keeps Java 17 as the default JDK. Subscriptions has
-    # an explicitly selected Temurin Java 21 overlay; both are installed.
-    # Avoid global Java 21 as a replacement for ERP's unqualified runtime.
-    # OpenJDK 17 (JDK, not JRE), via Eclipse Temurin's own apt repository —
+    # Temurin Java 21 is the shared developer default for both iDempiere v13
+    # and baobab-subscriptions. iDempiere documents OpenJDK >=17; actual
+    # v13 JVM/bundle and owner tests on Java 21 remain qualification gates.
+    # Requires a full JDK (not JRE-only), via Eclipse Temurin's own apt repository —
     # NOT Ubuntu's own openjdk-17-jdk package. Same reasoning already applied
     # to docker/postgresql below: an upstream-maintained apt repo keeps the
     # exact vendor/build consistent across Ubuntu base-image upgrades, rather
