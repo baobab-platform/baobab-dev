@@ -730,11 +730,10 @@ jobs:
           docker run --rm baobab-dev:scan baobab-verify
 
       # Non-interactive Package-Manager Provisioning Test (frontend /
-      # frontend-e2e only — the two targets that install pnpm via
-      # Corepack). This is deliberately separate from the smoke test just
+      # frontend-e2e only — the two targets that install pinned native pnpm 12). This is deliberately separate from the smoke test just
       # above: `baobab-verify` proves pnpm is present and at the expected
       # exact version INSIDE the built image, but it never actually
-      # exercises Corepack's own project-spec-matching path the way a real
+      # exercises pnpm's exact project-spec-matching path the way a real
       # consumer repo's devcontainer lifecycle command does. Reproduces
       # that exact path instead: a throwaway fixture project pins the
       # SAME exact pnpm version this image's config/versions.lock resolved
@@ -766,7 +765,7 @@ jobs:
             "packageManager": "pnpm@${PNPM_VERSION}"
           }
           EOF
-          printf 'lockfileVersion: '"'"'9.0'"'"'\n' > "${FIXTURE_DIR}/pnpm-lock.yaml"
+          # pnpm 12 records its package-manager resolution as a separate\n          # lockfile document. A lone v9 header is deliberately NOT a valid\n          # frozen lock for a manifest with packageManager: pnpm@12.x.\n          # Generate the fixture lock with the actual image binary offline,\n          # then prove that a subsequent frozen install makes no changes.
 
           # The bind mount below keeps the host directory's ownership
           # (the runner's own UID, not 1000) inside the container, but
@@ -781,11 +780,12 @@ jobs:
           echo "::notice:: Verifying pnpm@${PNPM_VERSION} installs non-interactively (no TTY, no network) for target '${{ matrix.target }}'."
 
           timeout 90 docker run --rm \
+            --network none \
             -e CI=true \
             -v "${FIXTURE_DIR}:/workspaces/fixture" \
             -w /workspaces/fixture \
             baobab-dev:scan \
-            pnpm install --frozen-lockfile < /dev/null
+            sh -ec 'pnpm install --lockfile-only --offline < /dev/null &&               pnpm install --frozen-lockfile --offline < /dev/null &&               test -s pnpm-lock.yaml'
 
   # Job 3: Manifest Creation, OIDC Cosign Signing & Release Attestation
   # Merges per-arch images into a multi-arch OCI index, applies keyless
