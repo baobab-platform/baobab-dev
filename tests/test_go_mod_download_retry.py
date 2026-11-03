@@ -96,8 +96,12 @@ class GoModuleRetryTests(unittest.TestCase):
         self.assertIn(
             "COPY scripts/go-mod-download-retry.sh /build/go-mod-download-retry.sh",
             dockerfile)
-        self.assertNotIn("GOSUMDB=off", SCRIPT.read_text())
-        self.assertNotIn("GOPROXY=direct", SCRIPT.read_text())
+        executable = "\n".join(
+            line for line in SCRIPT.read_text().splitlines()
+            if not line.lstrip().startswith("#")
+        )
+        self.assertNotIn("GOSUMDB=off", executable)
+        self.assertNotIn("GOPROXY=direct", executable)
 
 
 if __name__ == "__main__":
