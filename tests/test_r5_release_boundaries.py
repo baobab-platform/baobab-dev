@@ -58,6 +58,21 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("Preserve promotion journal", run["promote"])
         self.assertIn("needs: [promote, sanity-check]", run["release"])
 
+    def test_slsa_v1_predicate_serialization_and_legacy_scope(self):
+        source = WORKFLOW.read_text()
+        # Cosign's slsaprovenance1 typed writer drops unknown protobuf
+        # fields. R5 must sign the canonical URI through the generic
+        # JSON-preserving writer, but still verify as SLSA v1.
+        self.assertIn('--type "https://slsa.dev/provenance/v1"', source)
+        self.assertIn('[[ "${PREDICATE_TYPE}" == "slsaprovenance1" ]]', source)
+        self.assertIn('--type slsaprovenance1', source)
+        self.assertIn('--expected-subject "$DIGEST"', source)
+        integrity = INTEGRITY.read_text()
+        self.assertIn('verify_legacy_provenance.py', integrity)
+        self.assertIn('LEGACY_SLSA_PROTOBUF_COMPATIBLE_NOT_FULL_CONTENT_EQUIVALENCE',
+                      integrity)
+        self.assertIn('STRICT_SIGNED_NATIVE_CONTENT_VERIFIED', integrity)
+
     def test_independent_integrity_monitor_is_read_only(self):
         source = INTEGRITY.read_text()
         self.assertIn("packages: read", source)
