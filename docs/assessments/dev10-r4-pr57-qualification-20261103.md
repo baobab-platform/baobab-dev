@@ -114,3 +114,9 @@ or the exact 295-CVE development-only decision. The helper and the remaining
 negative cases require a **fresh final-head CI run**. Other image matrix legs
 that were still running at inspection are not counted as PASS. No hosted
 Codespaces, consumer adoption, release approval or image publication is claimed.
+
+## 3 November 2026 — run 41591284867, Maven bundled Guava guard
+
+At head `01ba49f8f8f73ca7cdeb672b84e7e1ea761a0a1b`, [publish workflow 41591284867](https://github.com/baobab-platform/baobab-dev/actions/runs/41591284867) completed **FAILURE**: `final/linux-amd64` and `final/linux-arm64` exited during the Maven installation layer. The pinned Maven archive SHA512 verified, but the Dockerfile still required Maven 3.9.16's `guava-33.6.0-jre.jar` filename after the manifest advanced to Maven 3.10.0. The guard was therefore stale. Six other image/architecture legs passed, as did the frozen-lockfile job; no complete eight-leg success is claimed. Foundation, Security, documentation, DEV-10 source/published-image, and DEV-14 doctor succeeded at that previous head.
+
+Repair commit `539f01c4c2bc54962237008cf3e91d77333641a1` preserves the exactly-one-bundled-Guava fail-closed guard, replaces the upstream Guava jar irrespective of its old filename with checksum-pinned 33.7.2-jre, and checks the single resulting jar. It does **not** change `config/versions.yaml`, `versions.lock`, the raw Trivy scanner, or the 295-CVE DEV-only exception. The corrected final-head eight-leg build, scanner results and release safety remain **UNVERIFIED** until new CI completes. Human Codespaces and native consumers remain **NOT RUN/NOT VERIFIED**. PR remains HELD; no tags or GHCR publishing authorized.
