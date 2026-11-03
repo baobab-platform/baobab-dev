@@ -1682,6 +1682,118 @@ jobs:
             echo "- ✅ **Post-Publish Verification:** Signature and attestations independently re-verified against the published digest (scripts/verify-image.sh)"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  # R5: release version tags never move until ALL four candidate manifests
+  # are signed, both architectures checked and all exact-digest scans pass.
+  # Independent GitHub Environment policy must be configured by the owner.
+  promote:
+    name: Protected, all-or-nothing-qualification GHCR tag promotion
+    needs: [publish, sanity-check]
+    if: needs.sanity-check.outputs.is_release == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment:
+      name: dev10-release-promotion
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Refuse promotion until independently protected environment is configured
+        env:
+          POLICY_READY: ${{ vars.DEV10_R5_PROMOTION_APPROVED }}
+        run: |
+          set -euo pipefail
+          [[ "$POLICY_READY" == 'true' ]] || {
+            echo '::error::DEV-10 R5 promotion policy not configured. The dev10-release-promotion environment must have independent reviewers/tag restrictions and DEV10_R5_PROMOTION_APPROVED=true.';
+            exit 1;
+          }
+      - name: Checkout immutable release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Download all four signed candidate records
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ${{ runner.temp }}/published-info
+          pattern: published-info-*
+          merge-multiple: true
+      - name: Authenticate to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install crane CLI tool
+        env:
+          CRANE_VERSION: "0.21.9"
+          CRANE_SHA256: "5c16d8ddb971cb1d5e6ed8b1e743da8224414eeba2c2762d8f1a61b2f095699e"
+        run: |
+          set -euo pipefail
+          ASSET="go-containerregistry_Linux_x86_64.tar.gz"
+          curl -fsSL -o "${ASSET}" "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/${ASSET}"
+          echo "${CRANE_SHA256}  ${ASSET}" | sha256sum -c -
+          tar -xzf "${ASSET}" crane
+          chmod +x crane
+          sudo mv crane /usr/local/bin/crane
+          crane version
+
+      - name: Verify all candidate records, signatures and expected release labels
+        env:
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          info="${RUNNER_TEMP}/published-info"
+          image="${REGISTRY}/${IMAGE_NAME}"
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo '::error::Not a stable release'; exit 1; }
+          version="${RELEASE_TAG#v}"
+          count=$(find "$info" -maxdepth 1 -type f -name '*.json' | wc -l)
+          [[ "$count" -eq 4 ]] || { echo "::error::Expected exactly four candidate files; found $count"; exit 1; }
+          for target in final frontend frontend-e2e infra; do
+            file="$info/$target.json"
+            [[ -f "$file" ]] || { echo "::error::Missing $target candidate"; exit 1; }
+            expected_suffix=""
+            [[ "$target" == final ]] || expected_suffix="-$target"
+            expected_tag="$image:$version$expected_suffix"
+            observed=$(jq -er '.target' "$file")
+            tag=$(jq -er '.tag' "$file")
+            digest=$(jq -er '.digest' "$file")
+            [[ "$observed" == "$target" && "$tag" == "$expected_tag" && "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+              echo "::error::Mismatched candidate record for $target"; exit 1;
+            }
+            scripts/verify-image.sh "$image@$digest"
+            echo "::notice::Promotion precheck: $target digest $digest verified"
+          done
+
+      - name: Promote all verified signed target digests to semantic-version tags
+        env:
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          image="${REGISTRY}/${IMAGE_NAME}"
+          info="${RUNNER_TEMP}/published-info"
+          version="${RELEASE_TAG#v}"
+          major="${version%%.*}"
+          major_minor="${version%.*}"
+          for target in final frontend frontend-e2e infra; do
+            file="$info/$target.json"
+            digest=$(jq -er '.digest' "$file")
+            suffix=""
+            [[ "$target" == final ]] || suffix="-$target"
+            # Each tag is immediately read back; a mismatch blocks GitHub Release.
+            for v in "$version" "$major_minor" "$major" latest; do
+              target_tag="$v$suffix"
+              crane tag "$image@$digest" "$target_tag"
+              actual=$(crane digest "$image:$target_tag")
+              [[ "$actual" == "$digest" ]] || {
+                echo "::error::Tag readback mismatch $target_tag: $actual vs $digest"; exit 1;
+              }
+              echo "$target_tag -> $digest" >> "$RUNNER_TEMP/promoted-tags.txt"
+            done
+          done
+          cat "$RUNNER_TEMP/promoted-tags.txt" >> "$GITHUB_STEP_SUMMARY"
+          echo '::notice::Four GHCR target contracts promoted after signature and digest acceptance'
+
+  # Job 5: Combined GitHub Release; only after protected promotion succeeds.
   # Job 4: Combined GitHub Release
   # Runs once, after every `publish` matrix leg has finished — creates ONE
   # release for the tag, listing pull + verification commands for every
@@ -1690,7 +1802,7 @@ jobs:
   # hardcoded target list, so a future fourth target needs no change here.
   release:
     name: Create Combined GitHub Release
-    needs: [publish, sanity-check]
+    needs: [promote, sanity-check]
     if: needs.sanity-check.outputs.is_release == 'true'
 
     runs-on: ubuntu-24.04
