@@ -15,8 +15,10 @@
 #
 # PUBLISH TRIGGER POLICY:
 #   Build and unrestricted Trivy checks run on PR, main and tag pushes.
-#   Only a reviewed v*.*.* tag PUSH can publish an image, sign a digest,
-#   or create a GitHub Release. Manual workflow_dispatch is validation-only
+#   Only a reviewed STABLE v*.*.* tag PUSH can publish an image,
+#   sign a digest or create a GitHub Release. Prerelease tags such as
+#   v1.5.0-rc.1 run the strict validation/build/security gates but NEVER
+#   publish a GHCR digest, sign it or create a release. Manual workflow_dispatch is validation-only
 #   on main; it cannot substitute an alternate tag or source revision.
 #   Every checkout uses github.sha, the GitHub-supplied immutable event SHA.
 #   This closes CodeQL actions/cache-poisoning/poisonable-step (#2) by never
@@ -140,7 +142,7 @@ jobs:
       contents: read
 
     outputs:
-      # Nonempty / true only on a version-tag push. Manual dispatch is
+      # Nonempty / true only on a stable version-tag push. Manual dispatch is
       # validation-only on main and cannot set a release tag.
       release_tag: ${{ steps.release-context.outputs.release_tag }}
       is_release: ${{ steps.release-context.outputs.is_release }}
@@ -172,7 +174,9 @@ jobs:
               exit 1
             fi
             echo "release_tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
-            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            # A prerelease tag is a fully security-scanned RC dry run, not a
+            # publishing event. Only a GA semver tag may push/sign/release.
+            echo "is_release=$(is_stable_release "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
             echo "is_stable_release=$(is_stable_release "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
           else
             echo "release_tag=" >> "$GITHUB_OUTPUT"
