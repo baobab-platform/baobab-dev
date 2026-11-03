@@ -1294,6 +1294,13 @@ jobs:
             -a "sha=${{ github.sha }}" \
             "${IMG}@${DIGEST}"
       # Attest container image provenance
+      # R5 signs the complete raw SLSA v1 predicate via its exact type URI.
+      # Cosign's slsaprovenance1 alias currently runs a typed/protobuf
+      # transform (DiscardUnknown=true, invocationID rename), destroying
+      # field-for-field comparability with original BuildKit provenance.
+      # URI-based custom predicate dispatch retains all fields and still
+      # emits standard https://slsa.dev/provenance/v1 for verification.
+      # Cosign OIDC identity and index subject remain mandatory.
       # Cosign-signs the two per-platform predicates extracted above (two
       # calls — see "Extract per-platform SLSA provenance predicates").
       # `-a`/`--annotation` is deliberately omitted here (unlike `cosign
@@ -1325,8 +1332,16 @@ jobs:
             TYPE_FILE="provenance-type-$(basename "${PLATFORM}").txt"
             PREDICATE_TYPE="$(cat "${TYPE_FILE}")"
 
+            # A typed cosign slsaprovenance1 writer converts BuildKit JSON
+            # through a protobuf, discarding unknown fields and renaming
+            # invocationID. Use the exact SLSA v1 URI to preserve the
+            # publisher's full JSON predicate in the signed DSSE payload;
+            # Cosign still sets the standard SLSA v1 predicateType URI.
+            [[ "${PREDICATE_TYPE}" == "slsaprovenance1" ]] || {
+              echo "::error::R5 release requires BuildKit SLSA v1 provenance, not v0.2"; exit 1;
+            }
             scripts/cosign-retry.sh cosign attest --yes \
-              --type "${PREDICATE_TYPE}" \
+              --type "https://slsa.dev/provenance/v1" \
               --predicate "${FILE}" \
               "${IMG}@${DIGEST}"
           done
