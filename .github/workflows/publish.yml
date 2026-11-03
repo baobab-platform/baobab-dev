@@ -1082,19 +1082,16 @@ jobs:
             exit 1
           fi
 
-          PRIMARY_TAG="${ALL_TAGS[0]}"
-
-          crane index append "${DIGEST_ARGS[@]}" -t "${PRIMARY_TAG}"
-
-          DIGEST=$(crane digest "${PRIMARY_TAG}")
+          # R5: this unique run/target candidate name is NOT a GA version tag.
+          # Finish every Cosign signature and per-arch attestation first.
+          # The separate, protected `promote` job applies consumer tags only
+          # after *all four* publish-matrix legs succeed.
+          CANDIDATE_TAG="${IMG}:r5-candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.target }}"
+          crane index append "${DIGEST_ARGS[@]}" -t "${CANDIDATE_TAG}"
+          DIGEST=$(crane digest "${CANDIDATE_TAG}")
+          [[ "$DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::Invalid candidate digest"; exit 1; }
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
-
-          # Apply every remaining tag to the same digest just created.
-          for full_tag in "${ALL_TAGS[@]:1}"; do
-            [[ -z "${full_tag}" ]] && continue
-            short_tag="${full_tag##*:}"
-            crane tag "${IMG}@${DIGEST}" "${short_tag}"
-          done
+          echo "::notice::Quarantined candidate index ${CANDIDATE_TAG} -> ${DIGEST}; consumer tags not applied"
 
       # DEBUG: confirms the attestation-manifest siblings survived crane's merge, for both platforms this time.
       - name: Debug — inspect merged manifest before extracting provenance
@@ -1671,7 +1668,7 @@ jobs:
       - name: Output Workflow Step Summary
         run: |
           {
-            echo "## BAOBAB Dev Container Published Successfully (${{ matrix.target }})"
+            echo "## BAOBAB Dev Container Candidate Signed / Awaiting Protected Promotion (${{ matrix.target }})"
             echo ""
             echo "**OCI Image Reference:** \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}\`"
             echo "**Index Manifest Digest:** \`${{ steps.create-manifest.outputs.digest }}\`"
@@ -1679,7 +1676,7 @@ jobs:
             echo "### Security & Hygiene Controls Applied"
             echo "- ✅ **Pinned GitHub Actions:** Immutable 40-character commit SHAs"
             echo "- ✅ **Concurrency Control:** Auto-cancels obsolete build runs on PRs"
-            echo "- ✅ **Trivy CVE Gate:** Passed (0 Critical/High unpatched vulnerabilities)"
+            echo "- ✅ **Exact remote digest Trivy:** Both architectures passed release-digests (no DEV risk exception)"
             echo "- ✅ **SBOM & SLSA Attestations:** Embedded directly into OCI index"
             echo "- ✅ **Keyless Cosign Signature:** Signed via GitHub Actions OIDC identity"
             echo "- ✅ **Post-Publish Verification:** Signature and attestations independently re-verified against the published digest (scripts/verify-image.sh)"
