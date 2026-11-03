@@ -12,6 +12,7 @@ import argparse
 import base64
 import hashlib
 import json
+import re
 from pathlib import Path
 import sys
 
@@ -28,7 +29,7 @@ def fingerprint(predicate: object) -> str:
     return hashlib.sha256(canonical).hexdigest()
 
 
-def parse_verified(raw: str, predicate_type: str) -> list[str]:
+def parse_verified(raw: str, predicate_type: str, subject_digest: str | None = None) -> list[str]:
     """Cosign JSON may be a list or newline-delimited JSON objects."""
     try:
         document = json.loads(raw)
@@ -56,14 +57,25 @@ def parse_verified(raw: str, predicate_type: str) -> list[str]:
             raise PredicateError("Cosign output omitted signed DSSE payload")
         if not isinstance(statement, dict) or statement.get("predicateType") != predicate_type:
             raise PredicateError("unexpected signed predicate type")
+        if subject_digest is not None:
+            # Cosign verifies the envelope signature; enforce that its signed
+            # in-toto subject is exactly the OCI index we inspected.
+            subjects = statement.get("subject")
+            if (not isinstance(subjects, list) or len(subjects) != 1
+                    or not isinstance(subjects[0], dict)
+                    or subjects[0].get("digest") != {"sha256": subject_digest[7:]}):
+                raise PredicateError("signed in-toto subject digest does not match OCI index")
         result.append(fingerprint(statement.get("predicate")))
     return result
 
 
 def qualify(provenance: list[dict], sbom: list[dict],
-            verified_provenance: str, verified_sbom: str) -> dict:
+            verified_provenance: str, verified_sbom: str,
+            expected_subject: str | None = None) -> dict:
     if len(provenance) != 2 or len(sbom) != 2:
         raise PredicateError("expected two architecture predicates per type")
+    if expected_subject is not None and not re.fullmatch(r"sha256:[a-f0-9]{64}", expected_subject):
+        raise PredicateError("invalid signed subject digest reference")
     types = (
         ("SLSA provenance", "https://slsa.dev/provenance/v1",
          provenance, verified_provenance),
@@ -74,7 +86,7 @@ def qualify(provenance: list[dict], sbom: list[dict],
         expected_hashes = [fingerprint(x) for x in expected]
         if len(set(expected_hashes)) != 2:
             raise PredicateError(name + ": amd64 and arm64 predicates are identical")
-        actual_hashes = parse_verified(raw, kind)
+        actual_hashes = parse_verified(raw, kind, expected_subject)
         if len(actual_hashes) != 2 or sorted(actual_hashes) != sorted(expected_hashes):
             raise PredicateError(name + ": signed predicates do not match both native architectures")
         evidence["kinds"][name] = {
@@ -91,6 +103,8 @@ def main() -> int:
             p.add_argument("--" + kind + "-" + platform, type=Path, required=True)
         p.add_argument("--verified-" + kind, type=Path, required=True)
     p.add_argument("--evidence", type=Path, required=True)
+    p.add_argument("--expected-subject", required=True,
+                   help="exact signed OCI index digest sha256:...")
     args = p.parse_args()
     try:
         evidence = qualify(
@@ -100,6 +114,7 @@ def main() -> int:
              json.loads(args.sbom_arm64.read_text())],
             args.verified_provenance.read_text(),
             args.verified_sbom.read_text(),
+            args.expected_subject,
         )
         args.evidence.parent.mkdir(parents=True, exist_ok=True)
         args.evidence.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
