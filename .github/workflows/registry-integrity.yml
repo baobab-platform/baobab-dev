@@ -66,6 +66,11 @@ defaults:
 jobs:
   verify-latest-stable-release:
     name: Verify latest stable release is pullable
+    # A PR's validation-only Publish completion is NOT a new stable release.
+    if: >-
+      ${{ github.event_name != 'workflow_run' ||
+          (github.event.workflow_run.conclusion == 'success' &&
+           github.event.workflow_run.event == 'push') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
@@ -127,33 +132,15 @@ jobs:
           echo "release_url=${RELEASE_URL}" >> "$GITHUB_OUTPUT"
           echo "Verifying release ${TAG_NAME}: ${RELEASE_URL}"
 
-      - name: Parse advertised image references and recorded digests
+      - name: Parse and require all four advertised stable-release contracts
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import pathlib
-          import re
-          import sys
-
-          body = pathlib.Path("${{ runner.temp }}/release-body.md").read_text()
-          pattern = re.compile(
-              r"docker pull\s+(?P<ref>ghcr\.io/baobab-platform/baobab-dev:[^\s`]+)"
-              r".*?Verify \(digest `(?P<digest>sha256:[0-9a-f]{64})`\):",
-              re.DOTALL,
-          )
-          records = list(pattern.finditer(body))
-          if not records:
-              print("::error::Latest stable release contains no parseable GHCR pull contracts.")
-              sys.exit(1)
-
-          out = pathlib.Path("${{ runner.temp }}/release-contracts.tsv")
-          with out.open("w") as f:
-              for match in records:
-                  ref = match.group("ref")
-                  digest = match.group("digest")
-                  f.write(f"{ref}\t{digest}\n")
-                  print(f"contract: {ref} -> {digest}")
-          PY
+          python3 scripts/verify_release_contracts.py \
+            --release-body "$RUNNER_TEMP/release-body.md" \
+            --tag "$RELEASE_TAG" \
+            --output "$RUNNER_TEMP/release-contracts.tsv"
 
       - name: Verify advertised tags, digests, indices, platform manifests, and attestations
         env:
@@ -162,7 +149,118 @@ jobs:
           set -euo pipefail
           failures=0
 
-          while IFS=$'\t' read -r ref expected_digest; do
+          while IFS=
+            [[ -z "${ref}" ]] && continue
+            echo "::group::Verify ${ref}"
+
+            if ! actual_digest=$(crane digest "${ref}" 2>&1); then
+              echo "::error::Release ${RELEASE_TAG} advertises ${ref}, but GHCR cannot resolve it: ${actual_digest}"
+              failures=$((failures + 1))
+              echo "::endgroup::"
+              continue
+            fi
+
+            if [[ "${actual_digest}" != "${expected_digest}" ]]; then
+              echo "::error::Digest drift for ${ref}: release records ${expected_digest}, GHCR resolves ${actual_digest}."
+              failures=$((failures + 1))
+              echo "::endgroup::"
+              continue
+            fi
+
+            if ! manifest_json=$(crane manifest "${ref}" 2>&1); then
+              echo "::error::Tag resolves but its OCI manifest cannot be read: ${ref}: ${manifest_json}"
+              failures=$((failures + 1))
+              echo "::endgroup::"
+              continue
+            fi
+
+            image_name="${ref%%:*}"
+
+            # A valid release index must have exactly one image descriptor
+            # and exactly one attestation sibling for each platform.
+            for arch in amd64 arm64; do
+              child_count=$(jq --arg arch "$arch" \
+                '[.manifests[]? | select(.platform.os == "linux" and .platform.architecture == $arch)] | length' \
+                <<<"$manifest_json")
+              if [[ "$child_count" -ne 1 ]]; then
+                echo "::error::$ref has $child_count linux/$arch image descriptors; expected exactly one."
+                failures=$((failures + 1))
+                continue
+              fi
+              child_digest=$(jq -r --arg arch "$arch" \
+                '.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest' \
+                <<<"$manifest_json")
+              if [[ ! "$child_digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+                echo "::error::$ref has invalid linux/$arch image digest."
+                failures=$((failures + 1))
+                continue
+              fi
+              if ! crane manifest "${image_name}@${child_digest}" >/dev/null; then
+                echo "::error::$ref references missing linux/$arch child $child_digest."
+                failures=$((failures + 1))
+                continue
+              fi
+              sibling_count=$(jq --arg digest "$child_digest" \
+                '[.manifests[]? | select(.annotations."vnd.docker.reference.type" == "attestation-manifest" and .annotations."vnd.docker.reference.digest" == $digest)] | length' \
+                <<<"$manifest_json")
+              if [[ "$sibling_count" -ne 1 ]]; then
+                echo "::error::$ref has $sibling_count linux/$arch attestation siblings; expected exactly one."
+                failures=$((failures + 1))
+                continue
+              fi
+              sibling_digest=$(jq -r --arg digest "$child_digest" \
+                '.manifests[] | select(.annotations."vnd.docker.reference.type" == "attestation-manifest" and .annotations."vnd.docker.reference.digest" == $digest) | .digest' \
+                <<<"$manifest_json")
+              if [[ ! "$sibling_digest" =~ ^sha256:[a-f0-9]{64}$ ]] ||
+                 ! crane manifest "${image_name}@${sibling_digest}" >/dev/null; then
+                echo "::error::$ref has missing/invalid linux/$arch attestation manifest $sibling_digest."
+                failures=$((failures + 1))
+                continue
+              fi
+              echo "linux/$arch: image $child_digest + attestation $sibling_digest (both resolvable)"
+            done
+
+            echo "tag digest: ${actual_digest} (matches release)"
+
+            # Check 5: signature + SLSA provenance + SPDX SBOM attestation,
+            # all still independently verifiable — see this file's header
+            # comment for why this is a genuinely separate failure mode from
+            # checks 1-4 above. Digest-pinned (image_name@actual_digest), not
+            # the tag, for the same reason the earlier tag/digest check
+            # exists at all. Output is captured rather than streamed live:
+            # verify-image.sh's own [INFO]/[SUCCESS] lines are useful on
+            # success but should not spam the log on a failure this loop
+            # already reports clearly via ::error::.
+            if ! verify_output=$(./scripts/verify-image.sh "${image_name}@${actual_digest}" 2>&1); then
+              echo "::error::${ref}@${actual_digest} failed signature/attestation verification (Cosign signature, SLSA provenance, or SPDX SBOM attestation no longer verifies):"
+              echo "${verify_output}"
+              failures=$((failures + 1))
+            else
+              echo "signature + attestations: VALID (Cosign signature, SLSA provenance, SPDX SBOM)"
+            fi
+
+            echo "::endgroup::"
+          done < "${RUNNER_TEMP}/release-contracts.tsv"
+
+          if (( failures > 0 )); then
+            echo "::error::${failures} released GHCR contract check(s) failed. A published release is no longer safely consumable."
+            exit 1
+          fi
+
+      - name: Write integrity summary
+        if: always()
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+          RELEASE_URL: ${{ steps.release.outputs.release_url }}
+        run: |
+          {
+            echo "## Released GHCR Contract Integrity"
+            echo
+            echo "Release: [${RELEASE_TAG}](${RELEASE_URL})"
+            echo
+            echo "The workflow checks tag existence, release-recorded digest equality, OCI index readability, linux/amd64 + linux/arm64 child-manifest reachability, and Cosign signature + SLSA provenance + SPDX SBOM attestation verifiability."
+          } >> "$GITHUB_STEP_SUMMARY"
+\t' read -r target ref expected_digest; do
             [[ -z "${ref}" ]] && continue
             echo "::group::Verify ${ref}"
 
