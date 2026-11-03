@@ -11,13 +11,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import verify_legacy_provenance as legacy  # noqa: E402
-from verify_legacy_provenance import (  # noqa: E402
-    LEGACY_INDICES, LEGACY_SOURCE, LEGACY_TAG,
-    LegacyProofError, qualify_legacy, project,
-)
 from verify_signed_release_predicates import fingerprint  # noqa: E402
 
-DIGEST = sorted(LEGACY_INDICES)[0]
+DIGEST = sorted(legacy.LEGACY_INDICES)[0]
 SLSA = "https://slsa.dev/provenance/v1"
 SPDX = "https://spdx.dev/Document"
 
@@ -52,7 +48,7 @@ class LegacyProvenanceTests(unittest.TestCase):
                 "oldCustomExtension": {"arch": arch}}}
             for arch in ("amd64", "arm64")
         ]
-        self.projection = [project(x, "provenance") for x in self.raw]
+        self.projection = [legacy.project(x, "provenance") for x in self.raw]
         self.spdx = [{"SPDXID": "SPDXRef-DOCUMENT",
                       "packages": [{"name": arch}]}
                      for arch in ("amd64", "arm64")]
@@ -69,13 +65,13 @@ class LegacyProvenanceTests(unittest.TestCase):
         self.addCleanup(context.stop)
 
     def qualify(self, **kw):
-        base = dict(image_digest=DIGEST, tag=LEGACY_TAG,
-                    source_sha=LEGACY_SOURCE, embedded_slsa=self.raw,
+        base = dict(image_digest=DIGEST, tag=legacy.LEGACY_TAG,
+                    source_sha=legacy.LEGACY_SOURCE, embedded_slsa=self.raw,
                     embedded_spdx=self.spdx,
                     verified_slsa=envelopes(SLSA, self.projection),
                     verified_spdx=envelopes(SPDX, self.spdx))
         base.update(kw)
-        return qualify_legacy(**base)
+        return legacy.qualify_legacy(**base)
 
     def test_historical_proto_field_rename_and_unknown_drop(self):
         result = self.qualify()
@@ -93,7 +89,7 @@ class LegacyProvenanceTests(unittest.TestCase):
             {"image_digest": "sha256:" + "f" * 64},
             {"source_sha": "f" * 40},
         ):
-            with self.subTest(overrides=overrides), self.assertRaises(LegacyProofError):
+            with self.subTest(overrides=overrides), self.assertRaises(legacy.LegacyProofError):
                 self.qualify(**overrides)
 
     def test_full_spdx_must_still_match_and_subject_is_digest_bound(self):
@@ -110,11 +106,11 @@ class LegacyProvenanceTests(unittest.TestCase):
     def test_core_buildtype_or_builder_mutation_denied(self):
         changed = copy.deepcopy(self.projection)
         changed[0]["buildDefinition"]["buildType"] = "different"
-        with self.assertRaises(LegacyProofError):
+        with self.assertRaises(legacy.LegacyProofError):
             self.qualify(verified_slsa=envelopes(SLSA, changed))
         changed = copy.deepcopy(self.projection)
         changed[0]["runDetails"]["builder"]["id"] = "forged"
-        with self.assertRaises(LegacyProofError):
+        with self.assertRaises(legacy.LegacyProofError):
             self.qualify(verified_slsa=envelopes(SLSA, changed))
 
     def test_empty_and_null_equivalence_per_slsa_v1(self):
@@ -122,27 +118,27 @@ class LegacyProvenanceTests(unittest.TestCase):
         raw[0]["runDetails"]["metadata"]["finishedOn"] = None
         signed = copy.deepcopy(self.projection)
         signed[0]["runDetails"]["metadata"]["finishedOn"] = ""
-        self.assertEqual(project(raw[0], "provenance"),
-                         project(signed[0], "provenance"))
+        self.assertEqual(legacy.project(raw[0], "provenance"),
+                         legacy.project(signed[0], "provenance"))
         # Even schema-equivalent changes are not silently accepted against
         # pinned full historical evidence.
-        with self.assertRaises(LegacyProofError):
+        with self.assertRaises(legacy.LegacyProofError):
             self.qualify(embedded_slsa=raw,
                          verified_slsa=envelopes(SLSA, signed))
 
     def test_signed_or_embedded_full_content_changed_but_schema_same_denied(self):
         raw = copy.deepcopy(self.raw)
         raw[0]["unknownHistoricalExtra"] = "changed"
-        with self.assertRaises(LegacyProofError):
+        with self.assertRaises(legacy.LegacyProofError):
             self.qualify(embedded_slsa=raw)
         signed = copy.deepcopy(self.projection)
         signed[0]["unknownHistoricalExtra"] = "forged"
-        with self.assertRaises(LegacyProofError):
+        with self.assertRaises(legacy.LegacyProofError):
             self.qualify(verified_slsa=envelopes(SLSA, signed))
 
     def test_historical_fingerprint_allowlist_has_exact_four_indices(self):
         self.assertEqual(set(legacy.HISTORIC_SLSA_FINGERPRINTS),
-                         LEGACY_INDICES)
+                         legacy.LEGACY_INDICES)
         for hashes in legacy.HISTORIC_SLSA_FINGERPRINTS.values():
             self.assertEqual(set(hashes), {"embedded", "signed"})
             for pair in hashes.values():
@@ -150,7 +146,7 @@ class LegacyProvenanceTests(unittest.TestCase):
                 self.assertTrue(all(len(d) == 64 for d in pair))
 
     def test_dual_native_required(self):
-        with self.assertRaises(LegacyProofError):
+        with self.assertRaises(legacy.LegacyProofError):
             self.qualify(embedded_slsa=self.raw[:1])
 
 
