@@ -146,3 +146,47 @@ output encoding, full two-platform roundtrip and signed source/material identity
 must be demonstrated on a controlled non-GA test before approval. Synthetic
 unit tests are not a replacement. The independent 295-CVE release block and
 owner-authorised staging/production governance remain unchanged.
+
+## 3 November 2026 — #57 merged; #58 independent native-registry verification
+
+- R4 PR #57 merged to `main`. GitHub automatically retargeted stacked R5
+  PR #58 to `main` after a direct base-change attempt was refused while
+  its parent PR was still registered in the stack. No branch rewriting,
+  release tags, registry writes or #58 merge were performed for this follow-up.
+- A source regression test previously expected malformed
+  `CHILD_DIGEST` GitHub expression syntax; corrected it to the actual
+  secure `${{ steps.exact.outputs.child }}` expression without weakening
+  the remote-digest scan.
+- `registry-integrity.yml` now checks all four advertised release contracts
+  with a separate read-only verification helper and retained evidence.
+  That helper insists on **both** AMD64/ARM64 native image manifests,
+  manifest-linked BuildKit attestation siblings, source commit labels,
+  SLSA v1 and complete-package SPDX predicates, independent Cosign
+  validation and exact signed predicate content per architecture.
+  The verifier regenerates exactly the documented file-trimmed SPDX
+  projection; it does **not** remove any package inventory.
+- `verify_signed_release_predicates.py` now additionally requires every
+  signed DSSE statement's subject SHA-256 to match the exact immutable OCI
+  index under review. A signature for an unrelated digest must fail even if
+  the signer, predicate schema and predicate hashes otherwise match. Unit
+  tests include wrong-subject and cross-platform substitution negatives.
+- GitHub source CI on R5 head `ab2ab97` successfully ran the new Python
+  unit controls in DEV-10 onboarding. The live read-only registry-integrity
+  run [41616115702](https://github.com/baobab-platform/baobab-dev/actions/runs/41616115702)
+  verified all v1.4.4 tag digests, both image/attestation descriptors and
+  signatures, but **DENIED exact BuildKit-to-signed SLSA predicate binding**
+  for all four published profiles. This is an **open integrity finding**, not
+  evidence of confirmed compromise or an acceptable PASS. The historical
+  v1.4.4 publish path might have transformed its attested predicates, but
+  a signed-content inconsistency cannot be assumed benign.
+- Added redacted SHA-256 fingerprint diagnostics and bounded DENIED evidence
+  files (no full provenance, tokens, source or private dependency details).
+  The negative check remains blocking. Reconcile archived v1.4.4 signing
+  semantics using actual hashed predicate evidence; do not grandfather
+  old releases into the stronger R5 contract silently. The old
+  signature-existence-only check independently passed, which does **not**
+  demonstrate content equivalence.
+- R5 still carries **no development CVE exception**, and no protected
+  stable-tag GHCR/Sigstore end-to-end proof. A failed PR CVE gate must
+  not be fixed by extending #57's risk scope without a separate
+  attributable decision. R5 remains unmerged; release/promotion held.
