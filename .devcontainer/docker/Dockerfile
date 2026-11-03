@@ -1261,6 +1261,8 @@ COPY --from=patched-pip /out/pip-26.2.2+baobab.1-py3-none-any.whl /tmp/baobab-pi
 RUN mv /tmp/baobab-pip.whl /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
     python3 -m pip install --no-index --no-deps --break-system-packages /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
     "${PIPX_GLOBAL_HOME}/shared/bin/python" -m pip install --no-index --no-deps /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
+    # Ubuntu's /usr/bin/python3.14 remains installed alongside the exact\n    # PSF /opt interpreter. Its /usr/local/dist-packages pip 26.3 carried\n    # vendored setuptools 70.3.0 (CVE-2025-47273), although /opt and pipx\n    # already carried the corrected wheel. Patch this THIRD real pip copy;\n    # never suppress the image scanner or pretend the old interpreter vanished.\n    /usr/bin/python3.14 -m pip install --no-index --no-deps --break-system-packages --force-reinstall /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
+    /usr/bin/python3.14 -c 'import pip; assert pip.__version__ == "26.2.2+baobab.1"; from pip._vendor import pkg_resources; assert str(pkg_resources.parse_version("1.2.3")) == "1.2.3"' && \
     python3 -c 'from pip._vendor import urllib3; assert urllib3.__version__ == "2.8.0"' && \
     "${PIPX_GLOBAL_HOME}/shared/bin/python" -c 'from pip._vendor import urllib3; assert urllib3.__version__ == "2.8.0"' && \
     rm /tmp/pip-26.2.2+baobab.1-py3-none-any.whl
