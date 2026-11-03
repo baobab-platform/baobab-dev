@@ -40,6 +40,7 @@ def signed(predicate_type, predicates):
 
 class ReadOnlyRegistryProofTests(unittest.TestCase):
     def setUp(self):
+        self.current_tag = TAG
         self.child = {"amd64": digest("a"), "arm64": digest("b")}
         self.sibling = {"amd64": digest("c"), "arm64": digest("d")}
         self.raw = {}
@@ -105,7 +106,7 @@ class ReadOnlyRegistryProofTests(unittest.TestCase):
                         return json.dumps({"predicateType": kind, "predicate": predicate})
         if args[:2] == ["cosign", "verify-attestation"]:
             self.assertIn("https://github.com/baobab-platform/baobab-dev/"
-                          ".github/workflows/publish.yml@refs/tags/" + TAG, args)
+                          ".github/workflows/publish.yml@refs/tags/" + self.current_tag, args)
             self.assertEqual(args[-1], REF)
             kind = args[args.index("--type") + 1]
             if kind == "slsaprovenance1":
@@ -123,6 +124,17 @@ class ReadOnlyRegistryProofTests(unittest.TestCase):
                               ["cosign", "verify-attestation"]]), 2)
         self.assertFalse(any("tag" in cmd or "push" in cmd or "sign" == cmd[1]
                              for cmd in self.commands))
+
+    def test_each_approved_rc_requires_full_native_signed_content(self):
+        for rc in ("v1.5.0-rc.1", "v1.5.0-rc.2", "v1.5.0-rc.10"):
+            with self.subTest(rc=rc):
+                self.current_tag = rc
+                self.commands.clear()
+                proof = verify(REF, rc, SHA, self.runner)
+                self.assertEqual(proof["status"], "STRICT_SIGNED_NATIVE_CONTENT_VERIFIED")
+                self.assertEqual(proof["release_tag"], rc)
+                self.assertFalse(any("tag" in cmd or "push" in cmd
+                                     for cmd in self.commands))
 
     def test_complete_index_required(self):
         self.assertEqual(len(native_index(self.index)), 2)
@@ -188,7 +200,9 @@ class ReadOnlyRegistryProofTests(unittest.TestCase):
     def test_invalid_image_identity_and_tag_refuse_before_network(self):
         for ref, tag, sha in (
             (IMAGE + ":1.5.0", TAG, SHA),
-            (REF, "v1.5.0-rc.1", SHA),
+            (REF, "v1.5.0-rc.0", SHA),
+            (REF, "v1.5.0-rc.01", SHA),
+            (REF, "v1.5.1-rc.1", SHA),
             (REF, TAG, "invalid"),
             ("ghcr.io/evil/image@" + INDEX, TAG, SHA),
         ):
