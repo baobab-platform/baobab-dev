@@ -49,6 +49,8 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         run = jobs()
         self.assertIn("needs: [release-digests, sanity-check]", run["publish"])
         self.assertNotIn("crane tag", active_yaml(run["publish"]))
+        self.assertIn("Verify both signed architecture-specific SLSA and SPDX payloads", run["publish"])
+        self.assertIn("verify_signed_release_predicates.py", run["publish"])
         self.assertIn("name: dev10-release-promotion", run["promote"])
         self.assertIn("needs: [publish, sanity-check]", run["promote"])
         self.assertIn("verify_release_environment.py", run["promote"])
