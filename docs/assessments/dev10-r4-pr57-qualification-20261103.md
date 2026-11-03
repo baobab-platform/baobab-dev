@@ -28,6 +28,40 @@ Initial candidate SHA `ac187a4e40ce895ab53d0036a953730a92874a3b`, workflow run
 - Failed: full AMD64/ARM64 Trivy found **296** HIGH/CRITICAL issues, one additional HIGH beyond the narrowly accepted **295**. Trivy's own independently exported result identified `CVE-2025-47273` (setuptools 70.3.0, fixed >=78.1.1) inside the remaining `/usr/local/lib/python3.14/dist-packages/pip-26.3` installation. The /opt interpreter and pipx installer were separately patched, but the old distro interpreter was not. We now install the audited, checksum-built, source-revendored pip wheel in this third interpreter as well; leave Trivy strict and verify the final image.
 - CI remains authoritative for all code corrections. Neither corrected source nor a locally green command is multiarch/consumer acceptance.
 
+## 3 November 2026 — pnpm 12 bootstrap failure and remedial qualification
+
+Final-head candidate `7d7453639ed69ca3a40f30b6eb1835873dfe5f60`,
+[Actions run 41575370514](https://github.com/baobab-platform/baobab-dev/actions/runs/41575370514):
+all source workflows (Foundation, Security, documentation, DEV-10, DEV-14) passed;
+the eight-image matrix built and scanned six legs successfully, but
+`frontend/linux-amd64` and `frontend-e2e/linux-amd64` failed specifically at
+the noninteractive package-manager fixture. Error:
+`ERR_PNPM_BAD_CONFIG_DEP` → `Failed to resolve config dependency pnpm@12.16.1`
+from an empty `~/.cache/pnpm/v12/metadata/...` mirror. The fixture required
+a newly generated pnpm 12 *boot document* to resolve on a disconnected
+network and with no pre-existing registry metadata. This is a test-design
+error, not the pnpm 12 native executable or Corepack failing.
+
+Remediation on PR #57:
+1. Maintain SHA-256 verified native pnpm 12.16.1 and exact `versions.yaml` /
+   `versions.lock` pins; no version bump, skip, risk waiver or scanner change.
+2. Set supported pnpm 12 `pnpm_config_pm_on_fail=error` in the image to reject
+   mismatched `packageManager` versions, rather than auto-downloading a
+   second package-manager executable. Corepack remains limited to Yarn.
+3. Replace impossible network-disconnected cold lock generation with
+   `scripts/qualify-pnpm-provisioning.sh`: first a bounded normal install
+   with registry access, no TTY and real packageManager pin, with pnpm cache
+   and store mounted from disposable CI scratch; then a second container
+   with `--network none`, `--frozen-lockfile --offline`, equal lock SHA-256;
+   negative tests refuse a wrong pnpm version and fabricated lock.
+4. Rerun final-head CI and native consumer/Codespaces checks. CI success
+   **cannot** imply a cold offline first-ever lock resolution or published
+   image. Remaining qualification and protected release boundary unchanged.
+
+pnpm documentation: [pmOnFail setting](https://pnpm.io/settings),
+[packageManager boot document](https://pnpm.io/package_json),
+[offline install](https://pnpm.io/cli/install).
+
 ## Gate matrix
 
 | Gate | Required proof | Current decision |
