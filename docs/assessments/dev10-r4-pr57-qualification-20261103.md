@@ -43,7 +43,14 @@ Initial candidate SHA `ac187a4e40ce895ab53d0036a953730a92874a3b`, workflow run
 
 The documented **295** `linux-libc-dev=7.0.0-42.42` CVEs have a narrow, expiring **development-only** acceptance for untagged source PR #57/main until **2026-11-13T00:00:00Z**. It is not a `not_affected` VEX, a vendor fix, an approval for extra CVEs, or an exception for a release tag.
 
-The requested owner sequence is **candidate review → v1.5.0-rc.1 → v1.5.0 → GHCR publish**. Before either tag is created, confirm whether the workflow's `v*` release trigger would attempt to publish that tag. The current release scanner must not be bypassed for either RC or GA. A separate attributable, per-CVE/digest release decision or vendor remediation is required, followed by a clean tag-time scan and supply-chain provenance checks. Release tagging remains with the owner.
+The requested owner sequence is **candidate review → v1.5.0-rc.1 → v1.5.0 → GHCR publish**. The current `.github/workflows/publish.yml` **explicitly triggers on both**
+`v*.*.*` and `v*.*.*-*` and sets `is_release=true` for **both**.
+Consequently cutting `v1.5.0-rc.1` **would attempt a GHCR image
+publish, signing and GitHub prerelease** if its gates pass, rather than
+being a dry-run validation tag. This differs from the stated owner
+sequence of *RC tag, then publish GHCR on the stable tag*. Do not
+assume the RC tag is validation-only; reconcile the policy explicitly
+before tagging. Neither RC nor GA may bypass strict release scanning. A separate attributable, per-CVE/digest release decision or vendor remediation is required, followed by a clean tag-time scan and supply-chain provenance checks. Release tagging remains with the owner.
 
 ## Rollback and follow-up
 
