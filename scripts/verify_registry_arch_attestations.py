@@ -21,7 +21,9 @@ import subprocess
 import sys
 from typing import Callable
 
-from verify_signed_release_predicates import qualify as verify_predicates
+from verify_signed_release_predicates import (
+    PredicateError, fingerprint, parse_verified, qualify as verify_predicates,
+)
 
 IMAGE = "ghcr.io/baobab-platform/baobab-dev"
 INDEX_REF = re.compile(r"^ghcr\.io/baobab-platform/baobab-dev@sha256:[a-f0-9]{64}$")
@@ -193,7 +195,28 @@ def verify(image: str, tag: str, expected_sha: str,
             "--output", "json", image]
     signed_p = runner(["cosign", "verify-attestation", "--type", "slsaprovenance1"] + base)
     signed_s = runner(["cosign", "verify-attestation", "--type", "spdxjson"] + base)
-    signed = verify_predicates(raw_provenance, raw_sbom, signed_p, signed_s)
+    try:
+        signed = verify_predicates(raw_provenance, raw_sbom, signed_p, signed_s)
+    except PredicateError as exc:
+        # Fingerprints, counts and types only: never put the full BuildKit
+        # provenance, SPDX file inventory, certificates or raw stdout in CI.
+        # This diagnoses historical releases without treating a mismatch as PASS.
+        groups = (
+            ("slsa", SLSA, raw_provenance, signed_p),
+            ("spdx", SPDX, raw_sbom, signed_s),
+        )
+        diagnostics: dict = {}
+        for name, kind, expected, verified in groups:
+            item = {"embedded_sha256": [fingerprint(p) for p in expected]}
+            try:
+                item["signed_sha256"] = parse_verified(verified, kind)
+            except PredicateError as suberror:
+                item["signed_error"] = str(suberror)
+            diagnostics[name] = item
+        raise RegistryProofError(
+            "signed-to-BuildKit predicate binding failed (legacy compatibility "
+            "or registry-content divergence; not accepted): "
+            + json.dumps(diagnostics, sort_keys=True)) from exc
     return {"schema": "baobab.dev10.readonly-registry-native-qualification.v1",
             "image": image, "release_tag": tag, "source_sha": expected_sha,
             "native": evidence, "signed_predicate_evidence": signed}
@@ -213,6 +236,20 @@ def main() -> int:
         print("Native AMD64/ARM64 image revision, BuildKit SLSA/SPDX and signed content VALID")
         return 0
     except (RegistryProofError, ValueError, TypeError, OSError) as exc:
+        # Retain a bounded negative artifact, even when nothing qualified.
+        # This is not a PASS or a waiver of missing two-platform signatures.
+        report = {
+            "schema": "baobab.dev10.readonly-registry-native-qualification.v1",
+            "status": "DENIED",
+            "image": a.image,
+            "release_tag": a.tag,
+            "error": str(exc),
+        }
+        try:
+            a.evidence.parent.mkdir(parents=True, exist_ok=True)
+            a.evidence.write_text(json.dumps(report, sort_keys=True, indent=2) + "\n")
+        except OSError:
+            pass
         print("::error::Read-only registry native attestation check DENIED:", exc,
               file=sys.stderr)
         return 1
