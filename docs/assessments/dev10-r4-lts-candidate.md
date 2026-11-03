@@ -130,8 +130,10 @@ showed independent defects, not successful qualification:
   incomplete `lockfileVersion: 9.0` file for a pnpm 12 manifest.
   The frozen install rejected it with
   `ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE`. The rehearsal now
-  generates the fixture lock with the installed pnpm 12 binary entirely
-  offline, then requires a subsequent offline frozen install. Consumer
+  initially attempted to generate a fixture lock entirely offline; that
+  attempt failed on pnpm 12's new cold bootstrap metadata requirement.
+  The later two-stage correction and its pending verification are recorded
+  above. This paragraph documents the superseded test, not a PASS. Consumer
   repositories must still commit their OWN correctly regenerated locks.
 - **Full AMD64/ARM64:** Trivy detected a **296th** HIGH finding,
   `CVE-2025-47273`, on setuptools **70.3.0**, which exceeded the
