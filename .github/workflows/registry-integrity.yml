@@ -88,7 +88,7 @@ jobs:
           (github.event.workflow_run.conclusion == 'success' &&
            github.event.workflow_run.event == 'push') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 35
 
     steps:
       # Needed for scripts/verify-image.sh (check 5 below) — this workflow
@@ -99,6 +99,14 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+
+      - name: Validate registry governance, release-contract and signed-attestation negatives
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v \
+            tests/test_verify_release_contracts.py \
+            tests/test_registry_arch_attestations.py \
+            tests/test_signed_release_predicates.py
 
       - name: Authenticate to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -149,7 +157,25 @@ jobs:
           jq -r '.body // ""' "${RUNNER_TEMP}/release.json" > "${RUNNER_TEMP}/release-body.md"
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
           echo "release_url=${RELEASE_URL}" >> "$GITHUB_OUTPUT"
-          echo "Verifying release ${TAG_NAME}: ${RELEASE_URL}"
+          [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error::Unexpected latest GitHub release tag"; exit 1;
+          }
+          # Do not trust release.target_commitish or infer source identity.
+          # Dereference the actual tag, including annotated tag objects.
+          tag_object=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG_NAME}")
+          object_type=$(jq -er '.object.type' <<< "$tag_object")
+          object_sha=$(jq -er '.object.sha' <<< "$tag_object")
+          for depth in 1 2 3 4; do
+            [[ "$object_type" != "tag" ]] && break
+            tag_object=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${object_sha}")
+            object_type=$(jq -er '.object.type' <<< "$tag_object")
+            object_sha=$(jq -er '.object.sha' <<< "$tag_object")
+          done
+          [[ "$object_type" == commit && "$object_sha" =~ ^[a-f0-9]{40}$ ]] || {
+            echo "::error::Release tag does not resolve unambiguously to a commit"; exit 1;
+          }
+          echo "source_sha=${object_sha}" >> "$GITHUB_OUTPUT"
+          echo "Verifying release ${TAG_NAME}: ${RELEASE_URL} source ${object_sha}"
 
       - name: Parse and require all four advertised stable-release contracts
         env:
@@ -164,9 +190,11 @@ jobs:
       - name: Verify advertised tags, digests, indices, platform manifests, and attestations
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+          SOURCE_SHA: ${{ steps.release.outputs.source_sha }}
         run: |
           set -euo pipefail
           failures=0
+          mkdir -p "$RUNNER_TEMP/registry-native-evidence"
 
           while IFS=$'\t' read -r target ref expected_digest; do
             [[ -z "${ref}" ]] && continue
@@ -258,6 +286,21 @@ jobs:
               echo "signature + attestations: VALID (Cosign signature, SLSA provenance, SPDX SBOM)"
             fi
 
+            # Independent release-aftercare: each native architecture must
+            # retain its own image, exact Git tag source revision, full
+            # BuildKit SLSA/SPDX predicates and matching OIDC-signed content.
+            # No image pull, tag mutation or registry write is authorised.
+            if ! python3 scripts/verify_registry_arch_attestations.py \
+                --image "${image_name}@${actual_digest}" \
+                --tag "${RELEASE_TAG}" \
+                --expected-sha "${SOURCE_SHA}" \
+                --evidence "${RUNNER_TEMP}/registry-native-evidence/${target}.json"; then
+              echo "::error::${ref}: dual-native signed artifact integrity failed."
+              failures=$((failures + 1))
+            else
+              echo "both native architectures: matching BuildKit source, SLSA, SPDX and verified Cosign predicates"
+            fi
+
             echo "::endgroup::"
           done < "${RUNNER_TEMP}/release-contracts.tsv"
 
@@ -265,6 +308,15 @@ jobs:
             echo "::error::${failures} released GHCR contract check(s) failed. A published release is no longer safely consumable."
             exit 1
           fi
+
+      - name: Retain read-only native registry integrity evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: registry-native-attestation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/registry-native-evidence/
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Write integrity summary
         if: always()
@@ -277,5 +329,5 @@ jobs:
             echo
             echo "Release: [${RELEASE_TAG}](${RELEASE_URL})"
             echo
-            echo "The workflow checks tag existence, release-recorded digest equality, OCI index readability, linux/amd64 + linux/arm64 child-manifest reachability, and Cosign signature + SLSA provenance + SPDX SBOM attestation verifiability."
+            echo "The workflow checks tag existence, release-recorded digest equality, OCI index readability, linux/amd64 + linux/arm64 child-manifest reachability, immutable tag-to-source revision readback, and BOTH architectures' exact BuildKit SLSA/SPDX signed predicate content (not merely one verifiable attestation)."
           } >> "$GITHUB_STEP_SUMMARY"
