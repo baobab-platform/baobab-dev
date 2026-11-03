@@ -65,6 +65,20 @@ class SignedPredicateTests(unittest.TestCase):
             mod.qualify([self.provenance[0], self.provenance[0]], self.sbom,
                         verified(PROVENANCE, self.provenance), verified(SBOM, self.sbom))
 
+    def test_signed_statement_subject_is_exact_index_not_another_image(self):
+        expected = "sha256:" + "a" * 64
+        good = mod.qualify(self.provenance, self.sbom,
+                           verified(PROVENANCE, self.provenance),
+                           verified(SBOM, self.sbom),
+                           expected_subject=expected)
+        self.assertEqual(good["kinds"]["SLSA provenance"]["verified_signed_statements"], 2)
+        for bad in ("sha256:" + "b" * 64, "sha256:bad", "", "a" * 64):
+            with self.subTest(bad=bad), self.assertRaises(mod.PredicateError):
+                mod.qualify(self.provenance, self.sbom,
+                            verified(PROVENANCE, self.provenance),
+                            verified(SBOM, self.sbom),
+                            expected_subject=bad)
+
     def test_unsigned_or_unreadable_output_refused(self):
         for data in ("", "[]", "{}", '{"payload":"@@@"}', "not json"):
             with self.subTest(data=data), self.assertRaises(mod.PredicateError):
