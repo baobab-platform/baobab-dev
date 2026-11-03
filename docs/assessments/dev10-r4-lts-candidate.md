@@ -1,3 +1,14 @@
+## 2026-11-03 — Maven 3.10.0 GA candidate pin
+
+The owner explicitly selected the latest stable Maven 3.10.x, resolved to
+**Apache Maven 3.10.0**. PR #57 now pins that exact version in
+`config/versions.yaml` and the Apache-published SHA-512 in
+`config/versions.lock`. This is a reproducible dev-image candidate upgrade,
+not proof of Maven 3.10 compatibility in the ERP release-13 native OSGi
+runtime, Subscriptions JVM reactor, Codespaces, or protected delivery.
+Current-head CI, raw image scans and independent owner-consumer evidence
+remain mandatory. Maven 4 RC was not adopted.
+
 # DEV10-R4 — Node 26 / pnpm 12 / Java 21 / Python 3.14 candidate
 
 **Status: CANDIDATE, NO MERGE/RELEASE ACCEPTANCE.** Based on merged #48/#50.
