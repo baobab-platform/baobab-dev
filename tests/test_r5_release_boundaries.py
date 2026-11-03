@@ -37,7 +37,7 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("needs.sanity-check.outputs.is_release == 'true'", run)
         self.assertIn("packages: write", run)
         self.assertIn("Scan EXACT registry architecture digest with fresh Trivy DBs", run)
-        self.assertIn("CHILD_DIGEST: ${ steps.exact.outputs.child }}", run)
+        self.assertIn("CHILD_DIGEST: ${{ steps.exact.outputs.child }}", run)
         self.assertIn("--ignorefile /dev/null", run)
         self.assertIn("--exit-code 1", run)
         self.assertNotIn("scripts/dev10_kernel_risk_gate.py", run)
