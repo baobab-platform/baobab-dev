@@ -71,7 +71,23 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
 
     def test_exact_rc_series_publishes_full_pipeline_but_ga_advances_aliases(self):
         source = WORKFLOW.read_text()
-        self.assertIn('^v1\\.5\\.0-rc\\.[1-9][0-9]*
+        self.assertIn("v1\\.5\\.0-rc", source)
+        self.assertIn('echo "is_release=true"', source)
+        self.assertIn('is_stable_release=$(is_stable_release "$GITHUB_REF_NAME")', source)
+        self.assertIn("name: dev10-release-promotion", jobs()["promote"])
+        self.assertIn("prerelease: ${{ needs.sanity-check.outputs.is_stable_release != 'true' }}", active_yaml(jobs()["release"]))
+        self.assertIn("type=semver,pattern={{major}}.{{minor}}", source)
+        self.assertIn("enable=${{ needs.sanity-check.outputs.is_stable_release == 'true' }}", source)
+        script = (ROOT / "scripts/promote_release_tags.sh").read_text()
+        self.assertIn("PROMOTED_FOUR_RC_VERSIONS_NO_ALIASES", script)
+        self.assertIn("PROMOTED_FOUR_TARGETS_AND_ALIASES", script)
+        self.assertIn("if (( is_release_candidate == 0 )); then", script)
+        self.assertIn('for prefix in "$major_minor" "$major" latest;', script)
+        registry = INTEGRITY.read_text()
+        self.assertIn("releases/tags/", registry)
+        self.assertIn("TRIGGER_SHA", registry)
+
+    def test_signing_then_protected_approval_then_release(self):
         run = jobs()
         self.assertIn("needs: [release-digests, sanity-check]", run["publish"])
         self.assertNotIn("crane tag", active_yaml(run["publish"]))
