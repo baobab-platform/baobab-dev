@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Bounded DEV-10 executive risk acceptance of *known*, unremediated OS advisories.
 
-This is not VEX "not_affected", an Ubuntu patch, or a release security approval.
-Preserve an unfiltered Trivy report and fail closed for any outside CVE/package.
-Only applies to dev PRs #48/#50/#57/#58 or development-main until 2026-11-13 UTC.
+This is not VEX "not_affected", an Ubuntu patch, or a staging/production
+approval. Preserve complete Trivy findings and deny new/unrecognised CVEs.
+Applies only to dev PRs #48/#50/#57/#58, development-main and one exact
+tagged DEVELOPMENT CONTAINER distribution v1.5.0, before 2026-11-13 UTC.
+Approval source: user's explicit Baobab-dev distribution clarification
+(2026-11-03). A tag is a development image distribution, not deployment.
 Directive / audit: https://github.com/baobab-platform/baobab-dev/issues/54
 """
 from __future__ import annotations
@@ -25,8 +28,10 @@ CVE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 TARGETS = {"final", "infra", "frontend", "frontend-e2e"}
 PLATFORMS = {"linux/amd64", "linux/arm64"}
 # Owner-authorised DEV-only PR addition (2026-11-03), recorded under issue #54.
-# Never infer release, deployment, staging, production or VEX approval from this.
+# The user separately approved v1.5.0 GHCR distribution for development
+# consumers. Do not expand to future tags or staging/production deployments.
 APPROVED_DEVELOPMENT_PRS = frozenset({48, 50, 57, 58})
+APPROVED_DEVELOPMENT_IMAGE_REF = "refs/tags/v1.5.0"
 
 
 class RiskGateError(ValueError):
@@ -64,9 +69,11 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
     is_qualified_dev_pr = (event == "pull_request" and pr_number in APPROVED_DEVELOPMENT_PRS
                            and ref == f"refs/pull/{pr_number}/merge")
     is_dev_main = event == "push" and ref == "refs/heads/main" and pr_number == 0
-    require(is_qualified_dev_pr or is_dev_main,
-            "risk acceptance only valid for explicitly scoped PR #48/#50/#57/#58 "
-            "or untagged development main")
+    is_dev_image_release = (event == "push" and pr_number == 0
+                            and ref == APPROVED_DEVELOPMENT_IMAGE_REF)
+    require(is_qualified_dev_pr or is_dev_main or is_dev_image_release,
+            "risk acceptance only valid for PR #48/#50/#57/#58, untagged "
+            "development main, or exact v1.5.0 GHCR development-image distribution")
     require(target in TARGETS and platform in PLATFORMS,
             "unapproved target or architecture")
     results = report.get("Results")
@@ -103,7 +110,10 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
         "known_cves_observed": len(observed),
         "critical": sum(x == "CRITICAL" for x in observed.values()),
         "expiry_utc": EXPIRY.isoformat(),
-        "scope": "DEV ONLY; no tag, staging, or production",
+        "scope": "DEV TOOLCHAIN ONLY; v1.5.0 tagged GHCR distribution permitted; "
+                 "no staging/production deployment or future tags",
+        "distribution": ("v1.5.0_tagged_development_container"
+                         if is_dev_image_release else "development_ci"),
         "technical_applicability": "under_investigation",
     }
 
