@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # DEV-10 R4: a new pnpm 12 lockfile requires metadata for its packageManager
-# bootstrap dependency. Qualify a network-assisted cold lock resolution, then
+# bootstrap dependency. Qualify a network-assisted cold install, then
 # a physically disconnected frozen install against the identical cache/lock.
 set -euo pipefail
 image="${1:?usage: qualify-pnpm-provisioning.sh IMAGE PNPM_VERSION}"
@@ -34,9 +34,11 @@ common=(
 )
 echo "::notice::pnpm ${pin}: resolve cold package-manager metadata online, without TTY."
 # pnpm 12 treats a packageManager pin as a configuration dependency.
+# A normal install (not --lockfile-only) also warms any required package
+# archive, not just its registry metadata, before the disconnected replay.
 # Do not mislabel unavailable OFFLINE bootstrap metadata as a broken binary.
 timeout 120 docker run "${common[@]}" "$image" \
-    sh -eu -c 'test "$(pnpm --version)" = "$1"; pnpm install --lockfile-only --no-frozen-lockfile < /dev/null; test -s pnpm-lock.yaml' \
+    sh -eu -c 'test "$(pnpm --version)" = "$1"; pnpm install --no-frozen-lockfile < /dev/null; test -s pnpm-lock.yaml' \
     sh "$pin" < /dev/null
 before="$(sha256sum "$fixture/pnpm-lock.yaml" | cut -d ' ' -f 1)"
 echo "::notice::pnpm ${pin}: validate committed-style frozen lock with network disabled."
