@@ -10,12 +10,12 @@ VERSION = "1.5.0"
 TAG = "v" + VERSION
 
 
-def body(targets=TARGETS):
+def body(targets=TARGETS, version=VERSION):
     chunks = ["### Container Pull Directives"]
     for index, t in enumerate(targets):
         suffix = "" if t == "final" else "-" + t
         chunks.append(
-            f"**{t}:**\n\x60\x60\x60bash\ndocker pull {IMAGE}:{VERSION}{suffix}\n"
+            f"**{t}:**\n\x60\x60\x60bash\ndocker pull {IMAGE}:{version}{suffix}\n"
             f"\x60\x60\x60\n\nVerify (digest \x60sha256:{index + 1:064x}\x60):\n\x60\x60\x60bash\n"
             f"cosign verify {IMAGE}@sha256:{index + 1:064x}\n\x60\x60\x60"
         )
@@ -47,7 +47,18 @@ class ContractTest(unittest.TestCase):
         with self.assertRaises(ContractError):
             parse_contracts(body().replace("sha256:" + ("1" * 0) + f"{1:064x}", "sha256:BAD", 1), TAG)
 
-    def test_prerelease_denied(self):
+    def test_exact_v150_rc_series_pass_and_bad_prereleases_denied(self):
+        for rc in ("1.5.0-rc.1", "1.5.0-rc.2", "1.5.0-rc.10"):
+            with self.subTest(rc=rc):
+                result = parse_contracts(body(version=rc), "v" + rc)
+                self.assertEqual([x[0] for x in result], list(TARGETS))
+                self.assertTrue(all(":" + rc in x[1] for x in result))
+        for rc in ("v1.5.0-rc.0", "v1.5.0-rc.01", "v1.5.1-rc.1",
+                   "v1.5.0-rc.foo", "v1.5.0-rc.1-extra"):
+            with self.subTest(rc=rc), self.assertRaises(ContractError):
+                parse_contracts(body(version=rc.lstrip("v")), rc)
+        # Correct signed release type cannot legitimise GA pull references
+        # in a prerelease's own versioned release body.
         with self.assertRaises(ContractError):
             parse_contracts(body(), "v1.5.0-rc.1")
 
