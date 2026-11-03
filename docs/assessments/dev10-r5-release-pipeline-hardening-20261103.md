@@ -333,3 +333,40 @@ Cosign signatures verified; this remains under investigation.
 The protected promotion Environment's required reviewer/tag settings
 and variable have not been independently verified. Development-risk
 approval is not a substitute for configured GitHub approval.
+
+## 3 November 2026 — CI incident follow-up: exact legacy content pinning
+
+**CI run 41626326817** failed Foundation's development-risk unit test
+because one stale negative subcase still expected `push` of
+`refs/tags/v1.5.0`, PR number 0, to be denied. That exact tag is now
+explicitly authorised for development-container distribution. Corrected
+the negative to `v1.5.1`; all release-automation, wrong actor/ref,
+unapproved-CVE, fixed-version and expiry negatives remain.
+
+**CI run 41626325397** (source/published-image DEV-10 onboarding)
+failed the *same* stale test, not a package credential, Codespaces
+or runtime toolchain failure. No separate consumer failure is inferred.
+
+**CI run 41626325480** verified all four historical v1.4.4 indices,
+source revisions, signatures and full SPDX documents. Two historical
+profiles also passed the narrow SLSA schema projection. The
+`frontend-e2e` and `infra` profiles did NOT match the historical
+Cosign typed/protobuf projection, even though the signature passed.
+Rather than pretend broader lossy-schema compatibility, pinned
+the **complete SHA-256 fingerprints** of both native embedded BuildKit
+SLSA predicates and both independently authenticated signed
+SLSA predicates to the exact values observed in prior real run
+[41617788874](https://github.com/baobab-platform/baobab-dev/actions/runs/41617788874).
+The original four OCI index digests, source tag, native subjects and full
+SPDX remain separately fixed/checked, and new/mutated signed or embedded
+content is denied. The two profiles with differing schema projections are
+marked **LEGACY_SLSA_EXACT_FINGERPRINTS_PINNED_NOT_SEMANTICALLY_EQUAL**;
+this confirms **unchanged historical content**, not SLSA semantic
+equivalence or an accepted v1.5.0-style release. New R5 releases
+continue to require full exact signed SLSA/SPDX predicate equivalence.
+Synthetic regression tests enforce the immutable pinning boundary.
+
+**CI run 41626325476** was still building native images while these
+specific findings were diagnosed. Its scan evidence and *new-head*
+workflow results must be judged independently before any acceptance.
+No PR merge, tag, release or production deployment was performed.
