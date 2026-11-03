@@ -141,7 +141,8 @@ records current evidence and blockers.
 **Release boundary:** the scoped development acceptance for 295
 `linux-libc-dev=7.0.0-42.42` findings expires **13 November 2026 00:00 UTC**
 and does not authorise a `v1.5.0-rc.1` or `v1.5.0` image publish.
-The tag-time pipeline must stay fail-closed until a vendor fix or an
+The candidate RC tag is validation-only (no GHCR publish or signing);\nthe stable GA tag retains the publish path. The tag-time pipeline must
+stay fail-closed until a vendor fix or an
 independently attributable, exact-CVE/digest release decision is recorded.
 Do not use an RC tag to bypass the same security and provenance gates.
 
