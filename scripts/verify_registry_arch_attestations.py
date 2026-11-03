@@ -287,8 +287,13 @@ def main() -> int:
         try:
             a.evidence.parent.mkdir(parents=True, exist_ok=True)
             a.evidence.write_text(json.dumps(report, sort_keys=True, indent=2) + "\n")
-        except OSError:
-            pass
+        except OSError as write_exc:
+            # Keep the original verifier denial authoritative even when
+            # evidence storage itself is unavailable. Do not echo file
+            # contents, tokens, raw attestation material or private paths.
+            print("::warning::Could not persist DENIED evidence ("
+                  + type(write_exc).__name__ + "); qualification still failed",
+                  file=sys.stderr)
         print("::error::Read-only registry native attestation check DENIED:", exc,
               file=sys.stderr)
         return 1
