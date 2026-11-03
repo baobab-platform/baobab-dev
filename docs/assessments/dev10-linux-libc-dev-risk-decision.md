@@ -97,13 +97,13 @@ The artifact also includes `upstream-commit.txt`. Source and regression tests ar
 **Decision type:** a *temporary DEV-only ACCEPTANCE OF RESIDUAL RISK* for already identified advisory matches; this does **not** change the vendor CVE statuses, scientific per-CVE applicability state (all still under investigation), or the release security requirement.
 
 **Exact limited scope:**
-- Repository: baobab-platform/baobab-dev; explicitly scoped PRs **#48, #50, #57 and #58**, and untagged development-main only. PRs #57 and #58 were added by subsequent owner-directed development-risk decisions dated 2 and 3 November 2026 respectively; no other PR, version tag, release, staging or production action is covered. These extensions do not change the CVE inventory or expiry.
+- Repository: baobab-platform/baobab-dev; explicitly scoped PRs **#48, #50, #57 and #58**, and untagged development-main, **plus one exact tagged GHCR development image distribution `v1.5.0`** as clarified by the owner on 3 November. PRs #57/#58 and v1.5.0 were added by subsequent owner-directed decisions; no other PR, version tag, staging or production deployment is covered. These extensions do not change the CVE inventory or expiry.
 - Image profiles: final, infra, frontend and frontend-e2e; architectures: AMD64 and ARM64.
 - Package: Ubuntu 26.04 linux-libc-dev **7.0.0-42.42 only**.
 - CVE allow-set: exactly the original 295 entries from docs/assessments/dev10-kernel-cves.tsv, pinned to Git blob SHA1 a98090feb9e3df2d9df72654516df69c64daf50e (12 CRITICAL, 283 HIGH). Partial remediation naturally reduces the permitted subset. No newly discovered CVEs, other packages, changed versions, changed severity or supported-fixed versions are accepted.
 - Expiry: 2026-11-13 00:00 UTC. Repository exception expires 2026-11-12; renewal requires a new explicit security decision.
 - Preserve unfiltered Trivy scan output and sanitized retained evidence. Trivy continues to run with --exit-code 1. Development risk evaluation only follows a vulnerability-triggered exit 1 and is fail closed on scanner/runtime errors or missing evidence.
-- No accepted secret findings, no release-tag exception. Source-level tests cover denial cases.
+- No accepted secret findings; **only `v1.5.0` may be tagged and distributed as a devcontainer image**, after unchanged CI, GHCR source/digest, SBOM/SLSA, Cosign and protected-promotion checks. No other version or application staging/production exception. Source-level negative tests enforce these distinctions.
 
 **Implementation:** .baobab/repository.yaml records a temporary **existing Shared Foundation container-scan implementation exception**, because the pinned reusable gate cannot natively consume a package-specific risk decision. Instead of leaving an unscanned gap, .github/workflows/foundation.yml defines a **replacement unfiltered DEV-10 / Foundation container CVE gate** that builds and scans the actual Foundation image and applies the same bounded policy as the eight .github/workflows/publish.yml image scans. The policy is in scripts/dev10_kernel_risk_gate.py with negative tests in tests/test_dev10_kernel_risk_gate.py.
 
@@ -138,7 +138,49 @@ security-approver identity has been established by this chat action. The
 source of authorisation is the user-provided decision, recorded in
 [issue #54](https://github.com/baobab-platform/baobab-dev/issues/54).
 The unresolved per-CVE Ubuntu patch/UAPI analysis, host kernel risks,
-VEX claims and true remediation remain separate open work. Stable
-`refs/tags/*`, all release promotion and staging/production are
-unconditionally outside this allowance. All release gates remain strict,
-regardless of the PR #58 development CI result.
+VEX claims and true remediation remain separate open work. The single **`refs/tags/v1.5.0` development-container distribution** is
+now expressly in scope, while all other `refs/tags/*`, staging/production
+application deployments and unreviewed vulnerability findings remain denied.
+The GHCR release-promotion environment still requires its separate configured
+reviewers, exact-source and content/signature/digest checks; it is not bypassed.
+
+## 3 November 2026 — clarified distribution scope for the development toolchain
+
+**Purpose corrected:** Baobab-dev is an internal organisational **development
+environment/toolchain**. Tagging and distributing its OCI image through GHCR
+as **v1.5.0** is *development-container publication*, not staging or
+production application deployment. The earlier blanket prohibition on
+**all** tag releases wrongly conflated those distinct operations and is
+superseded **for this exact version only** by the user's explicit direction.
+
+**Owner-directed time-limited acceptance now covers:**
+- Existing development PRs #48/#50/#57/#58, untagged development main;
+- **One exact tag push** `refs/tags/v1.5.0` in baobab-dev, after the
+  reviewed code is merged to main, to publish four GHCR developer-image
+  profiles on AMD64 and ARM64, with truthful advisory disclosure;
+- The same immutable inventory of **295** known advisories on **only**
+  `linux-libc-dev=7.0.0-42.42`, same unchanged 2026-11-13T00:00Z
+  deadline. Future tag versions require a new decision or remediation.
+
+**No shortcut:** tag-push validation must run the full eight local unfiltered
+Trivy scans and **eight exact GHCR remote-child-digest** Trivy scans. On
+the latter, only a Trivy vulnerability exit code of 1 backed by the same
+pinning/expiry gate is permissible; scanner failures, secrets,
+other/new CVEs, changed affected package, changed severity, available
+patch, wrong ref, missing Trivy evidence or expiry remain fatal.
+Provenance/source readback, both native SBOM/SLSA payloads, exact
+Sigstore signer identity and independently configured GitHub
+`dev10-release-promotion` environment remain mandatory; no direct
+registry-tag or release bypass is authorised.
+
+**Deployment remains prohibited:** This permission does not turn Baobab-dev
+into a production runtime, permit deploying any Baobab application to
+staging/production, or establish that the 295 advisories are not
+applicable. A future Codespace/consumer rollout must understand that
+the expiry is a **risk-review deadline**, not an automatic GHCR deletion:
+continued acceptance/rollout after 13 November requires remediation or
+renewed review, even if an old tag remains pullable.
+
+**Authentication statement:** This records a direction provided in chat
+by the user. It is not a forged GitHub security signature, nor an
+independent IAM/CP Principal attestation or OpenVEX `not_affected` verdict.
