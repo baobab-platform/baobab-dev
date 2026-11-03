@@ -1,6 +1,6 @@
 # DEV-10 R5 — Release Pipeline Hardening
 
-> **Current direction — 3 November 2026:** Baobab-dev is a DEVELOPMENT TOOLCHAIN image, not a staging/production application deployment. On the user's explicit clarification, the bounded CVE decision covers a reviewed, published **v1.5.0 tagged GHCR development image** as well as PR #58 CI; only the exact known inventory through 2026-11-13 UTC. Earlier "no tagged release under any circumstances" passages below are historical superseded requirements for **v1.5.0 only**. GHCR/Sigstore source, native exact-digest scan and independent promotion protections remain mandatory. Other tags, new findings and staging/production application deployments are not approved.\n\n
+> **Governing owner directive, 3 November 2026 (supersedes previous alias restriction):** After PR #58 qualifies and merges, the owner cuts `v1.5.0-rc.1`, then additional `v1.5.0-rc.N` as needed. Each RC must run the complete signed, GHCR-published, protected-promotion workflow, yielding **four RC image tags and a GitHub prerelease** but not moving stable consumer aliases. After successful RC qualification, the owner cuts `v1.5.0`; this GA release **must update `latest`, `1.5`, `1` aliases** for all four profiles and trigger consumer upgrade communication. All releases remain DEV-TOOLCHAIN ONLY and retain the exact known 295-CVE scope through 2026-11-13 UTC; other risks and staging/production application deployment remain blocked.
 **Status:** Adopted workstream; implementation in stacked draft PR.
 **Stack:** PR #57 `feat/dev10-r4-lts-multiarch-candidate` → this PR, never directly against `main` before #57 merges.
 **Governing gates:** EA v2.3; DEV-10/DEV-14; protected release, immutable artifacts, independent acceptance.
@@ -370,3 +370,63 @@ Synthetic regression tests enforce the immutable pinning boundary.
 specific findings were diagnosed. Its scan evidence and *new-head*
 workflow results must be judged independently before any acceptance.
 No PR merge, tag, release or production deployment was performed.
+
+## 3 November 2026 — final owner-approved release-candidate policy (supersedes older sections)
+
+### Why the release procedure was changed
+
+The owner explicitly declined the assistant's earlier **v1.5.0 version-only**
+distribution/consumer-alias choice. RC tags are the requested *real*
+publication rehearsals, not merely source tests or local image builds.
+The previous "RC validation only" workflow behavior would not have exposed
+GHCR push, immutable digest readback, Cosign signing, protected promotion,
+GitHub prerelease creation or post-release registry verification failures.
+
+### Exact release sequence
+
+1. **First, PR #58:** qualify final-head CI, review and merge. Do not cut an
+   RC before the merged source is available through `main`.
+2. **RC series:** owner creates `v1.5.0-rc.1` (and incrementally
+   `v1.5.0-rc.2`, etc). Only canonical positive integers are accepted.
+   Every RC traverses the complete eight-profile local + eight exact remote
+   digest security validation, native image source verification, both signed
+   SLSA/SPDX statements, independent GHCR candidate/promotion approvals,
+   four versioned OCI tags and a GitHub Release marked **prerelease**.
+   It must also be independently verifiable by the read-only
+   `registry-integrity.yml` observer (automatic for a successful tagged
+   publishing `workflow_run` where head_branch identifies the tag,
+   or explicitly via its guarded `workflow_dispatch.release_tag` input).
+3. **RC isolation:** `1.5.0-rc.N` and profile-suffixed RC tags are available
+   for deliberate test consumption, but `latest`, `1.5`, `1` and their
+   profile-suffixed aliases **remain on the prior GA digests**.
+4. **Final GA:** once the owner accepts RC outcomes, owner creates
+   `v1.5.0`. The same full release gates run on this exact immutable
+   source; protected promotion applies **all four version tags and the
+   matching `latest`/`1.5`/`1` consumer aliases**. Existing version tags
+   cannot be silently rebound; failed alias updates restore prior pointers
+   when possible and retain recovery evidence.
+5. **Consumers:** after GA verification, publish the release notes with
+   four image digests, build identity, Trivy risk register and explicit
+   upgrade instructions. Notify maintainers of Nabhold, ZuriBeans,
+   Thamani, CP, IAM, Shared, Infrastructure and other devcontainer adopters
+   to update their `.devcontainer` image pins and rebuild. A published
+   GitHub Release alone is not proof that each consumer has been notified or
+   has migrated; record recipient/PR/issue and independent consumer evidence.
+
+### Security and operational invariants
+
+The sole owner-directed dev-container risk policy (not VEX) covers PRs
+#48/#50/#57/#58, untagged development `main`, and *only*
+`refs/tags/v1.5.0-rc.N` or `refs/tags/v1.5.0`, until
+**2026-11-13T00:00:00Z**. It retains the exact unchanged 295-CVE inventory,
+package/version/fixed-version constraints, unfiltered Trivy and credential
+controls, and all wrong-ref/unknown-CVE failures. Existing independent
+`dev10-release-promotion` reviewer, tag-policy and
+`DEV10_R5_PROMOTION_APPROVED=true` configuration are still required.
+Tagged publication is **not** staging/production application deployment.
+
+Source tests now assert RC/GA separation across the signing identity,
+registry native content verification, release-contract parsing, protected
+environment, promotion aliases and CVE risk gate. These tests do not claim
+that the first real RC publication succeeded; only a user-created RC tag and
+its actual GHCR/Sigstore receipts can prove that.
