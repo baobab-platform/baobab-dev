@@ -58,23 +58,37 @@
 set -Eeuo pipefail
 
 IMAGE="${1:-ghcr.io/baobab-platform/baobab-dev:v1.0.0}"
+RELEASE_TAG="${2:-${RELEASE_TAG:-}}"
+if [[ -z "$RELEASE_TAG" ]]; then
+  # A version tag can be inferred from a tagged image, but not a digest.
+  candidate="${IMAGE##*:}"
+  if [[ "$candidate" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    RELEASE_TAG="v${candidate#v}"
+  fi
+fi
+if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "::error::Specify the verified stable release tag as argument 2 for digest references." >&2
+  exit 1
+fi
 OIDC_ISSUER="https://token.actions.githubusercontent.com"
-EXPECTED_OWNER_REGEXP="^https://github.com/baobab-platform"
+# An organisation-prefix regexp is insufficient: another workflow in the
+# organisation must not be able to sign a release on behalf of baobab-dev.
+EXPECTED_IDENTITY="https://github.com/baobab-platform/baobab-dev/.github/workflows/publish.yml@refs/tags/${RELEASE_TAG}"
 
 info() { printf "\033[1;34m[INFO]\033[0m %s\n" "$*"; }
 success() { printf "\033[1;32m[SUCCESS]\033[0m %s\n" "$*"; }
 
-info "Starting zero-trust verification for image: ${IMAGE}"
+info "Starting zero-trust verification for image: ${IMAGE} (release ${RELEASE_TAG})"
 echo "-----------------------------------------------------------------"
 
 # 1. Verify Cosign Keyless OIDC Signature
 info "[1/3] Verifying Cosign Keyless OIDC Signature..."
 cosign verify \
-  --certificate-identity-regexp "${EXPECTED_OWNER_REGEXP}" \
+  --certificate-identity "${EXPECTED_IDENTITY}" \
   --certificate-oidc-issuer "${OIDC_ISSUER}" \
   "${IMAGE}" > /dev/null
 
-success "Cosign OIDC signature is VALID and belongs to authorized maintainer."
+success "Cosign OIDC signature is VALID and belongs to the exact approved Baobab release workflow."
 echo ""
 
 # 2. Verify SLSA Provenance Attestation
@@ -89,7 +103,7 @@ echo ""
 info "[2/3] Verifying SLSA Provenance Attestation..."
 cosign verify-attestation \
   --type slsaprovenance1 \
-  --certificate-identity-regexp "${EXPECTED_OWNER_REGEXP}" \
+  --certificate-identity "${EXPECTED_IDENTITY}" \
   --certificate-oidc-issuer "${OIDC_ISSUER}" \
   "${IMAGE}" > /dev/null
 
@@ -109,7 +123,7 @@ echo ""
 info "[3/3] Verifying SPDX SBOM Attestation..."
 cosign verify-attestation \
   --type spdxjson \
-  --certificate-identity-regexp "${EXPECTED_OWNER_REGEXP}" \
+  --certificate-identity "${EXPECTED_IDENTITY}" \
   --certificate-oidc-issuer "${OIDC_ISSUER}" \
   "${IMAGE}" > /dev/null
 
