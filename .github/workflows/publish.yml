@@ -1666,6 +1666,7 @@ jobs:
             --sbom-arm64 sbom-arm64.json \
             --verified-provenance "$RUNNER_TEMP/verified-provenance.json" \
             --verified-sbom "$RUNNER_TEMP/verified-sbom.json" \
+            --expected-subject "$DIGEST" \
             --evidence "$RUNNER_TEMP/signed-predicate-evidence.json"
 
       - name: Retain independent signed-predicate content evidence
