@@ -60,3 +60,66 @@ Source-level changes are in stacked **draft PR #58**, based on PR #57. They do n
 ## Exit criteria
 
 Strict current-head CI + eight-image AMD64/ARM64 tests, actual SHA-pinned build/scan, Trivy freshness and negative tests, private-package consumer qualification, signed provenance and SBOM readback, failure injection for incorrect tag/digest/arch and stale DB, and a full protected-release dry run. No claim of these results is made by source changes alone.
+
+## 3 November 2026 — R4 synchronization and R5 hardening follow-up
+
+The R5 review branch now has **the current R4 branch as an ancestor**,
+including the Maven 3.10.0 Guava-guard correction, `tmux -V` doctor readback,
+and a security-focused checkout test that checks every checkout independently
+rather than insisting the publishing workflow contain exactly four checkouts.
+The original [R5 failure 41596743784](https://github.com/baobab-platform/baobab-dev/actions/runs/41596743784)
+therefore must not be reinterpreted as a failure of this synchronized tree.
+Fresh **final-head** CI is required for any R5 PASS claim.
+
+### Added source controls
+
+- `scripts/verify_release_environment.py` uses the real GitHub REST
+  Environment and selected deployment-tag policy responses. Promotion denies
+  missing independent required reviewers, self-review permission, absent
+  selected tag rules, broad/mixed branch policies, mismatched environment,
+  prerelease refs, or lack of a policy matching the exact release tag.
+  A deployment job merely naming an Environment is **not** proof its
+  settings were configured. `tests/test_verify_release_environment.py`
+  provides positive/negative policy fixtures.
+- `scripts/promote_release_tags.sh` performs independent candidate-tag and
+  digest preflight, forbids remapping an existing immutable stable-version tag,
+  creates and checks **four** version tags before touching twelve mutable
+  aliases, snapshots previous alias pointers, rechecks for concurrent changes,
+  and attempts reverse-order compensation if a later alias update fails.
+  The journal is exported even for failed jobs. `tests/test_release_promotion.py`
+  runs the success, idempotent retry, immutable-tag-rebind and partial-failure
+  recovery paths against a disposable mock CLI. No real GHCR state is changed
+  by these unit tests.
+- `tests/test_r5_release_boundaries.py` locks the new invariant that
+  eight-leg validation remains read-only, while only stable-tag digest
+  publication, signing, independently protected promotion and release have
+  the necessary privileges and correct dependencies.
+
+### Registry non-atomicity is an explicit remaining operational risk
+
+GHCR offers **no atomic transaction for four separate image version tags and
+twelve moving aliases**. Compensation can restore a previous moving alias
+when one existed; it cannot safely erase a previously absent alias or delete
+a newly created version tag without risking shared OCI manifest content.
+Therefore a failed promotion may expose partially staged version tags. The
+workflow **fails**, suppresses GitHub Release, retains a recovery journal,
+and requires independent inspection before reattempt. Neither the job nor
+the runbook should claim an *atomic* registry cutover.
+
+### Acceptance remains HELD
+
+The R5 branch is **not entitled** to PR #57's temporary 295-CVE development
+allowance. On the earlier R5 scan the rejection was correct: 12 CRITICAL and
+283 HIGH matches on `linux-libc-dev=7.0.0-42.42`; the restriction must
+not be altered by ordinary CI remediation. There is no owner-authorized
+v1.5.0 release waiver. Source tests and read-only published-contract
+checks are not substitutes for a complete protected release exercise,
+which remains prohibited without its independent approvals.
+
+The signed SBOM/provenance verification still needs **content-level**
+confirmation of both platform-specific statements and source/material
+commit identities, beyond proof that matching OIDC-signed attestations
+exist. Hosted Codespaces/private-package and native consumer proof also
+remain separate DEV-10/DEV-14 holds. **Do not start the broad publishing
+workflow modularisation until these release-safety controls are qualified.**
+No PR merge, release tag, or image publication is authorized by this entry.
