@@ -67,12 +67,8 @@ def qualify(environment: dict, policies: dict, tag: str) -> dict:
                if fnmatchcase(tag, entry["name"])]
     require(bool(matched), f"tag {tag} is not admitted by GitHub Environment policy")
     return {"environment": NAME, "release_tag": tag,
-            "required_reviewers": len(entries_for_reviewers := entries_from_rule(rule)),
+            "required_reviewers": len(rule["reviewers"]),
             "prevent_self_review": True, "accepted_tag_patterns": matched}
-
-
-def entries_from_rule(rule: dict) -> list:
-    return rule["reviewers"]
 
 
 def main() -> int:
