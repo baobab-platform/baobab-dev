@@ -611,7 +611,7 @@ check_required "fd" fd
 check_required "bat" bat
 check_required "eza" eza
 check_required "fzf" fzf
-check_optional "tmux" tmux
+check_optional "tmux" tmux "tmux -V"
 
 ###############################################################################
 # User
