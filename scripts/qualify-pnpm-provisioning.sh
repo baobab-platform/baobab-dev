@@ -8,7 +8,21 @@ pin="${2:?pnpm version required}"
 [[ "$pin" =~ ^12\.[0-9]+\.[0-9]+$ ]] ||
     { echo "::error::Expected an exact pinned pnpm 12 release"; exit 1; }
 scratch="$(mktemp -d "${RUNNER_TEMP:-/tmp}/baobab-pnpm-12.XXXXXX")"
-trap 'rm -rf "$scratch"' EXIT
+# The container's vscode UID (1000) may not match the host runner UID.
+# A recursive chmod on the EMPTY scratch directory is insufficient: pnpm
+# creates fresh 0600 files and 0700 directories during its install.
+# Regrant host access through an isolated root helper in the same image.
+# No privileged host Docker operation or global permission change is needed.
+restore_host_access() {
+    docker run --rm --user 0 --network none \
+        -v "$scratch:/tmp/dev10-fixture" --entrypoint sh "$image" \
+        -c 'chmod -R a+rwX /tmp/dev10-fixture'
+}
+cleanup() {
+    restore_host_access || true
+    rm -rf "$scratch"
+}
+trap cleanup EXIT
 fixture="$scratch/project"
 cache="$scratch/cache"
 store="$scratch/store"
@@ -40,11 +54,13 @@ echo "::notice::pnpm ${pin}: resolve cold package-manager metadata online, witho
 timeout 120 docker run "${common[@]}" "$image" \
     sh -eu -c 'test "$(pnpm --version)" = "$1"; pnpm install --no-frozen-lockfile < /dev/null; test -s pnpm-lock.yaml' \
     sh "$pin" < /dev/null
+restore_host_access
 before="$(sha256sum "$fixture/pnpm-lock.yaml" | cut -d ' ' -f 1)"
 echo "::notice::pnpm ${pin}: validate committed-style frozen lock with network disabled."
 timeout 90 docker run "${common[@]}" --network none "$image" \
     sh -eu -c 'pnpm install --frozen-lockfile --offline < /dev/null && test -s pnpm-lock.yaml' \
     < /dev/null
+restore_host_access
 after="$(sha256sum "$fixture/pnpm-lock.yaml" | cut -d ' ' -f 1)"
 [[ "$before" == "$after" ]] ||
     { echo "::error::Frozen pnpm install modified the lockfile"; exit 1; }
@@ -56,6 +72,7 @@ mismatch_rc=0
 timeout 45 docker run "${common[@]}" --network none "$image" \
     sh -eu -c 'pnpm install --no-frozen-lockfile --offline < /dev/null' \
     < /dev/null > "$scratch/mismatched-pin.log" 2>&1 || mismatch_rc=$?
+restore_host_access
 # A timeout, Docker runtime failure or wrong lockfile is NOT evidence of an
 # exact-version mismatch. Require a prompt pnpm-level failure in this test.
 if (( mismatch_rc != 1 )) || ! grep -Eiq 'pnpm|package.?manager|version' "$scratch/mismatched-pin.log"; then
@@ -72,6 +89,7 @@ badlock_rc=0
 timeout 45 docker run "${common[@]}" --network none "$image" \
     sh -eu -c 'pnpm install --frozen-lockfile --offline < /dev/null' \
     < /dev/null > "$scratch/invalid-lock.log" 2>&1 || badlock_rc=$?
+restore_host_access
 if (( badlock_rc != 1 )) || ! grep -Eiq 'lockfile|frozen|outdated' "$scratch/invalid-lock.log"; then
     echo "::error::Invalid pnpm lock negative failed (status=${badlock_rc})"
     sed -n '1,20p' "$scratch/invalid-lock.log"
