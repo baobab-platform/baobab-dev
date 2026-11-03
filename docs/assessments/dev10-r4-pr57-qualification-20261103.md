@@ -92,3 +92,25 @@ Neither RC nor GA may bypass strict release scanning. A separate attributable, p
 - Prefer remediation over expanding security waivers. Do not label failed/unknown external integrations as PASS.
 - Preserve PR #57 open unless final-head checks and the required upgrade acceptance evidence are satisfactory.
 - Update this register with exact workflow run IDs, asset digests, current-head SHAs, failures/repairs, independent attestations and responsible reviewer before declaring DEV-10 R4 closed.
+
+## 3 November 2026 — CI run 41588044957, fixture ownership correction
+
+At source head `27aef158bc6590dad67ab2364719f051cb02051a`,
+[workflow 41588044957](https://github.com/baobab-platform/baobab-dev/actions/runs/41588044957)
+reported a new `frontend/linux-amd64` failure in the pnpm provisioning step.
+The image's `baobab-verify` was HEALTHY and the pnpm 12.16.1 cold install
+completed, but the host runner then could not read `pnpm-lock.yaml`:
+`sha256sum: .../project/pnpm-lock.yaml: Permission denied`. The image
+executes as UID 1000, different from the runner, and pnpm creates private
+cache/store and lock files *after* the script's initial chmod. The EXIT
+cleanup also emitted permission errors. This is a host/container test-fixture
+ownership defect, not evidence of a pnpm failure or a security exception.
+
+The candidate branch now restores host access to disposable scratch contents
+through a short, network-disabled root helper **inside the same throwaway
+container image** after each test invocation and before cleanup. It does not
+change the production image user, installed packages, pnpm pins, Trivy output,
+or the exact 295-CVE development-only decision. The helper and the remaining
+negative cases require a **fresh final-head CI run**. Other image matrix legs
+that were still running at inspection are not counted as PASS. No hosted
+Codespaces, consumer adoption, release approval or image publication is claimed.
