@@ -288,6 +288,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY config/versions.lock /build/versions.lock
 COPY config/security/ /build/security/
 COPY scripts/build-security-clis.sh /build/build-security-clis.sh
+COPY scripts/go-mod-download-retry.sh /build/go-mod-download-retry.sh
 RUN bash /build/build-security-clis.sh "${TARGETARCH}"
 
 FROM ubuntu:${UBUNTU_VERSION} AS cli-tools

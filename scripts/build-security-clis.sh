@@ -64,7 +64,11 @@ for tool in task yq buildx compose; do
     rm -rf vendor/github.com/docker/docker
   fi
   cd "/build/$tool"
-  go mod download
+  # Transient Go proxy HTTP/2 INTERNAL_ERROR responses failed only the
+  # frontend/arm64 native scan build in PR #58 run 41633850317. Download
+  # frozen modules with HTTP/1.1 and bounded retries, then keep the existing
+  # independent module verification, tests and locked-source comparisons.
+  bash /build/go-mod-download-retry.sh
   go mod verify
   case "$tool" in
     task|yq) go test ./... ;;

@@ -45,6 +45,28 @@ on:
   schedule:
     - cron: "17 5 * * *"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional exact release to check (v1.5.0-rc.N or GA); empty checks latest GA"
+        type: string
+        required: false
+  # On the stacked PR, prove changed integrity logic against the current
+  # released GHCR contract with read-only credentials.
+  pull_request:
+    branches:
+      - main
+      - feat/dev10-r4-lts-multiarch-candidate
+    paths:
+      - '.github/workflows/registry-integrity.yml'
+      - 'scripts/verify-image.sh'
+      - 'scripts/verify_release_contracts.py'
+      - 'scripts/verify_registry_arch_attestations.py'
+      - 'scripts/verify_signed_release_predicates.py'
+      - 'scripts/verify_legacy_provenance.py'
+      - 'tests/test_legacy_provenance.py'
+      - 'tests/test_registry_arch_attestations.py'
+      - 'tests/test_verify_release_contracts.py'
+      - 'tests/test_signed_release_predicates.py'
   workflow_run:
     workflows:
       - "Publish Baobab Dev Container"
@@ -56,7 +78,8 @@ permissions:
   packages: read
 
 concurrency:
-  group: released-ghcr-contract-integrity
+  # PR revisions must not suppress the independent daily/after-release observer.
+  group: released-ghcr-contract-integrity-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 defaults:
@@ -66,8 +89,13 @@ defaults:
 jobs:
   verify-latest-stable-release:
     name: Verify latest stable release is pullable
+    # A PR's validation-only Publish completion is NOT a new stable release.
+    if: >-
+      ${{ github.event_name != 'workflow_run' ||
+          (github.event.workflow_run.conclusion == 'success' &&
+           github.event.workflow_run.event == 'push') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 35
 
     steps:
       # Needed for scripts/verify-image.sh (check 5 below) — this workflow
@@ -75,6 +103,18 @@ jobs:
       # need no repo files at all.
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Validate registry governance, release-contract and signed-attestation negatives
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v \
+            tests/test_verify_release_contracts.py \
+            tests/test_registry_arch_attestations.py \
+            tests/test_signed_release_predicates.py \
+            tests/test_legacy_provenance.py
 
       - name: Authenticate to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -113,56 +153,91 @@ jobs:
       - name: Make verify-image.sh executable
         run: chmod +x scripts/verify-image.sh
 
-      - name: Fetch latest stable GitHub Release contract
+      - name: Fetch selected RC/GA or latest stable GitHub Release contract
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED_TAG: ${{ inputs.release_tag || '' }}
+          TRIGGER_TAG: ${{ github.event.workflow_run.head_branch || '' }}
+          TRIGGER_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+          TRIGGER_EVENT: ${{ github.event.workflow_run.event || '' }}
         run: |
           set -euo pipefail
-          gh api "repos/${GITHUB_REPOSITORY}/releases/latest" > "${RUNNER_TEMP}/release.json"
+          # PR/schedule defaults to latest GA. A successful tag-push
+          # workflow_run instead checks that exact published RC or GA.
+          tag="$REQUESTED_TAG"
+          if [[ -z "$tag" && "$TRIGGER_EVENT" == "push" ]] &&
+             [[ "$TRIGGER_TAG" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ||
+                "$TRIGGER_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            tag="$TRIGGER_TAG"
+          fi
+          if [[ -n "$tag" ]]; then
+            [[ "$tag" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ||
+               "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+              echo "::error::Unexpected release tag requested for integrity observer"; exit 1;
+            }
+            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" > "${RUNNER_TEMP}/release.json"
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/releases/latest" > "${RUNNER_TEMP}/release.json"
+          fi
           TAG_NAME=$(jq -r '.tag_name' "${RUNNER_TEMP}/release.json")
           RELEASE_URL=$(jq -r '.html_url' "${RUNNER_TEMP}/release.json")
           jq -r '.body // ""' "${RUNNER_TEMP}/release.json" > "${RUNNER_TEMP}/release-body.md"
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
           echo "release_url=${RELEASE_URL}" >> "$GITHUB_OUTPUT"
-          echo "Verifying release ${TAG_NAME}: ${RELEASE_URL}"
+          [[ "$TAG_NAME" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ||
+             "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error::Unexpected GitHub release tag"; exit 1;
+          }
+          if [[ -n "$tag" && "$TAG_NAME" != "$tag" ]]; then
+            echo "::error::Release API returned wrong selected tag"; exit 1;
+          fi
+          if [[ "$TAG_NAME" == v1.5.0-rc.* ]]; then
+            [[ "$(jq -r '.prerelease' "${RUNNER_TEMP}/release.json")" == true ]] || {
+              echo "::error::RC release must be marked prerelease"; exit 1;
+            }
+          fi
+          # Do not trust release.target_commitish or infer source identity.
+          # Dereference the actual tag, including annotated tag objects.
+          tag_object=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG_NAME}")
+          object_type=$(jq -er '.object.type' <<< "$tag_object")
+          object_sha=$(jq -er '.object.sha' <<< "$tag_object")
+          for depth in 1 2 3 4; do
+            [[ "$object_type" != "tag" ]] && break
+            tag_object=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${object_sha}")
+            object_type=$(jq -er '.object.type' <<< "$tag_object")
+            object_sha=$(jq -er '.object.sha' <<< "$tag_object")
+          done
+          [[ "$object_type" == commit && "$object_sha" =~ ^[a-f0-9]{40}$ ]] || {
+            echo "::error::Release tag does not resolve unambiguously to a commit"; exit 1;
+          }
+          if [[ -n "$TRIGGER_SHA" && -n "$TRIGGER_TAG" &&
+                "$TAG_NAME" == "$TRIGGER_TAG" && "$object_sha" != "$TRIGGER_SHA" ]]; then
+            echo "::error::Release source differs from successful publishing run"; exit 1;
+          fi
+          echo "source_sha=${object_sha}" >> "$GITHUB_OUTPUT"
+          echo "Verifying release ${TAG_NAME}: ${RELEASE_URL} source ${object_sha}"
 
-      - name: Parse advertised image references and recorded digests
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import pathlib
-          import re
-          import sys
-
-          body = pathlib.Path("${{ runner.temp }}/release-body.md").read_text()
-          pattern = re.compile(
-              r"docker pull\s+(?P<ref>ghcr\.io/baobab-platform/baobab-dev:[^\s`]+)"
-              r".*?Verify \(digest `(?P<digest>sha256:[0-9a-f]{64})`\):",
-              re.DOTALL,
-          )
-          records = list(pattern.finditer(body))
-          if not records:
-              print("::error::Latest stable release contains no parseable GHCR pull contracts.")
-              sys.exit(1)
-
-          out = pathlib.Path("${{ runner.temp }}/release-contracts.tsv")
-          with out.open("w") as f:
-              for match in records:
-                  ref = match.group("ref")
-                  digest = match.group("digest")
-                  f.write(f"{ref}\t{digest}\n")
-                  print(f"contract: {ref} -> {digest}")
-          PY
-
-      - name: Verify advertised tags, digests, indices, platform manifests, and attestations
+      - name: Parse and require all four advertised RC/GA release contracts
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
         run: |
           set -euo pipefail
-          failures=0
+          python3 scripts/verify_release_contracts.py \
+            --release-body "$RUNNER_TEMP/release-body.md" \
+            --tag "$RELEASE_TAG" \
+            --output "$RUNNER_TEMP/release-contracts.tsv"
 
-          while IFS=$'\t' read -r ref expected_digest; do
+      - name: Verify advertised tags, digests, indices, platform manifests, and attestations
+        env:
+          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+          SOURCE_SHA: ${{ steps.release.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          failures=0
+          mkdir -p "$RUNNER_TEMP/registry-native-evidence"
+
+          while IFS=$'\t' read -r target ref expected_digest; do
             [[ -z "${ref}" ]] && continue
             echo "::group::Verify ${ref}"
 
@@ -189,23 +264,48 @@ jobs:
 
             image_name="${ref%%:*}"
 
+            # A valid release index must have exactly one image descriptor
+            # and exactly one attestation sibling for each platform.
             for arch in amd64 arm64; do
-              child_digest=$(jq -r --arg arch "${arch}" \
-                '[.manifests[]? | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest][0] // empty' \
-                <<<"${manifest_json}")
-
-              if [[ -z "${child_digest}" ]]; then
-                echo "::error::${ref} has no linux/${arch} image manifest in its OCI index."
+              child_count=$(jq --arg arch "$arch" \
+                '[.manifests[]? | select(.platform.os == "linux" and .platform.architecture == $arch)] | length' \
+                <<<"$manifest_json")
+              if [[ "$child_count" -ne 1 ]]; then
+                echo "::error::$ref has $child_count linux/$arch image descriptors; expected exactly one."
                 failures=$((failures + 1))
                 continue
               fi
-
-              if ! crane manifest "${image_name}@${child_digest}" >/dev/null; then
-                echo "::error::${ref} references missing linux/${arch} child manifest ${child_digest}."
+              child_digest=$(jq -r --arg arch "$arch" \
+                '.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest' \
+                <<<"$manifest_json")
+              if [[ ! "$child_digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+                echo "::error::$ref has invalid linux/$arch image digest."
                 failures=$((failures + 1))
-              else
-                echo "linux/${arch}: ${child_digest} (resolvable)"
+                continue
               fi
+              if ! crane manifest "${image_name}@${child_digest}" >/dev/null; then
+                echo "::error::$ref references missing linux/$arch child $child_digest."
+                failures=$((failures + 1))
+                continue
+              fi
+              sibling_count=$(jq --arg digest "$child_digest" \
+                '[.manifests[]? | select(.annotations."vnd.docker.reference.type" == "attestation-manifest" and .annotations."vnd.docker.reference.digest" == $digest)] | length' \
+                <<<"$manifest_json")
+              if [[ "$sibling_count" -ne 1 ]]; then
+                echo "::error::$ref has $sibling_count linux/$arch attestation siblings; expected exactly one."
+                failures=$((failures + 1))
+                continue
+              fi
+              sibling_digest=$(jq -r --arg digest "$child_digest" \
+                '.manifests[] | select(.annotations."vnd.docker.reference.type" == "attestation-manifest" and .annotations."vnd.docker.reference.digest" == $digest) | .digest' \
+                <<<"$manifest_json")
+              if [[ ! "$sibling_digest" =~ ^sha256:[a-f0-9]{64}$ ]] ||
+                 ! crane manifest "${image_name}@${sibling_digest}" >/dev/null; then
+                echo "::error::$ref has missing/invalid linux/$arch attestation manifest $sibling_digest."
+                failures=$((failures + 1))
+                continue
+              fi
+              echo "linux/$arch: image $child_digest + attestation $sibling_digest (both resolvable)"
             done
 
             echo "tag digest: ${actual_digest} (matches release)"
@@ -219,12 +319,38 @@ jobs:
             # verify-image.sh's own [INFO]/[SUCCESS] lines are useful on
             # success but should not spam the log on a failure this loop
             # already reports clearly via ::error::.
-            if ! verify_output=$(./scripts/verify-image.sh "${image_name}@${actual_digest}" 2>&1); then
+            if ! verify_output=$(./scripts/verify-image.sh "${image_name}@${actual_digest}" "${RELEASE_TAG}" 2>&1); then
               echo "::error::${ref}@${actual_digest} failed signature/attestation verification (Cosign signature, SLSA provenance, or SPDX SBOM attestation no longer verifies):"
               echo "${verify_output}"
               failures=$((failures + 1))
             else
               echo "signature + attestations: VALID (Cosign signature, SLSA provenance, SPDX SBOM)"
+            fi
+
+            # Independent release-aftercare: each native architecture must
+            # retain its own image, exact Git tag source revision, full
+            # BuildKit SLSA/SPDX predicates and matching OIDC-signed content.
+            # No image pull, tag mutation or registry write is authorised.
+            if ! python3 scripts/verify_registry_arch_attestations.py \
+                --image "${image_name}@${actual_digest}" \
+                --tag "${RELEASE_TAG}" \
+                --expected-sha "${SOURCE_SHA}" \
+                --evidence "${RUNNER_TEMP}/registry-native-evidence/${target}.json"; then
+              echo "::error::${ref}: dual-native signed artifact integrity failed."
+              failures=$((failures + 1))
+            else
+              qualification=$(jq -er '.status' "${RUNNER_TEMP}/registry-native-evidence/${target}.json")
+              case "$qualification" in
+                STRICT_SIGNED_NATIVE_CONTENT_VERIFIED)
+                  echo "both native architectures: exact SLSA/SPDX signed content and source VERIFIED" ;;
+                LEGACY_SLSA_PROTOBUF_COMPATIBLE_NOT_FULL_CONTENT_EQUIVALENCE)
+                  echo "::warning::${ref} pinned v1.4.4 legacy: two native signatures, schema-known SLSA, full SPDX, SOURCE and original embedded/signed SLSA fingerprints verified; not R5 full equivalence." ;;
+                LEGACY_SLSA_EXACT_FINGERPRINTS_PINNED_NOT_SEMANTICALLY_EQUAL)
+                  echo "::warning::${ref} pinned v1.4.4 legacy: signed and embedded SLSA full fingerprints match recorded historical evidence, two native signatures, SPDX and source verified. Schema-known SLSA projection DIFFERS; historical content equivalence is NOT claimed. R5 remains strict." ;;
+                *)
+                  echo "::error::Unrecognized registry attestation qualification: $qualification"
+                  failures=$((failures + 1)) ;;
+              esac
             fi
 
             echo "::endgroup::"
@@ -234,6 +360,15 @@ jobs:
             echo "::error::${failures} released GHCR contract check(s) failed. A published release is no longer safely consumable."
             exit 1
           fi
+
+      - name: Retain read-only native registry integrity evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: registry-native-attestation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/registry-native-evidence/
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Write integrity summary
         if: always()
@@ -246,5 +381,5 @@ jobs:
             echo
             echo "Release: [${RELEASE_TAG}](${RELEASE_URL})"
             echo
-            echo "The workflow checks tag existence, release-recorded digest equality, OCI index readability, linux/amd64 + linux/arm64 child-manifest reachability, and Cosign signature + SLSA provenance + SPDX SBOM attestation verifiability."
+            echo "The workflow checks all four release contracts, index/image manifest reachability, immutable source revision, both signed architectures and SPDX. R5 releases require FULL exact SLSA/SPDX signed content. ONLY four pinned v1.4.4 index digests may use historical exact signed+embedded SLSA fingerprint binding, after valid independent native Cosign, subject, source and SPDX verification; any historical schema mismatch is explicitly warned, never reported as R5 full-content equivalence."
           } >> "$GITHUB_STEP_SUMMARY"

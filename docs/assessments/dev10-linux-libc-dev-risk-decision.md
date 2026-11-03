@@ -2,7 +2,7 @@
 
 **Assessment:** 30 October 2026 | **Governing gate:** strict, unfiltered Trivy HIGH/CRITICAL, exit 1
 **Scope:** Ubuntu 26.04, `linux-libc-dev 7.0.0-42.42`, the four baobab-dev image profiles on AMD64 and ARM64
-**Decision:** **SECURITY HELD — exception NOT approved.** Not a waiver or release certificate.
+**Decision history:** Original 30 October technical applicability/release-security determination was HELD; the owner subsequently authorised a **strictly bounded development-image residual-risk acceptance** for PRs and for v1.5.0-rc.N/v1.5.0 GHCR distribution. It is not a VEX not_affected verdict or a production certificate.
 
 ## 1. What is established
 
@@ -25,7 +25,7 @@ Every advisory in the linked register has an independently sourced Ubuntu source
 
 ## 3. Security authority decision and permitted routes
 
-**Current enforceable decision: no exception; PR #48 remains HELD by Foundation and Publish Trivy.** Existing `--exit-code 1`, `--ignorefile /dev/null`, full-file coverage and no `--ignore-unfixed` remain unchanged.
+**Historical 30 October pre-acceptance state (superseded for bounded DEV testing below): no exception; PR #48 remained HELD by Foundation and Publish Trivy.** Existing `--exit-code 1`, `--ignorefile /dev/null`, full-file coverage and no `--ignore-unfixed` remain unchanged.
 
 Before any CVE-specific `not_affected`/OpenVEX decision is adopted:
 - Security reviewer must compare each CVE's actual kernel patch paths against the installed `dpkg-query -L` header inventory. For any changed `include/uapi/*` or compiler-visible inline/macro code that ships in the binary, assess the downstream userspace exposure rather than waiving it.
@@ -88,7 +88,7 @@ actual `installed-paths.txt` SHA256
 `688453ae46c07ec19b3bf6734eb2f23b0dfe5625c16d76d75149b8194da91fa3`.
 The artifact also includes `upstream-commit.txt`. Source and regression tests are committed as `scripts/audit_kernel_cve_paths.py` and `tests/test_kernel_cve_paths.py`; the read-only workflow is `.github/workflows/dev10-kernel-paths.yml`.
 
-**Decision remains SECURITY HELD.** The Linux CNA `programFiles` entries are upstream affected-file assertions, not complete Canonical-specific patch diffs. No direct UAPI path match supports a bounded `vulnerable_code_not_present` *candidate*, not a final exploitability verdict. An independent security reviewer must verify the Ubuntu 26.04 patch changes and binary-package derivation, indirect UAPI/ABI effects, host-kernel separation, exact resulting image digest, and an accountable expiring CVE-by-CVE decision. No blanket VEX, scanner ignores, relaxed HIGH/CRITICAL exit codes or release approval is justified by these observations.
+**Scientific VEX/release determination remains SECURITY HELD.** The Linux CNA `programFiles` entries are upstream affected-file assertions, not complete Canonical-specific patch diffs. No direct UAPI path match supports a bounded `vulnerable_code_not_present` *candidate*, not a final exploitability verdict. An independent security reviewer must verify the Ubuntu 26.04 patch changes and binary-package derivation, indirect UAPI/ABI effects, host-kernel separation, exact resulting image digest, and an accountable expiring CVE-by-CVE decision. No blanket VEX, scanner ignores, relaxed HIGH/CRITICAL exit codes or release approval is justified by these observations.
 
 ## Development-only executive risk acceptance (30 October 2026)
 
@@ -97,16 +97,118 @@ The artifact also includes `upstream-commit.txt`. Source and regression tests ar
 **Decision type:** a *temporary DEV-only ACCEPTANCE OF RESIDUAL RISK* for already identified advisory matches; this does **not** change the vendor CVE statuses, scientific per-CVE applicability state (all still under investigation), or the release security requirement.
 
 **Exact limited scope:**
-- Repository: baobab-platform/baobab-dev; specifically PR #48, the dependent DEV-14 doctor PR #50, and untagged development-main. All other PRs and version-tag release/staging/production are outside this temporary scope. The PR #50 extension does not extend the 2026-11-13 expiry or broaden the permitted CVE/package set.
+- Repository: baobab-platform/baobab-dev; explicitly scoped PRs **#48, #50, #57 and #58**, untagged development-main, and *only* GHCR development-image candidate tags **`v1.5.0-rc.N` (N ≥ 1, no leading zeros)** and GA **`v1.5.0`**. The owner explicitly authorised the prerelease sequence before GA. No other PR or tag or staging/production application deployment is covered. The CVE inventory, digest binding and expiry are unchanged.
 - Image profiles: final, infra, frontend and frontend-e2e; architectures: AMD64 and ARM64.
 - Package: Ubuntu 26.04 linux-libc-dev **7.0.0-42.42 only**.
 - CVE allow-set: exactly the original 295 entries from docs/assessments/dev10-kernel-cves.tsv, pinned to Git blob SHA1 a98090feb9e3df2d9df72654516df69c64daf50e (12 CRITICAL, 283 HIGH). Partial remediation naturally reduces the permitted subset. No newly discovered CVEs, other packages, changed versions, changed severity or supported-fixed versions are accepted.
 - Expiry: 2026-11-13 00:00 UTC. Repository exception expires 2026-11-12; renewal requires a new explicit security decision.
 - Preserve unfiltered Trivy scan output and sanitized retained evidence. Trivy continues to run with --exit-code 1. Development risk evaluation only follows a vulnerability-triggered exit 1 and is fail closed on scanner/runtime errors or missing evidence.
-- No accepted secret findings, no release-tag exception. Source-level tests cover denial cases.
+- No accepted secret findings. **`v1.5.0-rc.N` and `v1.5.0` may be tagged and distributed as devcontainer images** only after all source, full Trivy, exact GHCR digest, SLSA/SPDX, Cosign and independently protected promotion gates. RCs create four versioned candidate tags and GitHub prereleases, while leaving `latest`, `1.5` and `1` aliases untouched. On the owner's final GA tag, all four profile-specific `latest`/`1.5`/`1` aliases **must** move to verified v1.5.0 digests, and consumers are to receive upgrade notices. No other version or application staging/production exception.
 
 **Implementation:** .baobab/repository.yaml records a temporary **existing Shared Foundation container-scan implementation exception**, because the pinned reusable gate cannot natively consume a package-specific risk decision. Instead of leaving an unscanned gap, .github/workflows/foundation.yml defines a **replacement unfiltered DEV-10 / Foundation container CVE gate** that builds and scans the actual Foundation image and applies the same bounded policy as the eight .github/workflows/publish.yml image scans. The policy is in scripts/dev10_kernel_risk_gate.py with negative tests in tests/test_dev10_kernel_risk_gate.py.
 
 **Verification and escalation:** both replacement Foundation and Publish remain required to pass on the final PR head, including raw vulnerability evidence and all negative tests. The independent signed not-affected/VEX path remains unactivated and reserved for a genuine, evidence-complete decision. No runtime claim or production safety is derived from this temporary DEV risk acceptance. Issue #54 remains open for patch-level applicability, supported remediation and durable governed approvals.
 
 **Risk owner:** Wekhaso Nabusiu, designated by the user. **Approval authentication:** chat-level user direction only; GitHub account binding and cryptographic signature have not been independently verified, and must not be portrayed as such.
+
+## 3 November 2026 — owner-authorised DEV-10 R5 PR #58 risk-scope extension
+
+**Recorded decision:** the user explicitly authorised the *existing development-only*
+risk treatment for the outstanding 295 kernel-header advisory matches to
+extend to **PR #58**, pending vendor remediation. This is a distinct, affirmative
+scope change, not a vulnerability fix or a blanket permission to bypass
+security workflows. The prior 2 November approval for PR #57 is retained.
+
+**Mechanical enforcement:** `scripts/dev10_kernel_risk_gate.py` now accepts
+`refs/pull/58/merge` only for `pull_request` event and PR number `58`
+alongside previously accepted PRs #48/#50/#57 and untagged development
+`main`; repo name, four approved image profiles and both supported
+architectures are verified. Its original SHA1-pinned **295-CVE inventory**,
+`linux-libc-dev=7.0.0-42.42`, severity/package/version/fixed-version
+checks, unfiltered Trivy reports and no-secret rule remain unchanged.
+Expiry is **2026-11-13 00:00 UTC** for the decision; separately track the
+existing **2026-11-12** Shared Foundation repository-exception renewal.
+A partial or fully clean scan is not misreported as an accepted risk
+exception. CI tests include positive checks for all eight profile/platform
+combinations and negative tests for wrong PR/ref/event, new CVEs,
+available fixes, secrets, version drift and expiry.
+
+**Non-qualification:** no signed/verified IAM/CP Principal or GitHub
+security-approver identity has been established by this chat action. The
+source of authorisation is the user-provided decision, recorded in
+[issue #54](https://github.com/baobab-platform/baobab-dev/issues/54).
+The unresolved per-CVE Ubuntu patch/UAPI analysis, host kernel risks,
+VEX claims and true remediation remain separate open work. The single **`refs/tags/v1.5.0` development-container distribution** is
+now expressly in scope, while all other `refs/tags/*`, staging/production
+application deployments and unreviewed vulnerability findings remain denied.
+The GHCR release-promotion environment still requires its separate configured
+reviewers, exact-source and content/signature/digest checks; it is not bypassed.
+
+## 3 November 2026 — clarified distribution scope for the development toolchain
+
+**Purpose corrected:** Baobab-dev is an internal organisational **development
+environment/toolchain**. Tagging and distributing its OCI image through GHCR
+as **v1.5.0** is *development-container publication*, not staging or
+production application deployment. The earlier blanket prohibition on
+**all** tag releases wrongly conflated those distinct operations and is
+superseded **for this exact version only** by the user's explicit direction.
+
+**Owner-directed time-limited acceptance now covers:**
+- Existing development PRs #48/#50/#57/#58, untagged development main;
+- **One exact tag push** `refs/tags/v1.5.0` in baobab-dev, after the
+  reviewed code is merged to main, to publish four GHCR developer-image
+  profiles on AMD64 and ARM64, with truthful advisory disclosure;
+- The same immutable inventory of **295** known advisories on **only**
+  `linux-libc-dev=7.0.0-42.42`, same unchanged 2026-11-13T00:00Z
+  deadline. Future tag versions require a new decision or remediation.
+
+**No shortcut:** tag-push validation must run the full eight local unfiltered
+Trivy scans and **eight exact GHCR remote-child-digest** Trivy scans. On
+the latter, only a Trivy vulnerability exit code of 1 backed by the same
+pinning/expiry gate is permissible; scanner failures, secrets,
+other/new CVEs, changed affected package, changed severity, available
+patch, wrong ref, missing Trivy evidence or expiry remain fatal.
+Provenance/source readback, both native SBOM/SLSA payloads, exact
+Sigstore signer identity and independently configured GitHub
+`dev10-release-promotion` environment remain mandatory; no direct
+registry-tag or release bypass is authorised.
+
+**Deployment remains prohibited:** This permission does not turn Baobab-dev
+into a production runtime, permit deploying any Baobab application to
+staging/production, or establish that the 295 advisories are not
+applicable. A future Codespace/consumer rollout must understand that
+the expiry is a **risk-review deadline**, not an automatic GHCR deletion:
+continued acceptance/rollout after 13 November requires remediation or
+renewed review, even if an old tag remains pullable.
+
+**Authentication statement:** This records a direction provided in chat
+by the user. It is not a forged GitHub security signature, nor an
+independent IAM/CP Principal attestation or OpenVEX `not_affected` verdict.
+
+## 3 November 2026 — owner-directed RC rehearsal and GA alias policy (latest)
+
+The owner rejected the assistant's unilateral decision to suppress mutable
+consumer aliases for the final v1.5.0 release. The definitive sequence is:
+
+1. Qualify PR #58 at final HEAD, then merge to main. The owner cuts
+   `v1.5.0-rc.1` first and, if needed, successive numbered RCs.
+2. **Each RC** exercises all eight local and eight GHCR remote-native Trivy
+   checks, immutable provenance and signed SLSA/SPDX, independent protected
+   promotion, four versioned image tags and a **GitHub prerelease**. The
+   shared consumer aliases stay pinned to the prior stable version.
+3. Once the owner has accepted the complete publishing workflow and tests,
+   the owner cuts **`v1.5.0`**. Protected promotion publishes all four
+   versioned GA image profiles **and moves `latest`, `1.5` and `1` aliases**
+   (plus corresponding profile suffixes) to their verified digests.
+4. Publish release notes including actual pull/verify commands and the
+   known unremediated advisory disclosures. Notify consumer repository
+   maintainers to update digest-pinned devcontainer references and qualify
+   private-package installation, reproducibility and native tools.
+
+**Scope remains package/CVE/time exact:** this is the original 295 findings
+for `linux-libc-dev=7.0.0-42.42` only, ending **2026-11-13 00:00 UTC**.
+Unexpected new advisories, changed package/version/severity, available fixes,
+scanner failure, secrets, different tags, wrong actor or missing evidence still
+stop publication. Neither RC nor GA is an application staging/production
+approval. The release-owner direction is recorded in chat and issue #54, not
+falsely attributed to an independent signed IAM/CP security identity.
