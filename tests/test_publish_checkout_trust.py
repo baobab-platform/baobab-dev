@@ -10,9 +10,21 @@ WORKFLOW = ROOT / ".github/workflows/publish.yml"
 class PublishCheckoutTrustTests(unittest.TestCase):
     def test_every_checkout_uses_immutable_event_sha(self):
         source = WORKFLOW.read_text()
-        self.assertEqual(source.count("uses: actions/checkout@"), 4)
-        self.assertEqual(source.count("ref: ${{ github.sha }}"), 4)
-        self.assertEqual(source.count("persist-credentials: false"), 4)
+        # Jobs may be added to separate read-only validation and privileged
+        # release promotion. Protect EVERY checkout, not a fixed job count.
+        matches = list(re.finditer(
+            r"(?m)^(?P<indent> +)uses: actions/checkout@(?P<sha>[a-f0-9]{40})(?:[ \t]*#.*)?$",
+            source,
+        ))
+        self.assertGreaterEqual(len(matches), 4)
+        self.assertEqual(source.count("uses: actions/checkout@"), len(matches))
+        for match in matches:
+            with self.subTest(action_sha=match.group("sha"), line=source.count("\n", 0, match.start()) + 1):
+                # Checkout metadata must not derive source from caller input.
+                block = "\n".join(source[match.end():].splitlines()[:12])
+                self.assertRegex(block, r"(?m)^[ \t]+with:[ \t]*$")
+                self.assertRegex(block, r"(?m)^[ \t]+ref:[ \t]*\$\{\{[ \t]*github\.sha[ \t]*\}\}[ \t]*$")
+                self.assertRegex(block, r"(?m)^[ \t]+persist-credentials:[ \t]*false[ \t]*$")
         self.assertNotIn("checkout_ref", source)
         self.assertNotIn("pull_request.head.ref", source)
 
