@@ -168,6 +168,23 @@ class ReadOnlyRegistryProofTests(unittest.TestCase):
         with self.assertRaises(RegistryProofError):
             verify(REF, TAG, SHA, absent)
 
+    def test_signed_attestation_for_another_index_is_rejected(self):
+        original = self.runner
+
+        def substituted(args):
+            if args[:2] == ["cosign", "verify-attestation"] and args[3] == "slsaprovenance1":
+                payload = json.loads(original(args))
+                for record in payload:
+                    statement = json.loads(base64.b64decode(record["payload"]))
+                    statement["subject"][0]["digest"]["sha256"] = "f" * 64
+                    record["payload"] = base64.b64encode(
+                        json.dumps(statement).encode()).decode()
+                return json.dumps(payload)
+            return original(args)
+
+        with self.assertRaises(RegistryProofError):
+            verify(REF, TAG, SHA, substituted)
+
     def test_invalid_image_identity_and_tag_refuse_before_network(self):
         for ref, tag, sha in (
             (IMAGE + ":1.5.0", TAG, SHA),
