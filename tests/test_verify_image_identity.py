@@ -60,13 +60,30 @@ class SigningIdentityContractTest(unittest.TestCase):
     def test_digest_without_explicit_release_tag_denied(self):
         result = self.verify(DIGEST_REF)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Specify the verified stable release tag", result.stderr)
+        self.assertIn("Specify stable semver or approved", result.stderr)
         self.assertFalse(self.log.exists())
 
-    def test_prerelease_tag_denied(self):
-        result = self.verify(DIGEST_REF, "v1.5.0-rc.1")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(self.log.exists())
+    def test_rc_tags_verify_exact_signer_identity(self):
+        for candidate in ("v1.5.0-rc.1", "v1.5.0-rc.2", "v1.5.0-rc.10"):
+            self.log.unlink(missing_ok=True)
+            result = self.verify(DIGEST_REF, candidate)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            commands = self.log.read_text().splitlines()
+            self.assertEqual(len(commands), 3)
+            expected = EXPECTED.replace("v1.5.0", candidate)
+            self.assertTrue(all(f"--certificate-identity {expected}" in c
+                                for c in commands))
+            self.assertTrue(all("--certificate-identity-regexp" not in c
+                                for c in commands))
+
+    def test_other_prerelease_tags_denied(self):
+        for candidate in ("v1.5.0-rc.0", "v1.5.0-rc.01",
+                          "v1.5.1-rc.1", "v1.5.0-beta.1"):
+            self.log.unlink(missing_ok=True)
+            with self.subTest(candidate=candidate):
+                result = self.verify(DIGEST_REF, candidate)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(self.log.exists())
 
     def test_mutable_tag_infers_stable_release_identity(self):
         result = self.verify("ghcr.io/baobab-platform/baobab-dev:1.5.0")
