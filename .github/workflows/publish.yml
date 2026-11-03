@@ -7,8 +7,8 @@
 #   2. Concurrency: cancels superseded PR/branch runs; never cancels main/tags.
 #   3. Least privilege: global `contents: read`, elevated per job only.
 #   4. Native Buildx SBOM (sbom: true) + SLSA provenance (provenance: true).
-#   5. Trivy gates refuse new/unapproved CRITICAL/HIGH CVEs. Exact v1.5.0
-#      DEVELOPMENT image distribution may use issue #54's inventory-pinned,
+#   5. Trivy gates refuse new/unapproved CRITICAL/HIGH CVEs. v1.5.0-rc.N
+#      and v1.5.0 DEVELOPMENT distributions may use issue #54's pinned,
 #      time-limited owner-directed residual-risk decision, never silent ignores.
 #   6. Keyless Cosign signing/attestation via GitHub OIDC — no static keys.
 #      Cosign CLI v3.x since 2026-08-23 (see "Install Cosign CLI tool" below
@@ -17,10 +17,11 @@
 #
 # PUBLISH TRIGGER POLICY:
 #   Build and unrestricted Trivy checks run on PR, main and tag pushes.
-#   Only a reviewed STABLE v*.*.* tag PUSH can publish an image,
-#   sign a digest or create a GitHub Release. Prerelease tags such as
-#   v1.5.0-rc.1 run the strict validation/build/security gates but NEVER
-#   publish a GHCR digest, sign it or create a release. Manual workflow_dispatch is validation-only
+#   A reviewed stable semver tag, or specifically v1.5.0-rc.N, may push,
+#   scan exact GHCR digests, sign and publish a GitHub Release. RCs are
+#   GitHub prereleases and publish only versioned RC tags (never aliases);
+#   stable v1.5.0 promotes versioned + latest/major/minor consumer aliases.
+#   Manual workflow_dispatch is validation-only
 #   on main; it cannot substitute an alternate tag or source revision.
 #   Every checkout uses github.sha, the GitHub-supplied immutable event SHA.
 #   This closes CodeQL actions/cache-poisoning/poisonable-step (#2) by never
@@ -146,8 +147,8 @@ jobs:
       contents: read
 
     outputs:
-      # Nonempty / true only on a stable version-tag push. Manual dispatch is
-      # validation-only on main and cannot set a release tag.
+      # is_release: GA tag or explicitly approved v1.5.0-rc.N tag.
+      # is_stable_release: GA tag only. Manual dispatch stays read-only.
       release_tag: ${{ steps.release-context.outputs.release_tag }}
       is_release: ${{ steps.release-context.outputs.is_release }}
       is_stable_release: ${{ steps.release-context.outputs.is_stable_release }}
@@ -173,14 +174,13 @@ jobs:
           fi
 
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == refs/tags/* ]]; then
-            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
-              echo "::error:: Release tag does not meet the approved version format."
+            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
+               [[ ! "$GITHUB_REF_NAME" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ]]; then
+              echo "::error::Only stable semver or v1.5.0-rc.N can publish; other prereleases are denied."
               exit 1
             fi
             echo "release_tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
-            # A prerelease tag is a fully security-scanned RC dry run, not a
-            # publishing event. Only a GA semver tag may push/sign/release.
-            echo "is_release=$(is_stable_release "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
+            echo "is_release=true" >> "$GITHUB_OUTPUT"
             echo "is_stable_release=$(is_stable_release "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
           else
             echo "release_tag=" >> "$GITHUB_OUTPUT"
@@ -195,7 +195,7 @@ jobs:
           persist-credentials: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Require stable release tag commit to belong to reviewed main history
+      - name: Require release or RC tag commit to belong to reviewed main history
         if: steps.release-context.outputs.is_release == 'true'
         run: |
           set -euo pipefail
@@ -929,6 +929,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # RC metadata produces only exact version tags; major/minor/latest are
+      # GA aliases and may not be accidentally bound to an RC.
       # Only semver + `latest` patterns are needed: this job's `if:` above
       # already guarantees a `v*.*.*` tag, so branch/sha tag types would
       # never match, and `latest`'s `enable:` needs no extra tag-ref guard.
@@ -998,9 +1000,9 @@ jobs:
             suffix=${{ matrix.target != 'final' && format('-{0}', matrix.target) || '' }}
           tags: |
             type=semver,pattern={{version}},value=${{ needs.sanity-check.outputs.release_tag }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.sanity-check.outputs.release_tag }}
-            type=semver,pattern={{major}},value=${{ needs.sanity-check.outputs.release_tag }}
-            type=raw,value=latest,enable=${{ !contains(needs.sanity-check.outputs.release_tag, '-') }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.sanity-check.outputs.release_tag }},enable=${{ needs.sanity-check.outputs.is_stable_release == 'true' }}
+            type=semver,pattern={{major}},value=${{ needs.sanity-check.outputs.release_tag }},enable=${{ needs.sanity-check.outputs.is_stable_release == 'true' }}
+            type=raw,value=latest,enable=${{ needs.sanity-check.outputs.is_stable_release == 'true' }}
 
       # Download per-architecture digests exported by the build job — only
       # THIS target's digests. Pattern includes matrix.target: without it,
@@ -1765,7 +1767,7 @@ jobs:
             echo "### Security & Hygiene Controls Applied"
             echo "- ✅ **Pinned GitHub Actions:** Immutable 40-character commit SHAs"
             echo "- ✅ **Concurrency Control:** Auto-cancels obsolete build runs on PRs"
-            echo "- ✅ **Exact remote digest Trivy:** Both architectures scanned; CLEAN or separately approved exact v1.5.0 DEV-only residual-risk evidence (issue #54)"
+            echo "- ✅ **Exact remote digest Trivy:** Both architectures scanned; CLEAN or separately approved v1.5.0-rc.N / v1.5.0 DEV-only residual-risk evidence (issue #54)"
             echo "- ✅ **SBOM & SLSA Attestations:** Embedded directly into OCI index"
             echo "- ✅ **Keyless Cosign Signature:** Signed via GitHub Actions OIDC identity"
             echo "- ✅ **Post-Publish Verification:** Signature and attestations independently re-verified against the published digest (scripts/verify-image.sh)"
@@ -1848,7 +1850,7 @@ jobs:
           set -euo pipefail
           info="${RUNNER_TEMP}/published-info"
           image="${REGISTRY}/${IMAGE_NAME}"
-          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo '::error::Not a stable release'; exit 1; }
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ || "$RELEASE_TAG" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ]] || { echo '::error::Only stable semver or v1.5.0-rc.N can be promoted'; exit 1; }
           version="${RELEASE_TAG#v}"
           count=$(find "$info" -maxdepth 1 -type f -name '*.json' | wc -l)
           [[ "$count" -eq 4 ]] || { echo "::error::Expected exactly four candidate files; found $count"; exit 1; }
@@ -1953,10 +1955,16 @@ jobs:
           done
 
           {
-            if [[ "${{ needs.sanity-check.outputs.release_tag }}" == "v1.5.0" ]]; then
+            if [[ "${{ needs.sanity-check.outputs.release_tag }}" == "v1.5.0" || "${{ needs.sanity-check.outputs.release_tag }}" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ]]; then
               echo "### Baobab development environment — v1.5.0"
               echo ""
               echo "**Intended use:** Organisation development environments, GitHub Codespaces and disposable local developer toolchains only. This is NOT an application staging/production deployment image."
+              if [[ "${{ needs.sanity-check.outputs.is_stable_release }}" != "true" ]]; then
+                echo "**Release candidate:** This is an RC rehearsal. Four versioned RC tags are published and verified; major/minor/latest aliases stay on the current GA."
+              else
+                echo "**General availability:** This is the approved development image. Versioned tags and latest/major/minor aliases are promoted together after all checks."
+                echo "**Consumer upgrade:** Owners of Nabhold, ZuriBeans, Thamani, CP, IAM and other Baobab development estates should update their devcontainer image pin to the verified v1.5.0 digest, rebuild and rerun their consumer tests."
+              fi
               echo ""
               echo "**Time-bounded security disclosure:** Native AMD64 and ARM64 image profiles were independently scanned with unfiltered Trivy; the user-approved, inventory-pinned linux-libc-dev=7.0.0-42.42 development-only CVE treatment under [issue #54](https://github.com/baobab-platform/baobab-dev/issues/54) may apply. The original 295 advisories (12 CRITICAL, 283 HIGH) remain tracked as unremediated/under investigation, **not declared harmless**. Review exact architecture scan artifacts and the recorded risk decision."
               echo ""
