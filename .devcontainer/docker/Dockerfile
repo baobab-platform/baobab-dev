@@ -794,49 +794,28 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     test "$(pnpm --version)" = "${PNPM_VERSION}" && \
     chmod -R a+rX "${COREPACK_HOME}"
 
-# Non-interactive-by-construction guard, not a suppression of the prompt —
-# Corepack's own documented mechanism for this exact failure mode. By
-# default Corepack checks a project's package.json `packageManager` field
-# (COREPACK_ENABLE_PROJECT_SPEC, on by default) and, if that pins a
-# pnpm/yarn version other than the one `corepack prepare --activate` just
-# baked in above, silently fetches it over the network on first invocation
-# — in an interactive-feeling shell (Codespaces/Dev Container lifecycle
-# commands) that fetch is preceded by a "Do you want to continue? [Y/n]"
-# confirmation prompt, which blocks forever with no TTY to answer it. That
-# drift is expected to recur (every consumer repo's own `packageManager`
-# pin moves independently of this image's release cadence) even though
-# PNPM_VERSION above is now kept in lockstep with today's known consumers.
-# Setting COREPACK_ENABLE_NETWORK=0 does not touch today's fix (this image
-# already carries the exact version currently declared) — it converts any
-# FUTURE reappearance of the same drift from a silent hang into an
-# immediate, explicit Corepack error naming the missing version, so a
-# consumer repo drifting out of sync with this image fails its Codespace
-# build loudly instead of hanging it. Per Corepack's own docs, the only
-# way to satisfy a project pinning a version this image does not already
-# carry, with network disabled, is to rebuild/republish this image with an
-# updated PNPM_VERSION — exactly the intended remediation path (see
-# docs/frontend-image-contract.md's upgrade procedure), never a prompt.
+# Two distinct package-manager authorities live in this image:
+# - The pinned native pnpm 12 binary /usr/local/bin/pnpm is the only pnpm
+#   executor. pnpm 12 defaults to downloading the project's packageManager
+#   version on a mismatch (pmOnFail=download); that defeats the reproducible,
+#   SHA-256 verified release binary and can hang Codespaces lifecycle scripts.
+#   The supported pnpm 11/12 setting pmOnFail=error rejects a mismatch while
+#   retaining exact-version verification (NOT pmOnFail=ignore/warn).
+# - Corepack 0.36 is independently installed for Yarn only. Its offline and
+#   Known Good Release controls remain fail-closed; they do not configure
+#   pnpm 12's separate package-manager bootstrap metadata resolver.
 #
-# COREPACK_ENABLE_NETWORK=0 alone is not sufficient, and shipping it
-# without COREPACK_DEFAULT_TO_LATEST=0 broke this very build: even a bare
-# `pnpm --version` with NO project `packageManager` spec in scope (exactly
-# what `RUN baobab-verify` below does, from /workspaces with no
-# package.json present) is, by default, resolved via Corepack's "Known
-# Good Release" mechanism, which checks the npm registry for a newer
-# release on every invocation regardless of whether a matching version is
-# already `prepare --activate`d locally (COREPACK_DEFAULT_TO_LATEST, on by
-# default) — a genuinely different Corepack setting than the project-spec
-# mismatch case COREPACK_ENABLE_NETWORK=0 targets above. With network
-# disabled and this left on, that background check itself fails outright:
-# "Network access disabled by the environment; can't reach npm repository
-# https://registry.npmjs.org" — confirmed against this Dockerfile's own
-# frontend-target CI build. Disabling it means Corepack trusts the
-# version it already activated instead of always phoning home first.
+# A FRESH pnpm 12 lockfile containing packageManager: pnpm@12.x needs registry
+# metadata once to record its configuration dependency and its integrity.
+# DEV-10 CI intentionally permits that one cold metadata resolution, then
+# tests the same pin + frozen lock under --network none and --offline.
+# This avoids both silent version-switching and the impossible requirement
+# that an empty cache resolve an unrecorded package offline.
 ENV COREPACK_ENABLE_NETWORK=0 \
-    COREPACK_DEFAULT_TO_LATEST=0
+    COREPACK_DEFAULT_TO_LATEST=0 \
+    pnpm_config_pm_on_fail=error
 
 # -----------------------------------------------------------------------------
-
 # -----------------------------------------------------------------------------
 # Stage: frontend — Node/pnpm/Turborepo only, for the four digital-estate
 # repos (baobab-platform/nabhold, zuribeans, thamani, equator-estate). Branches
