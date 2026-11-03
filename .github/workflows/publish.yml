@@ -540,33 +540,8 @@ jobs:
           restore-keys: |
             cache-trivy-
 
-      # Determine Trivy DB skip flags
-      # Unconditionally passing --skip-db-update/--skip-java-db-update
-      # breaks the very first run (or any genuine cache miss) with "cannot
-      # be specified on the first run" — there's no local DB yet to skip.
-      # This checks what actually landed on disk (not just the cache
-      # step's hit/miss verdict — a restore-keys prefix match still
-      # populates the dir while reporting cache-hit: false) and only emits
-      # the flag for a DB that's genuinely present. Output feeds the Trivy
-      # step below via env var, so an empty result contributes zero words.
-      - name: Determine Trivy DB skip flags
-        id: trivy-db-cache-state
-        run: |
-          set -euo pipefail
-          SKIP_FLAGS=""
-
-          if [ -d "${TRIVY_CACHE_DIR}/db" ] && \
-             [ -n "$(find "${TRIVY_CACHE_DIR}/db" -type f -print -quit 2>/dev/null)" ]; then
-            SKIP_FLAGS="${SKIP_FLAGS} --skip-db-update"
-          fi
-
-          if [ -d "${TRIVY_CACHE_DIR}/java-db" ] && \
-             [ -n "$(find "${TRIVY_CACHE_DIR}/java-db" -type f -print -quit 2>/dev/null)" ]; then
-            SKIP_FLAGS="${SKIP_FLAGS} --skip-java-db-update"
-          fi
-
-          echo "flags=${SKIP_FLAGS}" >> "$GITHUB_OUTPUT"
-
+      # DEV-10 R5: restored caches are a performance optimisation, not security freshness.
+      # Both DBs must be updated independently and their timestamps validated.
       # Security Vulnerability Gate (Trivy)
       # Scans for OS/library CVEs; exits 1 on unpatched HIGH/CRITICAL,
       # blocking publish. Installed via a direct checksummed download
@@ -597,11 +572,18 @@ jobs:
           sudo mv trivy /usr/local/bin/trivy
           trivy --version
 
+      - name: Refresh and validate Trivy vulnerability and Java databases
+        run: |
+          set -euo pipefail
+          trivy image --download-db-only
+          trivy image --download-java-db-only
+          python3 scripts/verify_trivy_db_freshness.py \
+            --cache "$TRIVY_CACHE_DIR" \
+            --evidence "$RUNNER_TEMP/trivy-db-freshness.json"
+
       # Flags (Trivy 0.73.0): `--pkg-types` replaces deprecated
       # `--vuln-type` (renamed v0.54.0). `--scanners vuln,secret` is
-      # explicit rather than relying on Trivy's default set. Skip flags
-      # come from `${TRIVY_SKIP_FLAGS}` (never hardcoded — see "Determine
-      # Trivy DB skip flags" above). `--skip-version-check` drops Trivy's
+      # explicit rather than relying on Trivy's default set. Both DBs are explicitly refreshed and verified. `--skip-version-check` drops Trivy's
       # own unrelated network check. Not tag-gated (see "SECURITY SCAN
       # TRIGGER POLICY" above): this is now the primary gate on every
       # PR/`main` push, with the tag push re-running it as defense-in-depth.
@@ -630,9 +612,6 @@ jobs:
       # previous step's comment on the disk-quota root cause).
       - name: Scan built container with Trivy
         id: trivy-scan
-        env:
-          # Read via shell var (not interpolated inline) so an empty value contributes zero words, not a blank arg.
-          TRIVY_SKIP_FLAGS: ${{ steps.trivy-db-cache-state.outputs.flags }}
         run: |
           set -euo pipefail
           if [[ "${{ matrix.target }}" == "final" ]]; then
@@ -655,7 +634,7 @@ jobs:
           set +e
           trivy image \
             --scanners vuln,secret \
-            ${TRIVY_SKIP_FLAGS} \
+            --skip-db-update --skip-java-db-update \
             --ignorefile /dev/null \
             --pkg-types os,library \
             --severity CRITICAL,HIGH \
@@ -699,7 +678,9 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: trivy-${{ matrix.target }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}-${{ github.sha }}
-          path: ${{ runner.temp }}/trivy-evidence/
+          path: |
+            ${{ runner.temp }}/trivy-evidence/
+            ${{ runner.temp }}/trivy-db-freshness.json
           if-no-files-found: error
           retention-days: 30
 
