@@ -4,6 +4,25 @@
 
 **Decision:** REVIEW ONLY; no runtime major-version promotion, release tag, container publish, security waiver, or native consumer certification. All 33 non-Ubuntu entries in `config/versions.yaml` were inventoried against `config/versions.lock`; not all external registry freshness queries yielded a verified latest patch. Ubuntu stays exactly 26.04 and is excluded from this exercise. The version manifest declares policy (including `latest` and `system`); the lock captures the exact resolved state, and only an **installed-image read-back** proves the actual binaries.
 
+## 3 November 2026 — adopted Maven 3.10.0 source candidate
+
+Owner directed upgrading baobab-dev PR #57's `config/versions.yaml` from
+Maven **3.9.16** to **3.10.0 GA**; `config/versions.lock` now carries the
+same exact version and Apache-published SHA-512 digest
+(`908b1501bfb420bf7c8affb855534a9c407fd6099367bfb9f2f2dcb8e9799102bffb84518cde74c679bd76870247c6528683abdd620581bffa90f95d92d175aa`).
+The authoritative sources are
+[Apache release history](https://maven.apache.org/docs/history.html) and
+[official SHA-512 sidecar](https://archive.apache.org/dist/maven/maven-3/3.10.0/binaries/apache-maven-3.10.0-bin.tar.gz.sha512).
+This supersedes the older `retain 3.9.16` recommendation **for the
+development-image candidate only**. The historical table below remains
+the 2 November baseline comparison, not the current pinned configuration.
+
+Maven 3.10.0 uses Resolver 2.x; final-head eight-image AMD64/ARM64 builds,
+security scans, tool readback, Codespaces and private-package consumers, and
+ERP/Subscriptions Java21/PostgreSQL17 qualification are **not implied by
+changing a version pin**. Maven 4 remains an unapproved prerelease. No
+release or production approval follows from this manifest update.
+
 ## 1. Maven 3.10 GA vs Maven 4 RC
 
 - Apache's [release history](https://maven.apache.org/docs/history.html) lists **3.10.0** (GA, released 2026-10-01) and **3.9.16** as supported stable Maven 3 series; **4.0.0-rc-7** (2026-09-24) is **not GA**. [Apache's Maven 4 migration guide](https://maven.apache.org/guides/mini/guide-migration-to-mvn4.html) calls for a parallel build, plugin audit and compatibility evidence before switching the default.
