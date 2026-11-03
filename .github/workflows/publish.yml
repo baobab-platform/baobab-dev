@@ -191,6 +191,14 @@ jobs:
           persist-credentials: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Require stable release tag commit to belong to reviewed main history
+        if: steps.release-context.outputs.is_release == 'true'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "${GITHUB_SHA}" origin/main || {
+            echo '::error::Release tag commit is not reachable from main'; exit 1;
+          }
       # Pinned + checksummed (not "latest") per this project's binary-pinning
       # convention (config/resolve.sh). CI-bootstrap tooling only — parses
       # config/versions.yaml before versions.lock exists, so intentionally
@@ -207,6 +215,10 @@ jobs:
           sudo install -m 0755 /tmp/yq /usr/local/bin/yq
           rm -f /tmp/yq
 
+      - name: DEV-10 R5 negative unit tests (release contracts + Trivy DB freshness)
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py
       - name: Verify committed resolutions and upstream asset checksums
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
