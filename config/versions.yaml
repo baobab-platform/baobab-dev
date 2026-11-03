@@ -93,6 +93,12 @@ package_managers:
     sha256_arm64: "f5847699e5d528f8f8e9bcfb385e58cb9fba7482af1b1aa7b70737be42277f81"
     # Security-sensitive native executable: all installed bytes are matched
     # against the official GitHub release digest for each architecture.
+    # pnpm 12 treats package.json#packageManager as a configuration bootstrap
+    # dependency. A COLD lockfile creation needs registry metadata; an offline
+    # frozen install is qualified after metadata/archive is fetched and cached.
+    # This image sets pnpm_config_pm_on_fail=error, never ignore/warn/download:
+    # mismatched consumer pins fail rather than downloading a second pnpm.
+    # The exact native binary and its per-architecture SHA-256 remain authoritative.
     # Keep consumers' packageManager pins equal to the candidate only when
     # they have passed independent BXS/Playwright/native-engine qualification.
     # Node 26's Corepack is a separate, pinned tool for Yarn compatibility.
