@@ -439,6 +439,9 @@ jobs:
           tags: baobab-dev:scan
           outputs: ${{ matrix.target == 'final' && format('type=oci,dest={0}/scan-image-final.tar', runner.temp) || 'type=docker' }}
           cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
+          # Preserve the original BuildKit cache population even though the
+          # R5 validation matrix no longer pushes candidate images to GHCR.
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}-${{ matrix.platform }}
 
       # Cache Trivy vulnerability database
       # Trivy re-downloads its ~500MB+ DB on every scan by default.
