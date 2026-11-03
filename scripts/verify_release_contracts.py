@@ -18,7 +18,8 @@ TARGETS = ("final", "frontend", "frontend-e2e", "infra")
 HEADER = re.compile(r"(?m)^\*\*(?P<target>[^*\r\n]+):\*\*\s*$")
 PULL = re.compile(r"(?m)^docker pull\s+(?P<ref>\S+)\s*$")
 DIGEST = re.compile(r"(?m)^Verify \(digest `(?P<digest>sha256:[0-9a-f]{64})`\):\s*$")
-TAG = re.compile(r"^v(?P<version>[0-9]+\.[0-9]+\.[0-9]+)$")
+# RCs are real versioned development-image releases, never GA aliases.
+TAG = re.compile(r"^v(?P<version>(?:[0-9]+\.[0-9]+\.[0-9]+|1\.5\.0-rc\.[1-9][0-9]*))$")
 
 
 class ContractError(ValueError):
@@ -28,7 +29,7 @@ class ContractError(ValueError):
 def parse_contracts(body: str, release_tag: str) -> list[tuple[str, str, str]]:
     version_match = TAG.fullmatch(release_tag)
     if not version_match:
-        raise ContractError("not a stable semantic version tag")
+        raise ContractError("not a stable semver or approved v1.5.0-rc.N release")
     version = version_match.group("version")
     headers = list(HEADER.finditer(body))
     if len(headers) != len(TARGETS):
