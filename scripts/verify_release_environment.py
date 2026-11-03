@@ -16,6 +16,7 @@ import sys
 
 NAME = "dev10-release-promotion"
 STABLE = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+", re.ASCII)
+RC = re.compile(r"v1[.]5[.]0-rc[.][1-9][0-9]*", re.ASCII)
 
 
 class PromotionEnvironmentError(ValueError):
@@ -30,7 +31,8 @@ def require(ok: bool, error: str) -> None:
 def qualify(environment: dict, policies: dict, tag: str) -> dict:
     require(isinstance(environment, dict) and environment.get("name") == NAME,
             "expected configured release-promotion environment")
-    require(bool(STABLE.fullmatch(tag)), "promotion requires exact stable semver tag")
+    require(bool(STABLE.fullmatch(tag) or RC.fullmatch(tag)),
+            "promotion requires stable semver or the exact v1.5.0-rc.N rehearsal series")
     rules = environment.get("protection_rules")
     require(isinstance(rules, list), "missing GitHub Environment protection rules")
     reviewers = [r for r in rules if isinstance(r, dict)
