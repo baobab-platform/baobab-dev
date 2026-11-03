@@ -1689,9 +1689,11 @@ jobs:
 
   # R5: release version tags never move until ALL four candidate manifests
   # are signed, both architectures checked and all exact-digest scans pass.
+  # GHCR tag mutation is not atomic; script journals partial failure and
+  # restores prior mutable aliases, but new version tags may need review.
   # Independent GitHub Environment policy must be configured by the owner.
   promote:
-    name: Protected, all-or-nothing-qualification GHCR tag promotion
+    name: Protected GHCR tag promotion with recovery evidence
     needs: [publish, sanity-check]
     if: needs.sanity-check.outputs.is_release == 'true'
     runs-on: ubuntu-24.04
@@ -1782,34 +1784,24 @@ jobs:
             echo "::notice::Promotion precheck: $target digest $digest verified"
           done
 
-      - name: Promote all verified signed target digests to semantic-version tags
+      - name: Promote verified stable tags before mutable aliases, with recovery evidence
         env:
           RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+          IMAGE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          INFO_DIR: ${{ runner.temp }}/published-info
+          PROMOTION_EVIDENCE_DIR: ${{ runner.temp }}/r5-promotion-evidence
         run: |
           set -euo pipefail
-          image="${REGISTRY}/${IMAGE_NAME}"
-          info="${RUNNER_TEMP}/published-info"
-          version="${RELEASE_TAG#v}"
-          major="${version%%.*}"
-          major_minor="${version%.*}"
-          for target in final frontend frontend-e2e infra; do
-            file="$info/$target.json"
-            digest=$(jq -er '.digest' "$file")
-            suffix=""
-            [[ "$target" == final ]] || suffix="-$target"
-            # Each tag is immediately read back; a mismatch blocks GitHub Release.
-            for v in "$version" "$major_minor" "$major" latest; do
-              target_tag="$v$suffix"
-              crane tag "$image@$digest" "$target_tag"
-              actual=$(crane digest "$image:$target_tag")
-              [[ "$actual" == "$digest" ]] || {
-                echo "::error::Tag readback mismatch $target_tag: $actual vs $digest"; exit 1;
-              }
-              echo "$target_tag -> $digest" >> "$RUNNER_TEMP/promoted-tags.txt"
-            done
-          done
-          cat "$RUNNER_TEMP/promoted-tags.txt" >> "$GITHUB_STEP_SUMMARY"
-          echo '::notice::Four GHCR target contracts promoted after signature and digest acceptance'
+          bash scripts/promote_release_tags.sh
+
+      - name: Preserve promotion journal including partial-failure diagnosis
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dev10-r5-promotion-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/r5-promotion-evidence/
+          if-no-files-found: warn
+          retention-days: 30
 
   # Job 5: Combined GitHub Release; only after protected promotion succeeds.
   # Job 4: Combined GitHub Release
