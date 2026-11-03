@@ -24,7 +24,7 @@ Initial candidate SHA `ac187a4e40ce895ab53d0036a953730a92874a3b`, workflow run
 [41557252699](https://github.com/baobab-platform/baobab-dev/actions/runs/41557252699):
 
 - Passed: DEV-10 locked onboarding, DEV-14 developer doctor, source Security, Foundation, documentation, frozen source lock. Infra AMD64/ARM64 and frontend ARM64, frontend-e2e ARM64 image legs also passed.
-- Failed: frontend AMD64 and frontend-e2e AMD64 rejected an invalid handwritten pnpm 12 frozen lockfile fixture; corrected to generate a valid fixture using the exact image binary entirely offline, then execute the frozen install.
+- Failed: frontend AMD64 and frontend-e2e AMD64 rejected an invalid handwritten pnpm 12 frozen lockfile fixture. An initial attempt to generate the lock entirely offline was also invalid because pnpm 12 requires cold package-manager bootstrap metadata; the corrected two-stage network-seeding/offline-frozen qualification is documented below and requires fresh CI proof.
 - Failed: full AMD64/ARM64 Trivy found **296** HIGH/CRITICAL issues, one additional HIGH beyond the narrowly accepted **295**. Trivy's own independently exported result identified `CVE-2025-47273` (setuptools 70.3.0, fixed >=78.1.1) inside the remaining `/usr/local/lib/python3.14/dist-packages/pip-26.3` installation. The /opt interpreter and pipx installer were separately patched, but the old distro interpreter was not. We now install the audited, checksum-built, source-revendored pip wheel in this third interpreter as well; leave Trivy strict and verify the final image.
 - CI remains authoritative for all code corrections. Neither corrected source nor a locally green command is multiarch/consumer acceptance.
 
