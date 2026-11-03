@@ -25,7 +25,7 @@ Every advisory in the linked register has an independently sourced Ubuntu source
 
 ## 3. Security authority decision and permitted routes
 
-**Current enforceable decision: no exception; PR #48 remains HELD by Foundation and Publish Trivy.** Existing `--exit-code 1`, `--ignorefile /dev/null`, full-file coverage and no `--ignore-unfixed` remain unchanged.
+**Historical 30 October pre-acceptance state (superseded for bounded DEV testing below): no exception; PR #48 remained HELD by Foundation and Publish Trivy.** Existing `--exit-code 1`, `--ignorefile /dev/null`, full-file coverage and no `--ignore-unfixed` remain unchanged.
 
 Before any CVE-specific `not_affected`/OpenVEX decision is adopted:
 - Security reviewer must compare each CVE's actual kernel patch paths against the installed `dpkg-query -L` header inventory. For any changed `include/uapi/*` or compiler-visible inline/macro code that ships in the binary, assess the downstream userspace exposure rather than waiving it.
@@ -88,7 +88,7 @@ actual `installed-paths.txt` SHA256
 `688453ae46c07ec19b3bf6734eb2f23b0dfe5625c16d76d75149b8194da91fa3`.
 The artifact also includes `upstream-commit.txt`. Source and regression tests are committed as `scripts/audit_kernel_cve_paths.py` and `tests/test_kernel_cve_paths.py`; the read-only workflow is `.github/workflows/dev10-kernel-paths.yml`.
 
-**Decision remains SECURITY HELD.** The Linux CNA `programFiles` entries are upstream affected-file assertions, not complete Canonical-specific patch diffs. No direct UAPI path match supports a bounded `vulnerable_code_not_present` *candidate*, not a final exploitability verdict. An independent security reviewer must verify the Ubuntu 26.04 patch changes and binary-package derivation, indirect UAPI/ABI effects, host-kernel separation, exact resulting image digest, and an accountable expiring CVE-by-CVE decision. No blanket VEX, scanner ignores, relaxed HIGH/CRITICAL exit codes or release approval is justified by these observations.
+**Scientific VEX/release determination remains SECURITY HELD.** The Linux CNA `programFiles` entries are upstream affected-file assertions, not complete Canonical-specific patch diffs. No direct UAPI path match supports a bounded `vulnerable_code_not_present` *candidate*, not a final exploitability verdict. An independent security reviewer must verify the Ubuntu 26.04 patch changes and binary-package derivation, indirect UAPI/ABI effects, host-kernel separation, exact resulting image digest, and an accountable expiring CVE-by-CVE decision. No blanket VEX, scanner ignores, relaxed HIGH/CRITICAL exit codes or release approval is justified by these observations.
 
 ## Development-only executive risk acceptance (30 October 2026)
 
@@ -97,7 +97,7 @@ The artifact also includes `upstream-commit.txt`. Source and regression tests ar
 **Decision type:** a *temporary DEV-only ACCEPTANCE OF RESIDUAL RISK* for already identified advisory matches; this does **not** change the vendor CVE statuses, scientific per-CVE applicability state (all still under investigation), or the release security requirement.
 
 **Exact limited scope:**
-- Repository: baobab-platform/baobab-dev; specifically PR #48, the dependent DEV-14 doctor PR #50, and untagged development-main. All other PRs and version-tag release/staging/production are outside this temporary scope. The PR #50 extension does not extend the 2026-11-13 expiry or broaden the permitted CVE/package set.
+- Repository: baobab-platform/baobab-dev; explicitly scoped PRs **#48, #50, #57 and #58**, and untagged development-main only. PRs #57 and #58 were added by subsequent owner-directed development-risk decisions dated 2 and 3 November 2026 respectively; no other PR, version tag, release, staging or production action is covered. These extensions do not change the CVE inventory or expiry.
 - Image profiles: final, infra, frontend and frontend-e2e; architectures: AMD64 and ARM64.
 - Package: Ubuntu 26.04 linux-libc-dev **7.0.0-42.42 only**.
 - CVE allow-set: exactly the original 295 entries from docs/assessments/dev10-kernel-cves.tsv, pinned to Git blob SHA1 a98090feb9e3df2d9df72654516df69c64daf50e (12 CRITICAL, 283 HIGH). Partial remediation naturally reduces the permitted subset. No newly discovered CVEs, other packages, changed versions, changed severity or supported-fixed versions are accepted.
@@ -110,3 +110,35 @@ The artifact also includes `upstream-commit.txt`. Source and regression tests ar
 **Verification and escalation:** both replacement Foundation and Publish remain required to pass on the final PR head, including raw vulnerability evidence and all negative tests. The independent signed not-affected/VEX path remains unactivated and reserved for a genuine, evidence-complete decision. No runtime claim or production safety is derived from this temporary DEV risk acceptance. Issue #54 remains open for patch-level applicability, supported remediation and durable governed approvals.
 
 **Risk owner:** Wekhaso Nabusiu, designated by the user. **Approval authentication:** chat-level user direction only; GitHub account binding and cryptographic signature have not been independently verified, and must not be portrayed as such.
+
+## 3 November 2026 — owner-authorised DEV-10 R5 PR #58 risk-scope extension
+
+**Recorded decision:** the user explicitly authorised the *existing development-only*
+risk treatment for the outstanding 295 kernel-header advisory matches to
+extend to **PR #58**, pending vendor remediation. This is a distinct, affirmative
+scope change, not a vulnerability fix or a blanket permission to bypass
+security workflows. The prior 2 November approval for PR #57 is retained.
+
+**Mechanical enforcement:** `scripts/dev10_kernel_risk_gate.py` now accepts
+`refs/pull/58/merge` only for `pull_request` event and PR number `58`
+alongside previously accepted PRs #48/#50/#57 and untagged development
+`main`; repo name, four approved image profiles and both supported
+architectures are verified. Its original SHA1-pinned **295-CVE inventory**,
+`linux-libc-dev=7.0.0-42.42`, severity/package/version/fixed-version
+checks, unfiltered Trivy reports and no-secret rule remain unchanged.
+Expiry is **2026-11-13 00:00 UTC** for the decision; separately track the
+existing **2026-11-12** Shared Foundation repository-exception renewal.
+A partial or fully clean scan is not misreported as an accepted risk
+exception. CI tests include positive checks for all eight profile/platform
+combinations and negative tests for wrong PR/ref/event, new CVEs,
+available fixes, secrets, version drift and expiry.
+
+**Non-qualification:** no signed/verified IAM/CP Principal or GitHub
+security-approver identity has been established by this chat action. The
+source of authorisation is the user-provided decision, recorded in
+[issue #54](https://github.com/baobab-platform/baobab-dev/issues/54).
+The unresolved per-CVE Ubuntu patch/UAPI analysis, host kernel risks,
+VEX claims and true remediation remain separate open work. Stable
+`refs/tags/*`, all release promotion and staging/production are
+unconditionally outside this allowance. All release gates remain strict,
+regardless of the PR #58 development CI result.
