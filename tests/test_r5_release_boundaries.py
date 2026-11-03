@@ -16,9 +16,15 @@ def jobs() -> dict[str, str]:
             for i, match in enumerate(markers)}
 
 
+def active_yaml(job: str) -> str:
+    # Documentation comments must not be interpreted as executable grants.
+    return "\n".join(line for line in job.splitlines()
+                     if not line.lstrip().startswith("#"))
+
+
 class R5ReleaseBoundaryTests(unittest.TestCase):
     def test_no_pr_or_main_registry_write_in_build(self):
-        build = jobs()["build"]
+        build = active_yaml(jobs()["build"])
         self.assertRegex(build, r"(?m)^\s+permissions:\s*\n\s+contents: read\s*$")
         self.assertNotIn("packages: write", build)
         self.assertNotIn("docker/login-action@", build)
@@ -42,7 +48,7 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
     def test_signing_then_protected_approval_then_release(self):
         run = jobs()
         self.assertIn("needs: [release-digests, sanity-check]", run["publish"])
-        self.assertNotIn("crane tag", run["publish"])
+        self.assertNotIn("crane tag", active_yaml(run["publish"]))
         self.assertIn("name: dev10-release-promotion", run["promote"])
         self.assertIn("needs: [publish, sanity-check]", run["promote"])
         self.assertIn("verify_release_environment.py", run["promote"])
