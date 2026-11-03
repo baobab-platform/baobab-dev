@@ -77,14 +77,16 @@ def native_index(index: dict) -> dict[str, tuple[str, str]]:
     for arch in PLATFORMS:
         images = [m for m in manifests
                   if isinstance(m, dict)
-                  and m.get("platform", {}).get("os") == "linux"
-                  and m.get("platform", {}).get("architecture") == arch]
+                  and isinstance(m.get("platform"), dict)
+                  and m["platform"].get("os") == "linux"
+                  and m["platform"].get("architecture") == arch]
         require(len(images) == 1, f"linux/{arch}: expected one image descriptor")
         child = checked_digest(images[0].get("digest"), f"linux/{arch} child")
         siblings = [m for m in manifests
                     if isinstance(m, dict)
-                    and m.get("annotations", {}).get("vnd.docker.reference.type") == "attestation-manifest"
-                    and m.get("annotations", {}).get("vnd.docker.reference.digest") == child]
+                    and isinstance(m.get("annotations"), dict)
+                    and m["annotations"].get("vnd.docker.reference.type") == "attestation-manifest"
+                    and m["annotations"].get("vnd.docker.reference.digest") == child]
         require(len(siblings) == 1, f"linux/{arch}: expected one attached manifest")
         sibling = checked_digest(siblings[0].get("digest"), f"linux/{arch} attestation")
         require(child != sibling, "image may not be its own attestation sibling")
@@ -100,8 +102,9 @@ def statement_digest(attestation: dict, predicate_type: str) -> str:
     layers = attestation.get("layers")
     require(isinstance(layers, list), "invalid attestation manifest layers")
     matches = [layer for layer in layers
-               if isinstance(layer, dict) and
-               layer.get("annotations", {}).get("in-toto.io/predicate-type") == predicate_type]
+               if isinstance(layer, dict)
+               and isinstance(layer.get("annotations"), dict)
+               and layer["annotations"].get("in-toto.io/predicate-type") == predicate_type]
     require(len(matches) == 1,
             f"expected exactly one BuildKit layer for {predicate_type}; got {len(matches)}")
     return checked_digest(matches[0].get("digest"), predicate_type)
@@ -162,8 +165,10 @@ def verify(image: str, tag: str, expected_sha: str,
                 arch + ": image layers not resolvable")
         config = parse_object(runner(["crane", "config", child_ref]),
                               arch + " image config")
-        actual_sha = (config.get("config") or {}).get("Labels", {}).get(
-            "org.opencontainers.image.revision")
+        image_config = config.get("config")
+        labels = image_config.get("Labels") if isinstance(image_config, dict) else None
+        require(isinstance(labels, dict), arch + ": OCI revision labels are absent")
+        actual_sha = labels.get("org.opencontainers.image.revision")
         require(actual_sha == expected_sha,
                 arch + ": image revision differs from protected release tag source")
         att = parse_object(runner(["crane", "manifest", sibling_ref]),
