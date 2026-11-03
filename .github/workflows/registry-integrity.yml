@@ -45,6 +45,16 @@ on:
   schedule:
     - cron: "17 5 * * *"
   workflow_dispatch:
+  # On the stacked PR, prove changed integrity logic against the current
+  # released GHCR contract with read-only credentials.
+  pull_request:
+    branches:
+      - main
+      - feat/dev10-r4-lts-multiarch-candidate
+    paths:
+      - '.github/workflows/registry-integrity.yml'
+      - 'scripts/verify-image.sh'
+      - 'scripts/verify_release_contracts.py'
   workflow_run:
     workflows:
       - "Publish Baobab Dev Container"
