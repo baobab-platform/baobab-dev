@@ -774,6 +774,7 @@ jobs:
         id: exact-trivy
         env:
           CHILD_DIGEST: ${{ steps.exact.outputs.child }}
+          PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
           image="${REGISTRY}/${IMAGE_NAME}@${CHILD_DIGEST}"
