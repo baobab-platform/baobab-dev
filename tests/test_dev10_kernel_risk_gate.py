@@ -54,7 +54,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         self.assertEqual(result["known_cves_observed"], 295)
         self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
         for event, ref, number in (
-            ("push", "refs/tags/v1.5.0", 0),
+            ("push", "refs/tags/v1.5.1", 0),
             ("workflow_dispatch", "refs/heads/main", 57),
             ("pull_request", "refs/pull/58/merge", 57),
         ):
@@ -67,7 +67,8 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         self.assertEqual(result["known_cves_observed"], 295)
         self.assertEqual(result["critical"], 12)
         self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
-        self.assertEqual(result["scope"], "DEV ONLY; no tag, staging, or production")
+        self.assertEqual(result["distribution"], "development_ci")
+        self.assertIn("no staging/production", result["scope"])
         self.assertEqual(result["expiry_utc"], "2026-11-13T00:00:00+00:00")
         self.assertEqual(result["technical_applicability"], "under_investigation")
         for platform in ("linux/amd64", "linux/arm64"):
@@ -92,6 +93,24 @@ class DevelopmentRiskGateTests(unittest.TestCase):
                 with self.assertRaises(mod.RiskGateError):
                     self.qualify(event=event, ref=ref, pr_number=number)
 
+    def test_tag_v150_unknown_findings_fixes_secrets_or_expiry_still_denied(self):
+        for field, value in (
+            ("VulnerabilityID", "CVE-2026-999999"), ("PkgName", "openssl"),
+            ("InstalledVersion", "7.0.0-43.43"), ("Severity", "LOW"),
+            ("FixedVersion", "7.0.0-43.43"),
+        ):
+            report = self.report()
+            report["Results"][0]["Vulnerabilities"][0][field] = value
+            with self.subTest(field=field), self.assertRaises(mod.RiskGateError):
+                self.qualify(report, event="push", ref="refs/tags/v1.5.0", pr_number=0)
+        report = self.report()
+        report["Results"][0]["Secrets"] = [{"RuleID": "credential"}]
+        with self.assertRaises(mod.RiskGateError):
+            self.qualify(report, event="push", ref="refs/tags/v1.5.0", pr_number=0)
+        with self.assertRaises(mod.RiskGateError):
+            self.qualify(event="push", ref="refs/tags/v1.5.0", pr_number=0,
+                         now=dt.datetime(2026, 11, 13, tzinfo=dt.timezone.utc))
+
     def test_pr58_unknown_cve_or_fix_available_still_denied(self):
         for field, value in (
             ("VulnerabilityID", "CVE-2026-999999"),
@@ -112,10 +131,35 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             self.qualify(pr_number=58, ref="refs/pull/58/merge",
                          now=dt.datetime(2026, 11, 13, tzinfo=dt.timezone.utc))
 
-    def test_development_main_allowed_but_never_a_tag(self):
+    def test_v150_exact_tag_is_distributed_dev_image_not_production(self):
+        for target in ("final", "infra", "frontend", "frontend-e2e"):
+            for platform in ("linux/amd64", "linux/arm64"):
+                with self.subTest(target=target, platform=platform):
+                    result = self.qualify(event="push", ref="refs/tags/v1.5.0",
+                                          pr_number=0, target=target, platform=platform)
+                    self.assertEqual(result["distribution"],
+                                     "v1.5.0_tagged_development_container")
+                    self.assertEqual(result["known_cves_observed"], 295)
+                    self.assertEqual(result["critical"], 12)
+                    self.assertIn("no staging/production", result["scope"])
+
+    def test_all_other_tag_or_deployment_contexts_denied(self):
         self.qualify(event="push", ref="refs/heads/main", pr_number=0)
-        with self.assertRaises(mod.RiskGateError):
-            self.qualify(event="push", ref="refs/tags/v1.5.0", pr_number=0)
+        for event, ref, number in (
+            ("push", "refs/tags/v1.4.4", 0),
+            ("push", "refs/tags/v1.5.1", 0),
+            ("push", "refs/tags/v1.6.0", 0),
+            ("push", "refs/tags/v1.5.0-rc.1", 0),
+            ("pull_request", "refs/tags/v1.5.0", 58),
+            ("workflow_dispatch", "refs/tags/v1.5.0", 0),
+            ("deployment", "refs/tags/v1.5.0", 0),
+            ("push", "refs/heads/staging", 0),
+            ("push", "refs/heads/production", 0),
+            ("push", "refs/tags/v1.5.0", 58),
+        ):
+            with self.subTest(event=event, ref=ref, number=number):
+                with self.assertRaises(mod.RiskGateError):
+                    self.qualify(event=event, ref=ref, pr_number=number)
         with self.assertRaises(mod.RiskGateError):
             self.qualify(pr_number=50, ref="refs/pull/48/merge")
 
