@@ -220,7 +220,7 @@ jobs:
       - name: DEV-10 R5 negative unit tests (release contracts + Trivy DB freshness)
         run: |
           set -euo pipefail
-          python3 -m unittest -v tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_verify_image_identity.py
+          python3 -m unittest -v tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_verify_image_identity.py tests/test_verify_release_environment.py
       - name: Verify committed resolutions and upstream asset checksums
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1716,6 +1716,19 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - name: Verify actual independent GitHub Environment approval policy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/environments/dev10-release-promotion" > "$RUNNER_TEMP/promotion-environment.json"
+          gh api "repos/${GITHUB_REPOSITORY}/environments/dev10-release-promotion/deployment-branch-policies?per_page=100" > "$RUNNER_TEMP/promotion-deployment-policies.json"
+          python3 scripts/verify_release_environment.py \
+            --environment "$RUNNER_TEMP/promotion-environment.json" \
+            --policies "$RUNNER_TEMP/promotion-deployment-policies.json" \
+            --tag "$RELEASE_TAG"
+
       - name: Download all four signed candidate records
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
