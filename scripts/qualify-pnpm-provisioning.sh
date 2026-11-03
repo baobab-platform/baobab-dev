@@ -52,10 +52,15 @@ after="$(sha256sum "$fixture/pnpm-lock.yaml" | cut -d ' ' -f 1)"
 # A wrong version must not cause a silent Corepack/pnpm download.
 cp "$fixture/package.json" "$scratch/original-package.json"
 sed -i "s/pnpm@${pin}/pnpm@0.0.0/" "$fixture/package.json"
-if timeout 45 docker run "${common[@]}" --network none "$image" \
-        sh -eu -c 'pnpm install --frozen-lockfile --offline < /dev/null' \
-        < /dev/null > "$scratch/mismatched-pin.log" 2>&1; then
-    echo "::error::pnpm accepted an incorrect packageManager pin"
+mismatch_rc=0
+timeout 45 docker run "${common[@]}" --network none "$image" \
+    sh -eu -c 'pnpm install --no-frozen-lockfile --offline < /dev/null' \
+    < /dev/null > "$scratch/mismatched-pin.log" 2>&1 || mismatch_rc=$?
+# A timeout, Docker runtime failure or wrong lockfile is NOT evidence of an
+# exact-version mismatch. Require a prompt pnpm-level failure in this test.
+if (( mismatch_rc != 1 )) || ! grep -Eiq 'pnpm|package.?manager|version' "$scratch/mismatched-pin.log"; then
+    echo "::error::pnpm version mismatch negative failed (status=${mismatch_rc})"
+    sed -n '1,20p' "$scratch/mismatched-pin.log"
     exit 1
 fi
 mv "$scratch/original-package.json" "$fixture/package.json"
@@ -63,10 +68,13 @@ mv "$scratch/original-package.json" "$fixture/package.json"
 # The old handcrafted one-line v9 lockfile is intentionally invalid.
 cp "$fixture/pnpm-lock.yaml" "$scratch/original-pnpm-lock.yaml"
 printf "lockfileVersion: '9.0'\n" > "$fixture/pnpm-lock.yaml"
-if timeout 45 docker run "${common[@]}" --network none "$image" \
-        sh -eu -c 'pnpm install --frozen-lockfile --offline < /dev/null' \
-        < /dev/null > "$scratch/invalid-lock.log" 2>&1; then
-    echo "::error::pnpm accepted an invalid frozen lockfile"
+badlock_rc=0
+timeout 45 docker run "${common[@]}" --network none "$image" \
+    sh -eu -c 'pnpm install --frozen-lockfile --offline < /dev/null' \
+    < /dev/null > "$scratch/invalid-lock.log" 2>&1 || badlock_rc=$?
+if (( badlock_rc != 1 )) || ! grep -Eiq 'lockfile|frozen|outdated' "$scratch/invalid-lock.log"; then
+    echo "::error::Invalid pnpm lock negative failed (status=${badlock_rc})"
+    sed -n '1,20p' "$scratch/invalid-lock.log"
     exit 1
 fi
 mv "$scratch/original-pnpm-lock.yaml" "$fixture/pnpm-lock.yaml"
