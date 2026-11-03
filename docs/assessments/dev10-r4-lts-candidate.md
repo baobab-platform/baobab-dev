@@ -86,6 +86,26 @@ native tests, private package access and AMD64/ARM64 image readback remain
 qualification requirements. Do not mark issue #52 closed on image-source
 checks alone.
 
+## 2026-11-03 — pnpm 12 offline bootstrap qualification correction
+
+Run 41575370514 established a new, separate provisioning failure. The
+native pnpm 12.16.1 binary passed tool readback, and both AMD64 frontend
+images built and passed their image vulnerability scans. Their CI fixture
+nonetheless failed with `ERR_PNPM_BAD_CONFIG_DEP` before testing frozen
+install: pnpm 12 records the `packageManager` pin as a configuration
+dependency and cannot bootstrap a fresh lockfile under `--offline` against
+an empty local registry mirror. Corepack was not the executing binary.
+
+The corrected CI performs a bounded, noninteractive first install with
+network available, captures its lock and pnpm metadata/store, then proves
+a separate `--network none` frozen offline install preserves the exact
+lock bytes. The image's `pnpm_config_pm_on_fail=error` avoids automatic
+manager-switching while enforcing exact pin agreement; wrong pin and
+bad-lock cases are required negatives. This repairs a **test design error**,
+not a pnpm dependency incompatibility. Final-head Actions and real
+Codespaces/private-package consumer checks remain outstanding until
+independently recorded.
+
 ## Security disposition and v1.5.0 release boundary
 
 Issue #54's explicitly provided executive **development** direction has
