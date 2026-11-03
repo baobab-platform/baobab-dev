@@ -123,3 +123,26 @@ exist. Hosted Codespaces/private-package and native consumer proof also
 remain separate DEV-10/DEV-14 holds. **Do not start the broad publishing
 workflow modularisation until these release-safety controls are qualified.**
 No PR merge, release tag, or image publication is authorized by this entry.
+
+### Signed native artifact content binding — later R5 source addition
+
+`scripts/verify_signed_release_predicates.py` now compares the **two distinct
+verified Cosign in-toto SLSA v1 predicates** and **two verified SPDX predicates**
+against the exact AMD64/ARM64 BuildKit predicates extracted from the candidate
+OCI index. A missing, duplicate, substituted, wrong-type or malformed signed
+payload fails closed. `tests/test_signed_release_predicates.py` exercises
+positives/negatives with synthetic DSSE envelopes, without faking external
+Sigstore evidence.
+
+The tag-only `release-digests` job also pulls the **exact remote child digest**
+and verifies the OCI revision label equals the immutable `GITHUB_SHA`.
+The `publish` job verifies signature/OIDC as before and additionally runs
+the signed-content comparison **before exporting candidate records**,
+retaining an evidence manifest for each target.
+
+**Still unqualified:** no actual R5 stable-tag GitHub Environment / GHCR /
+Sigstore release run has exercised this newly added parser. Its real Cosign
+output encoding, full two-platform roundtrip and signed source/material identity
+must be demonstrated on a controlled non-GA test before approval. Synthetic
+unit tests are not a replacement. The independent 295-CVE release block and
+owner-authorised staging/production governance remain unchanged.
