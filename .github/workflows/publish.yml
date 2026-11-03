@@ -1627,7 +1627,7 @@ jobs:
           DIGEST: ${{ steps.create-manifest.outputs.digest }}
         run: |
           set -euo pipefail
-          scripts/verify-image.sh "${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+          scripts/verify-image.sh "${REGISTRY}/${IMAGE_NAME}@${DIGEST}" "${GITHUB_REF_NAME}"
       # ------------------------------------------------------------------------
       # Export this target's published info for the `release` job
       # ------------------------------------------------------------------------
@@ -1762,7 +1762,7 @@ jobs:
             [[ "$observed" == "$target" && "$tag" == "$expected_tag" && "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
               echo "::error::Mismatched candidate record for $target"; exit 1;
             }
-            scripts/verify-image.sh "$image@$digest"
+            scripts/verify-image.sh "$image@$digest" "$RELEASE_TAG"
             echo "::notice::Promotion precheck: $target digest $digest verified"
           done
 
@@ -1877,13 +1877,13 @@ jobs:
               echo "Verify (digest \`${digest}\`):"
               echo '```bash'
               echo "cosign verify \\"
-              echo "  --certificate-identity-regexp \"^https://github.com/${{ github.repository_owner }}\" \\"
+              echo "  --certificate-identity \"https://github.com/${{ github.repository }}/.github/workflows/publish.yml@refs/tags/${{ needs.sanity-check.outputs.release_tag }}\" \\"
               echo "  --certificate-oidc-issuer \"https://token.actions.githubusercontent.com\" \\"
               echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${digest}"
               echo ""
               echo "cosign verify-attestation \\"
               echo "  --type slsaprovenance1 \\"
-              echo "  --certificate-identity-regexp \"^https://github.com/${{ github.repository_owner }}\" \\"
+              echo "  --certificate-identity \"https://github.com/${{ github.repository }}/.github/workflows/publish.yml@refs/tags/${{ needs.sanity-check.outputs.release_tag }}\" \\"
               echo "  --certificate-oidc-issuer \"https://token.actions.githubusercontent.com\" \\"
               echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${digest}"
               echo '```'
