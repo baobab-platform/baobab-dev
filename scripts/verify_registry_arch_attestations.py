@@ -196,7 +196,8 @@ def verify(image: str, tag: str, expected_sha: str,
     signed_p = runner(["cosign", "verify-attestation", "--type", "slsaprovenance1"] + base)
     signed_s = runner(["cosign", "verify-attestation", "--type", "spdxjson"] + base)
     try:
-        signed = verify_predicates(raw_provenance, raw_sbom, signed_p, signed_s)
+        signed = verify_predicates(raw_provenance, raw_sbom, signed_p, signed_s,
+                                   expected_subject=image.split("@", 1)[1])
     except PredicateError as exc:
         # Fingerprints, counts and types only: never put the full BuildKit
         # provenance, SPDX file inventory, certificates or raw stdout in CI.
