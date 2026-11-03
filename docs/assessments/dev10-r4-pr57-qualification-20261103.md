@@ -120,3 +120,36 @@ Codespaces, consumer adoption, release approval or image publication is claimed.
 At head `01ba49f8f8f73ca7cdeb672b84e7e1ea761a0a1b`, [publish workflow 41591284867](https://github.com/baobab-platform/baobab-dev/actions/runs/41591284867) completed **FAILURE**: `final/linux-amd64` and `final/linux-arm64` exited during the Maven installation layer. The pinned Maven archive SHA512 verified, but the Dockerfile still required Maven 3.9.16's `guava-33.6.0-jre.jar` filename after the manifest advanced to Maven 3.10.0. The guard was therefore stale. Six other image/architecture legs passed, as did the frozen-lockfile job; no complete eight-leg success is claimed. Foundation, Security, documentation, DEV-10 source/published-image, and DEV-14 doctor succeeded at that previous head.
 
 Repair commit `539f01c4c2bc54962237008cf3e91d77333641a1` preserves the exactly-one-bundled-Guava fail-closed guard, replaces the upstream Guava jar irrespective of its old filename with checksum-pinned 33.7.2-jre, and checks the single resulting jar. It does **not** change `config/versions.yaml`, `versions.lock`, the raw Trivy scanner, or the 295-CVE DEV-only exception. The corrected final-head eight-leg build, scanner results and release safety remain **UNVERIFIED** until new CI completes. Human Codespaces and native consumers remain **NOT RUN/NOT VERIFIED**. PR remains HELD; no tags or GHCR publishing authorized.
+
+## 3 November 2026 — eight-leg successful candidate verification and follow-up hardening
+
+At candidate head `ce196a0219f27ef352e87587fc933673446d22cb`,
+[Publish run 41601842744](https://github.com/baobab-platform/baobab-dev/actions/runs/41601842744)
+completed successfully: `final`, `frontend`, `frontend-e2e` and
+`infra` all passed on **both** `linux/amd64` and `linux/arm64`.
+Foundation, Security, DEV-10 source/published-image, DEV-14 doctor, and
+documentation checks on that head were also green. The full-image logs
+show Python **3.14.10** and Maven **3.10.0** actual installed readbacks;
+the frontend AMD64 log proves native pnpm **12.16.1** metadata bootstrap,
+network-isolated frozen-lock replay and negative tests passed.
+
+**Security caveat:** every affected build's scanner still records the **295**
+known `linux-libc-dev 7.0.0-42.42` findings. The temporary approved DEV
+treatment is **not a fix**, is not transferable to PR #58, and expires at
+**2026-11-13T00:00:00Z**. No release digest, production readiness or
+human Codespaces/native cross-repository consumer acceptance follows
+from the eight build jobs.
+
+Subsequent R4 source enhancements correct `tmux` doctor readback to
+`tmux -V` (the previous command yielded an inaccurate optional-tool
+warning on otherwise healthy images) and replace a brittle fixed-count
+checkout test with *per-checkout* SHA-pinning and credential-custody checks.
+This also preserves the test when R5 adds separately privileged jobs.
+These follow-up commits require their **own final-head CI**; the earlier
+41601842744 results must not be presented as tests of changed files.
+
+**Owner gate remains held:** conduct signed-in, human-created/disposed
+Codespaces with private packages and actual runtime consumers in owning
+repos; document pinned lock compatibility, native JDK21/iDempiere,
+Subscriptions/Maven3.10.0, Playwright browser revision and all negatives.
+No merge/release authorisation from this audit entry.
