@@ -40,7 +40,8 @@ rollback() {
   if ((rc != 0 && mutation_started != 0)); then
     echo "::error::PARTIAL GHCR PROMOTION: NO GitHub Release; audit $journal" >&2
     for ((i=${#changed_aliases[@]}-1; i>=0; i--)); do
-      local tag="${changed_aliases[i]}" old="${prior_alias[${changed_aliases[i]}]}"
+      local tag="${changed_aliases[i]}" old
+      old="${prior_alias[$tag]}"
       if [[ -z "$old" ]]; then
         printf 'rollback\t%s\t-\tMANUAL_RECOVERY_NEW_ALIAS\n' "$tag" >> "$journal"
       elif crane tag "$IMAGE@$old" "$tag" && [[ "$(crane digest "$IMAGE:$tag")" == "$old" ]]; then
