@@ -190,3 +190,60 @@ owner-authorised staging/production governance remain unchanged.
   stable-tag GHCR/Sigstore end-to-end proof. A failed PR CVE gate must
   not be fixed by extending #57's risk scope without a separate
   attributable decision. R5 remains unmerged; release/promotion held.
+
+## 3 November 2026 — failures in run 41617788814, 41617791181, 41617788874
+
+**Observed, not inferred:** `Publish` and `Foundation` both compiled and scanned
+the candidate but each reported exactly 295 findings (12 CRITICAL,
+283 HIGH), all for `linux-libc-dev=7.0.0-42.42`. The existing
+`dev10_kernel_risk_gate.py` *correctly* rejected PR #58 because issue #54
+authorises only PR #48/#50/#57 and development `main` before
+2026-11-13T00:00Z. No release or staging exception exists. Native
+compiler/UAPI headers are explicitly required and compiled against in
+`.devcontainer/docker/Dockerfile`; removing the compiler prerequisites,
+hiding findings or expanding that risk acceptance in code is NOT an
+acceptable security fix. A separate attributable DEV-only decision
+or an actual vendor-fixed dependency/image is necessary to make all
+eight scan gates green. Tagged releases remain STRICT even if #58 is
+later granted a development-only allowance.
+
+**Registry root cause:** for all four v1.4.4 profiles, digest equality,
+both native image+attestation manifests, exact OIDC publisher identity,
+source revision and both signed SPDX predicates passed. Only SLSA
+*full JSON-content equivalence* failed. Sigstore Cosign v3.1.4
+`pkg/cosign/attestation/attestation.go`, function
+`generateSLSAProvenanceStatementSLSA1`, explicitly normalises
+`runDetails.metadata.invocationID` to `invocationId`, uses
+`protojson.UnmarshalOptions{DiscardUnknown:true}` then serializes the
+known protobuf schema. The signed predicate therefore need not equal the
+raw BuildKit-produced JSON even though cryptographic signature verification
+succeeds. This is a **documented lossy signing pipeline**, not evidence
+that GHCR altered a signed blob. Source:
+https://github.com/sigstore/cosign/blob/v3.1.4/pkg/cosign/attestation/attestation.go
+
+**New-release fix:** the R5 publishing path now refuses non-SLSA-v1
+BuildKit provenance and uses Cosign's **exact URI**
+`--type https://slsa.dev/provenance/v1`, which selects its custom
+JSON-preserving predicate path rather than its lossy typed SLSA writer.
+It retains the SLSA v1 predicate URI so existing verifiers continue to
+recognise it. Independent Cosign OIDC verification and exact signed OCI
+index subject binding remain mandatory. A real future tag-based
+GHCR/Sigstore round-trip is STILL unqualified by source code alone.
+
+**Legacy release policy:** the read-only monitor does NOT silently
+accept arbitrary mismatches. Only the four pinned historical v1.4.4
+index digests and tag-source commit may use
+`LEGACY_SLSA_PROTOBUF_COMPATIBLE_NOT_FULL_CONTENT_EQUIVALENCE`.
+This entails independently authenticated two-architecture Cosign SLSA,
+exact signed SPDX, actual OCI child/attestation and source readback,
+and schema-known SLSA fields matching under Cosign's documented
+protobuf projection. It emits a warning and retained limited-evidence
+status; unrecoverable unknown legacy SLSA fields are explicitly NOT
+qualified. Wrong source/tag/index, wrong builder/build type,
+missing platform, signature, SPDX content or signed index subject fail.
+**All R5 and newer release candidates require full signed content.**
+This explicit narrow historical accommodation requires review;
+it is not a general "legacy mode", release-waiver or production approval.
+
+Source tests enforce strict/legacy split and semantic negative cases.
+Latest final-head CI remains a required gate before acceptance.
