@@ -61,6 +61,57 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             with self.subTest(event=event, ref=ref), self.assertRaises(mod.RiskGateError):
                 self.qualify(event=event, ref=ref, pr_number=number)
 
+    def test_owner_authorised_pr58_dev_only_same_cve_inventory_and_expiry(self):
+        self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({48, 50, 57, 58}))
+        result = self.qualify(pr_number=58, ref="refs/pull/58/merge")
+        self.assertEqual(result["known_cves_observed"], 295)
+        self.assertEqual(result["critical"], 12)
+        self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
+        self.assertEqual(result["scope"], "DEV ONLY; no tag, staging, or production")
+        self.assertEqual(result["expiry_utc"], "2026-11-13T00:00:00+00:00")
+        self.assertEqual(result["technical_applicability"], "under_investigation")
+        for platform in ("linux/amd64", "linux/arm64"):
+            for target in ("final", "infra", "frontend", "frontend-e2e"):
+                with self.subTest(platform=platform, target=target):
+                    evidence = self.qualify(pr_number=58, ref="refs/pull/58/merge",
+                                            target=target, platform=platform)
+                    self.assertEqual(evidence["known_cves_observed"], 295)
+
+    def test_pr58_release_staging_wrong_event_or_ref_never_inherits_dev_risk(self):
+        for event, ref, number in (
+            ("push", "refs/tags/v1.5.0", 58),
+            ("push", "refs/tags/v1.5.0", 0),
+            ("workflow_dispatch", "refs/heads/main", 58),
+            ("deployment", "refs/heads/staging", 58),
+            ("pull_request", "refs/pull/58/head", 58),
+            ("pull_request", "refs/pull/57/merge", 58),
+            ("pull_request", "refs/pull/59/merge", 59),
+            ("pull_request", "refs/pull/48/merge", 58),
+        ):
+            with self.subTest(event=event, ref=ref, number=number):
+                with self.assertRaises(mod.RiskGateError):
+                    self.qualify(event=event, ref=ref, pr_number=number)
+
+    def test_pr58_unknown_cve_or_fix_available_still_denied(self):
+        for field, value in (
+            ("VulnerabilityID", "CVE-2026-999999"),
+            ("PkgName", "linux-tools"),
+            ("InstalledVersion", "7.0.0-43.43"),
+            ("FixedVersion", "7.0.0-43.43"),
+            ("Severity", "LOW"),
+        ):
+            with self.subTest(field=field), self.assertRaises(mod.RiskGateError):
+                report = self.report()
+                report["Results"][0]["Vulnerabilities"][0][field] = value
+                self.qualify(report, pr_number=58, ref="refs/pull/58/merge")
+        report = self.report()
+        report["Results"][0]["Secrets"] = [{"RuleID": "aws-secret"}]
+        with self.assertRaises(mod.RiskGateError):
+            self.qualify(report, pr_number=58, ref="refs/pull/58/merge")
+        with self.assertRaises(mod.RiskGateError):
+            self.qualify(pr_number=58, ref="refs/pull/58/merge",
+                         now=dt.datetime(2026, 11, 13, tzinfo=dt.timezone.utc))
+
     def test_development_main_allowed_but_never_a_tag(self):
         self.qualify(event="push", ref="refs/heads/main", pr_number=0)
         with self.assertRaises(mod.RiskGateError):
