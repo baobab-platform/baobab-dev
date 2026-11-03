@@ -130,6 +130,17 @@ Temurin Java 21, PostgreSQL 17 client and Playwright 1.64.1**. These are
 a **candidate toolchain**, not a published image or a blanket migration
 mandate for consumers currently pinned to Node 24 / pnpm 11.
 
+**pnpm 12 reproducibility:** The image uses the verified native pnpm
+executable (not a Corepack pnpm shim), with `pnpm_config_pm_on_fail=error`.
+A mismatched consumer `packageManager` version must fail, not download
+unreviewed binaries. pnpm 12 requires npm registry metadata when first
+creating a lockfile with a `packageManager` pin; CI first creates and
+caches that lock from a non-interactive ordinary install, then validates
+the same lock with `--frozen-lockfile --offline` and Docker
+`--network none`. Negative cases reject a wrong pin and an invalid lock.
+See [provisioning qualification script](scripts/qualify-pnpm-provisioning.sh).
+No network-disabled *cold* lock generation is claimed.
+
 The manifest is `config/versions.yaml`; `config/versions.lock` captures
 exact resolved values. A reproducible source resolver, both image
 architectures, strict image scans, non-interactive pnpm frozen installs,
