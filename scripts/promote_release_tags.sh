@@ -21,6 +21,13 @@ version_tags=()
 alias_tags=()
 changed_aliases=()
 mutation_started=0
+# Owner has authorised ONLY explicitly version-pinned v1.5.0 development
+# consumer distribution with 295 disclosed kernel-header advisories.
+# Do not silently move latest/major/minor tags for consumers that have not
+# opted into that temporary risk. Other future fully qualified releases
+# preserve the normal alias-promotion behaviour.
+version_only_dev_risk=0
+[[ "$RELEASE_TAG" == "v1.5.0" ]] && version_only_dev_risk=1
 
 fail() { echo "::error::DEV-10 R5 promotion: $*" >&2; return 1; }
 read_tag_digest() {
@@ -72,11 +79,13 @@ for target in "${targets[@]}"; do
   [[ "$(jq -er '.tag' "$record")" == "$IMAGE:$tag" ]] || fail "wrong image tag"
   expected["$tag"]="$digest"
   version_tags+=("$tag")
-  for prefix in "$major_minor" "$major" latest; do
-    alias_tag="$prefix$suffix"
-    alias_tags+=("$alias_tag")
-    expected["$alias_tag"]="$digest"
-  done
+  if (( version_only_dev_risk == 0 )); then
+    for prefix in "$major_minor" "$major" latest; do
+      alias_tag="$prefix$suffix"
+      alias_tags+=("$alias_tag")
+      expected["$alias_tag"]="$digest"
+    done
+  fi
 done
 # Read all existing tag pointers before any mutation. Existing stable
 # version tags can NEVER be rebound to different release content.
@@ -118,5 +127,10 @@ done
 for tag in "${version_tags[@]}" "${alias_tags[@]}"; do
   [[ "$(read_tag_digest "$tag")" == "${expected[$tag]}" ]] || fail "final drift: $tag"
 done
-printf 'result\t%s\t-\tPROMOTED_FOUR_TARGETS\n' "$RELEASE_TAG" >> "$journal"
-echo "::notice::R5 four profiles/aliases verified; journal: $journal"
+if (( version_only_dev_risk )); then
+  printf 'result\t%s\t-\tPROMOTED_FOUR_PINNED_DEV_VERSIONS_NO_ALIASES\n' "$RELEASE_TAG" >> "$journal"
+  echo "::warning::R5 v1.5.0: four version tags verified, mutable major/minor/latest aliases deliberately unchanged (known DEV-only security risk); journal: $journal"
+else
+  printf 'result\t%s\t-\tPROMOTED_FOUR_TARGETS\n' "$RELEASE_TAG" >> "$journal"
+  echo "::notice::R5 four profiles/aliases verified; journal: $journal"
+fi
