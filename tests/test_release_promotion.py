@@ -77,22 +77,48 @@ class PromotionTests(unittest.TestCase):
         return subprocess.run(["bash", str(SCRIPT)], env=dict(self.env, **updates),
                               capture_output=True, text=True, timeout=15)
 
+    def change_test_release(self, version: str):
+        # Test future full-alias behaviour entirely against mock CLI state.
+        for target in TARGETS:
+            record = self.info / (target + ".json")
+            obj = json.loads(record.read_text())
+            suffix = "" if target == "final" else "-" + target
+            obj["tag"] = IMAGE + ":" + version.removeprefix("v") + suffix
+            record.write_text(json.dumps(obj))
+        self.env["RELEASE_TAG"] = version
+
     def test_bash_syntax(self):
         result = subprocess.run(["bash", "-n", str(SCRIPT)],
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_full_four_target_promotion_and_idempotent_rerun(self):
+    def test_v150_promotion_only_explicit_version_tags_and_idempotent_rerun(self):
         for _ in range(2):
             result = self.run_promotion()
             self.assertEqual(result.returncode, 0, result.stderr)
         state = json.loads(self.state_path.read_text())
         for target in TARGETS:
             suffix = "" if target == "final" else "-" + target
-            for tag in ("1.5.0", "1.5", "1", "latest"):
-                self.assertEqual(state[tag + suffix], "sha256:" + DIGESTS[target])
+            self.assertEqual(state["1.5.0" + suffix],
+                             "sha256:" + DIGESTS[target])
+            self.assertNotIn("1.5" + suffix, state)
+            self.assertEqual(state["1" + suffix], self.previous)
+            self.assertEqual(state["latest" + suffix], self.previous)
         journal = (self.root / "evidence/promotion.tsv").read_text()
-        self.assertIn("PROMOTED_FOUR_TARGETS", journal)
+        self.assertIn("PROMOTED_FOUR_PINNED_DEV_VERSIONS_NO_ALIASES", journal)
+        self.assertNotIn("\talias\t", journal)
+
+    def test_future_versions_preserve_normal_alias_promotion(self):
+        self.change_test_release("v1.6.0")
+        result = self.run_promotion()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        state = json.loads(self.state_path.read_text())
+        for target in TARGETS:
+            suffix = "" if target == "final" else "-" + target
+            for tag in ("1.6.0", "1.6", "1", "latest"):
+                self.assertEqual(state[tag + suffix], "sha256:" + DIGESTS[target])
+        self.assertIn("PROMOTED_FOUR_TARGETS",
+                      (self.root / "evidence/promotion.tsv").read_text())
 
     def test_immutable_version_tag_rebind_is_blocked(self):
         self.state["1.5.0"] = self.previous
@@ -103,6 +129,7 @@ class PromotionTests(unittest.TestCase):
         self.assertEqual(json.loads(self.state_path.read_text()), self.state)
 
     def test_late_alias_failure_restores_existing_moving_aliases(self):
+        self.change_test_release("v1.6.0")
         result = self.run_promotion(MOCK_FAIL_ONCE="latest-frontend")
         self.assertNotEqual(result.returncode, 0)
         after = json.loads(self.state_path.read_text())
