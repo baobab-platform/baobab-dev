@@ -220,7 +220,7 @@ jobs:
       - name: DEV-10 R5 negative unit tests (release contracts + Trivy DB freshness)
         run: |
           set -euo pipefail
-          python3 -m unittest -v tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_verify_image_identity.py tests/test_verify_release_environment.py
+          python3 -m unittest -v tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_verify_image_identity.py tests/test_verify_release_environment.py tests/test_release_promotion.py tests/test_r5_release_boundaries.py tests/test_signed_release_predicates.py
       - name: Verify committed resolutions and upstream asset checksums
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -789,6 +789,20 @@ jobs:
             "${{ matrix.target }}" "${{ matrix.platform }}"
           [[ "$rc" == 0 ]] || { echo "::error::Exact remote digest scan failed (Trivy rc=$rc), cannot publish."; exit 1; }
           echo "::notice::Remote digest Trivy PASS: $image"
+
+      - name: Confirm exact registry child carries immutable release source revision
+        env:
+          CHILD_DIGEST: ${{ steps.exact.outputs.child }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          remote="${REGISTRY}/${IMAGE_NAME}@${CHILD_DIGEST}"
+          docker pull --platform "$PLATFORM" "$remote"
+          actual=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$remote")
+          [[ "$actual" == "$GITHUB_SHA" ]] || {
+            echo "::error::Exact remote child image revision label does not match immutable release source"; exit 1;
+          }
+          echo "::notice::Exact image source label verified: $actual"
 
       - name: Run runtime smoke against the scanned digest
         env:
@@ -1631,6 +1645,38 @@ jobs:
         run: |
           set -euo pipefail
           scripts/verify-image.sh "${REGISTRY}/${IMAGE_NAME}@${DIGEST}" "${GITHUB_REF_NAME}"
+      - name: Verify both signed architecture-specific SLSA and SPDX payloads
+        env:
+          DIGEST: ${{ steps.create-manifest.outputs.digest }}
+        run: |
+          set -euo pipefail
+          img="${REGISTRY}/${IMAGE_NAME}@${DIGEST}"
+          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/publish.yml@refs/tags/${GITHUB_REF_NAME}"
+          issuer="https://token.actions.githubusercontent.com"
+          cosign verify-attestation --type slsaprovenance1 \
+            --certificate-identity "$identity" --certificate-oidc-issuer "$issuer" \
+            --output json "$img" > "$RUNNER_TEMP/verified-provenance.json"
+          cosign verify-attestation --type spdxjson \
+            --certificate-identity "$identity" --certificate-oidc-issuer "$issuer" \
+            --output json "$img" > "$RUNNER_TEMP/verified-sbom.json"
+          python3 scripts/verify_signed_release_predicates.py \
+            --provenance-amd64 provenance-amd64.json \
+            --provenance-arm64 provenance-arm64.json \
+            --sbom-amd64 sbom-amd64.json \
+            --sbom-arm64 sbom-arm64.json \
+            --verified-provenance "$RUNNER_TEMP/verified-provenance.json" \
+            --verified-sbom "$RUNNER_TEMP/verified-sbom.json" \
+            --evidence "$RUNNER_TEMP/signed-predicate-evidence.json"
+
+      - name: Retain independent signed-predicate content evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: signed-predicates-${{ matrix.target }}-${{ github.sha }}
+          path: ${{ runner.temp }}/signed-predicate-evidence.json
+          if-no-files-found: warn
+          retention-days: 30
+
       # ------------------------------------------------------------------------
       # Export this target's published info for the `release` job
       # ------------------------------------------------------------------------
