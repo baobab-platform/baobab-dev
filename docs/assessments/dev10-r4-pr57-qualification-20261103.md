@@ -14,7 +14,7 @@
 | Java | Temurin 21 | iDempiere v13 OSGi and Subscriptions Java 21 with PostgreSQL 17 |
 | PostgreSQL | client 17 | server migration/recovery remains DEV-12, not implied |
 | Playwright | 1.64.1 | browser binaries and every consumer's test runner must match |
-| Maven | 3.9.16 (current lock) | 3.10.0 GA is next isolated candidate; Maven 4 RC must not be made default |
+| Maven | 3.10.0 stable GA (candidate manifest/lock) | Apache SHA-512 verified; current-head image readback and independent ERP/Subscriptions JDK21/PG17 consumers still required; Maven 4 RC prohibited as default |
 
 The `config/versions.yaml` file is the policy source, `config/versions.lock` is the reproducible resolution, and actual installed image readback is separate evidence. No changing owner packageManager pins without a native test. See `dev10-r4-all-toolchains-maven4-review-20261102.md`.
 
