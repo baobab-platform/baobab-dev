@@ -7,12 +7,15 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import verify_legacy_provenance as legacy  # noqa: E402
 from verify_legacy_provenance import (  # noqa: E402
     LEGACY_INDICES, LEGACY_SOURCE, LEGACY_TAG,
     LegacyProofError, qualify_legacy, project,
 )
+from verify_signed_release_predicates import fingerprint  # noqa: E402
 
 DIGEST = sorted(LEGACY_INDICES)[0]
 SLSA = "https://slsa.dev/provenance/v1"
@@ -53,6 +56,17 @@ class LegacyProvenanceTests(unittest.TestCase):
         self.spdx = [{"SPDXID": "SPDXRef-DOCUMENT",
                       "packages": [{"name": arch}]}
                      for arch in ("amd64", "arm64")]
+        # Substitute synthetic known history only inside this isolated test.
+        # Production hashes remain fixed in source and cannot be inferred from
+        # arbitrary signed content. Tests below verify mismatches are denied.
+        fixture = {
+            "embedded": tuple(fingerprint(p) for p in self.raw),
+            "signed": tuple(fingerprint(p) for p in self.projection),
+        }
+        context = patch.dict(legacy.HISTORIC_SLSA_FINGERPRINTS,
+                             {DIGEST: fixture})
+        context.start()
+        self.addCleanup(context.stop)
 
     def qualify(self, **kw):
         base = dict(image_digest=DIGEST, tag=LEGACY_TAG,
@@ -108,8 +122,32 @@ class LegacyProvenanceTests(unittest.TestCase):
         raw[0]["runDetails"]["metadata"]["finishedOn"] = None
         signed = copy.deepcopy(self.projection)
         signed[0]["runDetails"]["metadata"]["finishedOn"] = ""
-        self.qualify(embedded_slsa=raw,
-                     verified_slsa=envelopes(SLSA, signed))
+        self.assertEqual(project(raw[0], "provenance"),
+                         project(signed[0], "provenance"))
+        # Even schema-equivalent changes are not silently accepted against
+        # pinned full historical evidence.
+        with self.assertRaises(LegacyProofError):
+            self.qualify(embedded_slsa=raw,
+                         verified_slsa=envelopes(SLSA, signed))
+
+    def test_signed_or_embedded_full_content_changed_but_schema_same_denied(self):
+        raw = copy.deepcopy(self.raw)
+        raw[0]["unknownHistoricalExtra"] = "changed"
+        with self.assertRaises(LegacyProofError):
+            self.qualify(embedded_slsa=raw)
+        signed = copy.deepcopy(self.projection)
+        signed[0]["unknownHistoricalExtra"] = "forged"
+        with self.assertRaises(LegacyProofError):
+            self.qualify(verified_slsa=envelopes(SLSA, signed))
+
+    def test_historical_fingerprint_allowlist_has_exact_four_indices(self):
+        self.assertEqual(set(legacy.HISTORIC_SLSA_FINGERPRINTS),
+                         LEGACY_INDICES)
+        for hashes in legacy.HISTORIC_SLSA_FINGERPRINTS.values():
+            self.assertEqual(set(hashes), {"embedded", "signed"})
+            for pair in hashes.values():
+                self.assertEqual(len(pair), 2)
+                self.assertTrue(all(len(d) == 64 for d in pair))
 
     def test_dual_native_required(self):
         with self.assertRaises(LegacyProofError):
