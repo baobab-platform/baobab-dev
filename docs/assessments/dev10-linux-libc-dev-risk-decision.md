@@ -2,7 +2,7 @@
 
 **Assessment:** 30 October 2026 | **Governing gate:** strict, unfiltered Trivy HIGH/CRITICAL, exit 1
 **Scope:** Ubuntu 26.04, `linux-libc-dev 7.0.0-42.42`, the four baobab-dev image profiles on AMD64 and ARM64
-**Decision:** **SECURITY HELD — exception NOT approved.** Not a waiver or release certificate.
+**Decision history:** Original 30 October technical applicability/release-security determination was HELD; the owner subsequently authorised a **strictly bounded development-image residual-risk acceptance** for PRs and for v1.5.0-rc.N/v1.5.0 GHCR distribution. It is not a VEX not_affected verdict or a production certificate.
 
 ## 1. What is established
 
@@ -97,13 +97,13 @@ The artifact also includes `upstream-commit.txt`. Source and regression tests ar
 **Decision type:** a *temporary DEV-only ACCEPTANCE OF RESIDUAL RISK* for already identified advisory matches; this does **not** change the vendor CVE statuses, scientific per-CVE applicability state (all still under investigation), or the release security requirement.
 
 **Exact limited scope:**
-- Repository: baobab-platform/baobab-dev; explicitly scoped PRs **#48, #50, #57 and #58**, and untagged development-main, **plus one exact tagged GHCR development image distribution `v1.5.0`** as clarified by the owner on 3 November. PRs #57/#58 and v1.5.0 were added by subsequent owner-directed decisions; no other PR, version tag, staging or production deployment is covered. These extensions do not change the CVE inventory or expiry.
+- Repository: baobab-platform/baobab-dev; explicitly scoped PRs **#48, #50, #57 and #58**, untagged development-main, and *only* GHCR development-image candidate tags **`v1.5.0-rc.N` (N ≥ 1, no leading zeros)** and GA **`v1.5.0`**. The owner explicitly authorised the prerelease sequence before GA. No other PR or tag or staging/production application deployment is covered. The CVE inventory, digest binding and expiry are unchanged.
 - Image profiles: final, infra, frontend and frontend-e2e; architectures: AMD64 and ARM64.
 - Package: Ubuntu 26.04 linux-libc-dev **7.0.0-42.42 only**.
 - CVE allow-set: exactly the original 295 entries from docs/assessments/dev10-kernel-cves.tsv, pinned to Git blob SHA1 a98090feb9e3df2d9df72654516df69c64daf50e (12 CRITICAL, 283 HIGH). Partial remediation naturally reduces the permitted subset. No newly discovered CVEs, other packages, changed versions, changed severity or supported-fixed versions are accepted.
 - Expiry: 2026-11-13 00:00 UTC. Repository exception expires 2026-11-12; renewal requires a new explicit security decision.
 - Preserve unfiltered Trivy scan output and sanitized retained evidence. Trivy continues to run with --exit-code 1. Development risk evaluation only follows a vulnerability-triggered exit 1 and is fail closed on scanner/runtime errors or missing evidence.
-- No accepted secret findings; **only `v1.5.0` may be tagged and distributed as a devcontainer image**, after unchanged CI, GHCR source/digest, SBOM/SLSA, Cosign and protected-promotion checks. No other version or application staging/production exception. Source-level negative tests enforce these distinctions.
+- No accepted secret findings. **`v1.5.0-rc.N` and `v1.5.0` may be tagged and distributed as devcontainer images** only after all source, full Trivy, exact GHCR digest, SLSA/SPDX, Cosign and independently protected promotion gates. RCs create four versioned candidate tags and GitHub prereleases, while leaving `latest`, `1.5` and `1` aliases untouched. On the owner's final GA tag, all four profile-specific `latest`/`1.5`/`1` aliases **must** move to verified v1.5.0 digests, and consumers are to receive upgrade notices. No other version or application staging/production exception.
 
 **Implementation:** .baobab/repository.yaml records a temporary **existing Shared Foundation container-scan implementation exception**, because the pinned reusable gate cannot natively consume a package-specific risk decision. Instead of leaving an unscanned gap, .github/workflows/foundation.yml defines a **replacement unfiltered DEV-10 / Foundation container CVE gate** that builds and scans the actual Foundation image and applies the same bounded policy as the eight .github/workflows/publish.yml image scans. The policy is in scripts/dev10_kernel_risk_gate.py with negative tests in tests/test_dev10_kernel_risk_gate.py.
 
@@ -184,3 +184,31 @@ renewed review, even if an old tag remains pullable.
 **Authentication statement:** This records a direction provided in chat
 by the user. It is not a forged GitHub security signature, nor an
 independent IAM/CP Principal attestation or OpenVEX `not_affected` verdict.
+
+## 3 November 2026 — owner-directed RC rehearsal and GA alias policy (latest)
+
+The owner rejected the assistant's unilateral decision to suppress mutable
+consumer aliases for the final v1.5.0 release. The definitive sequence is:
+
+1. Qualify PR #58 at final HEAD, then merge to main. The owner cuts
+   `v1.5.0-rc.1` first and, if needed, successive numbered RCs.
+2. **Each RC** exercises all eight local and eight GHCR remote-native Trivy
+   checks, immutable provenance and signed SLSA/SPDX, independent protected
+   promotion, four versioned image tags and a **GitHub prerelease**. The
+   shared consumer aliases stay pinned to the prior stable version.
+3. Once the owner has accepted the complete publishing workflow and tests,
+   the owner cuts **`v1.5.0`**. Protected promotion publishes all four
+   versioned GA image profiles **and moves `latest`, `1.5` and `1` aliases**
+   (plus corresponding profile suffixes) to their verified digests.
+4. Publish release notes including actual pull/verify commands and the
+   known unremediated advisory disclosures. Notify consumer repository
+   maintainers to update digest-pinned devcontainer references and qualify
+   private-package installation, reproducibility and native tools.
+
+**Scope remains package/CVE/time exact:** this is the original 295 findings
+for `linux-libc-dev=7.0.0-42.42` only, ending **2026-11-13 00:00 UTC**.
+Unexpected new advisories, changed package/version/severity, available fixes,
+scanner failure, secrets, different tags, wrong actor or missing evidence still
+stop publication. Neither RC nor GA is an application staging/production
+approval. The release-owner direction is recorded in chat and issue #54, not
+falsely attributed to an independent signed IAM/CP security identity.
