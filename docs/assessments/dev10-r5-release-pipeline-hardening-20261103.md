@@ -247,3 +247,32 @@ it is not a general "legacy mode", release-waiver or production approval.
 
 Source tests enforce strict/legacy split and semantic negative cases.
 Latest final-head CI remains a required gate before acceptance.
+
+## 3 November 2026 — superseding owner decision: DEV-only 295-CVE treatment approved for #58
+
+**Decision revision:** the earlier PR #58 security refusal described in this
+assessment was correct *before the owner's explicit extension*. The user has
+now affirmatively authorised applying the **same temporary, exact-bounded
+development-only** treatment to #58 until actual remediation. The decision
+is recorded under issue #54 and the persistent security risk register.
+It is **not** a remediated-CVE claim, independently signed approver
+assertion, production acceptance or change in release security policy.
+
+**Change committed:** update the existing `dev10_kernel_risk_gate.py`
+exact PR-ID allow-set to include **#58**, with matching tests covering all
+four profiles × two architectures. Reuse the same immutable 295-CVE/12
+CRITICAL/283 HIGH inventory, `linux-libc-dev=7.0.0-42.42`, Ubuntu
+source-package checks, full unfiltered scanner evidence, review issue
+and **2026-11-13T00:00:00Z** expiry. Do not extend the allowance to
+`workflow_dispatch`, tag-push, staging, production or other PRs. New
+security findings, fixed-version signals and invalid evidence still deny.
+The separate Shared Foundation repository exception reaches its own
+2026-11-12 renewal point.
+
+**CI qualification:** source changes do not retroactively change the
+conclusions of prior failed runs. Fresh current-head Foundation and all
+eight Publish build/scan legs must execute and pass (or reveal any new
+finding); independently signed R5 publication and released-registry
+integrity remain separate checks. The existing v1.4.4 SLSA
+typed/protobuf compatibility remediation must also be evaluated from
+live CI; no assumption that this owner approval resolves it.
