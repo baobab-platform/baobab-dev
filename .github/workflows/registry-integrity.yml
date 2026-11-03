@@ -55,6 +55,11 @@ on:
       - '.github/workflows/registry-integrity.yml'
       - 'scripts/verify-image.sh'
       - 'scripts/verify_release_contracts.py'
+      - 'scripts/verify_registry_arch_attestations.py'
+      - 'scripts/verify_signed_release_predicates.py'
+      - 'tests/test_registry_arch_attestations.py'
+      - 'tests/test_verify_release_contracts.py'
+      - 'tests/test_signed_release_predicates.py'
   workflow_run:
     workflows:
       - "Publish Baobab Dev Container"
@@ -66,7 +71,8 @@ permissions:
   packages: read
 
 concurrency:
-  group: released-ghcr-contract-integrity
+  # PR revisions must not suppress the independent daily/after-release observer.
+  group: released-ghcr-contract-integrity-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
 defaults:
@@ -90,6 +96,9 @@ jobs:
       # need no repo files at all.
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
 
       - name: Authenticate to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
