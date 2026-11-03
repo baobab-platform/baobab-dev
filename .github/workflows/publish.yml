@@ -765,7 +765,11 @@ jobs:
             "packageManager": "pnpm@${PNPM_VERSION}"
           }
           EOF
-          # pnpm 12 records its package-manager resolution as a separate\n          # lockfile document. A lone v9 header is deliberately NOT a valid\n          # frozen lock for a manifest with packageManager: pnpm@12.x.\n          # Generate the fixture lock with the actual image binary offline,\n          # then prove that a subsequent frozen install makes no changes.
+          # pnpm 12 records its package-manager resolution as a separate
+          # lockfile document. A lone v9 header is not a valid frozen lock
+          # for a manifest with packageManager: pnpm@12.x. Generate the
+          # fixture lock using the actual image binary with no network,
+          # then verify a frozen install remains fully offline.
 
           # The bind mount below keeps the host directory's ownership
           # (the runner's own UID, not 1000) inside the container, but
@@ -785,7 +789,7 @@ jobs:
             -v "${FIXTURE_DIR}:/workspaces/fixture" \
             -w /workspaces/fixture \
             baobab-dev:scan \
-            sh -ec 'pnpm install --lockfile-only --offline < /dev/null &&               pnpm install --frozen-lockfile --offline < /dev/null &&               test -s pnpm-lock.yaml'
+            sh -ec 'pnpm install --lockfile-only --offline < /dev/null && pnpm install --frozen-lockfile --offline < /dev/null && test -s pnpm-lock.yaml'
 
   # Job 3: Manifest Creation, OIDC Cosign Signing & Release Attestation
   # Merges per-arch images into a multi-arch OCI index, applies keyless
