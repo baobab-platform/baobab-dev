@@ -57,6 +57,8 @@ on:
       - 'scripts/verify_release_contracts.py'
       - 'scripts/verify_registry_arch_attestations.py'
       - 'scripts/verify_signed_release_predicates.py'
+      - 'scripts/verify_legacy_provenance.py'
+      - 'tests/test_legacy_provenance.py'
       - 'tests/test_registry_arch_attestations.py'
       - 'tests/test_verify_release_contracts.py'
       - 'tests/test_signed_release_predicates.py'
@@ -298,7 +300,16 @@ jobs:
               echo "::error::${ref}: dual-native signed artifact integrity failed."
               failures=$((failures + 1))
             else
-              echo "both native architectures: matching BuildKit source, SLSA, SPDX and verified Cosign predicates"
+              qualification=$(jq -er '.status' "${RUNNER_TEMP}/registry-native-evidence/${target}.json")
+              case "$qualification" in
+                STRICT_SIGNED_NATIVE_CONTENT_VERIFIED)
+                  echo "both native architectures: exact SLSA/SPDX signed content and source VERIFIED" ;;
+                LEGACY_SLSA_PROTOBUF_COMPATIBLE_NOT_FULL_CONTENT_EQUIVALENCE)
+                  echo "::warning::${ref} is a pinned v1.4.4 legacy Cosign/protobuf release; both native signatures, schema-known SLSA, full SPDX and source verified. Unknown pre-signing SLSA fields cannot be recovered, so R5 full-content qualification is NOT claimed." ;;
+                *)
+                  echo "::error::Unrecognized registry attestation qualification: $qualification"
+                  failures=$((failures + 1)) ;;
+              esac
             fi
 
             echo "::endgroup::"
@@ -329,5 +340,5 @@ jobs:
             echo
             echo "Release: [${RELEASE_TAG}](${RELEASE_URL})"
             echo
-            echo "The workflow checks tag existence, release-recorded digest equality, OCI index readability, linux/amd64 + linux/arm64 child-manifest reachability, immutable tag-to-source revision readback, and BOTH architectures' exact BuildKit SLSA/SPDX signed predicate content (not merely one verifiable attestation)."
+            echo "The workflow checks all four release contracts, index/image manifest reachability, immutable source revision, both signed architectures and SPDX. R5 releases require FULL exact SLSA/SPDX signed content. ONLY four pinned v1.4.4 index digests may use a documented, explicitly limited Cosign typed/protobuf SLSA semantic compatibility path; they never count as R5 full-content qualification."
           } >> "$GITHUB_STEP_SUMMARY"
