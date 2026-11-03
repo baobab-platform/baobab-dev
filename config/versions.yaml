@@ -195,26 +195,22 @@ development:
     source: "github"
 
   maven:
-    version: "3.9.16"
+    version: "3.10.0"
     source: "apache"
-    # Explicit pin, NOT "latest" — unlike almost every other GitHub/npm-sourced
-    # tool in this file. Maven Central's own maven-metadata.xml currently
-    # resolves <latest>/<release> to 4.0.0-rc-6 (a pre-release of an
-    # in-development major version), which would silently pull an
-    # incompatible, non-GA toolchain into every build. iDempiere's own build
-    # requires the Maven 3.9.x line specifically (wiki.idempiere.org, see the
-    # java entry above) — 3.9.16 is the latest GA release on that line at
-    # authoring time (2026-09-01).
+    # DEV-10 R4 owner-directed stable Maven 3.10.x upgrade candidate.
+    # Apache's release catalog and release history identify 3.10.0 as the
+    # latest GA in this line (2026-11-03); Maven 4.0.0-rc-7 is NOT GA.
+    # Pin the exact version rather than a mutable "latest" or "3.10.x".
+    # Maven 3.10 uses Resolver 2.x: the Baobab ERP OSGi and Subscriptions
+    # consumer tests, including Java 21 and PostgreSQL 17, are independent
+    # acceptance gates. This source change is not a completed qualification.
     #
-    # Distribution is the official Apache tarball, architecture-independent
-    # (pure Java — no per-arch binary, unlike the Temurin JDK above), fetched
-    # from archive.apache.org (not dlcdn.apache.org, which only mirrors the
-    # single current release and would break reproducibility once 3.9.16 is
-    # superseded) at:
+    # The official architecture-independent Apache distribution is fetched
+    # from archive.apache.org so later supersession cannot break the build:
     #   https://archive.apache.org/dist/maven/maven-3/${version}/binaries/apache-maven-${version}-bin.tar.gz
-    # Verified via the matching Apache-published `.sha512` sidecar (Apache
-    # publishes SHA-512 for Maven releases, not SHA-256 — see resolve.sh),
-    # per this repo's Zero-Trust Binary Downloads convention.
+    # config/resolve.sh verifies the Apache-published .sha512 sidecar and
+    # records the exact value in versions.lock; image builds check the tarball.
+    # Do not infer Maven 4/Tycho or production iDempiere compatibility here.
 
 # ------------------------------------------------------------------------------
 # NEW — frontend_tooling
