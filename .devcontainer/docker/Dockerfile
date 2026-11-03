@@ -1449,19 +1449,17 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
       > /etc/apt/sources.list.d/docker.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends \
-      docker-ce-cli \
-      docker-compose-plugin \
-      docker-buildx-plugin
+    apt-get install -y --no-install-recommends docker-ce-cli && \
+    install -d -m 0755 /usr/libexec/docker/cli-plugins
 
-# Keep the adopted plugin release versions, replacing their vulnerable Go
-# dependencies with the checksum-pinned security rebuilds. Apt drift fails closed.
-RUN dpkg-query -W -f='${Version}' docker-buildx-plugin | grep -E '^0\.38\.1-' && \
-    dpkg-query -W -f='${Version}' docker-compose-plugin | grep -E '^5\.6\.1-'
+# Install ONLY our source-pinned, security-rebuilt CLI plugin binaries.
+# Their exact upstream revisions and patched dependency graphs are verified
+# by build-security-clis.sh. Do not install floating Docker apt plugin packages
+# (the last observed Compose package was 5.7.0 vs the verified 5.6.1 rebuild).
 COPY --from=patched-go-clis /out/licenses/ /usr/share/licenses/baobab-cli/
 COPY --from=patched-go-clis /out/docker-buildx /usr/libexec/docker/cli-plugins/docker-buildx
 COPY --from=patched-go-clis /out/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
-RUN docker buildx version && docker compose version
+RUN docker buildx version | grep -F 'v0.38.1' && docker compose version | grep -F 'v5.6.1'
 
 # -----------------------------------------------------------------------------
 # 8. Shell productivity & GitHub Actions-adjacent utilities
@@ -1656,19 +1654,17 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
       > /etc/apt/sources.list.d/docker.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends \
-      docker-ce-cli \
-      docker-compose-plugin \
-      docker-buildx-plugin
+    apt-get install -y --no-install-recommends docker-ce-cli && \
+    install -d -m 0755 /usr/libexec/docker/cli-plugins
 
-# Keep the adopted plugin release versions, replacing their vulnerable Go
-# dependencies with the checksum-pinned security rebuilds. Apt drift fails closed.
-RUN dpkg-query -W -f='${Version}' docker-buildx-plugin | grep -E '^0\.38\.1-' && \
-    dpkg-query -W -f='${Version}' docker-compose-plugin | grep -E '^5\.6\.1-'
+# Install ONLY our source-pinned, security-rebuilt CLI plugin binaries.
+# Their exact upstream revisions and patched dependency graphs are verified
+# by build-security-clis.sh. Do not install floating Docker apt plugin packages
+# (the last observed Compose package was 5.7.0 vs the verified 5.6.1 rebuild).
 COPY --from=patched-go-clis /out/licenses/ /usr/share/licenses/baobab-cli/
 COPY --from=patched-go-clis /out/docker-buildx /usr/libexec/docker/cli-plugins/docker-buildx
 COPY --from=patched-go-clis /out/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
-RUN docker buildx version && docker compose version
+RUN docker buildx version | grep -F 'v0.38.1' && docker compose version | grep -F 'v5.6.1'
 
 # -----------------------------------------------------------------------------
 # HashiCorp Terraform
