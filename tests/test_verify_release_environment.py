@@ -34,6 +34,17 @@ class PromotionEnvironmentTests(unittest.TestCase):
         self.assertEqual(evidence["required_reviewers"], 1)
         self.assertEqual(evidence["accepted_tag_patterns"], ["v*.*.*"])
 
+    def test_rc_series_uses_same_independent_protected_environment(self):
+        for tag in ("v1.5.0-rc.1", "v1.5.0-rc.2", "v1.5.0-rc.10"):
+            with self.subTest(tag=tag):
+                evidence = mod.qualify(self.env, self.policies, tag)
+                self.assertTrue(evidence["prevent_self_review"])
+                self.assertEqual(evidence["release_tag"], tag)
+        weak = deepcopy(self.env)
+        weak["protection_rules"][0]["prevent_self_review"] = False
+        with self.assertRaises(mod.PromotionEnvironmentError):
+            mod.qualify(weak, self.policies, "v1.5.0-rc.1")
+
     def test_missing_or_self_approved_review_is_refused(self):
         for change in (
             lambda e: e.pop("protection_rules"),
@@ -62,7 +73,9 @@ class PromotionEnvironmentTests(unittest.TestCase):
             mod.qualify(candidate, self.policies, "v1.5.0")
 
     def test_unknown_release_and_pr_refs_refused(self):
-        for tag in ("", "v1.5.0-rc.1", "1.5.0", "refs/pull/58/merge", "v1.5.0\ninjected"):
+        for tag in ("", "v1.5.0-rc.0", "v1.5.0-rc.01",
+                    "v1.5.0-rc.foo", "v1.5.1-rc.1", "v1.5.0-rc.1-extra",
+                    "1.5.0", "refs/pull/58/merge", "v1.5.0\ninjected"):
             with self.subTest(tag=tag), self.assertRaises(mod.PromotionEnvironmentError):
                 mod.qualify(self.env, self.policies, tag)
 
