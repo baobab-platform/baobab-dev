@@ -108,7 +108,8 @@ jobs:
           python3 -m unittest -v \
             tests/test_verify_release_contracts.py \
             tests/test_registry_arch_attestations.py \
-            tests/test_signed_release_predicates.py
+            tests/test_signed_release_predicates.py \
+            tests/test_legacy_provenance.py
 
       - name: Authenticate to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
