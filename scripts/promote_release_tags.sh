@@ -1,12 +1,16 @@
 #!/usr/bin/env bash
-# R5: registry tag moves are not transactional. Use two-phase promotion,
-# immutable version-tag preflight, and compensated alias updates on failure.
+# R5: registry tag moves are not transactional. RCs publish only their
+# explicit versioned 1.5.0-rc.N tags; GA publishes version, major/minor/latest.
+# All four profiles must verify before alias changes; compensate on failure.
 set -Eeuo pipefail
-: "${RELEASE_TAG:?stable tag required}"
+: "${RELEASE_TAG:?release tag required}"
 : "${IMAGE:?image required}"
 : "${INFO_DIR:?candidate records required}"
 : "${PROMOTION_EVIDENCE_DIR:?evidence directory required}"
-[[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::not stable semver"; exit 2; }
+if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
+   [[ ! "$RELEASE_TAG" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ]]; then
+  echo "::error::only stable semver and v1.5.0-rc.N allowed"; exit 2
+fi
 [[ "$IMAGE" == "ghcr.io/baobab-platform/baobab-dev" ]] || { echo "::error::wrong registry"; exit 2; }
 command -v jq >/dev/null && command -v crane >/dev/null || { echo "::error::missing jq/crane"; exit 2; }
 mkdir -p "$PROMOTION_EVIDENCE_DIR"
@@ -21,13 +25,11 @@ version_tags=()
 alias_tags=()
 changed_aliases=()
 mutation_started=0
-# Owner has authorised ONLY explicitly version-pinned v1.5.0 development
-# consumer distribution with 295 disclosed kernel-header advisories.
-# Do not silently move latest/major/minor tags for consumers that have not
-# opted into that temporary risk. Other future fully qualified releases
-# preserve the normal alias-promotion behaviour.
-version_only_dev_risk=0
-[[ "$RELEASE_TAG" == "v1.5.0" ]] && version_only_dev_risk=1
+# RC is the only version-only distribution. Owner explicitly requires
+# v1.5.0 GA to update major/minor/latest aliases for consumer adoption.
+# Keep mutable aliases pinned to the existing GA during RC rehearsals.
+is_release_candidate=0
+[[ "$RELEASE_TAG" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ]] && is_release_candidate=1
 
 fail() { echo "::error::DEV-10 R5 promotion: $*" >&2; return 1; }
 read_tag_digest() {
@@ -79,7 +81,7 @@ for target in "${targets[@]}"; do
   [[ "$(jq -er '.tag' "$record")" == "$IMAGE:$tag" ]] || fail "wrong image tag"
   expected["$tag"]="$digest"
   version_tags+=("$tag")
-  if (( version_only_dev_risk == 0 )); then
+  if (( is_release_candidate == 0 )); then
     for prefix in "$major_minor" "$major" latest; do
       alias_tag="$prefix$suffix"
       alias_tags+=("$alias_tag")
@@ -127,10 +129,10 @@ done
 for tag in "${version_tags[@]}" "${alias_tags[@]}"; do
   [[ "$(read_tag_digest "$tag")" == "${expected[$tag]}" ]] || fail "final drift: $tag"
 done
-if (( version_only_dev_risk )); then
-  printf 'result\t%s\t-\tPROMOTED_FOUR_PINNED_DEV_VERSIONS_NO_ALIASES\n' "$RELEASE_TAG" >> "$journal"
-  echo "::warning::R5 v1.5.0: four version tags verified, mutable major/minor/latest aliases deliberately unchanged (known DEV-only security risk); journal: $journal"
+if (( is_release_candidate )); then
+  printf 'result\t%s\t-\tPROMOTED_FOUR_RC_VERSIONS_NO_ALIASES\n' "$RELEASE_TAG" >> "$journal"
+  echo "::notice::R5 $RELEASE_TAG: four RC profiles verified; no consumer aliases advanced; journal: $journal"
 else
-  printf 'result\t%s\t-\tPROMOTED_FOUR_TARGETS\n' "$RELEASE_TAG" >> "$journal"
-  echo "::notice::R5 four profiles/aliases verified; journal: $journal"
+  printf 'result\t%s\t-\tPROMOTED_FOUR_TARGETS_AND_ALIASES\n' "$RELEASE_TAG" >> "$journal"
+  echo "::notice::R5 $RELEASE_TAG: all four profiles and major/minor/latest consumer aliases verified; journal: $journal"
 fi
