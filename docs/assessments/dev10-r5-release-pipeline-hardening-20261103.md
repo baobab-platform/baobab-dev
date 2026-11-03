@@ -1,5 +1,6 @@
 # DEV-10 R5 — Release Pipeline Hardening
 
+> **Current direction — 3 November 2026:** Baobab-dev is a DEVELOPMENT TOOLCHAIN image, not a staging/production application deployment. On the user's explicit clarification, the bounded CVE decision covers a reviewed, published **v1.5.0 tagged GHCR development image** as well as PR #58 CI; only the exact known inventory through 2026-11-13 UTC. Earlier "no tagged release under any circumstances" passages below are historical superseded requirements for **v1.5.0 only**. GHCR/Sigstore source, native exact-digest scan and independent promotion protections remain mandatory. Other tags, new findings and staging/production application deployments are not approved.\n\n
 **Status:** Adopted workstream; implementation in stacked draft PR.
 **Stack:** PR #57 `feat/dev10-r4-lts-multiarch-candidate` → this PR, never directly against `main` before #57 merges.
 **Governing gates:** EA v2.3; DEV-10/DEV-14; protected release, immutable artifacts, independent acceptance.
@@ -276,3 +277,59 @@ finding); independently signed R5 publication and released-registry
 integrity remain separate checks. The existing v1.4.4 SLSA
 typed/protobuf compatibility remediation must also be evaluated from
 live CI; no assumption that this owner approval resolves it.
+
+## 3 November 2026 — corrected R5 release outcome: v1.5.0 developer toolchain image
+
+**Owner's directive:** after acceptance of #58 on its final reviewed head,
+merge the PR, cut **`v1.5.0`** from the merged `main` commit, publish four
+multi-architecture OCI developer-image profiles to GHCR and verify consumers.
+"Development-only" in the risk decision describes the image's **intended
+use and approved residual risk**, not a ban on distributing a versioned OCI
+artifact. The blanket "no tagged release" rule was a category error.
+
+**Temporary exception changed only for the exact distribution:**
+`scripts/dev10_kernel_risk_gate.py` accepts `push` on
+`refs/tags/v1.5.0` with PR number zero and the exact known
+`linux-libc-dev=7.0.0-42.42` advisory inventory before
+**2026-11-13T00:00Z**, in addition to the accepted development PR/main
+contexts. Wrong tags (`v1.5.1`, `v1.6.0`, prerelease variants),
+workflow-dispatch or deployment events, new CVEs, changed packages,
+available fixes, secrets, tampered inventory or expired decisions deny.
+No producer is permitted to fabricate a `not_affected` verdict or hide
+scanner findings.
+
+**Release-digests mandatory remote scan:** every image is first
+unfiltered-Trivy scanned during local validation; when the rebuilt
+artifact is pushed by immutable digest, the native GHCR child digest
+is separately Trivy scanned with freshly verified vulnerability and
+Java DBs. A result of 1 is accepted **only** through the same exact
+scope/expiry risk gate with retained evidence; a scanner error or
+out-of-scope finding stops publication. Any remote digest remains
+immutable/read back with the tagged source revision.
+
+**Release gates not waived:** the R5 pipeline must still verify eight
+native image builds; all four complete index manifests; source labels;
+distinct per-architecture SLSA/SPDX plus exact cosign release OIDC
+identity; protected `dev10-release-promotion` GitHub environment
+and independent promotion with rollback journal; GitHub Release
+digest contracts; and post-publication registry-integrity verification.
+Its v1.5.0 release notes must disclose the temporary risks and review
+deadline. This **does not** authorise application staging/production
+deployment or eliminate the need for real Codespaces/private-package
+consumer readback and testing.
+
+**Exit sequence:** (1) final-head CI green including registry-integrity
+and source/negative tests; (2) review+merge #58; (3) cut v1.5.0 tag
+from that merge; (4) tag-push build + exact remote digests and
+protected promotion; (5) verify GHCR four profiles and AMD64/ARM64
+signatures, source, provenance/SBOM; (6) publish combined GitHub
+Release with honest security disclosure; (7) validate devcontainer
+adoption in representative organisational consumer repos.
+
+**Open practical blockers at time of correction:** latest pre-change
+registry-integrity workflow failed on two legacy v1.4.4 profiles'
+SLSA schema-known comparison, even though their exact SPDX and
+Cosign signatures verified; this remains under investigation.
+The protected promotion Environment's required reviewer/tag settings
+and variable have not been independently verified. Development-risk
+approval is not a substitute for configured GitHub approval.
