@@ -486,9 +486,19 @@ section "Java"
 # `languages.java`/`development.maven` under `full`.
 if [[ "$BAOBAB_BUILD_PROFILE" == "full" ]]; then
 
-    check_required "Java ${JAVA_MAJOR}" java "java --version"
-    check_required "javac" javac "javac --version"
+    check_required "Java ${JAVA_MAJOR} (ERP and Subscriptions)" java "java --version"
+    check_required "javac ${JAVA_MAJOR}" javac "javac --version"
     check_required "Maven" mvn "mvn --version"
+    # Enforce the actual runtime/JDK major instead of trusting a descriptive label.
+    if [[ "${JAVA_MAJOR}" == 21 && -x /opt/java/bin/javac ]] &&
+       java -XshowSettings:properties -version 2>&1 | grep -Eq 'java.specification.version = 21$' &&
+       javac -version 2>&1 | grep -Eq '^javac 21([.]|$)' &&
+       [[ "${JAVA_HOME:-}" == /opt/java ]]; then
+         ok "Java 21 JVM, compiler and JAVA_HOME"
+     else
+         bad "Java 21 runtime/compile/JAVA_HOME contract mismatch"
+     fi
+
 
     # Guard the pinned Maven 3.9.16 Guava replacement, including bytes.
     if [[ -f /opt/maven/lib/guava-33.7.2-jre.jar ]] &&
@@ -601,7 +611,7 @@ check_required "fd" fd
 check_required "bat" bat
 check_required "eza" eza
 check_required "fzf" fzf
-check_optional "tmux" tmux
+check_optional "tmux" tmux "tmux -V"
 
 ###############################################################################
 # User

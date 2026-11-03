@@ -733,7 +733,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" \
       > /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends nodejs && \
+    apt-get install -y --no-install-recommends libatomic1 nodejs && \
+    test "$(node --version)" = "v${NODE_VERSION}" && \
     \
     # npm_install_retry() wraps the two npm-registry-published installs
     # below (npm itself, and its bundled tar) with bounded exponential
@@ -763,62 +764,58 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         node -e 'const u = require(process.argv[1]); if (u.version !== "6.29.1") process.exit(1)' "${NPM_GLOBAL_ROOT}/npm/node_modules/undici/package.json" && \
         rm -rf "${TAR_SCRATCH_DIR}" \
     ) && \
-    corepack enable && \
-    corepack prepare "pnpm@${PNPM_VERSION}" --activate && \
-    # pnpm also ships its own undici; patch real code, retaining the adopted
-    # pnpm release and failing closed if its upstream layout/version changes.
-    PNPM_UNDICI="${COREPACK_HOME}/v1/pnpm/${PNPM_VERSION}/dist/node_modules/undici" && \
-    node -e 'if (require(process.argv[1]).version !== "6.28.0") process.exit(1)' "${PNPM_UNDICI}/package.json" && \
-    rm -rf "${PNPM_UNDICI}" && \
-    cp -r "$(npm root -g)/npm/node_modules/undici" "${PNPM_UNDICI}" && \
-    node -e 'const p=process.argv[1]; if (require(p+"/package.json").version !== "6.29.1" || typeof require(p).request !== "function") process.exit(1)' "${PNPM_UNDICI}" && \
+    # Node 26 no longer bundles Corepack. Keep an exact independent Corepack
+    # for Yarn, but NEVER let its project-specific pnpm shim silently download
+    # an old release or masquerade as the installed native pnpm 12.
+    npm_install_retry -g "corepack@${COREPACK_VERSION}" && \
+    test "$(corepack --version)" = "${COREPACK_VERSION}" && \
+    test "${PNPM_VERSION%%.*}" = "12" && \
+    PNPM_PLATFORM="$(dpkg --print-architecture)" && \
+    case "${PNPM_PLATFORM}" in \
+      amd64) PNPM_ASSET=pnpm-linux-x64.tar.gz; PNPM_DIGEST="${PNPM_SHA256_AMD64}" ;; \
+      arm64) PNPM_ASSET=pnpm-linux-arm64.tar.gz; PNPM_DIGEST="${PNPM_SHA256_ARM64}" ;; \
+      *) echo "Unsupported native pnpm architecture" >&2; exit 1 ;; \
+    esac && \
+    mkdir -p /tmp/dev10-pnpm-native && \
+    curl --fail --location --silent --show-error --retry 3 \
+      "https://github.com/pnpm/pnpm/releases/download/v${PNPM_VERSION}/${PNPM_ASSET}" \
+      --output /tmp/dev10-pnpm-native/archive.tar.gz && \
+    printf '%s  %s\n' "${PNPM_DIGEST}" /tmp/dev10-pnpm-native/archive.tar.gz | sha256sum -c - && \
+    tar -xzf /tmp/dev10-pnpm-native/archive.tar.gz -C /tmp/dev10-pnpm-native && \
+    PNPM_BIN="$(find /tmp/dev10-pnpm-native -type f \
+      \( -name pnpm -o -name pnpm-linux-x64 -o -name pnpm-linux-arm64 \) -print -quit)" && \
+    test -n "${PNPM_BIN}" && \
+    install -m 0755 "${PNPM_BIN}" /usr/local/bin/pnpm && \
     test "$(pnpm --version)" = "${PNPM_VERSION}" && \
+    rm -rf /tmp/dev10-pnpm-native && \
+    # Legacy Yarn is Corepack-managed, pnpm stays the publisher binary.
+    corepack enable yarn && \
     corepack prepare yarn@stable --activate && \
+    test "$(pnpm --version)" = "${PNPM_VERSION}" && \
     chmod -R a+rX "${COREPACK_HOME}"
 
-# Non-interactive-by-construction guard, not a suppression of the prompt —
-# Corepack's own documented mechanism for this exact failure mode. By
-# default Corepack checks a project's package.json `packageManager` field
-# (COREPACK_ENABLE_PROJECT_SPEC, on by default) and, if that pins a
-# pnpm/yarn version other than the one `corepack prepare --activate` just
-# baked in above, silently fetches it over the network on first invocation
-# — in an interactive-feeling shell (Codespaces/Dev Container lifecycle
-# commands) that fetch is preceded by a "Do you want to continue? [Y/n]"
-# confirmation prompt, which blocks forever with no TTY to answer it. That
-# drift is expected to recur (every consumer repo's own `packageManager`
-# pin moves independently of this image's release cadence) even though
-# PNPM_VERSION above is now kept in lockstep with today's known consumers.
-# Setting COREPACK_ENABLE_NETWORK=0 does not touch today's fix (this image
-# already carries the exact version currently declared) — it converts any
-# FUTURE reappearance of the same drift from a silent hang into an
-# immediate, explicit Corepack error naming the missing version, so a
-# consumer repo drifting out of sync with this image fails its Codespace
-# build loudly instead of hanging it. Per Corepack's own docs, the only
-# way to satisfy a project pinning a version this image does not already
-# carry, with network disabled, is to rebuild/republish this image with an
-# updated PNPM_VERSION — exactly the intended remediation path (see
-# docs/frontend-image-contract.md's upgrade procedure), never a prompt.
+# Two distinct package-manager authorities live in this image:
+# - The pinned native pnpm 12 binary /usr/local/bin/pnpm is the only pnpm
+#   executor. pnpm 12 defaults to downloading the project's packageManager
+#   version on a mismatch (pmOnFail=download); that defeats the reproducible,
+#   SHA-256 verified release binary and can hang Codespaces lifecycle scripts.
+#   The supported pnpm 11/12 setting pmOnFail=error rejects a mismatch while
+#   retaining exact-version verification (NOT pmOnFail=ignore/warn).
+# - Corepack 0.36 is independently installed for Yarn only. Its offline and
+#   Known Good Release controls remain fail-closed; they do not configure
+#   pnpm 12's separate package-manager bootstrap metadata resolver.
 #
-# COREPACK_ENABLE_NETWORK=0 alone is not sufficient, and shipping it
-# without COREPACK_DEFAULT_TO_LATEST=0 broke this very build: even a bare
-# `pnpm --version` with NO project `packageManager` spec in scope (exactly
-# what `RUN baobab-verify` below does, from /workspaces with no
-# package.json present) is, by default, resolved via Corepack's "Known
-# Good Release" mechanism, which checks the npm registry for a newer
-# release on every invocation regardless of whether a matching version is
-# already `prepare --activate`d locally (COREPACK_DEFAULT_TO_LATEST, on by
-# default) — a genuinely different Corepack setting than the project-spec
-# mismatch case COREPACK_ENABLE_NETWORK=0 targets above. With network
-# disabled and this left on, that background check itself fails outright:
-# "Network access disabled by the environment; can't reach npm repository
-# https://registry.npmjs.org" — confirmed against this Dockerfile's own
-# frontend-target CI build. Disabling it means Corepack trusts the
-# version it already activated instead of always phoning home first.
+# A FRESH pnpm 12 lockfile containing packageManager: pnpm@12.x needs registry
+# metadata once to record its configuration dependency and its integrity.
+# DEV-10 CI intentionally permits that one cold metadata resolution, then
+# tests the same pin + frozen lock under --network none and --offline.
+# This avoids both silent version-switching and the impossible requirement
+# that an empty cache resolve an unrecorded package offline.
 ENV COREPACK_ENABLE_NETWORK=0 \
-    COREPACK_DEFAULT_TO_LATEST=0
+    COREPACK_DEFAULT_TO_LATEST=0 \
+    pnpm_config_pm_on_fail=error
 
 # -----------------------------------------------------------------------------
-
 # -----------------------------------------------------------------------------
 # Stage: frontend — Node/pnpm/Turborepo only, for the four digital-estate
 # repos (baobab-platform/nabhold, zuribeans, thamani, equator-estate). Branches
@@ -1115,6 +1112,36 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     update-alternatives --install /usr/bin/python3 python3 "/usr/bin/python${PYTHON_MINOR}" 1 && \
     update-alternatives --install /usr/bin/python  python  /usr/bin/python3 1
 
+# DEV10-R4: Ubuntu's python3.14 apt package guarantees the minor, NOT the
+# Python 3.14.10 security patch. Fetch PSF's exact signed-release tarball with
+# its published SHA-256; compile independently on amd64 and arm64. Do not
+# report a patch level that the actual binary does not provide.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    set -euo pipefail; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
+      libsqlite3-dev libffi-dev liblzma-dev libncurses-dev xz-utils; \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
+    test "${PYTHON_VERSION}" = "3.14.10"; \
+    curl --fail --location --silent --show-error \
+      "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz" \
+      --output /tmp/baobab-python.tar.xz; \
+    echo "de414a57119abef52784d8993e341d53aed635fc2b05c2607d9f98a2c5b72032  /tmp/baobab-python.tar.xz" | sha256sum -c -; \
+    mkdir -p /tmp/baobab-python-source; \
+    tar --no-same-owner -xf /tmp/baobab-python.tar.xz -C /tmp/baobab-python-source --strip-components=1; \
+    cd /tmp/baobab-python-source; \
+    ./configure --prefix="/opt/baobab-python/${PYTHON_VERSION}" --with-ensurepip=install; \
+    make -j 4; \
+    make altinstall; \
+    ln -sfn "/opt/baobab-python/${PYTHON_VERSION}/bin/python3.14" /usr/local/bin/python3.14; \
+    ln -sfn /usr/local/bin/python3.14 /usr/local/bin/python3; \
+    ln -sfn /usr/local/bin/python3.14 /usr/local/bin/python; \
+    /usr/local/bin/python3 -V 2>&1 | grep -Fx "Python ${PYTHON_VERSION}"; \
+    /usr/local/bin/python3 -c 'import ssl,sqlite3,bz2,lzma,ctypes,venv; print(ssl.OPENSSL_VERSION)'; \
+    rm -rf /tmp/baobab-python-source /tmp/baobab-python.tar.xz
+
 # pip self-upgrade + explicit setuptools/msgpack upgrade.
 #
 # CORRECTED DIAGNOSIS (previous comment here was wrong — left this note so
@@ -1190,10 +1217,17 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
     export PIP_CONSTRAINT="${BAOBAB_CONFIG_DIR}/python-build-constraints.txt" && \
     python3 -m pip install --no-cache-dir --break-system-packages pipx && \
+    # PSF CPython installed under /opt places its pipx CLI in the Python
+    # script directory, not /usr/local/bin; expose that verified executable
+    # for the non-root vscode user and baobab-verify rather than skipping it.
+    PIPX_SCRIPT_DIR="$(python3 -c 'import sysconfig;print(sysconfig.get_path("scripts"))')" && \
+    test -x "${PIPX_SCRIPT_DIR}/pipx" && \
+    ln -sfn "${PIPX_SCRIPT_DIR}/pipx" /usr/local/bin/pipx && \
     export PATH="/usr/local/bin:${PATH}" && \
+    test -x "$(command -v pipx)" && \
     python3 -m pipx ensurepath --global && \
-    pipx install --global "poetry==${POETRY_VERSION}" && \
-    pipx inject --global poetry poetry-plugin-shell && \
+    python3 -m pipx install --global "poetry==${POETRY_VERSION}" && \
+    python3 -m pipx inject --global poetry poetry-plugin-shell && \
     python3 -m pip install --no-cache-dir --break-system-packages --upgrade "setuptools>=78.1.1" "msgpack>=1.2.1" "urllib3==2.8.0" && \
     python3 -m pip check && \
     "${PIPX_GLOBAL_HOME}/venvs/poetry/bin/python" -m pip check && \
@@ -1201,11 +1235,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     "${PIPX_GLOBAL_HOME}/venvs/poetry/bin/python" -c 'from importlib.metadata import version; assert version("urllib3") == "2.8.0", "POETRY_URLLIB3_PIN_DRIFT"' && \
     chmod -R a+rX "${PIPX_GLOBAL_HOME}"
     
+# Replace all three pip instances with the checksum-built, source-vendored wheel:
+# the PSF /opt interpreter, pipx's shared installer and Ubuntu's remaining
+# /usr/bin/python3.14 interpreter. CI's raw Trivy artifact showed that third
+# interpreter still contained pip 26.3 with vendored setuptools 70.3.0, which
+# is vulnerable to CVE-2025-47273. Never hide that residual CVE via scan waivers.
 # Replace both executable pip installations, including pipx's shared installer.
 COPY --from=patched-pip /out/pip-26.2.2+baobab.1-py3-none-any.whl /tmp/baobab-pip.whl
 RUN mv /tmp/baobab-pip.whl /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
     python3 -m pip install --no-index --no-deps --break-system-packages /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
     "${PIPX_GLOBAL_HOME}/shared/bin/python" -m pip install --no-index --no-deps /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
+    /usr/bin/python3.14 -m pip install --no-index --no-deps --break-system-packages --force-reinstall /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
+    /usr/bin/python3.14 -c 'import pip; assert pip.__version__ == "26.2.2+baobab.1"; from pip._vendor import pkg_resources; assert str(pkg_resources.parse_version("1.2.3")) == "1.2.3"' && \
     python3 -c 'from pip._vendor import urllib3; assert urllib3.__version__ == "2.8.0"' && \
     "${PIPX_GLOBAL_HOME}/shared/bin/python" -c 'from pip._vendor import urllib3; assert urllib3.__version__ == "2.8.0"' && \
     rm /tmp/pip-26.2.2+baobab.1-py3-none-any.whl
@@ -1305,8 +1346,9 @@ https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSI
       > /etc/apt/sources.list.d/adoptium.list && \
     apt-get update && \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
+    # Java 21 is the single image JDK for ERP iDempiere v13 and Subscriptions.
     apt-get install -y --no-install-recommends \
-      temurin-${JAVA_MAJOR}-jdk
+      "temurin-${JAVA_MAJOR}-jdk"
 
 # Adoptium's package installs under a version- and arch-suffixed path
 # (/usr/lib/jvm/temurin-${JAVA_MAJOR}-jdk-<arch>) rather than a stable one.
@@ -1316,7 +1358,14 @@ https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSI
 # "stable path, whatever the underlying vendor path really is" approach
 # already used by /opt/flutter and (below) /opt/maven, so JAVA_HOME in
 # section 10's global ENV block never has to hardcode a version/arch suffix.
-RUN ln -s "$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")" /opt/java
+RUN set -euo pipefail; \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
+    test "${JAVA_MAJOR}" = 21; \
+    java21="$(find /usr/lib/jvm -maxdepth 1 -type d -name "temurin-${JAVA_MAJOR}-jdk-*" -print -quit)"; \
+    test -n "$java21" && test -x "$java21/bin/javac"; \
+    ln -s "$java21" /opt/java; \
+    /opt/java/bin/javac -version 2>&1 | grep -Eq "^javac 21([.]|$)"; \
+    /opt/java/bin/java -XshowSettings:properties -version 2>&1 | grep -Eq "java.specification.version = 21$"
 
 # FIX (2026-09-03): the Trivy "scan built container" CI step failed on both
 # platforms after Maven was added — not a real secret. Maven's own stock
@@ -1351,8 +1400,9 @@ RUN ln -s "$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")" /opt/
 # are unaffected. Real credentials, if a developer ever configures any,
 # belong in their own ~/.m2/settings.xml at the container's runtime, never
 # in this image.
-# Maven 3.9.16 bundles Guava 33.6.0-jre; CVE-2026-102554 is resolved by
-# a checksum-pinned 33.7.2-jre replacement in the same extraction layer.
+# Maven's bundled Guava filename varies across Maven releases. Replace the
+# single bundled jar with checksum-pinned 33.7.2-jre (CVE-2026-102554),
+# failing closed on absent or multiple bundled jars; never suppress the scan.
 # The layout/compatibility guards fail closed instead of suppressing the scan.
 RUN set -euo pipefail; \
     . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
@@ -1362,12 +1412,11 @@ RUN set -euo pipefail; \
     mkdir -p /opt/maven; \
     tar -xzf /tmp/maven.tar.gz -C /opt/maven --strip-components=1; \
     rm -f /tmp/maven.tar.gz; \
-    test -f /opt/maven/lib/guava-33.6.0-jre.jar; \
     test "$(find /opt/maven/lib -maxdepth 1 -name 'guava-*.jar' | wc -l)" -eq 1; \
     curl -fsSL --retry 5 -o /opt/maven/lib/guava-33.7.2-jre.jar \
       "https://repo.maven.apache.org/maven2/com/google/guava/guava/33.7.2-jre/guava-33.7.2-jre.jar"; \
     echo "b530942257fb935f8b2cfaa5f8eb5bd59c555fd8e8d01b8ce98912e077ea606c  /opt/maven/lib/guava-33.7.2-jre.jar" | sha256sum --check --strict; \
-    rm /opt/maven/lib/guava-33.6.0-jre.jar; \
+    find /opt/maven/lib -maxdepth 1 -name 'guava-*.jar' ! -name 'guava-33.7.2-jre.jar' -delete; \
     test "$(find /opt/maven/lib -maxdepth 1 -name 'guava-*.jar' | wc -l)" -eq 1; \
     python3 -c "import re; p = '/opt/maven/conf/settings.xml'; c = open(p).read(); open(p, 'w').write(re.sub(r'<!--.*?-->', '', c, flags=re.DOTALL))"; \
     /opt/maven/bin/mvn --version
@@ -1386,19 +1435,17 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
       > /etc/apt/sources.list.d/docker.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends \
-      docker-ce-cli \
-      docker-compose-plugin \
-      docker-buildx-plugin
+    apt-get install -y --no-install-recommends docker-ce-cli && \
+    install -d -m 0755 /usr/libexec/docker/cli-plugins
 
-# Keep the adopted plugin release versions, replacing their vulnerable Go
-# dependencies with the checksum-pinned security rebuilds. Apt drift fails closed.
-RUN dpkg-query -W -f='${Version}' docker-buildx-plugin | grep -E '^0\.38\.1-' && \
-    dpkg-query -W -f='${Version}' docker-compose-plugin | grep -E '^5\.6\.1-'
+# Install ONLY our source-pinned, security-rebuilt CLI plugin binaries.
+# Their exact upstream revisions and patched dependency graphs are verified
+# by build-security-clis.sh. Do not install floating Docker apt plugin packages
+# (the last observed Compose package was 5.7.0 vs the verified 5.6.1 rebuild).
 COPY --from=patched-go-clis /out/licenses/ /usr/share/licenses/baobab-cli/
 COPY --from=patched-go-clis /out/docker-buildx /usr/libexec/docker/cli-plugins/docker-buildx
 COPY --from=patched-go-clis /out/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
-RUN docker buildx version && docker compose version
+RUN docker buildx version | grep -F 'v0.38.1' && docker compose version | grep -F 'v5.6.1'
 
 # -----------------------------------------------------------------------------
 # 8. Shell productivity & GitHub Actions-adjacent utilities
@@ -1593,19 +1640,17 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
       > /etc/apt/sources.list.d/docker.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends \
-      docker-ce-cli \
-      docker-compose-plugin \
-      docker-buildx-plugin
+    apt-get install -y --no-install-recommends docker-ce-cli && \
+    install -d -m 0755 /usr/libexec/docker/cli-plugins
 
-# Keep the adopted plugin release versions, replacing their vulnerable Go
-# dependencies with the checksum-pinned security rebuilds. Apt drift fails closed.
-RUN dpkg-query -W -f='${Version}' docker-buildx-plugin | grep -E '^0\.38\.1-' && \
-    dpkg-query -W -f='${Version}' docker-compose-plugin | grep -E '^5\.6\.1-'
+# Install ONLY our source-pinned, security-rebuilt CLI plugin binaries.
+# Their exact upstream revisions and patched dependency graphs are verified
+# by build-security-clis.sh. Do not install floating Docker apt plugin packages
+# (the last observed Compose package was 5.7.0 vs the verified 5.6.1 rebuild).
 COPY --from=patched-go-clis /out/licenses/ /usr/share/licenses/baobab-cli/
 COPY --from=patched-go-clis /out/docker-buildx /usr/libexec/docker/cli-plugins/docker-buildx
 COPY --from=patched-go-clis /out/docker-compose /usr/libexec/docker/cli-plugins/docker-compose
-RUN docker buildx version && docker compose version
+RUN docker buildx version | grep -F 'v0.38.1' && docker compose version | grep -F 'v5.6.1'
 
 # -----------------------------------------------------------------------------
 # HashiCorp Terraform

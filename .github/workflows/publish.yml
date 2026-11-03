@@ -15,8 +15,10 @@
 #
 # PUBLISH TRIGGER POLICY:
 #   Build and unrestricted Trivy checks run on PR, main and tag pushes.
-#   Only a reviewed v*.*.* tag PUSH can publish an image, sign a digest,
-#   or create a GitHub Release. Manual workflow_dispatch is validation-only
+#   Only a reviewed STABLE v*.*.* tag PUSH can publish an image,
+#   sign a digest or create a GitHub Release. Prerelease tags such as
+#   v1.5.0-rc.1 run the strict validation/build/security gates but NEVER
+#   publish a GHCR digest, sign it or create a release. Manual workflow_dispatch is validation-only
 #   on main; it cannot substitute an alternate tag or source revision.
 #   Every checkout uses github.sha, the GitHub-supplied immutable event SHA.
 #   This closes CodeQL actions/cache-poisoning/poisonable-step (#2) by never
@@ -140,7 +142,7 @@ jobs:
       contents: read
 
     outputs:
-      # Nonempty / true only on a version-tag push. Manual dispatch is
+      # Nonempty / true only on a stable version-tag push. Manual dispatch is
       # validation-only on main and cannot set a release tag.
       release_tag: ${{ steps.release-context.outputs.release_tag }}
       is_release: ${{ steps.release-context.outputs.is_release }}
@@ -172,7 +174,9 @@ jobs:
               exit 1
             fi
             echo "release_tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
-            echo "is_release=true" >> "$GITHUB_OUTPUT"
+            # A prerelease tag is a fully security-scanned RC dry run, not a
+            # publishing event. Only a GA semver tag may push/sign/release.
+            echo "is_release=$(is_stable_release "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
             echo "is_stable_release=$(is_stable_release "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
           else
             echo "release_tag=" >> "$GITHUB_OUTPUT"
@@ -729,63 +733,21 @@ jobs:
         run: |
           docker run --rm baobab-dev:scan baobab-verify
 
-      # Non-interactive Package-Manager Provisioning Test (frontend /
-      # frontend-e2e only — the two targets that install pnpm via
-      # Corepack). This is deliberately separate from the smoke test just
-      # above: `baobab-verify` proves pnpm is present and at the expected
-      # exact version INSIDE the built image, but it never actually
-      # exercises Corepack's own project-spec-matching path the way a real
-      # consumer repo's devcontainer lifecycle command does. Reproduces
-      # that exact path instead: a throwaway fixture project pins the
-      # SAME exact pnpm version this image's config/versions.lock resolved
-      # (PNPM_VERSION), matching the real-world shape of a consumer's own
-      # package.json `packageManager` field, then runs `pnpm install
-      # --frozen-lockfile` with stdin fully closed and no pty (`docker run`
-      # without `-i`/`-t`, plus `< /dev/null` on the host side) and
-      # `CI=true` set — the same non-interactive shape a Codespaces/Dev
-      # Container `updateContentCommand` runs under. `timeout 90` turns a
-      # regression of the original interactive-prompt hang (the defect
-      # this whole change fixes) into a clear, bounded CI failure instead
-      # of silently consuming the job's entire runner budget.
+      # DEV-10 R4 pnpm 12 provisioning qualification (AMD64). Native pnpm
+      # and the exact pinned version are verified by baobab-verify separately.
+      # pnpm 12's packageManager pin is a CONFIG dependency: its boot
+      # metadata must be resolved once over the network to create a valid
+      # lock. The second run is physically disconnected, frozen and offline,
+      # followed by negative tests for wrong packageManager and bad lock.
+      # Corepack is only responsible for Yarn; no pnpm download/shim is used.
       - name: Execute non-interactive package-manager provisioning test
         if: (matrix.target == 'frontend' || matrix.target == 'frontend-e2e') && matrix.platform == 'linux/amd64'
         run: |
           set -euo pipefail
           # shellcheck disable=SC1091
           . config/versions.lock
-          : "${PNPM_VERSION:?PNPM_VERSION missing from resolved versions.lock}"
-
-          FIXTURE_DIR="${{ runner.temp }}/pnpm-fixture"
-          rm -rf "${FIXTURE_DIR}"
-          mkdir -p "${FIXTURE_DIR}"
-
-          cat > "${FIXTURE_DIR}/package.json" <<EOF
-          {
-            "name": "baobab-dev-pnpm-provisioning-fixture",
-            "private": true,
-            "packageManager": "pnpm@${PNPM_VERSION}"
-          }
-          EOF
-          printf 'lockfileVersion: '"'"'9.0'"'"'\n' > "${FIXTURE_DIR}/pnpm-lock.yaml"
-
-          # The bind mount below keeps the host directory's ownership
-          # (the runner's own UID, not 1000) inside the container, but
-          # `baobab-dev:scan` defaults to USER vscode (UID 1000) — pnpm
-          # then fails with EACCES writing its own temp file in a
-          # directory it can't write to. This fixture is throwaway CI
-          # scratch space with nothing sensitive in it, so opening it up
-          # is harmless; the alternative (matching UIDs via --user) would
-          # only reproduce a real consumer's actual UID by coincidence.
-          chmod -R a+rwX "${FIXTURE_DIR}"
-
-          echo "::notice:: Verifying pnpm@${PNPM_VERSION} installs non-interactively (no TTY, no network) for target '${{ matrix.target }}'."
-
-          timeout 90 docker run --rm \
-            -e CI=true \
-            -v "${FIXTURE_DIR}:/workspaces/fixture" \
-            -w /workspaces/fixture \
-            baobab-dev:scan \
-            pnpm install --frozen-lockfile < /dev/null
+          : "${PNPM_VERSION:?missing resolved pnpm version}"
+          bash scripts/qualify-pnpm-provisioning.sh baobab-dev:scan "$PNPM_VERSION"
 
   # Job 3: Manifest Creation, OIDC Cosign Signing & Release Attestation
   # Merges per-arch images into a multi-arch OCI index, applies keyless

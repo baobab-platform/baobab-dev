@@ -51,9 +51,9 @@ capabilities:
   full:
     languages:
       python: "3.14"
-      node: "24"
+      node: "26"
       flutter: "stable"
-      java: "17"
+      java: "21"
     database:
       postgresql: "17"
     package_managers:
@@ -69,7 +69,7 @@ capabilities:
 
   frontend:
     languages:
-      node: "24"
+      node: "26"
     package_managers:
       pnpm: true
     development:

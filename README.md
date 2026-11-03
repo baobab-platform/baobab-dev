@@ -121,6 +121,42 @@ The `docs/` directory is designed to be published through **GitHub Pages**, maki
 * [Changelog](CHANGELOG.md)
 * Acknowledgements *(coming soon)*
 
+
+## DEV-10 R4 candidate — v1.5.0 (not released)
+
+PR [#57](https://github.com/baobab-platform/baobab-dev/pull/57) proposes
+**Python 3.14.10, Node 26.13.0, native pnpm 12.16.1, Corepack 0.36.0,
+Temurin Java 21, PostgreSQL 17 client and Playwright 1.64.1**. These are
+a **candidate toolchain**, not a published image or a blanket migration
+mandate for consumers currently pinned to Node 24 / pnpm 11.
+
+**pnpm 12 reproducibility:** The image uses the verified native pnpm
+executable (not a Corepack pnpm shim), with `pnpm_config_pm_on_fail=error`.
+A mismatched consumer `packageManager` version must fail, not download
+unreviewed binaries. pnpm 12 requires npm registry metadata when first
+creating a lockfile with a `packageManager` pin; CI first creates and
+caches that lock from a non-interactive ordinary install, then validates
+the same lock with `--frozen-lockfile --offline` and Docker
+`--network none`. Negative cases reject a wrong pin and an invalid lock.
+See [provisioning qualification script](scripts/qualify-pnpm-provisioning.sh).
+No network-disabled *cold* lock generation is claimed.
+
+The manifest is `config/versions.yaml`; `config/versions.lock` captures
+exact resolved values. A reproducible source resolver, both image
+architectures, strict image scans, non-interactive pnpm frozen installs,
+native consumer tests and user-owned Codespaces/private-package
+qualification are separate gates. The
+[PR #57 qualification register](docs/assessments/dev10-r4-pr57-qualification-20261103.md)
+records current evidence and blockers.
+
+**Release boundary:** the scoped development acceptance for 295
+`linux-libc-dev=7.0.0-42.42` findings expires **13 November 2026 00:00 UTC**
+and does not authorise a `v1.5.0-rc.1` or `v1.5.0` image publish.
+The candidate RC tag is validation-only (no GHCR publish or signing);\nthe stable GA tag retains the publish path. The tag-time pipeline must
+stay fail-closed until a vendor fix or an
+independently attributable, exact-CVE/digest release decision is recorded.
+Do not use an RC tag to bypass the same security and provenance gates.
+
 ## Foundation 4
 
 This repository dogfoods `ghcr.io/baobab-platform/baobab-dev:1.4.4`. Its SHA-pinned

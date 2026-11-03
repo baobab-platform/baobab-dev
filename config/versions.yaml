@@ -11,9 +11,11 @@
 #
 # Notes
 # -----
-# • Edit only this file when upgrading software.
-# • resolve.sh reads this file and generates versions.lock.
-# • The Dockerfile consumes versions.lock.
+# • This manifest declares desired versions; config/versions.lock pins resolved bytes.
+# • Re-run config/resolve.sh and review all digest/install contract changes.
+# • Keep security vendoring, native consumer pins and image readback consistent.
+# • Node 26/pnpm 12/Java 21/Python 3.14.10 below are PR #57 candidates,
+#   not authority to publish v1.5.0 or activate unqualified consumer upgrades.
 # ==============================================================================
 
 manifest:
@@ -28,11 +30,12 @@ platform:
 languages:
 
   python:
-    version: "3.14.6"
+    version: "3.14.10"
     source: "python.org"
 
   node:
-    major: "24"
+    major: "26"
+    exact: "26.13.0"
     source: "nodesource"
 
   flutter:
@@ -41,10 +44,13 @@ languages:
     source: "flutter"
 
   java:
-    version: "17"
+    version: "21"
     source: "apt"
-    # OpenJDK 17 (JDK, not JRE), via Eclipse Temurin's own apt repository —
-    # NOT Ubuntu's own openjdk-17-jdk package. Same reasoning already applied
+    # Temurin Java 21 is the shared developer default for both iDempiere v13
+    # and baobab-subscriptions. iDempiere documents OpenJDK >=17; actual
+    # v13 JVM/bundle and owner tests on Java 21 remain qualification gates.
+    # Requires a full JDK (not JRE-only), via Eclipse Temurin's own apt repository —
+    # NOT Ubuntu's distribution-selected OpenJDK package. Same reasoning already applied
     # to docker/postgresql below: an upstream-maintained apt repo keeps the
     # exact vendor/build consistent across Ubuntu base-image upgrades, rather
     # than whatever OpenJDK build Ubuntu's own archive happens to carry for a
@@ -58,7 +64,7 @@ languages:
     # Install_Prerequisites, live-verified 2026-09-01) require a JDK
     # (explicitly not JRE-only — "openjdk-17-jre is not sufficient because
     # it doesn't have the jar command used in some scripts"), OpenJDK 17 or
-    # later, LTS preferred. "17" here means major version only, resolved the
+    # later, LTS preferred. "21" here means major version only, resolved the
     # same way postgresql.major is below — apt's own dependency resolution
     # picks the exact point release, not this file.
 
@@ -79,31 +85,29 @@ package_managers:
     source: "github"
 
   pnpm:
-    version: "11.24.0"
+    version: "12.16.1"
+    source: "github-release"
+    # Publisher-release asset SHA-256 for the two official Linux glibc
+    # binaries; install exact native PNPM, never an arbitrary Corepack shim.
+    sha256_amd64: "565ff81174a14f6f7bd5d84c1b17e51031a80230d370a1fe24be5d16bd02a825"
+    sha256_arm64: "f5847699e5d528f8f8e9bcfb385e58cb9fba7482af1b1aa7b70737be42277f81"
+    # Security-sensitive native executable: all installed bytes are matched
+    # against the official GitHub release digest for each architecture.
+    # pnpm 12 treats package.json#packageManager as a configuration bootstrap
+    # dependency. A COLD lockfile creation needs registry metadata; an offline
+    # frozen install is qualified after metadata/archive is fetched and cached.
+    # This image sets pnpm_config_pm_on_fail=error, never ignore/warn/download:
+    # mismatched consumer pins fail rather than downloading a second pnpm.
+    # The exact native binary and its per-architecture SHA-256 remain authoritative.
+    # Keep consumers' packageManager pins equal to the candidate only when
+    # they have passed independent BXS/Playwright/native-engine qualification.
+    # Node 26's Corepack is a separate, pinned tool for Yarn compatibility.
+
+  corepack:
+    version: "0.36.0"
     source: "npm"
-    # Explicit pin, NOT "latest" — unlike npm/npm_bundled_tar below, whose
-    # float is deliberate (see their own comments: CVE freshness for a
-    # bundled dependency of Node itself, not the primary package manager
-    # engineers and CI invoke directly). pnpm is different: it is baked into
-    # this image via `corepack prepare "pnpm@${PNPM_VERSION}" --activate`
-    # (with-node stage), and every frontend/frontend-e2e/full consumer repo
-    # independently pins an EXACT pnpm version via its own package.json
-    # `packageManager` field (e.g. zuribeans, nabhold: "pnpm@11.24.0").
-    # Corepack checks that field by default (COREPACK_ENABLE_PROJECT_SPEC)
-    # and, finding a version other than whatever "latest" happened to
-    # resolve to at this image's last build, attempts to download the
-    # project-declared version on first invocation — which is exactly the
-    # interactive "Do you want to continue? [Y/n]" prompt that hung
-    # Codespaces provisioning (COREPACK_ENABLE_NETWORK=0 below, in the
-    # Dockerfile's with-node stage, turns any future recurrence of this same
-    # drift into an immediate clear failure instead of a hang, but the
-    # actual fix is this: keep this pin equal to what consuming repos'
-    # `packageManager` fields declare, so the exact version they need is
-    # already resident and no network call is ever attempted). 11.24.0 is
-    # the version zuribeans and nabhold currently declare (2026-09-18) —
-    # bump this in lockstep whenever those repos bump theirs, exactly like
-    # the "Version upgrade procedure" documented in docs/frontend-image-
-    # contract.md.
+    # Node 26 does not bundle Corepack. Exact package + npm-registry integrity
+    # is mandatory, before any noninteractive pnpm activation.
 
   npm:
     version: "latest"
@@ -191,26 +195,22 @@ development:
     source: "github"
 
   maven:
-    version: "3.9.16"
+    version: "3.10.0"
     source: "apache"
-    # Explicit pin, NOT "latest" — unlike almost every other GitHub/npm-sourced
-    # tool in this file. Maven Central's own maven-metadata.xml currently
-    # resolves <latest>/<release> to 4.0.0-rc-6 (a pre-release of an
-    # in-development major version), which would silently pull an
-    # incompatible, non-GA toolchain into every build. iDempiere's own build
-    # requires the Maven 3.9.x line specifically (wiki.idempiere.org, see the
-    # java entry above) — 3.9.16 is the latest GA release on that line at
-    # authoring time (2026-09-01).
+    # DEV-10 R4 owner-directed stable Maven 3.10.x upgrade candidate.
+    # Apache's release catalog and release history identify 3.10.0 as the
+    # latest GA in this line (2026-11-03); Maven 4.0.0-rc-7 is NOT GA.
+    # Pin the exact version rather than a mutable "latest" or "3.10.x".
+    # Maven 3.10 uses Resolver 2.x: the Baobab ERP OSGi and Subscriptions
+    # consumer tests, including Java 21 and PostgreSQL 17, are independent
+    # acceptance gates. This source change is not a completed qualification.
     #
-    # Distribution is the official Apache tarball, architecture-independent
-    # (pure Java — no per-arch binary, unlike the Temurin JDK above), fetched
-    # from archive.apache.org (not dlcdn.apache.org, which only mirrors the
-    # single current release and would break reproducibility once 3.9.16 is
-    # superseded) at:
+    # The official architecture-independent Apache distribution is fetched
+    # from archive.apache.org so later supersession cannot break the build:
     #   https://archive.apache.org/dist/maven/maven-3/${version}/binaries/apache-maven-${version}-bin.tar.gz
-    # Verified via the matching Apache-published `.sha512` sidecar (Apache
-    # publishes SHA-512 for Maven releases, not SHA-256 — see resolve.sh),
-    # per this repo's Zero-Trust Binary Downloads convention.
+    # config/resolve.sh verifies the Apache-published .sha512 sidecar and
+    # records the exact value in versions.lock; image builds check the tarball.
+    # Do not infer Maven 4/Tycho or production iDempiere compatibility here.
 
 # ------------------------------------------------------------------------------
 # NEW — frontend_tooling
@@ -243,7 +243,7 @@ frontend_tooling:
     stage: "frontend"
 
   playwright:
-    version: "1.62.1"
+    version: "1.64.1"
     source: "npm"
     stage: "frontend-e2e"
     note: >
