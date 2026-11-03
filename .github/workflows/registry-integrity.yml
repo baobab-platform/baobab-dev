@@ -241,7 +241,7 @@ jobs:
             # verify-image.sh's own [INFO]/[SUCCESS] lines are useful on
             # success but should not spam the log on a failure this loop
             # already reports clearly via ::error::.
-            if ! verify_output=$(./scripts/verify-image.sh "${image_name}@${actual_digest}" 2>&1); then
+            if ! verify_output=$(./scripts/verify-image.sh "${image_name}@${actual_digest}" "${RELEASE_TAG}" 2>&1); then
               echo "::error::${ref}@${actual_digest} failed signature/attestation verification (Cosign signature, SLSA provenance, or SPDX SBOM attestation no longer verifies):"
               echo "${verify_output}"
               failures=$((failures + 1))
