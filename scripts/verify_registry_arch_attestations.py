@@ -24,6 +24,9 @@ from typing import Callable
 from verify_signed_release_predicates import (
     PredicateError, fingerprint, parse_verified, qualify as verify_predicates,
 )
+from verify_legacy_provenance import (
+    LegacyProofError, LEGACY_INDICES, LEGACY_TAG, qualify_legacy,
+)
 
 IMAGE = "ghcr.io/baobab-platform/baobab-dev"
 INDEX_REF = re.compile(r"^ghcr\.io/baobab-platform/baobab-dev@sha256:[a-f0-9]{64}$")
@@ -200,13 +203,14 @@ def verify(image: str, tag: str, expected_sha: str,
             "--output", "json", image]
     signed_p = runner(["cosign", "verify-attestation", "--type", "slsaprovenance1"] + base)
     signed_s = runner(["cosign", "verify-attestation", "--type", "spdxjson"] + base)
+    digest = image.split("@", 1)[1]
+    status = "STRICT_SIGNED_NATIVE_CONTENT_VERIFIED"
     try:
         signed = verify_predicates(raw_provenance, raw_sbom, signed_p, signed_s,
-                                   expected_subject=image.split("@", 1)[1])
+                                   expected_subject=digest)
     except PredicateError as exc:
-        # Fingerprints, counts and types only: never put the full BuildKit
-        # provenance, SPDX file inventory, certificates or raw stdout in CI.
-        # This diagnoses historical releases without treating a mismatch as PASS.
+        # Fingerprints, counts and types only: never put raw BuildKit provenance,
+        # SPDX records, certificates or private inputs into CI logs.
         groups = (
             ("slsa", SLSA, raw_provenance, signed_p),
             ("spdx", SPDX, raw_sbom, signed_s),
@@ -215,16 +219,39 @@ def verify(image: str, tag: str, expected_sha: str,
         for name, kind, expected, verified in groups:
             item = {"embedded_sha256": [fingerprint(p) for p in expected]}
             try:
-                item["signed_sha256"] = parse_verified(verified, kind)
+                item["signed_sha256"] = parse_verified(verified, kind, digest)
             except PredicateError as suberror:
                 item["signed_error"] = str(suberror)
             diagnostics[name] = item
-        raise RegistryProofError(
-            "signed-to-BuildKit predicate binding failed (legacy compatibility "
-            "or registry-content divergence; not accepted): "
-            + json.dumps(diagnostics, sort_keys=True)) from exc
+
+        # Only the FOUR immutable v1.4.4 releases used Cosign's old typed
+        # SLSA v1 writer. The historical writer drops unrecognized proto
+        # fields, so exact full-predicate equivalence is impossible. Require
+        # independently verified OIDC signatures, matching SPDX content,
+        # matching schema-known SLSA content and the pinned index/source.
+        # A new/rebound release NEVER qualifies for this path.
+        if tag == LEGACY_TAG and digest in LEGACY_INDICES:
+            try:
+                signed = qualify_legacy(
+                    digest, tag, expected_sha, raw_provenance, raw_sbom,
+                    signed_p, signed_s,
+                )
+                status = signed["status"]
+            except LegacyProofError as legacy_exc:
+                raise RegistryProofError(
+                    "historical signed SLSA schema-known fields also differ; "
+                    "no typed-serializer compatibility accepted: "
+                    + str(legacy_exc) + "; digests="
+                    + json.dumps(diagnostics, sort_keys=True)) from legacy_exc
+        else:
+            raise RegistryProofError(
+                "signed-to-BuildKit predicate binding failed; strict R5 "
+                "verification required: "
+                + json.dumps(diagnostics, sort_keys=True)) from exc
+
     return {"schema": "baobab.dev10.readonly-registry-native-qualification.v1",
-            "image": image, "release_tag": tag, "source_sha": expected_sha,
+            "status": status, "image": image,
+            "release_tag": tag, "source_sha": expected_sha,
             "native": evidence, "signed_predicate_evidence": signed}
 
 
@@ -239,7 +266,13 @@ def main() -> int:
         result = verify(a.image, a.tag, a.expected_sha)
         a.evidence.parent.mkdir(parents=True, exist_ok=True)
         a.evidence.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
-        print("Native AMD64/ARM64 image revision, BuildKit SLSA/SPDX and signed content VALID")
+        if result["status"] != "STRICT_SIGNED_NATIVE_CONTENT_VERIFIED":
+            print("::warning::Historical pinned v1.4.4: both native signed "
+                  "SPDX documents and schema-known SLSA fields verified; "
+                  "Cosign typed SLSA discarded unknown fields at signing. "
+                  "Not full-content equivalent and NOT R5 release qualification.")
+        else:
+            print("Native AMD64/ARM64 revision, SLSA/SPDX full signed content VALID")
         return 0
     except (RegistryProofError, ValueError, TypeError, OSError) as exc:
         # Retain a bounded negative artifact, even when nothing qualified.
