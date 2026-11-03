@@ -45,6 +45,11 @@ on:
   schedule:
     - cron: "17 5 * * *"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional exact release to check (v1.5.0-rc.N or GA); empty checks latest GA"
+        type: string
+        required: false
   # On the stacked PR, prove changed integrity logic against the current
   # released GHCR contract with read-only credentials.
   pull_request:
@@ -148,21 +153,50 @@ jobs:
       - name: Make verify-image.sh executable
         run: chmod +x scripts/verify-image.sh
 
-      - name: Fetch latest stable GitHub Release contract
+      - name: Fetch selected RC/GA or latest stable GitHub Release contract
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED_TAG: ${{ inputs.release_tag || '' }}
+          TRIGGER_TAG: ${{ github.event.workflow_run.head_branch || '' }}
+          TRIGGER_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+          TRIGGER_EVENT: ${{ github.event.workflow_run.event || '' }}
         run: |
           set -euo pipefail
-          gh api "repos/${GITHUB_REPOSITORY}/releases/latest" > "${RUNNER_TEMP}/release.json"
+          # PR/schedule defaults to latest GA. A successful tag-push
+          # workflow_run instead checks that exact published RC or GA.
+          tag="$REQUESTED_TAG"
+          if [[ -z "$tag" && "$TRIGGER_EVENT" == "push" ]] &&
+             [[ "$TRIGGER_TAG" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ||
+                "$TRIGGER_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            tag="$TRIGGER_TAG"
+          fi
+          if [[ -n "$tag" ]]; then
+            [[ "$tag" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ||
+               "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+              echo "::error::Unexpected release tag requested for integrity observer"; exit 1;
+            }
+            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" > "${RUNNER_TEMP}/release.json"
+          else
+            gh api "repos/${GITHUB_REPOSITORY}/releases/latest" > "${RUNNER_TEMP}/release.json"
+          fi
           TAG_NAME=$(jq -r '.tag_name' "${RUNNER_TEMP}/release.json")
           RELEASE_URL=$(jq -r '.html_url' "${RUNNER_TEMP}/release.json")
           jq -r '.body // ""' "${RUNNER_TEMP}/release.json" > "${RUNNER_TEMP}/release-body.md"
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
           echo "release_url=${RELEASE_URL}" >> "$GITHUB_OUTPUT"
-          [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-            echo "::error::Unexpected latest GitHub release tag"; exit 1;
+          [[ "$TAG_NAME" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ||
+             "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error::Unexpected GitHub release tag"; exit 1;
           }
+          if [[ -n "$tag" && "$TAG_NAME" != "$tag" ]]; then
+            echo "::error::Release API returned wrong selected tag"; exit 1;
+          fi
+          if [[ "$TAG_NAME" == v1.5.0-rc.* ]]; then
+            [[ "$(jq -r '.prerelease' "${RUNNER_TEMP}/release.json")" == true ]] || {
+              echo "::error::RC release must be marked prerelease"; exit 1;
+            }
+          fi
           # Do not trust release.target_commitish or infer source identity.
           # Dereference the actual tag, including annotated tag objects.
           tag_object=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG_NAME}")
@@ -177,10 +211,14 @@ jobs:
           [[ "$object_type" == commit && "$object_sha" =~ ^[a-f0-9]{40}$ ]] || {
             echo "::error::Release tag does not resolve unambiguously to a commit"; exit 1;
           }
+          if [[ -n "$TRIGGER_SHA" && -n "$TRIGGER_TAG" &&
+                "$TAG_NAME" == "$TRIGGER_TAG" && "$object_sha" != "$TRIGGER_SHA" ]]; then
+            echo "::error::Release source differs from successful publishing run"; exit 1;
+          fi
           echo "source_sha=${object_sha}" >> "$GITHUB_OUTPUT"
           echo "Verifying release ${TAG_NAME}: ${RELEASE_URL} source ${object_sha}"
 
-      - name: Parse and require all four advertised stable-release contracts
+      - name: Parse and require all four advertised RC/GA release contracts
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
         run: |
