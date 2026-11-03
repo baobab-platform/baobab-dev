@@ -3,7 +3,7 @@
 
 This is not VEX "not_affected", an Ubuntu patch, or a release security approval.
 Preserve an unfiltered Trivy report and fail closed for any outside CVE/package.
-Only applies to dev PRs #48/#50/#57 or development-main until 2026-11-13 UTC.
+Only applies to dev PRs #48/#50/#57/#58 or development-main until 2026-11-13 UTC.
 Directive / audit: https://github.com/baobab-platform/baobab-dev/issues/54
 """
 from __future__ import annotations
@@ -24,6 +24,9 @@ VERSION = "7.0.0-42.42"
 CVE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 TARGETS = {"final", "infra", "frontend", "frontend-e2e"}
 PLATFORMS = {"linux/amd64", "linux/arm64"}
+# Owner-authorised DEV-only PR addition (2026-11-03), recorded under issue #54.
+# Never infer release, deployment, staging, production or VEX approval from this.
+APPROVED_DEVELOPMENT_PRS = frozenset({48, 50, 57, 58})
 
 
 class RiskGateError(ValueError):
@@ -58,11 +61,11 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
     require(now.tzinfo is not None and now < EXPIRY, "risk decision expired")
     require(repository == "baobab-platform/baobab-dev",
             "outside Baobab development repository")
-    is_qualified_dev_pr = (event == "pull_request" and pr_number in {48, 50, 57}
+    is_qualified_dev_pr = (event == "pull_request" and pr_number in APPROVED_DEVELOPMENT_PRS
                            and ref == f"refs/pull/{pr_number}/merge")
     is_dev_main = event == "push" and ref == "refs/heads/main" and pr_number == 0
     require(is_qualified_dev_pr or is_dev_main,
-            "risk acceptance only valid for explicitly scoped PR #48/#50/#57 "
+            "risk acceptance only valid for explicitly scoped PR #48/#50/#57/#58 "
             "or untagged development main")
     require(target in TARGETS and platform in PLATFORMS,
             "unapproved target or architecture")
@@ -94,6 +97,7 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
     require(observed, "unexpected empty risk-acceptance scan; use ordinary clean scan path")
     return {
         "decision": "development_risk_accepted_not_remediated",
+        "authority": "owner-directed development-only risk treatment; not independently signed",
         "issue": "https://github.com/baobab-platform/baobab-dev/issues/54",
         "package": PACKAGE, "version": VERSION, "profile": target, "platform": platform,
         "known_cves_observed": len(observed),
