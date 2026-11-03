@@ -93,6 +93,8 @@ on:
   pull_request:
     branches:
       - main
+      # Stacked R5 review is based on the R4 candidate (#57), not main.
+      - feat/dev10-r4-lts-multiarch-candidate
     paths:
       - ".devcontainer/**"
       - "config/**"
