@@ -37,6 +37,41 @@ LEGACY_INDICES = {
 LEGACY_TAG = "v1.4.4"
 LEGACY_SOURCE = "aa2b726ebb53a1b893e49d44ccac3ca29e2dd5ee"
 
+# Frozen FULL-content SHA256 fingerprints independently read from the signed
+# Cosign DSSE envelopes and original per-platform BuildKit attestations on
+# 2026-11-03, workflow run 41617788874. This documents *what* v1.4.4 signed
+# and embedded, including the two profiles where Cosign's typed SLSA conversion
+# is not faithfully reproduced by the simplified public-schema projection.
+# Neither source nor signed digest can drift unnoticed. Only the four known
+# immutable OCI release indices, exact source SHA and separately authenticated
+# Sigstore subjects qualify; this NEVER permits mismatched future R5 releases.
+HISTORIC_SLSA_FINGERPRINTS = {
+    "sha256:9603f0e7402aa85771e904db1c20f2ecc02f705131b266cb4ec3d1c24ea58ae4": {
+        "embedded": ("cee4d5171f1c759f573bac45ccfd34f1d49abb885cc37beefa6934b3303777c4",
+                     "23f83dd67c915436c103886eed92017721a8f24d623f431960360b6ef42c8bbd"),
+        "signed": ("34948b189ed0b2c91f29fe66e4919ec1453368fd5047783b7fa6a03c00b40099",
+                   "2227f39e7990fa32804e58bac8b5bfebd6e3b47d6890d7a4e41cc0b592124876"),
+    },
+    "sha256:1b3165067912eacbca96b576efb67e0428850b1ff1a953aa9013127a01635371": {
+        "embedded": ("17c6f2bb946c426371179f746ae9be41df5dd59476831782cd42b762e6c0bfa1",
+                     "c33b3fb74422f23c7ed184e0d8b6ef9b844ed6b939365abb2b5677784a94f54c"),
+        "signed": ("e6da2943721b2d8ade84050425bfb4001b13211cb0361f282771400c7f6ec557",
+                   "edf61651bd54576867e888ec18ded729a4669c173843d76c3afd1406ccc4d0b8"),
+    },
+    "sha256:eb9c401cea16c4f333c28b250dd455e505752dfc6d11e9779a182a02bc207213": {
+        "embedded": ("cd494d29d64940224003c804123abb969b9216c6c30214af2a110a147b213b48",
+                     "68500e5bca47c08726f23359964b5ce666a14a1bb36015e0914092dec1d3b3da"),
+        "signed": ("01827f24a230844f434b5ad2a8391569d00ebaaf60f37e8fbba364780fc9654f",
+                   "8b721446438eb060b0a8a549d85f8954c3ec2c0a3f0ba02c3b5b867dea8b6c1b"),
+    },
+    "sha256:0f73f3e6093ab5c955cbbb341e5731681ee4283cae75f13c56f3e38373467ecc": {
+        "embedded": ("7372bac64bb40565bfa59a90312becf1a3f2328a656b7b08d3bdde156bd7d902",
+                     "72635a26c6b6aefe7af363704cb4bb8d59af7f916df34ad1a29f485290874bbb"),
+        "signed": ("a0a6668e4f0125cc7dc193ccc234d6d0edc7f7ef7aa750e17cc90cf56a9f557a",
+                   "0d76440579fa0748ce35fb7bb5ef1179024b204598f964d0131ded826d207c07"),
+    },
+}
+
 # The public protobuf schema in in-toto/attestation v1. Scope only the
 # schema-known fields; arbitrary JSON maps (parameters, annotations)
 # remain fully compared, not truncated to named keys.
@@ -160,12 +195,28 @@ def qualify_legacy(
     actual = [fingerprint(p) for p in projected_signed]
     require(len(set(expected)) == 2 and len(set(actual)) == 2,
             "duplicate/indistinguishable native provenance")
-    require(sorted(expected) == sorted(actual),
-            "schema-known provenance fields differ after historical typed conversion")
+    semantic_match = sorted(expected) == sorted(actual)
+    # Verify immutable full-content evidence in addition to the typed schema
+    # projection, even when Cosign has a historical serialization mismatch.
+    # A schema mismatch is NOT silently converted to a semantic PASS: retain
+    # its own explicit legacy fingerprint qualification and review warning.
+    history = HISTORIC_SLSA_FINGERPRINTS.get(image_digest)
+    require(history is not None and set(HISTORIC_SLSA_FINGERPRINTS) == LEGACY_INDICES,
+            "historical release content pinning not configured")
+    embedded_hashes = [fingerprint(p) for p in embedded_slsa]
+    signed_hashes = [fingerprint(p) for p in signed_slsa]
+    require(sorted(embedded_hashes) == sorted(history["embedded"]),
+            "historical BuildKit full-content fingerprint changed")
+    require(sorted(signed_hashes) == sorted(history["signed"]),
+            "historical signed SLSA full-content fingerprint changed")
     return {
-        "status": "LEGACY_SLSA_PROTOBUF_COMPATIBLE_NOT_FULL_CONTENT_EQUIVALENCE",
+        "status": ("LEGACY_SLSA_PROTOBUF_COMPATIBLE_NOT_FULL_CONTENT_EQUIVALENCE"
+                   if semantic_match else
+                   "LEGACY_SLSA_EXACT_FINGERPRINTS_PINNED_NOT_SEMANTICALLY_EQUAL"),
+        "slsa_schema_known_equivalent": semantic_match,
         "historical_source": LEGACY_SOURCE,
         "policy_scope": "PINNED v1.4.4 ONLY; never release approval for R5",
         "signed_native_slsa": 2, "signed_native_spdx": 2,
         "slsa_schema_known_hashes": {"amd64": expected[0], "arm64": expected[1]},
+        "slsa_full_fingerprints_pinned": True,
     }
