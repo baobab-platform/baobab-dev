@@ -78,10 +78,13 @@ class DevelopmentRiskGateTests(unittest.TestCase):
                                             target=target, platform=platform)
                     self.assertEqual(evidence["known_cves_observed"], 295)
 
-    def test_pr58_release_staging_wrong_event_or_ref_never_inherits_dev_risk(self):
+    def test_pr58_staging_wrong_event_or_ref_never_inherits_dev_risk(self):
+        # The owner explicitly authorised this exact tag as a *development*
+        # image distribution. Its successful push/pr_number=0 case is in
+        # test_v150_exact_tag_is_distributed_dev_image_not_production.
         for event, ref, number in (
             ("push", "refs/tags/v1.5.0", 58),
-            ("push", "refs/tags/v1.5.0", 0),
+            ("push", "refs/tags/v1.5.1", 0),
             ("workflow_dispatch", "refs/heads/main", 58),
             ("deployment", "refs/heads/staging", 58),
             ("pull_request", "refs/pull/58/head", 58),
