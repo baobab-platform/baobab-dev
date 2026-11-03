@@ -11,9 +11,11 @@
 #
 # Notes
 # -----
-# • Edit only this file when upgrading software.
-# • resolve.sh reads this file and generates versions.lock.
-# • The Dockerfile consumes versions.lock.
+# • This manifest declares desired versions; config/versions.lock pins resolved bytes.
+# • Re-run config/resolve.sh and review all digest/install contract changes.
+# • Keep security vendoring, native consumer pins and image readback consistent.
+# • Node 26/pnpm 12/Java 21/Python 3.14.10 below are PR #57 candidates,
+#   not authority to publish v1.5.0 or activate unqualified consumer upgrades.
 # ==============================================================================
 
 manifest:
@@ -48,7 +50,7 @@ languages:
     # and baobab-subscriptions. iDempiere documents OpenJDK >=17; actual
     # v13 JVM/bundle and owner tests on Java 21 remain qualification gates.
     # Requires a full JDK (not JRE-only), via Eclipse Temurin's own apt repository —
-    # NOT Ubuntu's own openjdk-17-jdk package. Same reasoning already applied
+    # NOT Ubuntu's distribution-selected OpenJDK package. Same reasoning already applied
     # to docker/postgresql below: an upstream-maintained apt repo keeps the
     # exact vendor/build consistent across Ubuntu base-image upgrades, rather
     # than whatever OpenJDK build Ubuntu's own archive happens to carry for a
@@ -62,7 +64,7 @@ languages:
     # Install_Prerequisites, live-verified 2026-09-01) require a JDK
     # (explicitly not JRE-only — "openjdk-17-jre is not sufficient because
     # it doesn't have the jar command used in some scripts"), OpenJDK 17 or
-    # later, LTS preferred. "17" here means major version only, resolved the
+    # later, LTS preferred. "21" here means major version only, resolved the
     # same way postgresql.major is below — apt's own dependency resolution
     # picks the exact point release, not this file.
 
@@ -85,7 +87,7 @@ package_managers:
   pnpm:
     version: "12.16.1"
     source: "github-release"
-    # Publisher-signed release asset SHA-256 for the two official Linux glibc
+    # Publisher-release asset SHA-256 for the two official Linux glibc
     # binaries; install exact native PNPM, never an arbitrary Corepack shim.
     sha256_amd64: "565ff81174a14f6f7bd5d84c1b17e51031a80230d370a1fe24be5d16bd02a825"
     sha256_arm64: "f5847699e5d528f8f8e9bcfb385e58cb9fba7482af1b1aa7b70737be42277f81"
