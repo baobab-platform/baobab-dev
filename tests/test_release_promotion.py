@@ -92,21 +92,46 @@ class PromotionTests(unittest.TestCase):
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_v150_promotion_only_explicit_version_tags_and_idempotent_rerun(self):
+    def test_v150_ga_promotes_version_minor_major_latest_and_idempotent_retry(self):
         for _ in range(2):
             result = self.run_promotion()
             self.assertEqual(result.returncode, 0, result.stderr)
         state = json.loads(self.state_path.read_text())
         for target in TARGETS:
             suffix = "" if target == "final" else "-" + target
-            self.assertEqual(state["1.5.0" + suffix],
-                             "sha256:" + DIGESTS[target])
-            self.assertNotIn("1.5" + suffix, state)
-            self.assertEqual(state["1" + suffix], self.previous)
-            self.assertEqual(state["latest" + suffix], self.previous)
+            for tag in ("1.5.0", "1.5", "1", "latest"):
+                self.assertEqual(state[tag + suffix], "sha256:" + DIGESTS[target])
         journal = (self.root / "evidence/promotion.tsv").read_text()
-        self.assertIn("PROMOTED_FOUR_PINNED_DEV_VERSIONS_NO_ALIASES", journal)
-        self.assertNotIn("\talias\t", journal)
+        self.assertIn("PROMOTED_FOUR_TARGETS_AND_ALIASES", journal)
+        self.assertIn("alias", journal)
+
+    def test_rc_tags_publish_each_profile_without_advancing_consumer_aliases(self):
+        for rc in ("v1.5.0-rc.1", "v1.5.0-rc.2"):
+            self.change_test_release(rc)
+            result = self.run_promotion()
+            self.assertEqual(result.returncode, 0, result.stderr)
+            state = json.loads(self.state_path.read_text())
+            for target in TARGETS:
+                suffix = "" if target == "final" else "-" + target
+                self.assertEqual(state[rc[1:] + suffix],
+                                 "sha256:" + DIGESTS[target])
+                for alias in ("1.5", "1", "latest"):
+                    self.assertNotEqual(state.get(alias + suffix),
+                                        "sha256:" + DIGESTS[target])
+            journal = (self.root / "evidence/promotion.tsv").read_text()
+            self.assertIn("PROMOTED_FOUR_RC_VERSIONS_NO_ALIASES", journal)
+            self.assertNotIn("\talias\t", journal)
+        # Once the owner tags GA, the *same* promotion flow advances aliases.
+        self.change_test_release("v1.5.0")
+        result = self.run_promotion()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        state = json.loads(self.state_path.read_text())
+        for target in TARGETS:
+            suffix = "" if target == "final" else "-" + target
+            for tag in ("1.5.0", "1.5", "1", "latest"):
+                self.assertEqual(state[tag + suffix], "sha256:" + DIGESTS[target])
+            for rc in ("1.5.0-rc.1", "1.5.0-rc.2"):
+                self.assertEqual(state[rc + suffix], "sha256:" + DIGESTS[target])
 
     def test_future_versions_preserve_normal_alias_promotion(self):
         self.change_test_release("v1.6.0")
@@ -117,7 +142,7 @@ class PromotionTests(unittest.TestCase):
             suffix = "" if target == "final" else "-" + target
             for tag in ("1.6.0", "1.6", "1", "latest"):
                 self.assertEqual(state[tag + suffix], "sha256:" + DIGESTS[target])
-        self.assertIn("PROMOTED_FOUR_TARGETS",
+        self.assertIn("PROMOTED_FOUR_TARGETS_AND_ALIASES",
                       (self.root / "evidence/promotion.tsv").read_text())
 
     def test_immutable_version_tag_rebind_is_blocked(self):
@@ -147,7 +172,10 @@ class PromotionTests(unittest.TestCase):
         obj["tag"] = "ghcr.io/attacker/image:1.5.0-infra"
         broken.write_text(json.dumps(obj))
         self.assertNotEqual(self.run_promotion().returncode, 0)
-        self.assertNotEqual(self.run_promotion(RELEASE_TAG="v1.5.0-rc.1").returncode, 0)
+        for tag in ("v1.5.0-rc.0", "v1.5.0-rc.01", "v1.5.0-rc.foo",
+                    "v1.5.0-rc.1-extra", "v1.5.1-rc.1"):
+            with self.subTest(tag=tag):
+                self.assertNotEqual(self.run_promotion(RELEASE_TAG=tag).returncode, 0)
 
 
 if __name__ == "__main__":
