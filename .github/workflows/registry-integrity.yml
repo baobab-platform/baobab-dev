@@ -306,7 +306,9 @@ jobs:
                 STRICT_SIGNED_NATIVE_CONTENT_VERIFIED)
                   echo "both native architectures: exact SLSA/SPDX signed content and source VERIFIED" ;;
                 LEGACY_SLSA_PROTOBUF_COMPATIBLE_NOT_FULL_CONTENT_EQUIVALENCE)
-                  echo "::warning::${ref} is a pinned v1.4.4 legacy Cosign/protobuf release; both native signatures, schema-known SLSA, full SPDX and source verified. Unknown pre-signing SLSA fields cannot be recovered, so R5 full-content qualification is NOT claimed." ;;
+                  echo "::warning::${ref} pinned v1.4.4 legacy: two native signatures, schema-known SLSA, full SPDX, SOURCE and original embedded/signed SLSA fingerprints verified; not R5 full equivalence." ;;
+                LEGACY_SLSA_EXACT_FINGERPRINTS_PINNED_NOT_SEMANTICALLY_EQUAL)
+                  echo "::warning::${ref} pinned v1.4.4 legacy: signed and embedded SLSA full fingerprints match recorded historical evidence, two native signatures, SPDX and source verified. Schema-known SLSA projection DIFFERS; historical content equivalence is NOT claimed. R5 remains strict." ;;
                 *)
                   echo "::error::Unrecognized registry attestation qualification: $qualification"
                   failures=$((failures + 1)) ;;
@@ -341,5 +343,5 @@ jobs:
             echo
             echo "Release: [${RELEASE_TAG}](${RELEASE_URL})"
             echo
-            echo "The workflow checks all four release contracts, index/image manifest reachability, immutable source revision, both signed architectures and SPDX. R5 releases require FULL exact SLSA/SPDX signed content. ONLY four pinned v1.4.4 index digests may use a documented, explicitly limited Cosign typed/protobuf SLSA semantic compatibility path; they never count as R5 full-content qualification."
+            echo "The workflow checks all four release contracts, index/image manifest reachability, immutable source revision, both signed architectures and SPDX. R5 releases require FULL exact SLSA/SPDX signed content. ONLY four pinned v1.4.4 index digests may use historical exact signed+embedded SLSA fingerprint binding, after valid independent native Cosign, subject, source and SPDX verification; any historical schema mismatch is explicitly warned, never reported as R5 full-content equivalence."
           } >> "$GITHUB_STEP_SUMMARY"
