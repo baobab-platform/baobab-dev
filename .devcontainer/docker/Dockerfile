@@ -1256,12 +1256,17 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     "${PIPX_GLOBAL_HOME}/venvs/poetry/bin/python" -c 'from importlib.metadata import version; assert version("urllib3") == "2.8.0", "POETRY_URLLIB3_PIN_DRIFT"' && \
     chmod -R a+rX "${PIPX_GLOBAL_HOME}"
     
+# Replace all three pip instances with the checksum-built, source-vendored wheel:
+# the PSF /opt interpreter, pipx's shared installer and Ubuntu's remaining
+# /usr/bin/python3.14 interpreter. CI's raw Trivy artifact showed that third
+# interpreter still contained pip 26.3 with vendored setuptools 70.3.0, which
+# is vulnerable to CVE-2025-47273. Never hide that residual CVE via scan waivers.
 # Replace both executable pip installations, including pipx's shared installer.
 COPY --from=patched-pip /out/pip-26.2.2+baobab.1-py3-none-any.whl /tmp/baobab-pip.whl
 RUN mv /tmp/baobab-pip.whl /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
     python3 -m pip install --no-index --no-deps --break-system-packages /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
     "${PIPX_GLOBAL_HOME}/shared/bin/python" -m pip install --no-index --no-deps /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
-    # Ubuntu's /usr/bin/python3.14 remains installed alongside the exact\n    # PSF /opt interpreter. Its /usr/local/dist-packages pip 26.3 carried\n    # vendored setuptools 70.3.0 (CVE-2025-47273), although /opt and pipx\n    # already carried the corrected wheel. Patch this THIRD real pip copy;\n    # never suppress the image scanner or pretend the old interpreter vanished.\n    /usr/bin/python3.14 -m pip install --no-index --no-deps --break-system-packages --force-reinstall /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
+    /usr/bin/python3.14 -m pip install --no-index --no-deps --break-system-packages --force-reinstall /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
     /usr/bin/python3.14 -c 'import pip; assert pip.__version__ == "26.2.2+baobab.1"; from pip._vendor import pkg_resources; assert str(pkg_resources.parse_version("1.2.3")) == "1.2.3"' && \
     python3 -c 'from pip._vendor import urllib3; assert urllib3.__version__ == "2.8.0"' && \
     "${PIPX_GLOBAL_HOME}/shared/bin/python" -c 'from pip._vendor import urllib3; assert urllib3.__version__ == "2.8.0"' && \
