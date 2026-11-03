@@ -98,3 +98,35 @@ alter release workflows to obtain a cosmetically green release.
 Before the owner creates `v1.5.0`, independently qualify final-head CI,
 complete the Codespaces/consumer matrix (#55), and obtain a separately
 attributable, digest/CVE-scoped **release** risk determination or vendor fix.
+
+## 2026-11-03 final-head CI and remediation
+
+The 3 November GitHub Actions run
+[41557252699](https://github.com/baobab-platform/baobab-dev/actions/runs/41557252699)
+built both platforms for the relevant profiles. Three build-matrix gates
+showed independent defects, not successful qualification:
+
+- **Frontend and frontend-e2e AMD64:** the CI-only test created an
+  incomplete `lockfileVersion: 9.0` file for a pnpm 12 manifest.
+  The frozen install rejected it with
+  `ERR_PNPM_FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE`. The rehearsal now
+  generates the fixture lock with the installed pnpm 12 binary entirely
+  offline, then requires a subsequent offline frozen install. Consumer
+  repositories must still commit their OWN correctly regenerated locks.
+- **Full AMD64/ARM64:** Trivy detected a **296th** HIGH finding,
+  `CVE-2025-47273`, on setuptools **70.3.0**, which exceeded the
+  exact development-only 295-CVE allowance and correctly blocked CI.
+  The independently exported scanner artifact identified the package
+  in the residual Ubuntu `/usr/local/lib/python3.14/dist-packages/pip-26.3`
+  installation. The source already patched the separate /opt Python and
+  pipx shared pip copies; this change installs the same source-revendored,
+  checksum-built patched wheel in the distro interpreter and asserts
+  its installed version. The CVE is fixed in setuptools >=78.1.1.
+  Do not add the finding to the risk exception.
+- **Validation needed:** repeat final-head image build, fresh Trivy and
+  installed pip/setuptools checks on both CPUs, native consumer tests,
+  private-package Codespaces, teardown and release-specific security
+  disposition. A source patch is not a passing scan.
+
+No change was made to Ubuntu 26.04, security scanning thresholds, the
+release trigger, protected tags or the signed-artifact requirements.
