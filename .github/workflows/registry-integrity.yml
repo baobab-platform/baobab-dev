@@ -149,7 +149,7 @@ jobs:
           set -euo pipefail
           failures=0
 
-          while IFS=
+          while IFS=$'\t' read -r target ref expected_digest; do
             [[ -z "${ref}" ]] && continue
             echo "::group::Verify ${ref}"
 
@@ -218,92 +218,6 @@ jobs:
                 continue
               fi
               echo "linux/$arch: image $child_digest + attestation $sibling_digest (both resolvable)"
-            done
-
-            echo "tag digest: ${actual_digest} (matches release)"
-
-            # Check 5: signature + SLSA provenance + SPDX SBOM attestation,
-            # all still independently verifiable — see this file's header
-            # comment for why this is a genuinely separate failure mode from
-            # checks 1-4 above. Digest-pinned (image_name@actual_digest), not
-            # the tag, for the same reason the earlier tag/digest check
-            # exists at all. Output is captured rather than streamed live:
-            # verify-image.sh's own [INFO]/[SUCCESS] lines are useful on
-            # success but should not spam the log on a failure this loop
-            # already reports clearly via ::error::.
-            if ! verify_output=$(./scripts/verify-image.sh "${image_name}@${actual_digest}" 2>&1); then
-              echo "::error::${ref}@${actual_digest} failed signature/attestation verification (Cosign signature, SLSA provenance, or SPDX SBOM attestation no longer verifies):"
-              echo "${verify_output}"
-              failures=$((failures + 1))
-            else
-              echo "signature + attestations: VALID (Cosign signature, SLSA provenance, SPDX SBOM)"
-            fi
-
-            echo "::endgroup::"
-          done < "${RUNNER_TEMP}/release-contracts.tsv"
-
-          if (( failures > 0 )); then
-            echo "::error::${failures} released GHCR contract check(s) failed. A published release is no longer safely consumable."
-            exit 1
-          fi
-
-      - name: Write integrity summary
-        if: always()
-        env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
-          RELEASE_URL: ${{ steps.release.outputs.release_url }}
-        run: |
-          {
-            echo "## Released GHCR Contract Integrity"
-            echo
-            echo "Release: [${RELEASE_TAG}](${RELEASE_URL})"
-            echo
-            echo "The workflow checks tag existence, release-recorded digest equality, OCI index readability, linux/amd64 + linux/arm64 child-manifest reachability, and Cosign signature + SLSA provenance + SPDX SBOM attestation verifiability."
-          } >> "$GITHUB_STEP_SUMMARY"
-\t' read -r target ref expected_digest; do
-            [[ -z "${ref}" ]] && continue
-            echo "::group::Verify ${ref}"
-
-            if ! actual_digest=$(crane digest "${ref}" 2>&1); then
-              echo "::error::Release ${RELEASE_TAG} advertises ${ref}, but GHCR cannot resolve it: ${actual_digest}"
-              failures=$((failures + 1))
-              echo "::endgroup::"
-              continue
-            fi
-
-            if [[ "${actual_digest}" != "${expected_digest}" ]]; then
-              echo "::error::Digest drift for ${ref}: release records ${expected_digest}, GHCR resolves ${actual_digest}."
-              failures=$((failures + 1))
-              echo "::endgroup::"
-              continue
-            fi
-
-            if ! manifest_json=$(crane manifest "${ref}" 2>&1); then
-              echo "::error::Tag resolves but its OCI manifest cannot be read: ${ref}: ${manifest_json}"
-              failures=$((failures + 1))
-              echo "::endgroup::"
-              continue
-            fi
-
-            image_name="${ref%%:*}"
-
-            for arch in amd64 arm64; do
-              child_digest=$(jq -r --arg arch "${arch}" \
-                '[.manifests[]? | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest][0] // empty' \
-                <<<"${manifest_json}")
-
-              if [[ -z "${child_digest}" ]]; then
-                echo "::error::${ref} has no linux/${arch} image manifest in its OCI index."
-                failures=$((failures + 1))
-                continue
-              fi
-
-              if ! crane manifest "${image_name}@${child_digest}" >/dev/null; then
-                echo "::error::${ref} references missing linux/${arch} child manifest ${child_digest}."
-                failures=$((failures + 1))
-              else
-                echo "linux/${arch}: ${child_digest} (resolvable)"
-              fi
             done
 
             echo "tag digest: ${actual_digest} (matches release)"
