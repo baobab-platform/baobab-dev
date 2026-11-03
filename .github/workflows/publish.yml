@@ -1958,7 +1958,7 @@ jobs:
               echo ""
               echo "**Intended use:** Organisation development environments, GitHub Codespaces and disposable local developer toolchains only. This is NOT an application staging/production deployment image."
               echo ""
-              echo "**Time-bounded security disclosure:** Native AMD64 and ARM64 image profiles were independently scanned with unfiltered Trivy; the user-approved, inventory-pinned `linux-libc-dev 7.0.0-42.42` development-only CVE treatment under [issue #54](https://github.com/baobab-platform/baobab-dev/issues/54) may apply. The original 295 advisories (12 CRITICAL, 283 HIGH) remain tracked as unremediated/under investigation, **not declared harmless**. Review exact architecture scan artifacts and the recorded risk decision."
+              echo "**Time-bounded security disclosure:** Native AMD64 and ARM64 image profiles were independently scanned with unfiltered Trivy; the user-approved, inventory-pinned linux-libc-dev=7.0.0-42.42 development-only CVE treatment under [issue #54](https://github.com/baobab-platform/baobab-dev/issues/54) may apply. The original 295 advisories (12 CRITICAL, 283 HIGH) remain tracked as unremediated/under investigation, **not declared harmless**. Review exact architecture scan artifacts and the recorded risk decision."
               echo ""
               echo "**Review deadline:** 2026-11-13 00:00 UTC. Continued organisational consumption beyond the deadline needs remediation or re-review; the tag will not automatically disappear when the exception expires."
               echo ""
