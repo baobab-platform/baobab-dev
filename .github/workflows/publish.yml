@@ -672,6 +672,27 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      
+      - name: Free disk space (final release target only)
+        if: ${{ matrix.target == 'final' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "Disk space before cleanup:"
+          df -h /
+
+          # Remove unused preinstalled runner toolchains.
+          # The release build supplies its own toolchain.
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL
+
+          echo "Disk space after cleanup:"
+          df -h /
+
       - name: Download exact locked tools
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -693,6 +714,35 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
+      - name: Capture pre-build resource usage
+        if: ${{ matrix.target == 'final' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/release-resource-evidence"
+
+          {
+            echo "=== BEFORE BUILD ==="
+            date -u
+
+            echo "=== Disk ==="
+            df -h /
+
+            echo "=== Inodes ==="
+            df -i /
+
+            echo "=== Memory ==="
+            free -h
+
+            echo "=== Docker storage ==="
+            docker system df -v || true
+
+            echo "=== BuildKit cache ==="
+            docker buildx du || true
+          } > "$RUNNER_TEMP/release-resource-evidence/before.txt" 2>&1
+
+          cat "$RUNNER_TEMP/release-resource-evidence/before.txt"
+
       - name: Build container image with SBOM & SLSA Provenance
         id: build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
@@ -712,6 +762,44 @@ jobs:
           sbom: true
           # Instruct BuildKit to emit SLSA v1.0 schema inside the in-toto predicate
           provenance: mode=max,version=v1
+
+      
+      - name: Capture post-build resource usage
+        if: ${{ always() && matrix.target == 'final' }}
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-resource-evidence"
+
+          {
+            echo "=== AFTER BUILD ==="
+            date -u
+
+            echo "=== Disk ==="
+            df -h /
+
+            echo "=== Inodes ==="
+            df -i /
+
+            echo "=== Memory ==="
+            free -h
+
+            echo "=== Docker storage ==="
+            docker system df -v || true
+
+            echo "=== BuildKit cache ==="
+            docker buildx du || true
+          } > "$RUNNER_TEMP/release-resource-evidence/after.txt" 2>&1
+
+          cat "$RUNNER_TEMP/release-resource-evidence/after.txt"
+
+      - name: Upload release resource diagnostics
+        if: ${{ always() && matrix.target == 'final' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-resources-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-resource-evidence/
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Determine cache date
         id: cache-date
