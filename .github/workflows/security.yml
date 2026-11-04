@@ -66,7 +66,7 @@ jobs:
     # SHA is baobab-platform/shared's v1.1.0 tag (annotated — peeled commit, not
     # the tag object's own SHA), verified live via `git ls-remote --tags
     # https://github.com/baobab-platform/shared.git v1.1.0 v1.1.0^{}` on 2026-08-25.
-    uses: baobab-platform/shared/.github/workflows/security-secrets-scan.yml@f7466cc89a17c0b6e02b5a1e5fce3ce76073a718 # v1.1.0
+    uses: baobab-platform/shared/.github/workflows/security-secrets-scan.yml@31de2bc3dcd56128c019c640dc7e12c10ae9ca69 # v1.1.0
 
   dependency-review:
     name: Dependency review
@@ -93,7 +93,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Python 3.14
-        uses: actions/setup-python@ad3497abcd142e169a10aac37abd5175c44f33c4 # v7.0.0+6
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.0.0+6
         with:
           python-version: '3.14'
       - name: Install exact checksum-verified uv / uvx from committed lock
@@ -117,7 +117,7 @@ jobs:
           bash scripts/audit-python-dependencies.sh --source 2>&1 | tee "$RUNNER_TEMP/python-audit.log"
       - name: Retain independent Python audit evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: python-dependency-audit-${{ github.sha }}
           path: ${{ runner.temp }}/python-audit.log
