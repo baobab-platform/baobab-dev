@@ -97,8 +97,16 @@ for tool in task yq buildx compose; do
   go version -m "/out/$binary" | tee "/out/${tool}.buildinfo"
   grep -F 'go1.27.3' "/out/${tool}.buildinfo"
   grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' "/out/${tool}.buildinfo"
-  cmp go.mod "/build/security/$tool/go.mod.lock"
-  cmp go.sum "/build/security/$tool/go.sum"
+  if ! cmp -s go.mod "/build/security/$tool/go.mod.lock"; then
+    echo "::error::Generated $tool go.mod differs from the committed lock; exact diff follows." >&2
+    diff -u "/build/security/$tool/go.mod.lock" go.mod >&2 || true
+    exit 1
+  fi
+  if ! cmp -s go.sum "/build/security/$tool/go.sum"; then
+    echo "::error::Generated $tool go.sum differs from the committed lock; exact diff follows." >&2
+    diff -u "/build/security/$tool/go.sum" go.sum >&2 || true
+    exit 1
+  fi
 done
 /out/task --version | grep -F '3.54.0'
 /out/yq --version | grep -F '4.54.1'
