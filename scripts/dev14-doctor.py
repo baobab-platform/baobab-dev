@@ -8,15 +8,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import sys
+from urllib.parse import urlsplit
 
 SHARED_PIN = "32b71f3335e566daeb58246f17fcbbf162cf7f53"
-SHA = re.compile(r"^[0-9a-f]{40}$")
 VERSION = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
+MAX_PROBE_OUTPUT = 1024 * 1024
 REQUIREMENTS = {
     "pulse-intelligence": {"python": (3, 14), "docker": None, "git": None},
     "payments-sandbox": {"rustc": (1, 88), "cargo": None, "docker": None, "git": None},
@@ -24,16 +26,51 @@ REQUIREMENTS = {
 
 
 def probe(command: list[str], *, timeout: int = 12) -> tuple[bool, str]:
-    """Return only a scrubbed first-line version string, never raw errors."""
+    """Return complete bounded machine output; never return raw errors."""
     try:
-        proc = subprocess.run(command, capture_output=True, text=True,
-                              timeout=timeout, check=False)
+        proc = subprocess.run(
+            command, capture_output=True, text=True, errors="surrogateescape",
+            timeout=timeout, check=False,
+        )
     except (OSError, subprocess.TimeoutExpired):
         return False, "UNAVAILABLE"
-    if proc.returncode:
+    if proc.returncode or len(proc.stdout) > MAX_PROBE_OUTPUT:
         return False, "UNAVAILABLE"
-    first = proc.stdout.strip().splitlines()
-    return True, (first[0][:120] if first else "OBSERVED")
+    return True, proc.stdout.rstrip("\r\n")
+
+
+def git_probe(root: Path, arguments: list[str], *, timeout: int = 12) -> tuple[bool, str]:
+    """Run local Git observations without hooks, credentials, network or index writes."""
+    env = os.environ.copy()
+    # Environment-injected Git directories/config/indexes can redirect a -C
+    # operation. Remove all Git overrides and install an isolated read-only set.
+    for key in tuple(env):
+        if key.startswith("GIT_"):
+            env.pop(key, None)
+    env.update({
+        "GIT_OPTIONAL_LOCKS": "0",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_TERMINAL_PROMPT": "0",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+    })
+    command = [
+        "git", "--no-optional-locks",
+        "-c", "core.fsmonitor=false",
+        "-c", f"core.hooksPath={os.devnull}",
+        "-c", "submodule.recurse=false",
+        "-C", str(root), *arguments,
+    ]
+    try:
+        proc = subprocess.run(
+            command, capture_output=True, text=True, errors="surrogateescape",
+            timeout=timeout, check=False, env=env,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False, "UNAVAILABLE"
+    if proc.returncode or len(proc.stdout) > MAX_PROBE_OUTPUT:
+        return False, "UNAVAILABLE"
+    return True, proc.stdout.rstrip("\r\n")
 
 
 def meets_version(text: str, minimum: tuple[int, int]) -> bool:
@@ -47,6 +84,80 @@ def python_line_supported(observed: str) -> bool:
     return bool(match and tuple(map(int, match.groups()[:2])) == (3, 14))
 
 
+def is_canonical_shared_remote(remote: str) -> bool:
+    """Accept only the canonical Shared GitHub repository over HTTPS or SSH."""
+    remote = remote.strip()
+    if remote.startswith("git@github.com:"):
+        path = remote.removeprefix("git@github.com:")
+    else:
+        try:
+            parsed = urlsplit(remote)
+            if parsed.scheme not in {"https", "ssh"} or parsed.hostname != "github.com":
+                return False
+            if parsed.query or parsed.fragment or parsed.password is not None:
+                return False
+            if parsed.scheme == "https":
+                if parsed.username is not None or parsed.port not in (None, 443):
+                    return False
+            elif parsed.username != "git" or parsed.port not in (None, 22):
+                return False
+            path = parsed.path.lstrip("/")
+        except ValueError:
+            return False
+    return path.removesuffix(".git") == "baobab-platform/shared"
+
+
+def inspect_shared_checkout(shared_root: Path, *, expected_pin: str | None = None) -> str:
+    """Require the actual clean Shared root, canonical origin and exact commit."""
+    if shared_root.is_symlink() or not shared_root.is_dir():
+        return "REFUSED"
+    try:
+        root = shared_root.resolve(strict=True)
+    except OSError:
+        return "REFUSED"
+
+    top_ok, top_level = git_probe(root, ["rev-parse", "--show-toplevel"])
+    if not top_ok or Path(top_level).resolve() != root:
+        return "NOT_REPOSITORY_ROOT"
+
+    # Read the literal local origin value. This does not apply URL rewrites or
+    # invoke credential helpers, unlike operations that contact a remote.
+    remote_ok, remote = git_probe(root, ["config", "--local", "--get", "remote.origin.url"])
+    if not remote_ok or not is_canonical_shared_remote(remote):
+        return "UNTRUSTED_REMOTE"
+
+    pin_ok, sha = git_probe(root, ["rev-parse", "HEAD"])
+    pin = expected_pin or SHARED_PIN
+    if not pin_ok or sha != pin:
+        return "MISMATCH"
+
+    # Sparse checkouts and index flags can conceal modified tracked files from
+    # status. Refuse them rather than treating an incomplete view as clean.
+    sparse_ok, sparse = git_probe(root, [
+        "config", "--local", "--bool", "--get-regexp", r"^core\.sparse(Checkout|Index)$"
+    ])
+    if sparse_ok and any(line.rsplit(" ", 1)[-1].lower() == "true"
+                         for line in sparse.splitlines()):
+        return "INCOMPLETE_INDEX"
+    flags_ok, flags = git_probe(root, ["ls-files", "-v", "-z"])
+    if not flags_ok:
+        return "INCOMPLETE_INDEX"
+    for entry in flags.split("\0"):
+        if not entry:
+            continue
+        tag = entry[0]
+        if tag == "S" or tag.islower():
+            return "INCOMPLETE_INDEX"
+
+    clean, status = git_probe(root, [
+        "status", "--porcelain=v1", "--untracked-files=all",
+        "--ignore-submodules=none",
+    ])
+    if not clean or status:
+        return "DIRTY_WORKTREE"
+    return "MATCHED"
+
+
 def inspect(profile: str, shared_root: Path | None = None) -> dict:
     if profile not in REQUIREMENTS:
         raise ValueError("UNKNOWN_DEV14_PROFILE")
@@ -56,32 +167,27 @@ def inspect(profile: str, shared_root: Path | None = None) -> dict:
         if executable is None:
             checks[tool] = "MISSING"
             continue
-        command = ([executable, "--version"] if tool == "python" else
-                   [executable, "--version"])
-        ok, observed = probe(command)
+        ok, observed = probe([executable, "--version"])
         version_supported = (
             python_line_supported(observed) if tool == "python"
             else minimum is None or meets_version(observed, minimum)
         )
         checks[tool] = ("SUPPORTED" if ok and version_supported
                         else "VERSION_UNSUPPORTED" if ok else "UNAVAILABLE")
-    docker_ok, _ = probe(["docker", "info", "--format", "{{.ServerVersion}}"]) if checks["docker"] == "SUPPORTED" else (False, "")
-    compose_ok, _ = probe(["docker", "compose", "version", "--short"]) if checks["docker"] == "SUPPORTED" else (False, "")
+
+    docker_ok, _ = probe(
+        ["docker", "info", "--format", "{{.ServerVersion}}"]
+    ) if checks["docker"] == "SUPPORTED" else (False, "")
+    compose_ok, _ = probe(
+        ["docker", "compose", "version", "--short"]
+    ) if checks["docker"] == "SUPPORTED" else (False, "")
     checks["docker_daemon"] = "OBSERVED" if docker_ok else "UNAVAILABLE"
     checks["docker_compose"] = "OBSERVED" if compose_ok else "UNAVAILABLE"
 
-    if shared_root is None:
-        checks["shared_contract_pin"] = "NOT_INSPECTED"
-    else:
-        if shared_root.is_symlink() or not shared_root.is_dir():
-            checks["shared_contract_pin"] = "REFUSED"
-        else:
-            ok, sha = probe(["git", "-C", str(shared_root), "rev-parse", "HEAD"])
-            clean, dirt = probe(["git", "-C", str(shared_root), "status", "--porcelain"])
-            checks["shared_contract_pin"] = (
-                "MATCHED" if ok and sha == SHARED_PIN and clean and dirt == "OBSERVED"
-                else "MISMATCH"
-            )
+    checks["shared_contract_pin"] = (
+        inspect_shared_checkout(shared_root)
+        if shared_root is not None else "NOT_INSPECTED"
+    )
 
     blocked = sorted(key for key, result in checks.items()
                      if result not in {"SUPPORTED", "OBSERVED", "MATCHED"})

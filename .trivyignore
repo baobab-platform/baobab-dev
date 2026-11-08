@@ -419,7 +419,7 @@
 #
 # CVEs 111943 (Go crypto/x509), 78667 (net/http Range), 78669 (HTTP/2
 # x/net and Go stdlib), 97031 (crypto/tls ECH) are FIXED in patched Go
-# 1.26.10 / 1.27.3 and x/net v0.60.0. They are not newly 'unfixed' CVEs.
+# 1.26.10 / 1.27.3 and x/net v0.62.0. They are not newly 'unfixed' CVEs.
 # However the following upstream RELEASED DISTRIBUTIONS (inspected on
 # 2026-10-26) do not yet carry those patched toolchain+module versions:
 #   task v3.54.0:       go.mod go 1.26.4 / x/net v0.59.0

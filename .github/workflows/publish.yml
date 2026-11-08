@@ -441,9 +441,10 @@ jobs:
           tags: baobab-dev:scan
           outputs: ${{ matrix.target == 'final' && format('type=oci,dest={0}/scan-image-final.tar', runner.temp) || 'type=docker' }}
           cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
-          # Preserve the original BuildKit cache population even though the
-          # R5 validation matrix no longer pushes candidate images to GHCR.
-          cache-to: type=gha,mode=max,scope=${{ matrix.target }}-${{ matrix.platform }}
+          # Keep only target-result layers: mode=max exhausted the configured
+          # GHA cache budget on multi-architecture PR builds. Cache export is
+          # opportunistic and must not fail an otherwise valid image build.
+          cache-to: type=gha,mode=min,scope=${{ matrix.target }}-${{ matrix.platform }},ignore-error=true
 
       # Cache Trivy vulnerability database
       # Trivy re-downloads its ~500MB+ DB on every scan by default.
@@ -758,7 +759,9 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=${{ needs.sanity-check.outputs.is_release == 'true' }}
           cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.target }}-${{ matrix.platform }}
+          # Cache writes are bounded/non-blocking; build and scan results remain
+          # authoritative even when the GHA cache budget is temporarily full.
+          cache-to: type=gha,mode=min,scope=${{ matrix.target }}-${{ matrix.platform }},ignore-error=true
           sbom: true
           # Instruct BuildKit to emit SLSA v1.0 schema inside the in-toto predicate
           provenance: mode=max,version=v1

@@ -78,7 +78,7 @@ for tool in task yq buildx compose; do
   go build -trimpath -buildvcs=false -ldflags="$ldflags" -o "/out/$binary" "$package"
   go version -m "/out/$binary" | tee "/out/${tool}.buildinfo"
   grep -F 'go1.27.3' "/out/${tool}.buildinfo"
-  grep -E 'golang.org/x/net[[:space:]]+v0.60.0[[:space:]]' "/out/${tool}.buildinfo"
+  grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' "/out/${tool}.buildinfo"
   cmp go.mod "/build/security/$tool/go.mod.lock"
   cmp go.sum "/build/security/$tool/go.sum"
 done

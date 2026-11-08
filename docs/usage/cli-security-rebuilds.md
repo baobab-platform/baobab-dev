@@ -8,7 +8,7 @@ historical provenance; these image executables now come from the separate
 `patched-go-clis` stage.
 
 This isolated builder uses Go 1.27.3 and the committed module graphs under
-`config/security/{task,yq,buildx,compose}` with `golang.org/x/net v0.60.0`
+`config/security/{task,yq,buildx,compose}` with `golang.org/x/net v0.62.0`
 and patched JOSE v4.1.6 wherever that module is present. It addresses the
 Go standard-library and HTTP/2 findings in image run 40866955151. It does not
 change any consuming project's adopted Go version. Both compiler architectures
@@ -25,7 +25,7 @@ transform smoke cases. This is candidate component evidence, not Codespaces,
 multi-architecture image or programme acceptance.
 
 Full image security qualification remains held until every finding is resolved.
-The same recorded scan also found urllib3 2.7.0
+The x/net module-level findings CVE-2026-78661 and CVE-2026-97045 are remediated by the v0.62.0 locked graph; final image scans must still verify the resulting binaries. The same recorded scan also found urllib3 2.7.0
 vendored by pip 26.2.2; the system/Poetry urllib3 constraints do not patch pip's
 vendored source. No suppression is added or extended by this override.
 
