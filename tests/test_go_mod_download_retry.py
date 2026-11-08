@@ -90,8 +90,10 @@ class GoModuleRetryTests(unittest.TestCase):
         dockerfile = DOCKERFILE.read_text()
         self.assertIn("bash /build/go-mod-download-retry.sh\n  go mod verify", script)
         self.assertIn("GOFLAGS=-mod=readonly", script)
-        self.assertIn('cmp go.mod "/build/security/$tool/go.mod.lock"', script)
-        self.assertIn('cmp go.sum "/build/security/$tool/go.sum"', script)
+        self.assertIn('cmp -s go.mod "/build/security/$tool/go.mod.lock"', script)
+        self.assertIn('cmp -s go.sum "/build/security/$tool/go.sum"', script)
+        self.assertIn('diff -u "/build/security/$tool/go.mod.lock" go.mod', script)
+        self.assertIn('diff -u "/build/security/$tool/go.sum" go.sum', script)
         self.assertIn("go test ./version ./util/buildflags ./store", script)
         self.assertIn(
             "COPY scripts/go-mod-download-retry.sh /build/go-mod-download-retry.sh",
