@@ -70,6 +70,24 @@ for tool in task yq buildx compose; do
   # independent module verification, tests and locked-source comparisons.
   bash /build/go-mod-download-retry.sh
   go mod verify
+  # x/net v0.62.0 requires these patched transitive versions. Check the
+  # selected module graph before tests/build so a stale lock cannot compile
+  # against an older transitive graph.
+  for dependency in \
+    "golang.org/x/crypto v0.58.0" \
+    "golang.org/x/net v0.62.0" \
+    "golang.org/x/sync v0.24.0" \
+    "golang.org/x/sys v0.49.0" \
+    "golang.org/x/term v0.47.0" \
+    "golang.org/x/text v0.43.0"; do
+    module="${dependency% *}"
+    expected="${dependency##* }"
+    actual="$(go list -m -f '{{.Path}} {{.Version}}' "$module")"
+    [[ "$actual" == "$dependency" ]] || {
+      echo "::error::Unexpected locked module version: $actual (expected $dependency)" >&2
+      exit 1
+    }
+  done
   case "$tool" in
     task|yq) go test ./... ;;
     buildx) go test ./version ./util/buildflags ./store ;;
