@@ -16,11 +16,11 @@ export NODE_VERSION=26.13.0
 
 export JAVA_MAJOR=21
 
-export FLUTTER_VERSION=3.47.8
-export FLUTTER_SHA256=baf7dcc5a3dbba60fe863bf493a6cf203195621f7786eaa5a1bba02cd0d87dd2
-export FLUTTER_SHA256_AMD64=baf7dcc5a3dbba60fe863bf493a6cf203195621f7786eaa5a1bba02cd0d87dd2
-export FLUTTER_GIT_REF=737ba8f885dc774b53b442759999a312c9461e4e
-export FLUTTER_ARCHIVE_AMD64=https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.8-stable.tar.xz
+export FLUTTER_VERSION=3.47.9
+export FLUTTER_SHA256=25ed8c3c29d51a7353f2a944310b478af8214920639524b19c50a19e6c044c5a
+export FLUTTER_SHA256_AMD64=25ed8c3c29d51a7353f2a944310b478af8214920639524b19c50a19e6c044c5a
+export FLUTTER_GIT_REF=c197ca5199e9ee5661e865596c9c07294dfab51c
+export FLUTTER_ARCHIVE_AMD64=https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.47.9-stable.tar.xz
 
 export POSTGRES_MAJOR=17
 
@@ -30,11 +30,11 @@ export PNPM_SHA256_ARM64=f5847699e5d528f8f8e9bcfb385e58cb9fba7482af1b1aa7b70737b
 export COREPACK_VERSION=0.36.0
 export POETRY_VERSION=2.5.1
 
-export UV_VERSION=0.13.5
+export UV_VERSION=0.13.7
 export UV_ASSET_AMD64=uv-x86_64-unknown-linux-gnu.tar.gz
-export UV_SHA256_AMD64=f68d291c75783122dad58ab77def0e13f3233f358731db5d6d7e8715603b928f
+export UV_SHA256_AMD64=c5221ff41b7892bfc223543883600125f6a47fe845093e0f5bdff4f359196d83
 export UV_ASSET_ARM64=uv-aarch64-unknown-linux-gnu.tar.gz
-export UV_SHA256_ARM64=4bb69cf95ed13f23713bb7bc09f241896ea0c75b7c557e615a20604b82f9c403
+export UV_SHA256_ARM64=71279f8d3c67241e807b9d8db872d1bf541579fb9f08b7d1eb1682196d1e57dc
 
 export TASK_VERSION=3.54.0
 export TASK_ASSET_AMD64=task_linux_amd64.tar.gz
@@ -48,11 +48,11 @@ export RIPGREP_SHA256_AMD64=33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a
 export RIPGREP_ASSET_ARM64=ripgrep-15.2.0-aarch64-unknown-linux-gnu.tar.gz
 export RIPGREP_SHA256_ARM64=a740b91c82eaf9914cfedd353572f2791cbe0162c84101ee0951058f4dcbc90d
 
-export FD_VERSION=10.5.0
-export FD_ASSET_AMD64=fd-v10.5.0-x86_64-unknown-linux-musl.tar.gz
-export FD_SHA256_AMD64=761c72dc8e120d85b22292063be8a796e2eeb20eb3e4f38b8fa2343ccf3514a7
-export FD_ASSET_ARM64=fd-v10.5.0-aarch64-unknown-linux-gnu.tar.gz
-export FD_SHA256_ARM64=c0ee43802e3313a317c5af2f4eabd6ba13eeedd595af9775f05e18a13ac4f52c
+export FD_VERSION=10.5.2
+export FD_ASSET_AMD64=fd-v10.5.2-x86_64-unknown-linux-musl.tar.gz
+export FD_SHA256_AMD64=7e2d07fa2b8807642aaec67b7e2972a9fbe4db26fcb340a7372392db42b26694
+export FD_ASSET_ARM64=fd-v10.5.2-aarch64-unknown-linux-gnu.tar.gz
+export FD_SHA256_ARM64=4b144f38bd7352cd4c95020b58e8e575476e60edcdf1dc5e0733e3d01efba6dd
 
 export BAT_VERSION=0.26.1
 export BAT_ASSET_AMD64=bat-v0.26.1-x86_64-unknown-linux-musl.tar.gz
@@ -66,11 +66,11 @@ export EZA_SHA256_AMD64=35c70c5c43c29108075e58b893234c67ef585f0b53a7eaf8e9e7d4ee
 export EZA_ASSET_ARM64=eza_aarch64-unknown-linux-gnu.tar.gz
 export EZA_SHA256_ARM64=40b87ae8628aa2ff0f0d2dc24ab52f689631366385c3da630bae745671fd71ec
 
-export YQ_VERSION=4.54.1
+export YQ_VERSION=4.54.2
 export YQ_ASSET_AMD64=yq_linux_amd64
-export YQ_SHA256_AMD64=8e34fc298390875de416e6a4afcb8cabeceb25d9aa8506c1a2f9353cf702ea5f
+export YQ_SHA256_AMD64=44c7759059b4910827a0059a2757b22001e59360cdecdb2ef8dedc4b6c7e9f32
 export YQ_ASSET_ARM64=yq_linux_arm64
-export YQ_SHA256_ARM64=189088da0c6429ec5178dfaab1a114805f6cab0b61b165ab236efedf1d57a71b
+export YQ_SHA256_ARM64=bd44211dcd29a5f0eb701d4b7eb5ccd0cfff3bd3966cb4f7f9bd5b13701d997e
 
 export GH_VERSION=2.102.1
 export GH_ASSET_AMD64=gh_2.102.1_linux_amd64.tar.gz
@@ -100,7 +100,7 @@ export AWS_CLI_ASSET_ARM64=awscli-exe-linux-aarch64-2.36.38.zip
 export TURBO_VERSION=2.11.10
 export PLAYWRIGHT_VERSION=1.64.1
 export SHARP_VERSION=0.35.5
-export LIGHTHOUSE_VERSION=13.5.0
-export NPM_VERSION=12.2.1
+export LIGHTHOUSE_VERSION=13.6.0
+export NPM_VERSION=12.2.2
 
 export NPM_BUNDLED_TAR_VERSION=7.5.22
