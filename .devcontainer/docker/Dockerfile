@@ -288,8 +288,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY config/versions.lock /build/versions.lock
 COPY config/security/ /build/security/
 COPY scripts/build-security-clis.sh /build/build-security-clis.sh
+COPY scripts/build-upstream-security-clis.sh /build/build-upstream-security-clis.sh
 COPY scripts/go-mod-download-retry.sh /build/go-mod-download-retry.sh
 RUN bash /build/build-security-clis.sh "${TARGETARCH}"
+RUN bash /build/build-upstream-security-clis.sh
 
 FROM ubuntu:${UBUNTU_VERSION} AS cli-tools
 ARG TARGETARCH
@@ -368,15 +370,7 @@ RUN set -euo pipefail; \
     extract_binary "${!UV_ASSET}" uv; \
     extract_binary "${!UV_ASSET}" uvx; \
     \
-    # gh — tar.gz
-    GH_ASSET="GH_ASSET_${ARCH_SUFFIX}"; GH_SHA="GH_SHA256_${ARCH_SUFFIX}"; \
-    fetch_verify "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${!GH_ASSET}" "${!GH_ASSET}" "${!GH_SHA}"; \
-    extract_binary "${!GH_ASSET}" gh; \
-    \
-    # cosign — raw binary, no archive to extract
-    COSIGN_ASSET="COSIGN_ASSET_${ARCH_SUFFIX}"; COSIGN_SHA="COSIGN_SHA256_${ARCH_SUFFIX}"; \
-    fetch_verify "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/${!COSIGN_ASSET}" "${!COSIGN_ASSET}" "${!COSIGN_SHA}"; \
-    cp "${!COSIGN_ASSET}" /opt/cli-tools/bin/cosign; \
+    # gh and cosign come from pinned, security-rebuilt upstream sources. \
     \
     chmod +x /opt/cli-tools/bin/*; \
     rm -rf /tmp/cli-tools/*
@@ -734,7 +728,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" \
       > /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends libatomic1 nodejs && \
+    # Fail early on NodeSource metadata drift, before the expensive npm/toolchain layers. \
+    NODE_CANDIDATE="$(apt-cache policy nodejs | awk '/Candidate:/ {print $2; exit}')" && \
+    test "${NODE_CANDIDATE}" = "${NODE_VERSION}-1nodesource1" || { \
+      echo "::error::NodeSource candidate differs from locked Node ${NODE_VERSION}; update config/versions.yaml and regenerate versions.lock" >&2; exit 1; \
+    }; \
+    apt-get install -y --no-install-recommends libatomic1 "nodejs=${NODE_VERSION}-1nodesource1" && \
     test "$(node --version)" = "v${NODE_VERSION}" && \
     \
     # npm_install_retry() wraps the two npm-registry-published installs
@@ -1295,7 +1294,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
     install -d /usr/share/postgresql-common/pgdg && \
-    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    curl --fail --silent --show-error --location \
+      --retry 6 --retry-all-errors --retry-delay 3 --retry-max-time 180 \
+      --connect-timeout 20 --max-time 90 \
+      https://www.postgresql.org/media/keys/ACCC4CF8.asc \
       -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc && \
     echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
 https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" \

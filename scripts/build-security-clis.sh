@@ -70,6 +70,24 @@ for tool in task yq buildx compose; do
   # independent module verification, tests and locked-source comparisons.
   bash /build/go-mod-download-retry.sh
   go mod verify
+  # x/net v0.62.0 requires these patched transitive versions. Check the
+  # selected module graph before tests/build so a stale lock cannot compile
+  # against an older transitive graph.
+  for dependency in \
+    "golang.org/x/crypto v0.58.0" \
+    "golang.org/x/net v0.62.0" \
+    "golang.org/x/sync v0.24.0" \
+    "golang.org/x/sys v0.49.0" \
+    "golang.org/x/term v0.47.0" \
+    "golang.org/x/text v0.43.0"; do
+    module="${dependency% *}"
+    expected="${dependency##* }"
+    actual="$(go list -m -f '{{.Path}} {{.Version}}' "$module")"
+    [[ "$actual" == "$dependency" ]] || {
+      echo "::error::Unexpected locked module version: $actual (expected $dependency)" >&2
+      exit 1
+    }
+  done
   case "$tool" in
     task|yq) go test ./... ;;
     buildx) go test ./version ./util/buildflags ./store ;;
@@ -78,9 +96,17 @@ for tool in task yq buildx compose; do
   go build -trimpath -buildvcs=false -ldflags="$ldflags" -o "/out/$binary" "$package"
   go version -m "/out/$binary" | tee "/out/${tool}.buildinfo"
   grep -F 'go1.27.3' "/out/${tool}.buildinfo"
-  grep -E 'golang.org/x/net[[:space:]]+v0.60.0[[:space:]]' "/out/${tool}.buildinfo"
-  cmp go.mod "/build/security/$tool/go.mod.lock"
-  cmp go.sum "/build/security/$tool/go.sum"
+  grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' "/out/${tool}.buildinfo"
+  if ! cmp -s go.mod "/build/security/$tool/go.mod.lock"; then
+    echo "::error::Generated $tool go.mod differs from the committed lock; exact diff follows." >&2
+    diff -u "/build/security/$tool/go.mod.lock" go.mod >&2 || true
+    exit 1
+  fi
+  if ! cmp -s go.sum "/build/security/$tool/go.sum"; then
+    echo "::error::Generated $tool go.sum differs from the committed lock; exact diff follows." >&2
+    diff -u "/build/security/$tool/go.sum" go.sum >&2 || true
+    exit 1
+  fi
 done
 /out/task --version | grep -F '3.54.0'
 /out/yq --version | grep -F '4.54.1'

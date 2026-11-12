@@ -3,9 +3,9 @@
 
 This is not VEX "not_affected", an Ubuntu patch, or a staging/production
 approval. Preserve complete Trivy findings and deny new/unrecognised CVEs.
-Applies only to dev PRs #48/#50/#57/#58, development-main and one exact
+Applies only to open dev PR #62, development-main and one exact
 tagged DEVELOPMENT CONTAINER distributions v1.5.0-rc.N and v1.5.0,
-before 2026-11-13 UTC.
+before 2026-11-26 UTC.
 Approval source: user's explicit Baobab-dev distribution clarification
 (2026-11-03). A tag is a development image distribution, not deployment.
 Directive / audit: https://github.com/baobab-platform/baobab-dev/issues/54
@@ -22,16 +22,29 @@ import re
 import sys
 
 INVENTORY_BLOB_SHA1 = "a98090feb9e3df2d9df72654516df69c64daf50e"
-EXPIRY = dt.datetime(2026, 11, 13, 0, 0, tzinfo=dt.timezone.utc)
+EXPIRY = dt.datetime(2026, 11, 26, 0, 0, tzinfo=dt.timezone.utc)
 PACKAGE = "linux-libc-dev"
 VERSION = "7.0.0-42.42"
+# Owner-authorised 12 Nov 2026: exact new Ubuntu package and eight HIGH CVEs.
+# Independent of the immutable 295-CVE inventory for 7.0.0-42.42.
+ADDITIONAL_VERSION = "7.0.0-43.43"
+ADDITIONAL_CVES = frozenset({
+    "CVE-2022-50240",
+    "CVE-2025-40190",
+    "CVE-2026-68103",
+    "CVE-2026-72198",
+    "CVE-2026-74578",
+    "CVE-2026-89805",
+    "CVE-2026-98376",
+    "CVE-2026-98420",
+})
 CVE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 TARGETS = {"final", "infra", "frontend", "frontend-e2e"}
 PLATFORMS = {"linux/amd64", "linux/arm64"}
-# Owner-authorised DEV-only PR addition (2026-11-03), recorded under issue #54.
+# Only open PR #62 remains eligible; merged #48/#50/#57/#58 are retired.
 # Owner-directed publication: RC candidates first, then GA for development
 # consumers. No other pre-releases, future tags or production deployments.
-APPROVED_DEVELOPMENT_PRS = frozenset({48, 50, 57, 58})
+APPROVED_DEVELOPMENT_PRS = frozenset({62})
 APPROVED_DEVELOPMENT_IMAGE_REF = "refs/tags/v1.5.0"
 APPROVED_DEVELOPMENT_RC_REF = re.compile(r"^refs/tags/v1[.]5[.]0-rc[.][1-9][0-9]*$")
 
@@ -75,13 +88,14 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
                             and (ref == APPROVED_DEVELOPMENT_IMAGE_REF
                                  or APPROVED_DEVELOPMENT_RC_REF.fullmatch(ref) is not None))
     require(is_qualified_dev_pr or is_dev_main or is_dev_image_release,
-            "risk acceptance only valid for PR #48/#50/#57/#58, untagged "
+            "risk acceptance only valid for open PR #62, untagged "
             "development main or v1.5.0-rc.N / v1.5.0 devcontainer GHCR distribution")
     require(target in TARGETS and platform in PLATFORMS,
             "unapproved target or architecture")
     results = report.get("Results")
     require(isinstance(results, list) and results, "missing complete Trivy Results inventory")
     observed: dict[str, str] = {}
+    observed_version: str | None = None
     for result in results:
         require(isinstance(result, dict) and isinstance(result.get("Target"), str),
                 "invalid Trivy target")
@@ -93,23 +107,33 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
             cve = finding.get("VulnerabilityID")
             require(isinstance(cve, str) and CVE.fullmatch(cve) is not None,
                     "unrecognised security finding")
-            require(cve in allowed, "unapproved HIGH/CRITICAL CVE: " + cve)
+            version = finding.get("InstalledVersion")
+            permitted = (allowed if version == VERSION else
+                         {key: "HIGH" for key in ADDITIONAL_CVES}
+                         if version == ADDITIONAL_VERSION else {})
+            require(cve in permitted, "unapproved HIGH/CRITICAL CVE: " + cve)
+            require(observed_version is None or observed_version == version,
+                    "mixed kernel-header package versions in one report")
+            observed_version = version
             require(result.get("Type") == "ubuntu"
                     and finding.get("PkgName") == PACKAGE
-                    and finding.get("InstalledVersion") == VERSION,
+                    and version in {VERSION, ADDITIONAL_VERSION},
                     "unapproved affected package, OS or version: " + cve)
-            require(finding.get("Severity") == allowed[cve],
+            require(finding.get("Severity") == permitted[cve],
                     "CVE severity changed; risk scope requires review: " + cve)
             require(not finding.get("FixedVersion"),
                     "supported fixed-version signal; remediate instead: " + cve)
             require(cve not in observed, "duplicate or ambiguous CVE finding: " + cve)
             observed[cve] = finding["Severity"]
     require(observed, "unexpected empty risk-acceptance scan; use ordinary clean scan path")
+    if observed_version == ADDITIONAL_VERSION:
+        require(set(observed) == ADDITIONAL_CVES,
+                "incomplete or changed 7.0.0-43.43 eight-CVE inventory")
     return {
         "decision": "development_risk_accepted_not_remediated",
         "authority": "owner-directed development-only risk treatment; not independently signed",
         "issue": "https://github.com/baobab-platform/baobab-dev/issues/54",
-        "package": PACKAGE, "version": VERSION, "profile": target, "platform": platform,
+        "package": PACKAGE, "version": observed_version, "profile": target, "platform": platform,
         "known_cves_observed": len(observed),
         "critical": sum(x == "CRITICAL" for x in observed.values()),
         "expiry_utc": EXPIRY.isoformat(),

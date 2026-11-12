@@ -8,8 +8,10 @@ historical provenance; these image executables now come from the separate
 `patched-go-clis` stage.
 
 This isolated builder uses Go 1.27.3 and the committed module graphs under
-`config/security/{task,yq,buildx,compose}` with `golang.org/x/net v0.60.0`
-and patched JOSE v4.1.6 wherever that module is present. It addresses the
+`config/security/{task,yq,buildx,compose}` with `golang.org/x/net v0.62.0`
+and patched JOSE v4.1.6 wherever that module is present. The x/net upgrade is a module-graph change, not a one-line checksum substitution. Its v0.62.0 go.mod requires x/crypto v0.58.0, x/sys v0.49.0, x/term v0.47.0 and x/text v0.43.0; x/text v0.43.0 in turn requires x/sync v0.24.0. All four committed lock graphs and checksum files carry these selected versions. The build script verifies the selected module versions before compiling so a partial or stale transitive lock fails early.
+
+It addresses the
 Go standard-library and HTTP/2 findings in image run 40866955151. It does not
 change any consuming project's adopted Go version. Both compiler architectures
 and source archives have explicit SHA-256 checks. Dependency resolution uses
@@ -25,7 +27,7 @@ transform smoke cases. This is candidate component evidence, not Codespaces,
 multi-architecture image or programme acceptance.
 
 Full image security qualification remains held until every finding is resolved.
-The same recorded scan also found urllib3 2.7.0
+The x/net module-level findings CVE-2026-78661 and CVE-2026-97045 are remediated by the v0.62.0 locked graph; final image scans must still verify the resulting binaries. The same recorded scan also found urllib3 2.7.0
 vendored by pip 26.2.2; the system/Poetry urllib3 constraints do not patch pip's
 vendored source. No suppression is added or extended by this override.
 

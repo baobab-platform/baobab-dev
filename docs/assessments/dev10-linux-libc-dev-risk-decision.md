@@ -212,3 +212,48 @@ scanner failure, secrets, different tags, wrong actor or missing evidence still
 stop publication. Neither RC nor GA is an application staging/production
 approval. The release-owner direction is recorded in chat and issue #54, not
 falsely attributed to an independent signed IAM/CP security identity.
+
+## 12 November 2026 — approved development-only renewal and PR #62 inclusion
+
+**Authority:** The platform owner explicitly approved this amendment in chat on 12 November 2026, following the proposal to include PR #62 and renew the narrow risk decision for 14 days. This is a user-attested executive decision, **not** an independently verified GitHub security signature, CVE remediation, or VEX not-affected assertion. Record and review in [issue #54](https://github.com/baobab-platform/baobab-dev/issues/54).
+
+**Change:** Add **PR #62** to the existing explicitly enumerated development PRs **#48, #50, #57, #58**. Accept only the exact `pull_request` event and `refs/pull/62/merge` ref; no other PR inherits this decision. Renew the risk decision expiry to **2026-11-26 00:00 UTC**, a 14-day extension of the 12 November owner decision. The earlier 13 November expiry is superseded **only for this development risk decision**; the separately expiring Shared Foundation repository exception is **not renewed by this amendment** and requires its own authorisation.
+
+**Unchanged hard boundaries:** Ubuntu 26.04 `linux-libc-dev=7.0.0-42.42` **only**; original immutable 295-CVE SHA1-pinned inventory (12 CRITICAL, 283 HIGH) only; four profiles `final`, `infra`, `frontend`, `frontend-e2e` on `linux/amd64` and `linux/arm64` only; development main and previously approved `v1.5.0-rc.N` / `v1.5.0` development-container distribution only. Unfiltered Trivy scans and exact GHCR digest/provenance gates remain mandatory. Any changed package version, additional CVE, severity drift, available supported fix, secret finding, scanner error, missing evidence, unapproved event/ref, staging or production application deployment remains **DENIED**.
+
+**Important operational caveat:** if a new #62 build installs a different `linux-libc-dev` package version, the risk gate must **reject** it. A newly scoped PR number is not permission to accept different package versions or vulnerabilities. Investigate and remediate those findings or seek a separate documented security decision. Preserve independent protected environment approvals and the ongoing per-CVE source/headers review. No blanket Trivy ignores or VEX assertions are authorised.
+
+**Enforcement and regression:** `scripts/dev10_kernel_risk_gate.py` and `tests/test_dev10_kernel_risk_gate.py` now encode the amended PR scope, expiry, eight profile/architecture positive cases and negative controls. Final-head CI and actual image inventory must qualify before merging #62.
+
+## 12 November 2026 — actual PR #62 image evidence, superseding assumptions
+
+**Evidence:** GitHub Actions run 43257311010, downloadable artifact `trivy-final-amd64-6e531c042fd413d0075906398afe8900df6fe049` (artifact ID 13962922393), with both `trivy-evidence/findings.json` and sanitized `trivy-evidence/trivy-vulnerabilities.json`. This is observed scanner evidence, not a security approval. The image contains **ten HIGH findings**, not the old 295-CVE inventory:
+
+| Package / embedded binary | Installed version | CVE | Trivy fixed version |
+| --- | --- | --- | --- |
+| `/usr/local/bin/gh` / `golang.org/x/net` | 0.60.0 | CVE-2026-78661 | 0.62.0 |
+| `/usr/local/bin/cosign` / `golang.org/x/net` | 0.61.0 | CVE-2026-78661 | 0.62.0 |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2022-50240 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2025-40190 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2026-68103 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2026-72198 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2026-74578 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2026-89805 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2026-98376 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2026-98420 | none reported |
+
+**Conclusions:** The four locally source-built CLIs already lock `x/net v0.62.0`. The two affected executables are instead the separately downloaded upstream GitHub CLI and Cosign binaries. Remediate these exact binaries by verified upstream distributions with clean embedded `go version -m` evidence, or reproducible source builds with pinned module graph and checksums. Do not patch unrelated Go lockfiles or suppress the CVE. The eight Ubuntu findings belong to **a different package version** from the approved `7.0.0-42.42` inventory. Their absence of Trivy `FixedVersion` is **not proof of non-applicability**. Assess actual installed header paths, kernel/userspace exposure and Ubuntu security tracker statuses per CVE before requesting a **new** bounded decision. Do not silently broaden the existing approval. The current risk gate is correctly DENYING the image.
+
+**Operational classification:** Foundation and Publish CVE gate failures are security-policy failures, not failures of the DEV-14 doctor or DEV-10 locked onboarding suites. BuildKit GHA cache budget errors are separately observed and its `ignore-error=true` cache export is already best-effort. Preserve raw Trivy, SBOM, exact OCI digest and all eight architecture/profile attestations; do not merge until final-head evidence is green.
+
+## 12 November 2026 — merged-PR scope retirement
+
+Verified GitHub pull-request state: **#48, #50, #57 and #58 are all merged**. They are retained above as historical approval records only; they no longer qualify for new development risk acceptance decisions. The executable gate now allows only **open PR #62**, plus the previously authorised untagged development-main and exact `v1.5.0-rc.N`/`v1.5.0` development image refs. The approved package `linux-libc-dev=7.0.0-42.42`, immutable 295-CVE inventory, eight profile/architecture combinations and 2026-11-26 expiry remain unchanged. This is a **reduction**, not an expansion, of authority. The newer `7.0.0-43.43` package and all Go module findings remain denied pending remediation or a separate explicit decision.
+
+## 12 November 2026 — owner-authorised Ubuntu 7.0.0-43.43 amendment
+
+**Authority:** The platform owner explicitly directed that `linux-libc-dev 7.0.0-43.43` be covered by the DEV-10 security risk acceptance. This is a development-only executive acceptance of *known unremediated findings*, not a vendor fix, VEX non-applicability determination, or staging/production authorisation.
+
+**Exact new scope:** Ubuntu package `linux-libc-dev`, installed version **`7.0.0-43.43`**, and **only** these eight Trivy-observed HIGH advisories: `CVE-2022-50240`, `CVE-2025-40190`, `CVE-2026-68103`, `CVE-2026-72198`, `CVE-2026-74578`, `CVE-2026-89805`, `CVE-2026-98376`, `CVE-2026-98420`. Evidence: Foundation run 43271916377 and image scan artifact 13962922393. The original `7.0.0-42.42` / 295-CVE SHA-1-pinned inventory remains independently valid and unchanged. The new eight-CVE set is explicitly enumerated and must be complete for that package version; mixed package versions, new CVEs, changed severities, a fixed-version signal, other packages, secrets, unapproved PRs, targets, architectures, deployment contexts or dates are denied.
+
+**Unchanged limits:** PR #62 only (other PRs merged and retired), development-main, exact v1.5.0-rc.N/v1.5.0 development-container distribution, four profiles × two architectures, expiry **2026-11-26 00:00 UTC**. CI still produces complete scanner evidence and flags the accepted findings as **not remediated**. This amendment must not be interpreted as permission to waive Go executable findings or any new vulnerabilities. The decision should be reviewed when an Ubuntu fixed package becomes available.

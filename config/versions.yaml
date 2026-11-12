@@ -35,7 +35,7 @@ languages:
 
   node:
     major: "26"
-    exact: "26.13.0"
+    exact: "26.13.1"
     source: "nodesource"
 
   flutter:

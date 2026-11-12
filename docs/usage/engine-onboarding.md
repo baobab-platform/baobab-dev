@@ -28,11 +28,23 @@ python3 scripts/dev14-doctor.py --profile pulse-intelligence --shared-root ../sh
 ```
 
 The tool checks relevant installed binaries/versions, Docker daemon and
-Compose reachability, and (when supplied) the **exact clean Shared commit**.
+Compose reachability, and (when supplied) the **exact clean Shared checkout**.
 For Pulse the current qualified interpreter line is Python 3.14.x (not 3.15); Payments needs Rust >=1.88 plus
 Cargo. An absent Rust toolchain is a BLOCKED prerequisite, not a simulated
 native build or permission to silently change the global image. Use a
 reviewed and owner-qualified Rust Dev Container feature/layer if necessary.
+
+The Shared checkout check is deliberately provenance-sensitive: the supplied
+path must be the repository root, its literal local `origin` must be the
+canonical `baobab-platform/shared` GitHub repository (HTTPS or SSH), and HEAD
+must equal the exact #403 merge SHA. Git probes disable optional index locks,
+repository fsmonitor hooks and Git hooks; ambient Git environment overrides and
+global/system configuration are excluded. The doctor rejects sparse checkout,
+sparse index, `assume-unchanged` and `skip-worktree` entries, then checks
+porcelain status including untracked files and submodule changes. The machine
+output reader retains complete bounded Git values internally while reporting
+only fixed diagnostic statuses. It never prints the remote URL, credentials,
+or raw Git errors.
 
 `--fail-on-blocked` returns nonzero for a blocked local toolchain; without
 this option the command emits machine-readable diagnostics for the UI/CI.
@@ -63,52 +75,53 @@ money movement.
 
 Remove the developer diagnostic or restore its previous source commit to
 roll back. It changes neither `config/versions.lock` nor the published image
-contents. Treat `UNAVAILABLE`, `VERSION_UNSUPPORTED`, and `MISMATCH`
-as actionable blockers, and never turn them into green status by hiding the
+contents. Treat `UNAVAILABLE`, `VERSION_UNSUPPORTED`, `MISMATCH`,
+`UNTRUSTED_REMOTE`, `NOT_REPOSITORY_ROOT`, `INCOMPLETE_INDEX`, and
+`DIRTY_WORKTREE` as actionable blockers, and never turn them into green status by hiding the
 check. Keep SDK and language versions pinned by their owner contract.
-
 
 ## DEV-10 security dependency and merge sequencing
 
-This DEV-14 doctor changes source diagnostics, not image trust. The branch
-also carries the same checksum-pinned Terraform 1.17.1, Maven Guava 33.7.2
-replacement, pip-vendored msgpack 1.2.3, setuptools-derived pkg_resources
-78.1.1 and urllib3 2.8.0 security remediations proposed in
-[baobab-dev #48](https://github.com/baobab-platform/baobab-dev/pull/48).
-Both PRs must preserve these fixes when #48 is merged first. A stale
-DEV-14 branch must never revert to Terraform 1.16.7 or the unpatched
-vendored libraries. The vendoring rebuild also requires an upstream-
-compatible pkg_resources patch and must pass full amd64/arm64 image CI
-before merge. No .trivyignore suppression or expiry extension is authorised
-by the doctor; report remaining unsuppressed findings explicitly.
+This DEV-14 doctor changes source diagnostics, not image trust. The
+DEV-10/DEV-14 source stack (#48 and #50) is already merged to `main`; this
+branch is based on that merged baseline and must preserve its security fixes.
+It does not extend the separate development-only kernel residual-risk
+acceptance, suppress a new finding, or qualify a published image. The locked
+Go CLI dependency graphs are updated to `golang.org/x/net v0.62.0` for the
+reported module finding; final dependency and image scans must independently
+confirm the resulting source and binaries. No .trivyignore suppression or
+expiry extension is authorised by the doctor; report remaining unsuppressed
+findings explicitly.
 
 `LOCAL_TOOLCHAIN_OBSERVED` does not supersede independent Infrastructure
 native execution, evidence custody or protected environment approvals.
 
-## Stacked DEV-10 integration and security qualification (30 October 2026)
+## DEV-10/DEV-14 source merge and security boundary (reconciled 8 November 2026)
 
-PR #50 integrates the qualified #48 source head
-`47f76836854d42b7f08b2ee1796d2c902706dacc` and retains the four
-DEV-14-specific developer-doctor additions. GitHub currently treats the pair
-as a **stack**: the immediate merge and auto-merge endpoints rejected #48
-while the dependent PR exists, and changing #50's base directly is blocked.
-This source integration is **not** a claim that #48 was merged to `main`.
+The historical stack is now merged. Shared's source reconciliation records
+both baobab-dev **#48 and #50 merged to `main`** at
+`eb9fb92f043c782acff5d87c77301d9a9e8b80dd`. The final reviewed heads were
+#48 `415a7c20a4602f4f01103522ae42b1a39b08b96c` and
+#50 `1aa22c2668eda2a49ce5581da5b2383069599b37`. The DEV-14 doctor,
+regression tests, workflow and onboarding guide are therefore part of the
+merged source baseline; do not repeat the old stack merge/retarget sequence.
+
+This source merge did **not** publish a new image, qualify a fresh interactive
+Codespace, prove private package access, or establish a protected release.
+Those remain separate DEV-10/DEV-14 acceptance obligations. In particular,
+source CI and a local `LOCAL_TOOLCHAIN_OBSERVED` result are not substitutes
+for an actual consumer Codespace and its private dependency/build/test run.
 
 The temporary, user-attested DEV-10 *development residual-risk acceptance*
-now explicitly includes **PR #50**, as well as PR #48 and untagged development
-`main`, so the dependent checks exercise the same exact known package
-`linux-libc-dev 7.0.0-42.42` and 295-CVE inventory. The expiry remains
-**13 November 2026 at 00:00 UTC**. It is not a `not_affected` VEX approval,
-a release exemption, a staging/production certification, or a newly fixed
-vendor CVE. All other CVEs, package versions, PR identities and tag pushes
-remain denied. See `scripts/dev10_kernel_risk_gate.py`,
+was recorded for PRs #48/#50 and untagged development `main`, with the
+exact known `linux-libc-dev 7.0.0-42.42` package and 295-CVE inventory. Its
+recorded expiry remains **13 November 2026 at 00:00 UTC**. It is not a
+`not_affected` VEX approval, a release exemption, a staging/production
+certification, or a newly fixed vendor CVE. Do not extend that acceptance to
+a new PR, package, CVE, published tag or protected environment without a
+separate authorised decision. See `scripts/dev10_kernel_risk_gate.py`,
 `tests/test_dev10_kernel_risk_gate.py` and
 `docs/assessments/dev10-linux-libc-dev-risk-decision.md`.
-
-**Merge sequence remains:** merge qualified #48 via GitHub's stack-supported
-merge workflow; retarget #50 to the resulting `main`; requalify the final
-#50 head and perform its required review before considering its merge.
-
 
 ## Future toolchain upgrades
 
