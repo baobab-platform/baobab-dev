@@ -171,7 +171,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             self.qualify(report, pr_number=58, ref="refs/pull/58/merge")
         with self.assertRaises(mod.RiskGateError):
             self.qualify(pr_number=58, ref="refs/pull/58/merge",
-                         now=dt.datetime(2026, 11, 13, tzinfo=dt.timezone.utc))
+                         now=dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
 
     def test_owner_authorised_rc_tags_are_dev_distribution_only(self):
         for candidate in ("v1.5.0-rc.1", "v1.5.0-rc.2", "v1.5.0-rc.10"):
@@ -232,7 +232,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
 
     def test_expired(self):
         with self.assertRaises(mod.RiskGateError):
-            self.qualify(now=dt.datetime(2026, 11, 13, tzinfo=dt.timezone.utc))
+            self.qualify(now=dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
 
     def test_other_cve_or_package_or_version_or_severity_denied(self):
         for key, value in (
