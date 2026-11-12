@@ -734,7 +734,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" \
       > /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends libatomic1 nodejs && \
+    # Fail early on NodeSource metadata drift, before the expensive npm/toolchain layers. \
+    NODE_CANDIDATE="$(apt-cache policy nodejs | awk '/Candidate:/ {print $2; exit}')" && \
+    test "${NODE_CANDIDATE}" = "${NODE_VERSION}-1nodesource1" || { \
+      echo "::error::NodeSource candidate differs from locked Node ${NODE_VERSION}; update config/versions.yaml and regenerate versions.lock" >&2; exit 1; \
+    }; \
+    apt-get install -y --no-install-recommends libatomic1 "nodejs=${NODE_VERSION}-1nodesource1" && \
     test "$(node --version)" = "v${NODE_VERSION}" && \
     \
     # npm_install_retry() wraps the two npm-registry-published installs
