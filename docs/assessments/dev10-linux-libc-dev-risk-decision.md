@@ -212,3 +212,15 @@ scanner failure, secrets, different tags, wrong actor or missing evidence still
 stop publication. Neither RC nor GA is an application staging/production
 approval. The release-owner direction is recorded in chat and issue #54, not
 falsely attributed to an independent signed IAM/CP security identity.
+
+## 12 November 2026 — approved development-only renewal and PR #62 inclusion
+
+**Authority:** The platform owner explicitly approved this amendment in chat on 12 November 2026, following the proposal to include PR #62 and renew the narrow risk decision for 14 days. This is a user-attested executive decision, **not** an independently verified GitHub security signature, CVE remediation, or VEX not-affected assertion. Record and review in [issue #54](https://github.com/baobab-platform/baobab-dev/issues/54).
+
+**Change:** Add **PR #62** to the existing explicitly enumerated development PRs **#48, #50, #57, #58**. Accept only the exact `pull_request` event and `refs/pull/62/merge` ref; no other PR inherits this decision. Renew the risk decision expiry to **2026-11-26 00:00 UTC**, a 14-day extension of the 12 November owner decision. The earlier 13 November expiry is superseded **only for this development risk decision**; the separately expiring Shared Foundation repository exception is **not renewed by this amendment** and requires its own authorisation.
+
+**Unchanged hard boundaries:** Ubuntu 26.04 `linux-libc-dev=7.0.0-42.42` **only**; original immutable 295-CVE SHA1-pinned inventory (12 CRITICAL, 283 HIGH) only; four profiles `final`, `infra`, `frontend`, `frontend-e2e` on `linux/amd64` and `linux/arm64` only; development main and previously approved `v1.5.0-rc.N` / `v1.5.0` development-container distribution only. Unfiltered Trivy scans and exact GHCR digest/provenance gates remain mandatory. Any changed package version, additional CVE, severity drift, available supported fix, secret finding, scanner error, missing evidence, unapproved event/ref, staging or production application deployment remains **DENIED**.
+
+**Important operational caveat:** if a new #62 build installs a different `linux-libc-dev` package version, the risk gate must **reject** it. A newly scoped PR number is not permission to accept different package versions or vulnerabilities. Investigate and remediate those findings or seek a separate documented security decision. Preserve independent protected environment approvals and the ongoing per-CVE source/headers review. No blanket Trivy ignores or VEX assertions are authorised.
+
+**Enforcement and regression:** `scripts/dev10_kernel_risk_gate.py` and `tests/test_dev10_kernel_risk_gate.py` now encode the amended PR scope, expiry, eight profile/architecture positive cases and negative controls. Final-head CI and actual image inventory must qualify before merging #62.
