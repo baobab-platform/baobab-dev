@@ -44,6 +44,39 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         self.assertEqual(result["critical"], 12)
         self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
 
+    def test_exact_new_ubuntu_version_eight_high_findings_accepted(self):
+        report = {"Results": [{"Target": "ubuntu 26.04", "Type": "ubuntu",
+            "Vulnerabilities": [
+                {"VulnerabilityID": cve, "PkgName": "linux-libc-dev",
+                 "InstalledVersion": "7.0.0-43.43", "Severity": "HIGH"}
+                for cve in sorted(mod.ADDITIONAL_CVES)]}]}
+        self.assertEqual(len(mod.ADDITIONAL_CVES), 8)
+        for platform in ("linux/amd64", "linux/arm64"):
+            for target in ("final", "infra", "frontend", "frontend-e2e"):
+                with self.subTest(platform=platform, target=target):
+                    decision = self.qualify(report, platform=platform, target=target)
+                    self.assertEqual(decision["version"], "7.0.0-43.43")
+                    self.assertEqual(decision["known_cves_observed"], 8)
+                    self.assertEqual(decision["critical"], 0)
+        for mutation in ("extra", "missing", "severity", "fixed", "package", "version"):
+            import copy
+            altered = copy.deepcopy(report)
+            vulns = altered["Results"][0]["Vulnerabilities"]
+            if mutation == "extra":
+                vulns.append({**vulns[0], "VulnerabilityID": "CVE-2026-999999"})
+            elif mutation == "missing":
+                vulns.pop()
+            elif mutation == "severity":
+                vulns[0]["Severity"] = "CRITICAL"
+            elif mutation == "fixed":
+                vulns[0]["FixedVersion"] = "7.0.0-44.44"
+            elif mutation == "package":
+                vulns[0]["PkgName"] = "openssl"
+            else:
+                vulns[0]["InstalledVersion"] = "7.0.0-44.44"
+            with self.subTest(mutation=mutation), self.assertRaises(mod.RiskGateError):
+                self.qualify(altered)
+
     def test_only_open_pr62_is_authorised(self):
         self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({62}))
         for number in (48, 50, 57, 58):
@@ -76,7 +109,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         for field, value in (
             ("VulnerabilityID", "CVE-2026-999999"),
             ("PkgName", "openssl"),
-            ("InstalledVersion", "7.0.0-43.43"),
+            ("InstalledVersion", "7.0.0-44.44"),
             ("FixedVersion", "7.0.0-43.43"),
         ):
             report = self.report()
