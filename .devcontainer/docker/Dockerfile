@@ -288,8 +288,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 COPY config/versions.lock /build/versions.lock
 COPY config/security/ /build/security/
 COPY scripts/build-security-clis.sh /build/build-security-clis.sh
+COPY scripts/build-upstream-security-clis.sh /build/build-upstream-security-clis.sh
 COPY scripts/go-mod-download-retry.sh /build/go-mod-download-retry.sh
 RUN bash /build/build-security-clis.sh "${TARGETARCH}"
+RUN bash /build/build-upstream-security-clis.sh
 
 FROM ubuntu:${UBUNTU_VERSION} AS cli-tools
 ARG TARGETARCH
@@ -368,15 +370,7 @@ RUN set -euo pipefail; \
     extract_binary "${!UV_ASSET}" uv; \
     extract_binary "${!UV_ASSET}" uvx; \
     \
-    # gh — tar.gz
-    GH_ASSET="GH_ASSET_${ARCH_SUFFIX}"; GH_SHA="GH_SHA256_${ARCH_SUFFIX}"; \
-    fetch_verify "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${!GH_ASSET}" "${!GH_ASSET}" "${!GH_SHA}"; \
-    extract_binary "${!GH_ASSET}" gh; \
-    \
-    # cosign — raw binary, no archive to extract
-    COSIGN_ASSET="COSIGN_ASSET_${ARCH_SUFFIX}"; COSIGN_SHA="COSIGN_SHA256_${ARCH_SUFFIX}"; \
-    fetch_verify "https://github.com/sigstore/cosign/releases/download/v${COSIGN_VERSION}/${!COSIGN_ASSET}" "${!COSIGN_ASSET}" "${!COSIGN_SHA}"; \
-    cp "${!COSIGN_ASSET}" /opt/cli-tools/bin/cosign; \
+    # gh and cosign come from pinned, security-rebuilt upstream sources. \
     \
     chmod +x /opt/cli-tools/bin/*; \
     rm -rf /tmp/cli-tools/*
