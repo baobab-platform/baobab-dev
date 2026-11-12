@@ -224,3 +224,24 @@ falsely attributed to an independent signed IAM/CP security identity.
 **Important operational caveat:** if a new #62 build installs a different `linux-libc-dev` package version, the risk gate must **reject** it. A newly scoped PR number is not permission to accept different package versions or vulnerabilities. Investigate and remediate those findings or seek a separate documented security decision. Preserve independent protected environment approvals and the ongoing per-CVE source/headers review. No blanket Trivy ignores or VEX assertions are authorised.
 
 **Enforcement and regression:** `scripts/dev10_kernel_risk_gate.py` and `tests/test_dev10_kernel_risk_gate.py` now encode the amended PR scope, expiry, eight profile/architecture positive cases and negative controls. Final-head CI and actual image inventory must qualify before merging #62.
+
+## 12 November 2026 — actual PR #62 image evidence, superseding assumptions
+
+**Evidence:** GitHub Actions run 43257311010, downloadable artifact `trivy-final-amd64-6e531c042fd413d0075906398afe8900df6fe049` (artifact ID 13962922393), with both `trivy-evidence/findings.json` and sanitized `trivy-evidence/trivy-vulnerabilities.json`. This is observed scanner evidence, not a security approval. The image contains **ten HIGH findings**, not the old 295-CVE inventory:
+
+| Package / embedded binary | Installed version | CVE | Trivy fixed version |
+| --- | --- | --- | --- |
+| `/usr/local/bin/gh` / `golang.org/x/net` | 0.60.0 | CVE-2026-78661 | 0.62.0 |
+| `/usr/local/bin/cosign` / `golang.org/x/net` | 0.61.0 | CVE-2026-78661 | 0.62.0 |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2022-50240 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2025-40190 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2026-68103 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2026-72198 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2026-74578 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2026-89805 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2026-98376 | none reported |
+| `linux-libc-dev` | 7.0.0-43.43 | CVE-2026-98420 | none reported |
+
+**Conclusions:** The four locally source-built CLIs already lock `x/net v0.62.0`. The two affected executables are instead the separately downloaded upstream GitHub CLI and Cosign binaries. Remediate these exact binaries by verified upstream distributions with clean embedded `go version -m` evidence, or reproducible source builds with pinned module graph and checksums. Do not patch unrelated Go lockfiles or suppress the CVE. The eight Ubuntu findings belong to **a different package version** from the approved `7.0.0-42.42` inventory. Their absence of Trivy `FixedVersion` is **not proof of non-applicability**. Assess actual installed header paths, kernel/userspace exposure and Ubuntu security tracker statuses per CVE before requesting a **new** bounded decision. Do not silently broaden the existing approval. The current risk gate is correctly DENYING the image.
+
+**Operational classification:** Foundation and Publish CVE gate failures are security-policy failures, not failures of the DEV-14 doctor or DEV-10 locked onboarding suites. BuildKit GHA cache budget errors are separately observed and its `ignore-error=true` cache export is already best-effort. Preserve raw Trivy, SBOM, exact OCI digest and all eight architecture/profile attestations; do not merge until final-head evidence is green.
