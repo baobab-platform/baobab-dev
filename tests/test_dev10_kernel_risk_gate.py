@@ -62,14 +62,14 @@ class DevelopmentRiskGateTests(unittest.TestCase):
                 self.qualify(event=event, ref=ref, pr_number=number)
 
     def test_owner_authorised_pr58_dev_only_same_cve_inventory_and_expiry(self):
-        self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({48, 50, 57, 58}))
+        self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({48, 50, 57, 58, 62}))
         result = self.qualify(pr_number=58, ref="refs/pull/58/merge")
         self.assertEqual(result["known_cves_observed"], 295)
         self.assertEqual(result["critical"], 12)
         self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
         self.assertEqual(result["distribution"], "development_ci")
         self.assertIn("no staging/production", result["scope"])
-        self.assertEqual(result["expiry_utc"], "2026-11-13T00:00:00+00:00")
+        self.assertEqual(result["expiry_utc"], "2026-11-26T00:00:00+00:00")
         self.assertEqual(result["technical_applicability"], "under_investigation")
         for platform in ("linux/amd64", "linux/arm64"):
             for target in ("final", "infra", "frontend", "frontend-e2e"):
@@ -77,6 +77,40 @@ class DevelopmentRiskGateTests(unittest.TestCase):
                     evidence = self.qualify(pr_number=58, ref="refs/pull/58/merge",
                                             target=target, platform=platform)
                     self.assertEqual(evidence["known_cves_observed"], 295)
+
+    def test_owner_authorised_pr62_only_through_new_expiry(self):
+        self.assertEqual(mod.EXPIRY, dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
+        for platform in ("linux/amd64", "linux/arm64"):
+            for target in ("final", "infra", "frontend", "frontend-e2e"):
+                with self.subTest(platform=platform, target=target):
+                    result = self.qualify(pr_number=62, ref="refs/pull/62/merge",
+                                          now=dt.datetime(2026, 11, 12, tzinfo=dt.timezone.utc),
+                                          platform=platform, target=target)
+                    self.assertEqual(result["known_cves_observed"], 295)
+                    self.assertEqual(result["expiry_utc"], "2026-11-26T00:00:00+00:00")
+        for event, ref, number in (
+            ("pull_request", "refs/pull/62/head", 62),
+            ("pull_request", "refs/pull/63/merge", 63),
+            ("pull_request", "refs/pull/58/merge", 62),
+            ("workflow_dispatch", "refs/pull/62/merge", 62),
+            ("push", "refs/tags/v1.5.1", 0),
+        ):
+            with self.subTest(event=event, ref=ref, number=number):
+                with self.assertRaises(mod.RiskGateError):
+                    self.qualify(event=event, ref=ref, pr_number=number)
+        for field, value in (
+            ("VulnerabilityID", "CVE-2026-999999"),
+            ("PkgName", "openssl"),
+            ("InstalledVersion", "7.0.0-43.43"),
+            ("FixedVersion", "7.0.0-43.43"),
+        ):
+            report = self.report()
+            report["Results"][0]["Vulnerabilities"][0][field] = value
+            with self.subTest(field=field), self.assertRaises(mod.RiskGateError):
+                self.qualify(report, pr_number=62, ref="refs/pull/62/merge")
+        with self.assertRaises(mod.RiskGateError):
+            self.qualify(pr_number=62, ref="refs/pull/62/merge",
+                         now=dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
 
     def test_pr58_staging_wrong_event_or_ref_never_inherits_dev_risk(self):
         # The owner explicitly authorised this exact tag as a *development*
@@ -117,7 +151,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             self.qualify(report, event="push", ref=f"refs/tags/{release_tag}", pr_number=0)
         with self.assertRaises(mod.RiskGateError):
             self.qualify(event="push", ref=f"refs/tags/{release_tag}", pr_number=0,
-                         now=dt.datetime(2026, 11, 13, tzinfo=dt.timezone.utc))
+                         now=dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
 
     def test_pr58_unknown_cve_or_fix_available_still_denied(self):
         for field, value in (
