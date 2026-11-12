@@ -89,6 +89,15 @@ def main(argv: list[str]) -> int:
         for package in summary["package_inventory"]:
             print(f"  {package['name']} {package['installed_version']}: "
                   f"{package['finding_count']} advisory matches")
+        # Print exact package/binary attribution for remediators. These are
+        # scanner-supplied filesystem paths, not secret values or exemptions.
+        for finding in summary["findings"]:
+            if finding["package"] == "golang.org/x/net":
+                print("  Go module attribution: "
+                      f"target={finding['target']!r} "
+                      f"path={finding['package_path']!r} "
+                      f"version={finding['installed_version']!r} "
+                      f"advisory={finding['vulnerability_id']!r}")
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"::error::Trivy evidence unavailable or invalid: {exc}", file=sys.stderr)
         return 1
