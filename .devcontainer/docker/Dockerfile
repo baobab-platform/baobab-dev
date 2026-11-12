@@ -1294,7 +1294,10 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
     install -d /usr/share/postgresql-common/pgdg && \
-    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+    curl --fail --silent --show-error --location \
+      --retry 6 --retry-all-errors --retry-delay 3 --retry-max-time 180 \
+      --connect-timeout 20 --max-time 90 \
+      https://www.postgresql.org/media/keys/ACCC4CF8.asc \
       -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc && \
     echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
 https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" \
