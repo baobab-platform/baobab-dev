@@ -32,51 +32,26 @@ class DevelopmentRiskGateTests(unittest.TestCase):
 
     def qualify(self, report=None, **extra):
         args = dict(target="final", platform="linux/amd64",
-                    event="pull_request", ref="refs/pull/48/merge",
-                    repository="baobab-platform/baobab-dev", pr_number=48, now=NOW)
+                    event="pull_request", ref="refs/pull/62/merge",
+                    repository="baobab-platform/baobab-dev", pr_number=62, now=NOW)
         args.update(extra)
         return mod.validate(report if report is not None else self.report(),
                             self.allowed, **args)
 
-    def test_real_inventory_approved_scope_for_pr48(self):
+    def test_real_inventory_approved_scope_for_pr62(self):
         result = self.qualify()
         self.assertEqual(result["known_cves_observed"], 295)
         self.assertEqual(result["critical"], 12)
         self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
 
-    def test_dependent_dev14_pr50_allowed_under_same_expiry(self):
-        result = self.qualify(pr_number=50, ref="refs/pull/50/merge")
+    def test_only_open_pr62_is_authorised(self):
+        self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({62}))
+        for number in (48, 50, 57, 58):
+            with self.subTest(merged_pr=number), self.assertRaises(mod.RiskGateError):
+                self.qualify(pr_number=number, ref=f"refs/pull/{number}/merge")
+        result = self.qualify()
         self.assertEqual(result["known_cves_observed"], 295)
-        self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
-
-    def test_candidate_pr57_allowed_but_not_release_authority(self):
-        result = self.qualify(pr_number=57, ref="refs/pull/57/merge")
-        self.assertEqual(result["known_cves_observed"], 295)
-        self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
-        for event, ref, number in (
-            ("push", "refs/tags/v1.5.1", 0),
-            ("workflow_dispatch", "refs/heads/main", 57),
-            ("pull_request", "refs/pull/58/merge", 57),
-        ):
-            with self.subTest(event=event, ref=ref), self.assertRaises(mod.RiskGateError):
-                self.qualify(event=event, ref=ref, pr_number=number)
-
-    def test_owner_authorised_pr58_dev_only_same_cve_inventory_and_expiry(self):
-        self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({48, 50, 57, 58, 62}))
-        result = self.qualify(pr_number=58, ref="refs/pull/58/merge")
-        self.assertEqual(result["known_cves_observed"], 295)
-        self.assertEqual(result["critical"], 12)
-        self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
-        self.assertEqual(result["distribution"], "development_ci")
-        self.assertIn("no staging/production", result["scope"])
         self.assertEqual(result["expiry_utc"], "2026-11-26T00:00:00+00:00")
-        self.assertEqual(result["technical_applicability"], "under_investigation")
-        for platform in ("linux/amd64", "linux/arm64"):
-            for target in ("final", "infra", "frontend", "frontend-e2e"):
-                with self.subTest(platform=platform, target=target):
-                    evidence = self.qualify(pr_number=58, ref="refs/pull/58/merge",
-                                            target=target, platform=platform)
-                    self.assertEqual(evidence["known_cves_observed"], 295)
 
     def test_owner_authorised_pr62_only_through_new_expiry(self):
         self.assertEqual(mod.EXPIRY, dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
@@ -164,13 +139,13 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(mod.RiskGateError):
                 report = self.report()
                 report["Results"][0]["Vulnerabilities"][0][field] = value
-                self.qualify(report, pr_number=58, ref="refs/pull/58/merge")
+                self.qualify(report, pr_number=62, ref="refs/pull/62/merge")
         report = self.report()
         report["Results"][0]["Secrets"] = [{"RuleID": "aws-secret"}]
         with self.assertRaises(mod.RiskGateError):
-            self.qualify(report, pr_number=58, ref="refs/pull/58/merge")
+            self.qualify(report, pr_number=62, ref="refs/pull/62/merge")
         with self.assertRaises(mod.RiskGateError):
-            self.qualify(pr_number=58, ref="refs/pull/58/merge",
+            self.qualify(pr_number=62, ref="refs/pull/62/merge",
                          now=dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
 
     def test_owner_authorised_rc_tags_are_dev_distribution_only(self):
