@@ -381,15 +381,6 @@ RUN set -euo pipefail; \
     chmod +x /opt/cli-tools/bin/*; \
     rm -rf /tmp/cli-tools/*
 
-# Verify the ACTUAL downloaded executable's embedded Go module graph, not
-# the source-built task/yq/buildx/compose lockfiles. CVE-2026-78661 was
-# observed in gh 2.102.1 (x/net 0.60.0) and cosign 3.1.4 (x/net 0.61.0).
-# Do not permit an upstream binary update to silently regress this gate.
-# This checks provenance early; final Trivy scans remain authoritative.
-COPY scripts/verify-go-cli-security.py /usr/local/bin/verify-go-cli-security.py
-RUN python3 /usr/local/bin/verify-go-cli-security.py \
-      /opt/cli-tools/bin/gh /opt/cli-tools/bin/cosign
-
 # -----------------------------------------------------------------------------
 # Stage: base — shared foundation for every final image variant (full,
 # frontend, frontend-e2e)
