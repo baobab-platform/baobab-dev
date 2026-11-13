@@ -2100,14 +2100,14 @@ jobs:
           name: resolved-lockfile
           path: .
 
-      # Pulls every target's published-info-*.json into one directory —
-      # however many `publish` matrix legs actually ran and reached their
-      # export step (final, frontend, frontend-e2e as of this pass).
+      # RC builds publish published-info-* records; GA reuses the exact
+      # qualified RC digests in ga-reused-candidates. Both channels must
+      # render release notes from the records actually promoted.
       - name: Download channel candidate records
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: ${{ runner.temp }}/published-info
-          pattern: published-info-*
+          pattern: ${{ needs.sanity-check.outputs.is_stable_release == 'true' && 'ga-reused-candidates' || 'published-info-*' }}
           merge-multiple: true
 
       # Builds the release body from whatever published-info JSON files are
@@ -2122,6 +2122,27 @@ jobs:
           set -euo pipefail
           BODY_FILE="${{ runner.temp }}/release-body.md"
           INFO_DIR="${{ runner.temp }}/published-info"
+
+          # Do not publish a release body with missing, partial or
+          # unexpected channel records (or a literal unmatched glob).
+          for target in final frontend frontend-e2e infra; do
+            [[ -s "${INFO_DIR}/${target}.json" ]] || {
+              echo "::error::Missing candidate record: ${target}.json" >&2
+              exit 1
+            }
+            jq -e --arg target "$target" \
+              '.target == $target and (.tag | type == "string" and length > 0) and (.digest | type == "string" and test("^sha256:[0-9a-f]{64}$"))' \
+              "${INFO_DIR}/${target}.json" >/dev/null || {
+              echo "::error::Invalid candidate record: ${target}.json" >&2
+              exit 1
+            }
+          done
+          shopt -s nullglob
+          candidate_files=("${INFO_DIR}"/*.json)
+          [[ "${#candidate_files[@]}" -eq 4 ]] || {
+            echo "::error::Expected exactly four channel candidate records" >&2
+            exit 1
+          }
 
           ordered_files=()
           [[ -f "${INFO_DIR}/final.json" ]] && ordered_files+=("${INFO_DIR}/final.json")
@@ -2144,7 +2165,7 @@ jobs:
               echo ""
               echo "**Time-bounded security disclosure:** Native AMD64 and ARM64 image profiles were independently scanned with unfiltered Trivy; the user-approved, inventory-pinned linux-libc-dev=7.0.0-42.42 development-only CVE treatment under [issue #54](https://github.com/baobab-platform/baobab-dev/issues/54) may apply. The original 295 advisories (12 CRITICAL, 283 HIGH) remain tracked as unremediated/under investigation, **not declared harmless**. Review exact architecture scan artifacts and the recorded risk decision."
               echo ""
-              echo "**Review deadline:** 2026-11-13 00:00 UTC. Continued organisational consumption beyond the deadline needs remediation or re-review; the tag will not automatically disappear when the exception expires."
+              echo "**Review deadline:** 2026-11-26 00:00 UTC. Continued organisational consumption beyond the deadline needs remediation or re-review; the tag will not automatically disappear when the exception expires."
               echo ""
               echo "**Verification:** Compare pinned image digests, Cosign signature, SLSA/SPDX attestations and native source revision with the release contract. Do not generalise this acceptance to another tag, workload or organisation."
               echo ""

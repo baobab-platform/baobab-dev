@@ -32,13 +32,13 @@ class DevelopmentRiskGateTests(unittest.TestCase):
 
     def qualify(self, report=None, **extra):
         args = dict(target="final", platform="linux/amd64",
-                    event="pull_request", ref="refs/pull/69/merge",
-                    repository="baobab-platform/baobab-dev", pr_number=69, now=NOW)
+                    event="pull_request", ref="refs/pull/70/merge",
+                    repository="baobab-platform/baobab-dev", pr_number=70, now=NOW)
         args.update(extra)
         return mod.validate(report if report is not None else self.report(),
                             self.allowed, **args)
 
-    def test_real_inventory_approved_scope_for_pr69(self):
+    def test_real_inventory_approved_scope_for_pr70(self):
         result = self.qualify()
         self.assertEqual(result["known_cves_observed"], 295)
         self.assertEqual(result["critical"], 12)
@@ -77,12 +77,12 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(mod.RiskGateError):
                 self.qualify(altered)
 
-    def test_only_open_pr69_is_authorised(self):
-        self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({69}))
-        for number in (48, 50, 57, 58, 62, 63, 64, 65, 66, 67, 68):
+    def test_only_open_pr70_is_authorised(self):
+        self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({70}))
+        for number in (48, 50, 57, 58, 62, 63, 64, 65, 66, 67, 68, 69):
             with self.subTest(merged_pr=number), self.assertRaises(mod.RiskGateError):
                 self.qualify(pr_number=number, ref=f"refs/pull/{number}/merge")
-        for number in (69,):
+        for number in (70,):
             with self.subTest(active_pr=number):
                 decision = self.qualify(pr_number=number, ref=f"refs/pull/{number}/merge")
                 self.assertEqual(decision["known_cves_observed"], 295)
@@ -90,12 +90,21 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         self.assertEqual(result["known_cves_observed"], 295)
         self.assertEqual(result["expiry_utc"], "2026-11-26T00:00:00+00:00")
 
-    def test_owner_authorised_pr69_only_through_new_expiry(self):
+    def test_v151_release_family_and_expiry(self):
+        for tag in ("v1.5.1-rc.1", "v1.5.1-rc.9", "v1.5.1"):
+            with self.subTest(tag=tag):
+                decision = self.qualify(event="push", ref="refs/tags/" + tag, pr_number=0)
+                self.assertEqual(decision["known_cves_observed"], 295)
+        for tag in ("v1.5.2", "v1.5.2-rc.1", "v1.5.1-beta.1"):
+            with self.subTest(tag=tag), self.assertRaises(mod.RiskGateError):
+                self.qualify(event="push", ref="refs/tags/" + tag, pr_number=0)
+
+    def test_owner_authorised_pr70_only_through_new_expiry(self):
         self.assertEqual(mod.EXPIRY, dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
         for platform in ("linux/amd64", "linux/arm64"):
             for target in ("final", "infra", "frontend", "frontend-e2e"):
                 with self.subTest(platform=platform, target=target):
-                    result = self.qualify(pr_number=69, ref="refs/pull/69/merge",
+                    result = self.qualify(pr_number=70, ref="refs/pull/70/merge",
                                           now=dt.datetime(2026, 11, 12, tzinfo=dt.timezone.utc),
                                           platform=platform, target=target)
                     self.assertEqual(result["known_cves_observed"], 295)
@@ -108,8 +117,8 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             ("pull_request", "refs/pull/62/merge", 62),
             ("pull_request", "refs/pull/63/merge", 63),
             ("pull_request", "refs/pull/58/merge", 62),
-            ("workflow_dispatch", "refs/pull/69/merge", 68),
-            ("push", "refs/tags/v1.5.1", 0),
+            ("workflow_dispatch", "refs/pull/70/merge", 68),
+            ("push", "refs/tags/v1.5.2", 0),
         ):
             with self.subTest(event=event, ref=ref, number=number):
                 with self.assertRaises(mod.RiskGateError):
@@ -123,9 +132,9 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             report = self.report()
             report["Results"][0]["Vulnerabilities"][0][field] = value
             with self.subTest(field=field), self.assertRaises(mod.RiskGateError):
-                self.qualify(report, pr_number=69, ref="refs/pull/69/merge")
+                self.qualify(report, pr_number=70, ref="refs/pull/70/merge")
         with self.assertRaises(mod.RiskGateError):
-            self.qualify(pr_number=69, ref="refs/pull/69/merge",
+            self.qualify(pr_number=70, ref="refs/pull/70/merge",
                          now=dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
 
     def test_pr58_staging_wrong_event_or_ref_never_inherits_dev_risk(self):
@@ -134,7 +143,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         # test_v150_exact_tag_is_distributed_dev_image_not_production.
         for event, ref, number in (
             ("push", "refs/tags/v1.5.0", 58),
-            ("push", "refs/tags/v1.5.1", 0),
+            ("push", "refs/tags/v1.5.2", 0),
             ("workflow_dispatch", "refs/heads/main", 58),
             ("deployment", "refs/heads/staging", 58),
             ("pull_request", "refs/pull/58/head", 58),
@@ -180,13 +189,13 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(mod.RiskGateError):
                 report = self.report()
                 report["Results"][0]["Vulnerabilities"][0][field] = value
-                self.qualify(report, pr_number=69, ref="refs/pull/69/merge")
+                self.qualify(report, pr_number=70, ref="refs/pull/70/merge")
         report = self.report()
         report["Results"][0]["Secrets"] = [{"RuleID": "aws-secret"}]
         with self.assertRaises(mod.RiskGateError):
-            self.qualify(report, pr_number=69, ref="refs/pull/69/merge")
+            self.qualify(report, pr_number=70, ref="refs/pull/70/merge")
         with self.assertRaises(mod.RiskGateError):
-            self.qualify(pr_number=69, ref="refs/pull/69/merge",
+            self.qualify(pr_number=70, ref="refs/pull/70/merge",
                          now=dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
 
     def test_owner_authorised_rc_tags_are_dev_distribution_only(self):
@@ -197,7 +206,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
                         result = self.qualify(
                             event="push", ref=f"refs/tags/{candidate}",
                             pr_number=0, target=target, platform=platform)
-                        self.assertEqual(result["distribution"], "v1.5.0_release_candidate")
+                        self.assertEqual(result["distribution"], "development_release_candidate")
                         self.assertEqual(result["known_cves_observed"], 295)
                         self.assertIn("no staging/production", result["scope"])
 
@@ -208,7 +217,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
                     result = self.qualify(event="push", ref="refs/tags/v1.5.0",
                                           pr_number=0, target=target, platform=platform)
                     self.assertEqual(result["distribution"],
-                                     "v1.5.0_tagged_development_container")
+                                     "tagged_development_container")
                     self.assertEqual(result["known_cves_observed"], 295)
                     self.assertEqual(result["critical"], 12)
                     self.assertIn("no staging/production", result["scope"])
@@ -217,13 +226,13 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         self.qualify(event="push", ref="refs/heads/main", pr_number=0)
         for event, ref, number in (
             ("push", "refs/tags/v1.4.4", 0),
-            ("push", "refs/tags/v1.5.1", 0),
+            ("push", "refs/tags/v1.5.2", 0),
             ("push", "refs/tags/v1.6.0", 0),
             ("push", "refs/tags/v1.5.0-rc.0", 0),
             ("push", "refs/tags/v1.5.0-rc.01", 0),
             ("push", "refs/tags/v1.5.0-rc.foo", 0),
             ("push", "refs/tags/v1.5.0-rc.1-extra", 0),
-            ("push", "refs/tags/v1.5.1-rc.1", 0),
+            ("push", "refs/tags/v1.5.2-rc.1", 0),
             ("pull_request", "refs/tags/v1.5.0", 58),
             ("workflow_dispatch", "refs/tags/v1.5.0", 0),
             ("deployment", "refs/tags/v1.5.0", 0),
