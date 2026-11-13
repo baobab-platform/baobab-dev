@@ -7,10 +7,7 @@ set -Eeuo pipefail
 : "${IMAGE:?image required}"
 : "${INFO_DIR:?candidate records required}"
 : "${PROMOTION_EVIDENCE_DIR:?evidence directory required}"
-if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
-   [[ ! "$RELEASE_TAG" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ]]; then
-  echo "::error::only stable semver and v1.5.0-rc.N allowed"; exit 2
-fi
+python3 "$(dirname "$0")/release_tag_policy.py" --tag "$RELEASE_TAG" >/dev/null || { echo "::error::unauthorised release tag"; exit 2; }
 [[ "$IMAGE" == "ghcr.io/baobab-platform/baobab-dev" ]] || { echo "::error::wrong registry"; exit 2; }
 command -v jq >/dev/null && command -v crane >/dev/null || { echo "::error::missing jq/crane"; exit 2; }
 mkdir -p "$PROMOTION_EVIDENCE_DIR"
@@ -29,7 +26,7 @@ mutation_started=0
 # v1.5.0 GA to update major/minor/latest aliases for consumer adoption.
 # Keep mutable aliases pinned to the existing GA during RC rehearsals.
 is_release_candidate=0
-[[ "$RELEASE_TAG" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ]] && is_release_candidate=1
+[[ "$(python3 "$(dirname "$0")/release_tag_policy.py" --tag "$RELEASE_TAG")" == rc ]] && is_release_candidate=1
 
 fail() { echo "::error::DEV-10 R5 promotion: $*" >&2; return 1; }
 read_tag_digest() {

@@ -1,0 +1,52 @@
+name: DEV-10 Protected Promotion Approval Monitor
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+
+jobs:
+  notify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Inspect pending promotion deployments without approving them
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TRACKING_ISSUE: ${{ vars.DEV10_PROMOTION_TRACKING_ISSUE }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/runs?status=waiting&per_page=50" > "$RUNNER_TEMP/waiting.json"
+          jq -c '.workflow_runs[]' "$RUNNER_TEMP/waiting.json" | while IFS= read -r run; do
+            id=$(jq -r '.id' <<< "$run")
+            gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${id}/pending_deployments" > "$RUNNER_TEMP/pending-${id}.json"
+            if jq -e 'any(.[]; any(.environment.name; . == "dev10-release-promotion"))' "$RUNNER_TEMP/pending-${id}.json" >/dev/null; then
+              jq -c '. + {environment:"dev10-release-promotion"}' <<< "$run"
+            fi
+          done | jq -s '{workflow_runs: .}' > "$RUNNER_TEMP/verified-waiting.json"
+          python3 scripts/promotion_approval_monitor.py --runs "$RUNNER_TEMP/verified-waiting.json" --output "$RUNNER_TEMP/decisions.json"
+          cat "$RUNNER_TEMP/decisions.json" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -z "$TRACKING_ISSUE" ]]; then
+            echo "::notice::DEV10_PROMOTION_TRACKING_ISSUE not configured; summary only"
+            exit 0
+          fi
+          [[ "$TRACKING_ISSUE" =~ ^[1-9][0-9]*$ ]] || { echo "::error::invalid tracking issue"; exit 1; }
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${TRACKING_ISSUE}/comments?per_page=100" > "$RUNNER_TEMP/comments.json"
+          jq -c '.[] | select(.level != "PENDING")' "$RUNNER_TEMP/decisions.json" | while IFS= read -r notice; do
+            id=$(jq -r '.run_id' <<< "$notice")
+            level=$(jq -r '.level' <<< "$notice")
+            url=$(jq -r '.url' <<< "$notice")
+            marker="<!-- dev10-promotion:${id}:${level} -->"
+            if jq -e --arg marker "$marker" 'any(.[]; (.body // "") | contains($marker))' "$RUNNER_TEMP/comments.json" >/dev/null; then
+              continue
+            fi
+            body=$(printf '%s\nDEV-10 protected release awaiting independent review: %s\nState: %s. Review via Actions; this monitor cannot approve or bypass the environment.\n' "$marker" "$url" "$level")
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${TRACKING_ISSUE}/comments" -f body="$body" >/dev/null
+          done
