@@ -1981,7 +1981,7 @@ jobs:
             [[ "$observed" == "$target" && "$tag" == "$expected_tag" && "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
               echo "::error::Mismatched candidate record for $target"; exit 1;
             }
-            scripts/verify-image.sh "$image@$digest" "$RELEASE_TAG"
+            bash scripts/verify-image.sh "$image@$digest" "$RELEASE_TAG"
             echo "::notice::Promotion precheck: $target digest $digest verified"
           done
 
