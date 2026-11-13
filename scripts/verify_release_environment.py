@@ -12,6 +12,7 @@ from fnmatch import fnmatchcase
 import json
 from pathlib import Path
 import re
+from release_tag_policy import classify
 import sys
 
 NAME = "dev10-release-promotion"
@@ -31,8 +32,8 @@ def require(ok: bool, error: str) -> None:
 def qualify(environment: dict, policies: dict, tag: str) -> dict:
     require(isinstance(environment, dict) and environment.get("name") == NAME,
             "expected configured release-promotion environment")
-    require(bool(STABLE.fullmatch(tag) or RC.fullmatch(tag)),
-            "promotion requires stable semver or the exact v1.5.0-rc.N rehearsal series")
+    require(classify(tag) is not None,
+            "promotion requires strict GA or numbered RC semver")
     rules = environment.get("protection_rules")
     require(isinstance(rules, list), "missing GitHub Environment protection rules")
     reviewers = [r for r in rules if isinstance(r, dict)
