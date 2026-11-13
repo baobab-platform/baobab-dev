@@ -1882,6 +1882,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: read
     steps:
       - name: Refuse promotion until independently protected environment is configured
         env:
