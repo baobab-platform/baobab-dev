@@ -35,7 +35,7 @@ class PromotionEnvironmentTests(unittest.TestCase):
         self.assertEqual(evidence["accepted_tag_patterns"], ["v*.*.*"])
 
     def test_rc_series_uses_same_independent_protected_environment(self):
-        for tag in ("v1.5.0-rc.1", "v1.5.0-rc.2", "v1.5.0-rc.10"):
+        for tag in ("v1.5.0-rc.1", "v2.0.0-rc.2", "v10.3.12-rc.10"):
             with self.subTest(tag=tag):
                 evidence = mod.qualify(self.env, self.policies, tag)
                 self.assertTrue(evidence["prevent_self_review"])
@@ -74,7 +74,7 @@ class PromotionEnvironmentTests(unittest.TestCase):
 
     def test_unknown_release_and_pr_refs_refused(self):
         for tag in ("", "v1.5.0-rc.0", "v1.5.0-rc.01",
-                    "v1.5.0-rc.foo", "v1.5.1-rc.1", "v1.5.0-rc.1-extra",
+                    "v1.5.0-rc.foo", "v2.0.0-beta.1", "v1.5.0-rc.1-extra",
                     "1.5.0", "refs/pull/58/merge", "v1.5.0\ninjected"):
             with self.subTest(tag=tag), self.assertRaises(mod.PromotionEnvironmentError):
                 mod.qualify(self.env, self.policies, tag)
