@@ -50,9 +50,11 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("trivy image --download-java-db-only", run)
         self.assertIn("verify_trivy_db_freshness.py", run)
 
-    def test_versioned_development_image_distribution_is_v150_rc_series_and_ga(self):
+    def test_versioned_development_image_distribution_is_approved_v150_v151_rc_and_ga(self):
         gate = (ROOT / "scripts/dev10_kernel_risk_gate.py").read_text()
-        self.assertIn('APPROVED_DEVELOPMENT_IMAGE_REF = "refs/tags/v1.5.0"', gate)
+        self.assertIn('APPROVED_DEVELOPMENT_IMAGE_REFS = frozenset(', gate)
+        self.assertIn('"refs/tags/v1.5.0"', gate)
+        self.assertIn('"refs/tags/v1.5.1"', gate)
         self.assertIn('APPROVED_DEVELOPMENT_RC_REF = re.compile', gate)
         self.assertIn("is_dev_image_release", gate)
         self.assertIn("now < EXPIRY", gate)
