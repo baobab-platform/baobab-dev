@@ -1842,7 +1842,7 @@ jobs:
           name: published-info-${{ matrix.target }}
           path: ${{ runner.temp }}/published-info/*.json
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 30
 
       # ------------------------------------------------------------------------
       # Step Summary Output (per-target — the release job's summary covers
