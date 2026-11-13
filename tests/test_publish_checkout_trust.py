@@ -13,7 +13,7 @@ class PublishCheckoutTrustTests(unittest.TestCase):
         # Jobs may be added to separate read-only validation and privileged
         # release promotion. Protect EVERY checkout, not a fixed job count.
         matches = list(re.finditer(
-            r"(?m)^(?P<indent> +)uses: actions/checkout@(?P<sha>[a-f0-9]{40})(?:[ \t]*#.*)?$",
+            r"(?m)^(?P<indent> +)(?:- )?uses: actions/checkout@(?P<sha>[a-f0-9]{40})(?:[ \t]*#.*)?$",
             source,
         ))
         self.assertGreaterEqual(len(matches), 4)
