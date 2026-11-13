@@ -1995,7 +1995,11 @@ jobs:
             [[ "$observed" == "$target" && "$tag" == "$expected_tag" && "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
               echo "::error::Mismatched candidate record for $target"; exit 1;
             }
-            bash scripts/verify-image.sh "$image@$digest" "$RELEASE_TAG"
+            verification_tag="$RELEASE_TAG"
+            if [[ "$RELEASE_TAG" != *-rc.* ]]; then
+              verification_tag=$(jq -er '.head_branch' "$RUNNER_TEMP/qualified-rc-run.json")
+            fi
+            bash scripts/verify-image.sh "$image@$digest" "$verification_tag"
             echo "::notice::Promotion precheck: $target digest $digest verified"
           done
 
