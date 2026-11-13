@@ -2,13 +2,16 @@
 """Fail-closed DEV-10 release approval evidence from GitHub deployment reviews.
 
 Input is GitHub REST deployment approvals for the current workflow run.
-Only approved entries matching the protected environment and run attempt count.
+Only independently approved human entries for the protected environment count.
+GitHub's deployment approvals endpoint does not return submitted_at; record the
+reviewer identity and run identity, never fabricate an approval timestamp.
 No token, secrets, or untrusted free-text comments are persisted.
 """
 from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import re
 
 ENVIRONMENT = "dev10-release-promotion"
 
@@ -33,12 +36,16 @@ def attest(reviews: object, *, run_id: int, attempt: int, actor: str, tag: str) 
         login = reviewer.get("login") if isinstance(reviewer, dict) else None
         if not isinstance(login, str) or not login or login.casefold() == actor.casefold():
             continue
-        submitted = item.get("submitted_at")
-        if not isinstance(submitted, str) or not submitted:
+        # GitHub REST GET /actions/runs/{run_id}/approvals does not include
+        # submitted_at. Never require or synthesize an unsupported timestamp.
+        # An automation/wait-timer entry is not a human approval.
+        if reviewer.get("type") == "Bot" or login.casefold().endswith("[bot]"):
             continue
-        approved.append({"reviewer": login, "submitted_at": submitted})
+        if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?", login):
+            continue
+        approved.append({"reviewer": login})
     if not approved:
-        raise EvidenceError("no independent approved deployment review for protected environment")
+        raise EvidenceError("no independent human-approved deployment review for protected environment")
     return {
         "schema": "dev10.promotion-approval.v1",
         "environment": ENVIRONMENT,
@@ -46,7 +53,7 @@ def attest(reviews: object, *, run_id: int, attempt: int, actor: str, tag: str) 
         "run_attempt": attempt,
         "tag": tag,
         "initiator": actor,
-        "approval": sorted(approved, key=lambda x: x["submitted_at"])[-1],
+        "approval": sorted(approved, key=lambda x: x["reviewer"].casefold())[0],
     }
 
 
