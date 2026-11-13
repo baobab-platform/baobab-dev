@@ -3,7 +3,7 @@
 
 This is not VEX "not_affected", an Ubuntu patch, or a staging/production
 approval. Preserve complete Trivy findings and deny new/unrecognised CVEs.
-Applies only to open dev PR #68, development-main and one exact
+Applies only to open dev PR #69, development-main and one exact
 tagged DEVELOPMENT CONTAINER distributions v1.5.0-rc.N and v1.5.0,
 before 2026-11-26 UTC.
 Approval source: user's explicit Baobab-dev distribution clarification
@@ -41,10 +41,10 @@ ADDITIONAL_CVES = frozenset({
 CVE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 TARGETS = {"final", "infra", "frontend", "frontend-e2e"}
 PLATFORMS = {"linux/amd64", "linux/arm64"}
-# Only open PR #68 remains eligible; merged #67 and prior PRs are retired.
+# Only open PR #69 remains eligible; merged #67/#68 and prior PRs are retired.
 # Owner-directed publication: RC candidates first, then GA for development
 # consumers. No other pre-releases, future tags or production deployments.
-APPROVED_DEVELOPMENT_PRS = frozenset({68})
+APPROVED_DEVELOPMENT_PRS = frozenset({69})
 APPROVED_DEVELOPMENT_IMAGE_REF = "refs/tags/v1.5.0"
 APPROVED_DEVELOPMENT_RC_REF = re.compile(r"^refs/tags/v1[.]5[.]0-rc[.][1-9][0-9]*$")
 
@@ -88,7 +88,7 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
                             and (ref == APPROVED_DEVELOPMENT_IMAGE_REF
                                  or APPROVED_DEVELOPMENT_RC_REF.fullmatch(ref) is not None))
     require(is_qualified_dev_pr or is_dev_main or is_dev_image_release,
-            "risk acceptance only valid for open PR #68, untagged "
+            "risk acceptance only valid for open PR #69, untagged "
             "development main or v1.5.0-rc.N / v1.5.0 devcontainer GHCR distribution")
     require(target in TARGETS and platform in PLATFORMS,
             "unapproved target or architecture")
