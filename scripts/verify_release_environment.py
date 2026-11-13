@@ -11,13 +11,11 @@ import argparse
 from fnmatch import fnmatchcase
 import json
 from pathlib import Path
-import re
-from release_tag_policy import classify
 import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from release_tag_policy import classify
 
 NAME = "dev10-release-promotion"
-STABLE = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+", re.ASCII)
-RC = re.compile(r"v1[.]5[.]0-rc[.][1-9][0-9]*", re.ASCII)
 
 
 class PromotionEnvironmentError(ValueError):
