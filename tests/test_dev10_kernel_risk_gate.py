@@ -78,11 +78,11 @@ class DevelopmentRiskGateTests(unittest.TestCase):
                 self.qualify(altered)
 
     def test_only_open_pr66_is_authorised(self):
-        self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({65, 66, 67}))
-        for number in (48, 50, 57, 58, 62, 63, 64):
+        self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({66, 67}))
+        for number in (48, 50, 57, 58, 62, 63, 64, 65):
             with self.subTest(merged_pr=number), self.assertRaises(mod.RiskGateError):
                 self.qualify(pr_number=number, ref=f"refs/pull/{number}/merge")
-        for number in (65, 66, 67):
+        for number in (66, 67):
             with self.subTest(active_pr=number):
                 decision = self.qualify(pr_number=number, ref=f"refs/pull/{number}/merge")
                 self.assertEqual(decision["known_cves_observed"], 295)
@@ -102,6 +102,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
                     self.assertEqual(result["expiry_utc"], "2026-11-26T00:00:00+00:00")
         for event, ref, number in (
             ("pull_request", "refs/pull/66/head", 66),
+            ("pull_request", "refs/pull/65/merge", 65),
             ("pull_request", "refs/pull/64/merge", 64),
             ("pull_request", "refs/pull/62/merge", 62),
             ("pull_request", "refs/pull/63/merge", 63),
