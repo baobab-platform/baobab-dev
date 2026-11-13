@@ -106,7 +106,7 @@ class PromotionTests(unittest.TestCase):
         self.assertIn("alias", journal)
 
     def test_rc_tags_publish_each_profile_without_advancing_consumer_aliases(self):
-        for rc in ("v1.5.0-rc.1", "v1.5.0-rc.2"):
+        for rc in ("v1.5.0-rc.1", "v2.0.0-rc.2"):
             self.change_test_release(rc)
             result = self.run_promotion()
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -130,7 +130,7 @@ class PromotionTests(unittest.TestCase):
             suffix = "" if target == "final" else "-" + target
             for tag in ("1.5.0", "1.5", "1", "latest"):
                 self.assertEqual(state[tag + suffix], "sha256:" + DIGESTS[target])
-            for rc in ("1.5.0-rc.1", "1.5.0-rc.2"):
+            for rc in ("1.5.0-rc.1", "2.0.0-rc.2"):
                 self.assertEqual(state[rc + suffix], "sha256:" + DIGESTS[target])
 
     def test_future_versions_preserve_normal_alias_promotion(self):
@@ -173,7 +173,7 @@ class PromotionTests(unittest.TestCase):
         broken.write_text(json.dumps(obj))
         self.assertNotEqual(self.run_promotion().returncode, 0)
         for tag in ("v1.5.0-rc.0", "v1.5.0-rc.01", "v1.5.0-rc.foo",
-                    "v1.5.0-rc.1-extra", "v1.5.1-rc.1"):
+                    "v1.5.0-rc.1-extra", "v2.0.0-beta.1", "v01.5.0"):
             with self.subTest(tag=tag):
                 self.assertNotEqual(self.run_promotion(RELEASE_TAG=tag).returncode, 0)
 
