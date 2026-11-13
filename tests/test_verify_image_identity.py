@@ -64,7 +64,7 @@ class SigningIdentityContractTest(unittest.TestCase):
         self.assertFalse(self.log.exists())
 
     def test_rc_tags_verify_exact_signer_identity(self):
-        for candidate in ("v1.5.0-rc.1", "v1.5.0-rc.2", "v1.5.0-rc.10"):
+        for candidate in ("v1.5.0-rc.1", "v1.5.0-rc.2", "v1.5.0-rc.10", "v1.5.1-rc.1", "v1.5.1-rc.10"):
             self.log.unlink(missing_ok=True)
             result = self.verify(DIGEST_REF, candidate)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -78,7 +78,7 @@ class SigningIdentityContractTest(unittest.TestCase):
 
     def test_other_prerelease_tags_denied(self):
         for candidate in ("v1.5.0-rc.0", "v1.5.0-rc.01",
-                          "v1.5.1-rc.1", "v1.5.0-beta.1"):
+                          "v1.5.2-rc.1", "v1.5.1-rc.0", "v1.5.1-rc.01", "v1.5.0-beta.1"):
             self.log.unlink(missing_ok=True)
             with self.subTest(candidate=candidate):
                 result = self.verify(DIGEST_REF, candidate)

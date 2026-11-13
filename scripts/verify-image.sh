@@ -63,13 +63,13 @@ if [[ -z "$RELEASE_TAG" ]]; then
   # A version tag can be inferred from a tagged image, but not a digest.
   candidate="${IMAGE##*:}"
   if [[ "$candidate" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ||
-        "$candidate" =~ ^v?1\.5\.0-rc\.[1-9][0-9]*$ ]]; then
+        "$candidate" =~ ^v?1\.5\.[01]-rc\.[1-9][0-9]*$ ]]; then
     RELEASE_TAG="v${candidate#v}"
   fi
 fi
 if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ &&
-      ! "$RELEASE_TAG" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ]]; then
-  echo "::error::Specify stable semver or approved v1.5.0-rc.N tag as argument 2 for digest references." >&2
+      ! "$RELEASE_TAG" =~ ^v1\.5\.[01]-rc\.[1-9][0-9]*$ ]]; then
+  echo "::error::Specify stable semver or approved v1.5.0/v1.5.1-rc.N tag as argument 2 for digest references." >&2
   exit 1
 fi
 OIDC_ISSUER="https://token.actions.githubusercontent.com"
