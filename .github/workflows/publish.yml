@@ -1982,10 +1982,11 @@ jobs:
             gh run download "$RC_RUN" --repo "$GITHUB_REPOSITORY" --name "published-info-$target" --dir "$RUNNER_TEMP/qualified-rc-records"
           done
           python3 scripts/verify_rc_ga_workflow.py \
-            --run "$RUNNER_TEMP/qualified-rc-run.json" \
-            --rc "$RUNNER_TEMP/qualified-rc-records" \
-            --ga "$RUNNER_TEMP/published-info" \
-            --tag "$TAG" --sha "$GITHUB_SHA"
+            --rc-run "$RUNNER_TEMP/qualified-rc-run.json" \
+            --rc-records "$RUNNER_TEMP/qualified-rc-records" \
+            --ga-records "$RUNNER_TEMP/published-info" \
+            --ga-tag "$TAG" --ga-sha "$GITHUB_SHA" \
+            --output "$RUNNER_TEMP/r5-promotion-evidence/rc-ga-continuity.json"
 
       - name: Authenticate to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
