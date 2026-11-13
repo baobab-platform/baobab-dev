@@ -283,9 +283,45 @@ jobs:
   # `v*.*.*` tag push does it also push the real image to GHCR (with SBOM +
   # SLSA provenance embedded) and smoke-test it (see "PUBLISH TRIGGER
   # POLICY" above).
+  ga-reuse:
+    name: Reuse qualified RC OCI digests for GA
+    needs: sanity-check
+    if: needs.sanity-check.outputs.is_release == 'true' && needs.sanity-check.outputs.is_stable_release == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Reuse immutable RC artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RC_RUN: ${{ vars.DEV10_QUALIFIED_RC_RUN_ID }}
+          TAG: ${{ needs.sanity-check.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          [[ "$RC_RUN" =~ ^[1-9][0-9]*$ ]] || exit 1
+          mkdir -p "$RUNNER_TEMP/rc" "$RUNNER_TEMP/ga"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RC_RUN}" > "$RUNNER_TEMP/run.json"
+          for target in final frontend frontend-e2e infra; do
+            gh run download "$RC_RUN" --repo "$GITHUB_REPOSITORY" --name "published-info-$target" --dir "$RUNNER_TEMP/rc"
+          done
+          python3 scripts/prepare_ga_reuse.py --run "$RUNNER_TEMP/run.json" --records "$RUNNER_TEMP/rc" --tag "$TAG" --sha "$GITHUB_SHA" --output "$RUNNER_TEMP/ga"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ga-reused-candidates
+          path: ${{ runner.temp }}/ga/*.json
+          if-no-files-found: error
+          retention-days: 30
+
   build:
     name: "Build & Security Scan (${{ matrix.target }}, ${{ matrix.platform }})"
     needs: sanity-check
+    if: needs.sanity-check.outputs.is_stable_release != 'true'
 
     # RATIONALE: Route arm64 builds to native ARM GitHub-hosted runners for faster performance.
     runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
@@ -654,7 +690,7 @@ jobs:
   release-digests:
     name: "Release candidate exact-digest scan (${{ matrix.target }}, ${{ matrix.platform }})"
     needs: [sanity-check, build]
-    if: needs.sanity-check.outputs.is_release == 'true'
+    if: needs.sanity-check.outputs.is_release == 'true' && needs.sanity-check.outputs.is_stable_release != 'true'
     runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
     timeout-minutes: 140
     permissions:
@@ -959,7 +995,7 @@ jobs:
   publish:
     name: "Publish Multi-Arch Manifest & Cosign Sign (${{ matrix.target }})"
     needs: [release-digests, sanity-check]
-    if: needs.sanity-check.outputs.is_release == 'true'
+    if: needs.sanity-check.outputs.is_release == 'true' && needs.sanity-check.outputs.is_stable_release != 'true'
 
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -1872,8 +1908,8 @@ jobs:
   # Independent GitHub Environment policy must be configured by the owner.
   promote:
     name: Protected GHCR tag promotion with recovery evidence
-    needs: [publish, sanity-check]
-    if: needs.sanity-check.outputs.is_release == 'true'
+    needs: [publish, ga-reuse, sanity-check]
+    if: always() && needs.sanity-check.outputs.is_release == 'true' && ((needs.sanity-check.outputs.is_stable_release == 'true' && needs.ga-reuse.result == 'success') || (needs.sanity-check.outputs.is_stable_release != 'true' && needs.publish.result == 'success'))
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     environment:
@@ -1910,34 +1946,12 @@ jobs:
             --policies "$RUNNER_TEMP/promotion-deployment-policies.json" \
             --tag "$RELEASE_TAG"
 
-      - name: Download all four signed candidate records
+      - name: Download candidate records for release channel
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: ${{ runner.temp }}/published-info
-          pattern: published-info-*
+          pattern: ${{ needs.sanity-check.outputs.is_stable_release == 'true' && 'ga-reused-candidates' || 'published-info-*' }}
           merge-multiple: true
-      - name: Enforce exact qualified RC-to-GA digest continuity before GHCR mutation
-        if: needs.sanity-check.outputs.is_stable_release == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          QUALIFIED_RC_RUN_ID: ${{ vars.DEV10_QUALIFIED_RC_RUN_ID }}
-          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
-        run: |
-          set -euo pipefail
-          [[ "$QUALIFIED_RC_RUN_ID" =~ ^[1-9][0-9]*$ ]] || { echo "::error::Set DEV10_QUALIFIED_RC_RUN_ID to independently qualified successful RC workflow run"; exit 1; }
-          mkdir -p "$RUNNER_TEMP/qualified-rc" "$RUNNER_TEMP/r5-promotion-evidence"
-          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${QUALIFIED_RC_RUN_ID}" > "$RUNNER_TEMP/qualified-rc-run.json"
-          for target in final frontend frontend-e2e infra; do
-            gh run download "$QUALIFIED_RC_RUN_ID" --repo "$GITHUB_REPOSITORY" \
-              --name "published-info-$target" --dir "$RUNNER_TEMP/qualified-rc"
-          done
-          python3 scripts/verify_rc_ga_workflow.py \
-            --rc-run "$RUNNER_TEMP/qualified-rc-run.json" \
-            --rc-records "$RUNNER_TEMP/qualified-rc" \
-            --ga-records "$RUNNER_TEMP/published-info" \
-            --ga-tag "$RELEASE_TAG" --ga-sha "$GITHUB_SHA" \
-            --output "$RUNNER_TEMP/r5-promotion-evidence/rc-ga-continuity.json"
-
       - name: Authenticate to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
@@ -2013,8 +2027,8 @@ jobs:
   # hardcoded target list, so a future fourth target needs no change here.
   release:
     name: Create Combined GitHub Release
-    needs: [promote, sanity-check]
-    if: needs.sanity-check.outputs.is_release == 'true'
+    needs: [promote, sanity-check, ga-reuse]
+    if: always() && needs.sanity-check.outputs.is_release == 'true' && needs.promote.result == 'success'
 
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -2042,11 +2056,11 @@ jobs:
       # Pulls every target's published-info-*.json into one directory —
       # however many `publish` matrix legs actually ran and reached their
       # export step (final, frontend, frontend-e2e as of this pass).
-      - name: Download published info from all targets
+      - name: Download channel candidate records
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: ${{ runner.temp }}/published-info
-          pattern: published-info-*
+          pattern: ${{ needs.sanity-check.outputs.is_stable_release == 'true' && 'ga-reused-candidates' || 'published-info-*' }}
           merge-multiple: true
 
       # Builds the release body from whatever published-info JSON files are
