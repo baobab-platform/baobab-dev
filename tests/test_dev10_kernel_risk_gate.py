@@ -108,7 +108,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             ("pull_request", "refs/pull/62/merge", 62),
             ("pull_request", "refs/pull/63/merge", 63),
             ("pull_request", "refs/pull/58/merge", 62),
-            ("workflow_dispatch", "refs/pull/68/merge", 62),
+            ("workflow_dispatch", "refs/pull/68/merge", 68),
             ("push", "refs/tags/v1.5.1", 0),
         ):
             with self.subTest(event=event, ref=ref, number=number):
