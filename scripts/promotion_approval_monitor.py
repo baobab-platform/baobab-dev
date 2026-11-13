@@ -13,7 +13,7 @@ ENV = "dev10-release-promotion"
 def decide(runs, now, reminder_minutes=15, escalate_minutes=45, expire_minutes=120):
     notices = []
     for run in runs:
-        if not isinstance(run, dict) or run.get("status") != "waiting":
+        if not isinstance(run, dict) or run.get("status") != "waiting" or run.get("environment") != ENV:
             continue
         created = run.get("created_at")
         try:
