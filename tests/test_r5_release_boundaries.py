@@ -71,7 +71,7 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
 
     def test_exact_rc_series_publishes_full_pipeline_but_ga_advances_aliases(self):
         source = WORKFLOW.read_text()
-        self.assertIn("v1\\.5\\.0-rc", source)
+        self.assertIn("scripts/release_tag_policy.py", source)
         self.assertIn('echo "is_release=true"', source)
         self.assertIn('is_stable_release=$(is_stable_release "$GITHUB_REF_NAME")', source)
         self.assertIn("name: dev10-release-promotion", jobs()["promote"])

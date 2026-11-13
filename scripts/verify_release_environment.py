@@ -11,12 +11,25 @@ import argparse
 from fnmatch import fnmatchcase
 import json
 from pathlib import Path
-import re
 import sys
 
+try:
+    from release_tag_policy import classify
+except ModuleNotFoundError as exc:
+    if exc.name != "release_tag_policy":
+        raise
+    # The test harness imports this script directly from its file path. Load
+    # only the adjacent, repository-owned policy, never a caller search path.
+    import importlib.util
+    policy_file = Path(__file__).resolve().with_name("release_tag_policy.py")
+    policy_spec = importlib.util.spec_from_file_location("baobab_release_tag_policy", policy_file)
+    if policy_spec is None or policy_spec.loader is None:
+        raise ImportError("release policy cannot be loaded") from exc
+    policy_module = importlib.util.module_from_spec(policy_spec)
+    policy_spec.loader.exec_module(policy_module)
+    classify = policy_module.classify
+
 NAME = "dev10-release-promotion"
-STABLE = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+", re.ASCII)
-RC = re.compile(r"v1[.]5[.]0-rc[.][1-9][0-9]*", re.ASCII)
 
 
 class PromotionEnvironmentError(ValueError):
@@ -31,8 +44,8 @@ def require(ok: bool, error: str) -> None:
 def qualify(environment: dict, policies: dict, tag: str) -> dict:
     require(isinstance(environment, dict) and environment.get("name") == NAME,
             "expected configured release-promotion environment")
-    require(bool(STABLE.fullmatch(tag) or RC.fullmatch(tag)),
-            "promotion requires stable semver or the exact v1.5.0-rc.N rehearsal series")
+    require(classify(tag) is not None,
+            "promotion requires strict GA or numbered RC semver")
     rules = environment.get("protection_rules")
     require(isinstance(rules, list), "missing GitHub Environment protection rules")
     reviewers = [r for r in rules if isinstance(r, dict)
