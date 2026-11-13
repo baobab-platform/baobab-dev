@@ -222,7 +222,7 @@ jobs:
       - name: DEV-10 R5 negative unit tests (release contracts + Trivy DB freshness)
         run: |
           set -euo pipefail
-          python3 -m unittest -v tests/test_go_mod_download_retry.py tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_verify_image_identity.py tests/test_verify_release_environment.py tests/test_release_promotion.py tests/test_r5_release_boundaries.py tests/test_signed_release_predicates.py tests/test_legacy_provenance.py
+          python3 -m unittest -v tests/test_go_mod_download_retry.py tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_verify_image_identity.py tests/test_verify_release_environment.py tests/test_verify_promotion_approval.py tests/test_release_promotion.py tests/test_r5_release_boundaries.py tests/test_signed_release_predicates.py tests/test_legacy_provenance.py
       - name: Verify committed resolutions and upstream asset checksums
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1881,6 +1881,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      actions: read
     steps:
       - name: Refuse promotion until independently protected environment is configured
         env:
@@ -1908,6 +1909,20 @@ jobs:
             --environment "$RUNNER_TEMP/promotion-environment.json" \
             --policies "$RUNNER_TEMP/promotion-deployment-policies.json" \
             --tag "$RELEASE_TAG"
+
+      - name: Capture independent deployment approval evidence
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/r5-promotion-evidence"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/approvals" > "$RUNNER_TEMP/promotion-approvals.json"
+          python3 scripts/verify_promotion_approval.py \
+            --reviews "$RUNNER_TEMP/promotion-approvals.json" \
+            --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" \
+            --actor "$GITHUB_ACTOR" --tag "$RELEASE_TAG" \
+            --output "$RUNNER_TEMP/r5-promotion-evidence/approval.json"
 
       - name: Download all four signed candidate records
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
