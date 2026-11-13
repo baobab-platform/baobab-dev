@@ -143,7 +143,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         # test_v150_exact_tag_is_distributed_dev_image_not_production.
         for event, ref, number in (
             ("push", "refs/tags/v1.5.0", 58),
-            ("push", "refs/tags/v1.5.1", 0),
+            ("push", "refs/tags/v1.5.2", 0),
             ("workflow_dispatch", "refs/heads/main", 58),
             ("deployment", "refs/heads/staging", 58),
             ("pull_request", "refs/pull/58/head", 58),
@@ -206,7 +206,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
                         result = self.qualify(
                             event="push", ref=f"refs/tags/{candidate}",
                             pr_number=0, target=target, platform=platform)
-                        self.assertEqual(result["distribution"], "v1.5.0_release_candidate")
+                        self.assertEqual(result["distribution"], "development_release_candidate")
                         self.assertEqual(result["known_cves_observed"], 295)
                         self.assertIn("no staging/production", result["scope"])
 
@@ -217,7 +217,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
                     result = self.qualify(event="push", ref="refs/tags/v1.5.0",
                                           pr_number=0, target=target, platform=platform)
                     self.assertEqual(result["distribution"],
-                                     "v1.5.0_tagged_development_container")
+                                     "tagged_development_container")
                     self.assertEqual(result["known_cves_observed"], 295)
                     self.assertEqual(result["critical"], 12)
                     self.assertIn("no staging/production", result["scope"])
@@ -226,13 +226,13 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         self.qualify(event="push", ref="refs/heads/main", pr_number=0)
         for event, ref, number in (
             ("push", "refs/tags/v1.4.4", 0),
-            ("push", "refs/tags/v1.5.1", 0),
+            ("push", "refs/tags/v1.5.2", 0),
             ("push", "refs/tags/v1.6.0", 0),
             ("push", "refs/tags/v1.5.0-rc.0", 0),
             ("push", "refs/tags/v1.5.0-rc.01", 0),
             ("push", "refs/tags/v1.5.0-rc.foo", 0),
             ("push", "refs/tags/v1.5.0-rc.1-extra", 0),
-            ("push", "refs/tags/v1.5.1-rc.1", 0),
+            ("push", "refs/tags/v1.5.2-rc.1", 0),
             ("pull_request", "refs/tags/v1.5.0", 58),
             ("workflow_dispatch", "refs/tags/v1.5.0", 0),
             ("deployment", "refs/tags/v1.5.0", 0),
