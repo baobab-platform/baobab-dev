@@ -1967,6 +1967,26 @@ jobs:
           path: ${{ runner.temp }}/published-info
           pattern: ${{ needs.sanity-check.outputs.is_stable_release == 'true' && 'ga-reused-candidates' || 'published-info-*' }}
           merge-multiple: true
+      - name: Independently verify GA continuity against qualified RC records
+        if: needs.sanity-check.outputs.is_stable_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RC_RUN: ${{ vars.DEV10_QUALIFIED_RC_RUN_ID }}
+          TAG: ${{ needs.sanity-check.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          [[ "$RC_RUN" =~ ^[1-9][0-9]*$ ]] || exit 1
+          mkdir -p "$RUNNER_TEMP/qualified-rc-records"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RC_RUN}" > "$RUNNER_TEMP/qualified-rc-run.json"
+          for target in final frontend frontend-e2e infra; do
+            gh run download "$RC_RUN" --repo "$GITHUB_REPOSITORY" --name "published-info-$target" --dir "$RUNNER_TEMP/qualified-rc-records"
+          done
+          python3 scripts/verify_rc_ga_workflow.py \
+            --run "$RUNNER_TEMP/qualified-rc-run.json" \
+            --rc "$RUNNER_TEMP/qualified-rc-records" \
+            --ga "$RUNNER_TEMP/published-info" \
+            --tag "$TAG" --sha "$GITHUB_SHA"
+
       - name: Authenticate to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         with:
