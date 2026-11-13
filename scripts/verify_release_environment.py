@@ -13,7 +13,21 @@ import json
 from pathlib import Path
 import sys
 
-from release_tag_policy import classify
+try:
+    from release_tag_policy import classify
+except ModuleNotFoundError as exc:
+    if exc.name != "release_tag_policy":
+        raise
+    # The test harness imports this script directly from its file path. Load
+    # only the adjacent, repository-owned policy, never a caller search path.
+    import importlib.util
+    policy_file = Path(__file__).resolve().with_name("release_tag_policy.py")
+    policy_spec = importlib.util.spec_from_file_location("baobab_release_tag_policy", policy_file)
+    if policy_spec is None or policy_spec.loader is None:
+        raise ImportError("release policy cannot be loaded") from exc
+    policy_module = importlib.util.module_from_spec(policy_spec)
+    policy_spec.loader.exec_module(policy_module)
+    classify = policy_module.classify
 
 NAME = "dev10-release-promotion"
 
