@@ -4,7 +4,7 @@
 This is not VEX "not_affected", an Ubuntu patch, or a staging/production
 approval. Preserve complete Trivy findings and deny new/unrecognised CVEs.
 Applies only to open dev PR #70, development-main and explicitly approved
- tagged DEVELOPMENT CONTAINER distributions v1.5.0-rc.N, v1.5.0, and v1.5.1-rc.N / v1.5.1,
+tagged DEVELOPMENT CONTAINER distributions v1.5.0-rc.N, v1.5.0, and v1.5.1-rc.N and v1.5.1,
 before 2026-11-26 UTC.
 Approval source: user's explicit Baobab-dev distribution clarification
 (2026-11-03). A tag is a development image distribution, not deployment.
@@ -137,10 +137,10 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
         "known_cves_observed": len(observed),
         "critical": sum(x == "CRITICAL" for x in observed.values()),
         "expiry_utc": EXPIRY.isoformat(),
-        "scope": "DEV TOOLCHAIN ONLY; v1.5.0-rc.N and v1.5.0 GHCR distribution; "
+        "scope": "DEV TOOLCHAIN ONLY; v1.5.0/v1.5.1 RC and GA GHCR distribution; "
                  "no staging/production deployment or other tags",
-        "distribution": (("v1.5.0_release_candidate" if ref != APPROVED_DEVELOPMENT_IMAGE_REF
-                          else "v1.5.0_tagged_development_container")
+        "distribution": (("development_release_candidate" if "-rc." in ref
+                          else "tagged_development_container")
                          if is_dev_image_release else "development_ci"),
         "technical_applicability": "under_investigation",
     }
