@@ -195,7 +195,7 @@ jobs:
           if [[ -n "$tag" && "$TAG_NAME" != "$tag" ]]; then
             echo "::error::Release API returned wrong selected tag"; exit 1;
           fi
-          if [[ "$TAG_NAME" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+-rc\\.[1-9][0-9]*$ ]]; then
+          if [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*$ ]]; then
             [[ "$(jq -r '.prerelease' "${RUNNER_TEMP}/release.json")" == true ]] || {
               echo "::error::RC release must be marked prerelease"; exit 1;
             }
