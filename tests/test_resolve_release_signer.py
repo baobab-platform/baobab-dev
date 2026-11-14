@@ -4,7 +4,8 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from resolve_release_signer import (SignerResolutionError, resolve_signer,\n                                    validate_qualified_run)
+from resolve_release_signer import (SignerResolutionError, resolve_signer,
+                                    validate_qualified_run)
 
 
 SHA = "a" * 40
