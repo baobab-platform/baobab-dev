@@ -15,9 +15,9 @@ check_pass() {
   local image="$1" tag="$2" expected="$3"
   : > "$COSIGN_CALL_LOG"
   if [[ -z "$tag" ]]; then
-    "$ROOT/scripts/verify-image.sh" "$image" > "$tmp/out" 2>&1
+    bash "$ROOT/scripts/verify-image.sh" "$image" > "$tmp/out" 2>&1
   else
-    "$ROOT/scripts/verify-image.sh" "$image" "$tag" > "$tmp/out" 2>&1
+    bash "$ROOT/scripts/verify-image.sh" "$image" "$tag" > "$tmp/out" 2>&1
   fi
   [[ "$(wc -l < "$COSIGN_CALL_LOG")" -eq 3 ]] || { cat "$tmp/out"; return 1; }
   [[ "$(grep -Fc -- "--certificate-identity https://github.com/baobab-platform/baobab-dev/.github/workflows/publish.yml@refs/tags/$expected" "$COSIGN_CALL_LOG")" -eq 3 ]] || { cat "$COSIGN_CALL_LOG"; return 1; }
@@ -26,7 +26,7 @@ check_pass() {
 }
 check_fail() {
   : > "$COSIGN_CALL_LOG"
-  if "$ROOT/scripts/verify-image.sh" "$@" > "$tmp/out" 2>&1; then
+  if bash "$ROOT/scripts/verify-image.sh" "$@" > "$tmp/out" 2>&1; then
     echo "unexpectedly accepted: $*" >&2; return 1
   fi
   [[ ! -s "$COSIGN_CALL_LOG" ]] || { echo "invalid release reached cosign: $*" >&2; return 1; }
