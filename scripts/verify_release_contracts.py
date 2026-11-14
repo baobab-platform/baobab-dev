@@ -19,7 +19,7 @@ HEADER = re.compile(r"(?m)^\*\*(?P<target>[^*\r\n]+):\*\*\s*$")
 PULL = re.compile(r"(?m)^docker pull\s+(?P<ref>\S+)\s*$")
 DIGEST = re.compile(r"(?m)^Verify \(digest `(?P<digest>sha256:[0-9a-f]{64})`\):\s*$")
 # RCs are real versioned development-image releases, never GA aliases.
-TAG = re.compile(r"^v(?P<version>(?:[0-9]+\.[0-9]+\.[0-9]+|1\.5\.0-rc\.[1-9][0-9]*))$")
+TAG = re.compile(r"^v(?P<version>[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[1-9][0-9]*)?)$")
 
 
 class ContractError(ValueError):
