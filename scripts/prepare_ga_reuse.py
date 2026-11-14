@@ -16,8 +16,8 @@ def prepare(run, directory, tag, sha, output):
         raise ContinuityError("GA source differs from qualified RC")
     rc_tag = run.get("head_branch")
     num = r"(?:0|[1-9][0-9]*)"
-    stable = re.fullmatch(rf"v{num}\\.{num}\\.{num}", tag)
-    rc_match = re.fullmatch(rf"(v{num}\\.{num}\\.{num})-rc\\.[1-9][0-9]*", rc_tag or "")
+    stable = re.fullmatch(rf"v{num}\.{num}\.{num}", tag)
+    rc_match = re.fullmatch(rf"(v{num}\.{num}\.{num})-rc\.[1-9][0-9]*", rc_tag or "")
     if not stable or not rc_match or rc_match.group(1) != tag:
         raise ContinuityError("qualified RC tag must be the exact GA version family")
     run_id = run.get("id")
