@@ -2081,6 +2081,12 @@ jobs:
             if [[ "$RELEASE_TAG" != *-rc.* ]]; then
               verification_tag=$(jq -er '.head_branch' "$RUNNER_TEMP/qualified-rc-run.json")
             fi
+            # Resolve the immutable OCI object independently from GHCR.
+            # The record is not proof that the referenced digest exists.
+            resolved_digest=$(crane digest "$image@$digest")
+            [[ "$resolved_digest" == "$digest" ]] || {
+              echo "::error::Registry digest identity mismatch for $target"; exit 1;
+            }
             bash scripts/verify-image.sh "$image@$digest" "$verification_tag"
             echo "::notice::Promotion precheck: $target digest $digest verified"
           done
