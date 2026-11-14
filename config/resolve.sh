@@ -17,6 +17,8 @@
 #   - bash
 #   - yq v4+
 #   - curl
+#   - GitHub CLI >= 2.102.0 (exact publisher-attestation identity verification)
+#   - coreutils (sha256sum, sort)
 #
 # Usage:
 #   ./config/resolve.sh
