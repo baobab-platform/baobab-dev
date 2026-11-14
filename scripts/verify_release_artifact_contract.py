@@ -25,8 +25,7 @@ def validate(directory: Path, tag: str, channel: str):
     expected = {t + ".json" for t in TARGETS}
     if not directory.is_dir() or {p.name for p in directory.iterdir()} != expected:
         raise ValueError("candidate artifact files must be exactly: " + ", ".join(sorted(expected)))
-    results = {}
-    for target in TARGETS:
+    results = {}\n    common_signer = None\n    common_run_id = None\n    for target in TARGETS:
         path = directory / (target + ".json")
         if path.is_symlink() or not path.is_file():
             raise ValueError("candidate record must be a regular file: " + target)
@@ -38,7 +37,9 @@ def validate(directory: Path, tag: str, channel: str):
                 obj[key] = value
             return obj
         record = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate)
-        if not isinstance(record, dict) or set(record) != {"target", "tag", "digest"}:
+        required_keys = ({"target", "tag", "digest"} if channel == "rc" else
+                         {"target", "tag", "digest", "signer_tag", "signer_run_id"})
+        if not isinstance(record, dict) or set(record) != required_keys:
             raise ValueError("unexpected candidate record schema: " + target)
         suffix = "" if target == "final" else "-" + target
         expected_tag = BASE + tag[1:] + suffix
@@ -47,6 +48,17 @@ def validate(directory: Path, tag: str, channel: str):
         digest = record["digest"]
         if not isinstance(digest, str) or not DIGEST.fullmatch(digest):
             raise ValueError("invalid OCI digest: " + target)
+        if channel == "ga":
+            signer_tag = record["signer_tag"]
+            signer_match = re.fullmatch(r"(v[0-9]+\\.[0-9]+\\.[0-9]+)-rc\\.[1-9][0-9]*", signer_tag) if isinstance(signer_tag, str) else None
+            run_id = record["signer_run_id"]
+            if signer_match is None or signer_match.group(1) != tag:
+                raise ValueError("GA signer tag must be a numbered RC in the exact release version family")
+            if isinstance(run_id, bool) or not isinstance(run_id, int) or run_id <= 0:
+                raise ValueError("GA signer workflow run ID must be a positive integer")
+            if common_signer is not None and (signer_tag != common_signer or run_id != common_run_id):
+                raise ValueError("GA candidate records disagree on qualified RC signer")
+            common_signer, common_run_id = signer_tag, run_id
         results[target] = digest
     return results
 
