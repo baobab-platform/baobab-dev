@@ -31,3 +31,22 @@ The planner checks remote refs and main ancestry but cannot atomically reserve
 a tag name. A second remote absence check and server-side tag rules are required
 at creation. Security exceptions remain separately scoped and never transfer
 automatically to the replacement candidate.
+
+## Required repository-side enforcement (administrator)
+
+Configure a repository ruleset under **Settings → Rules → Rulesets** targeting
+release tag names `v*` (all supported RC and GA tags). Enable **Restrict
+updates** and **Restrict deletions**. Limit tag creation to authorized release
+maintainers; do not grant an unrestricted bypass to the publishing workflow.
+Evaluate organization-level rulesets and repository bypass actors together.
+Keep this policy active for all historic and future published release tags.
+
+Verify the ruleset with a disposable test tag and a deliberately rejected
+update/deletion attempt by the actual release credential; retain the ruleset
+ID, configuration, test run and reviewer evidence in DEV-10 qualification.
+Do not test by rewriting a real published release tag.
+
+CI also executes `scripts/verify_remote_release_tag.py` for every tagged
+run, refusing a tag that no longer resolves to its event commit. This detects
+drift but cannot undo a server-side tag mutation or replace the ruleset.
+The recovery planner rejects reusing the failed candidate's source commit.
