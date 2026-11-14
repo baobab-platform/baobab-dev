@@ -19,9 +19,11 @@ def validate(payload, channel, run_id, source_sha):
         raise ValueError("unknown release channel")
     if not isinstance(run_id, int) or run_id < 1 or not SHA.fullmatch(source_sha):
         raise ValueError("invalid expected run identity")
-    if not isinstance(payload, dict) or not isinstance(payload.get("artifacts"), list):
+    # gh api --paginate --slurp produces an array of API response pages.
+    pages = payload if isinstance(payload, list) else [payload]
+    if not pages or any(not isinstance(page, dict) or not isinstance(page.get("artifacts"), list) for page in pages):
         raise ValueError("invalid Actions artifact API response")
-    artifacts = payload["artifacts"]
+    artifacts = [artifact for page in pages for artifact in page["artifacts"]]
     names = RC_NAMES if channel == "rc" else GA_NAMES
     selected = []
     for artifact in artifacts:
