@@ -48,7 +48,7 @@ class ContractTest(unittest.TestCase):
             parse_contracts(body().replace("sha256:" + ("1" * 0) + f"{1:064x}", "sha256:BAD", 1), TAG)
 
     def test_exact_v150_rc_series_pass_and_bad_prereleases_denied(self):
-        for rc in ("1.5.0-rc.1", "1.5.0-rc.2", "1.5.0-rc.10"):
+        for rc in ("1.5.0-rc.1", "1.5.0-rc.2", "1.5.0-rc.10", "1.5.2-rc.1", "1.5.2-rc.10"):
             with self.subTest(rc=rc):
                 result = parse_contracts(body(version=rc), "v" + rc)
                 self.assertEqual([x[0] for x in result], list(TARGETS))
