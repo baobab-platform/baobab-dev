@@ -118,3 +118,11 @@ PR #74 remains open and unmerged until all of the following are satisfied:
 - [ ] One consolidated qualification report records source SHA, image digests, test runs, evidence hashes, approvals, exceptions and unresolved items.
 
 **No release action has been performed:** no tag was created or moved, no image was published or promoted, and PR #74 was not merged. The CI state at the time of this report is pending requalification of the latest PR head.
+
+
+### Research references
+
+- Docker BuildKit external cache and `mode=min`/`mode=max`: https://docs.docker.com/build/cache/backends/ and https://docs.docker.com/build/cache/backends/registry/
+- pnpm's CI/Docker guidance recommends a lockfile-only `pnpm fetch` layer for ephemeral builders, followed by install/build layers: https://pnpm.io/docker
+- GitHub documents cache poisoning risks and the read/write trust boundaries for workflow caches: https://docs.github.com/en/actions/concepts/workflows-and-actions/dependency-caching
+- BuildKit's concurrent build-graph solver and unused-stage elimination: https://docs.docker.com/build/buildkit/
