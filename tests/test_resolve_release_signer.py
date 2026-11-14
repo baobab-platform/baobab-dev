@@ -1,11 +1,12 @@
 """Exact release signer selection for RC and digest-reused GA releases."""
 import sys
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from resolve_release_signer import (SignerResolutionError, resolve_signer,
-                                    validate_qualified_run)
+                                    validate_qualified_run, resolve_qualified_run)
 
 
 SHA = "a" * 40
@@ -50,6 +51,20 @@ class ReleaseSignerTests(unittest.TestCase):
                 validate_qualified_run({**run, **change}, "v1.5.1-rc.2", SHA, 123)
         with self.assertRaises(SignerResolutionError):
             validate_qualified_run(run, "v1.5.1-rc.2", SHA, 124)
+
+    def test_real_actions_api_run_envelope_is_resolved(self):
+        run = {"id": 123, "status": "completed", "conclusion": "success",
+               "event": "push", "head_branch": "v1.5.1-rc.2",
+               "head_sha": SHA,
+               "path": ".github/workflows/publish.yml@refs/tags/v1.5.1-rc.2"}
+        with patch("resolve_release_signer.gh_json",
+                   return_value=[{"total_count": 1, "workflow_runs": [run]}]):
+            self.assertEqual(resolve_qualified_run("baobab-platform/baobab-dev",
+                                                   "v1.5.1-rc.2", SHA), 123)
+        with patch("resolve_release_signer.gh_json", return_value=[{"workflow_runs": []}]):
+            with self.assertRaises(SignerResolutionError):
+                resolve_qualified_run("baobab-platform/baobab-dev",
+                                       "v1.5.1-rc.2", SHA)
 
     def test_ga_without_matching_rc_is_denied(self):
         with self.assertRaises(SignerResolutionError):
