@@ -21,7 +21,9 @@ Never put tokens into source, image build arguments, `.env` or shell tracing.
 
 The DEV-10 workflow resolves the published v1.5.1 stable tag to an immutable OCI
 index digest, then executes this checkout's actual post-create script and locked
-uv dependencies inside that exact digest as its native vscode user, on an owned copy
+uv dependencies inside that exact digest as its native vscode user, on an owned copy.
+The published-image lifecycle runs on both native GitHub-hosted architectures:
+`ubuntu-26.04` (amd64) and `ubuntu-26.04-arm` (arm64).
 of a read-only source mount. A raw host UID without passwd/cache remapping is
 not treated as a valid Dev Container. It records
 the resolved image digest in the job log. Mock-CLI regressions separately prove
