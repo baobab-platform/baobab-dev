@@ -91,6 +91,7 @@ on:
       - ".devcontainer/**"
       - "config/**"
       - "scripts/**"
+      - "tests/**"
       - ".github/workflows/publish.yml"
 
   pull_request:
@@ -241,7 +242,7 @@ jobs:
       - name: DEV-10 R5 negative unit tests (release contracts + Trivy DB freshness)
         run: |
           set -euo pipefail
-          python3 -m unittest -v tests/test_go_mod_download_retry.py tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_release_artifact_contract.py tests/test_actions_artifact_containers.py tests/test_independent_oci_index.py tests/test_digest_security_decision.py tests/test_immutable_rc_recovery.py tests/test_verify_remote_release_tag.py tests/test_verify_image_identity.py tests/test_verify_release_environment.py tests/test_verify_promotion_approval.py tests/test_release_tag_policy.py tests/test_release_promotion.py tests/test_r5_release_boundaries.py tests/test_signed_release_predicates.py tests/test_legacy_provenance.py
+          python3 -m unittest -v tests/test_go_mod_download_retry.py tests/test_pnpm_release_asset_attestation.py tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_release_artifact_contract.py tests/test_actions_artifact_containers.py tests/test_independent_oci_index.py tests/test_digest_security_decision.py tests/test_immutable_rc_recovery.py tests/test_verify_remote_release_tag.py tests/test_verify_image_identity.py tests/test_verify_release_environment.py tests/test_verify_promotion_approval.py tests/test_release_tag_policy.py tests/test_release_promotion.py tests/test_r5_release_boundaries.py tests/test_signed_release_predicates.py tests/test_legacy_provenance.py
       - name: Verify committed resolutions and upstream asset checksums
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
