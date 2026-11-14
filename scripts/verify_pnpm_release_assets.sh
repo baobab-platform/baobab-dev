@@ -48,10 +48,11 @@ verify_asset() {
     "https://github.com/pnpm/pnpm/releases/download/v${version}/${asset}" \
     --output "$file"
 
-  gh attestation verify "$file" \
+  env -u GH_TOKEN -u GITHUB_TOKEN gh attestation verify "$file" \
     --repo pnpm/pnpm \
     --signer-workflow pnpm/pnpm/.github/workflows/release.yml \
     --source-ref "refs/tags/v${version}" \
+    --cert-oidc-issuer "https://token.actions.githubusercontent.com" \
     --predicate-type "https://slsa.dev/provenance/v1"
 
   actual="$(sha256sum "$file" | awk '{ print $1 }')"
