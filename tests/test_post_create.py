@@ -34,7 +34,10 @@ else
 fi
 """
                 elif tool=='corepack':
-                    body += """if [ "$1" = "--version" ]; then
+                    body += """if [ "$1" = "pnpm" ]; then
+  shift
+fi
+if [ "$1" = "--version" ]; then
   printf '%s\\n' 'VERSION_PIN'
   exit 0
 fi
