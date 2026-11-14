@@ -12,7 +12,7 @@ PKG={"name":"openssl","version":"1.2.3","type":"os"}
 REPORT={"Results":[{"Packages":[{"Name":"openssl","Version":"1.2.3"}],"Vulnerabilities":[{"Severity":"HIGH","VulnerabilityID":"CVE-2026-12345","PkgName":"openssl","InstalledVersion":"1.2.3"}]}]}
 def decision():
     return {"schema_version":1,"release_tag":"v1.5.2-rc.1","target":"final","digest":DIGEST,
-            "package_inventory":[PKG],"inventory_sha256":m.inventory_hash([PKG]),
+            "package_inventory":[dict(PKG)],"inventory_sha256":m.inventory_hash([PKG]),
             "exceptions":[{"cve":"CVE-2026-12345","package":"openssl",
                            "installed_version":"1.2.3","justification":"Reviewed temporary mitigation"}],
             "approver":"security-reviewer","approved_at":"2026-11-13T00:00:00Z",
