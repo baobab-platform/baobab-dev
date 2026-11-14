@@ -144,6 +144,7 @@ jobs:
     # anything (see "Fail on lockfile drift" below), so it no longer needs
     # `contents: write`.
     permissions:
+      attestations: read
       contents: read
 
     outputs:
