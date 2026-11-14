@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-from resolve_release_signer import SignerResolutionError, resolve_signer
+from resolve_release_signer import (SignerResolutionError, resolve_signer,\n                                    validate_qualified_run)
 
 
 SHA = "a" * 40
@@ -34,6 +34,21 @@ class ReleaseSignerTests(unittest.TestCase):
         with self.assertRaises(SignerResolutionError):
             resolve_signer("v1.5.1-rc.1", SHA, [],
                            lambda tag: SHA, preferred_tag="v1.5.1-rc.2")
+
+    def test_actual_actions_run_shape_is_required(self):
+        run = {"id": 123, "status": "completed", "conclusion": "success",
+               "event": "push", "head_branch": "v1.5.1-rc.2",
+               "head_sha": SHA,
+               "path": ".github/workflows/publish.yml@refs/tags/v1.5.1-rc.2"}
+        self.assertEqual(validate_qualified_run(run, "v1.5.1-rc.2", SHA, 123), 123)
+        for change in ({"conclusion": "failure"}, {"status": "in_progress"},
+                       {"event": "workflow_dispatch"}, {"head_branch": "v1.5.1-rc.1"},
+                       {"head_sha": OTHER}, {"path": ".github/workflows/other.yml"},
+                       {"id": True}):
+            with self.subTest(change=change), self.assertRaises(SignerResolutionError):
+                validate_qualified_run({**run, **change}, "v1.5.1-rc.2", SHA, 123)
+        with self.assertRaises(SignerResolutionError):
+            validate_qualified_run(run, "v1.5.1-rc.2", SHA, 124)
 
     def test_ga_without_matching_rc_is_denied(self):
         with self.assertRaises(SignerResolutionError):
