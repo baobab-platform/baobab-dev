@@ -29,6 +29,7 @@ def validate(directory: Path, tag: str, channel: str):
     results = {}
     common_signer = None
     common_run_id = None
+    for target in TARGETS:
         path = directory / (target + ".json")
         if path.is_symlink() or not path.is_file():
             raise ValueError("candidate record must be a regular file: " + target)
