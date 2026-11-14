@@ -76,6 +76,7 @@ on:
       - completed
 
 permissions:
+  actions: read
   contents: read
   packages: read
 
@@ -235,27 +236,39 @@ jobs:
             --output "$RUNNER_TEMP/release-contracts.tsv"
           preferred_tags=$(awk -F '\t' 'NF >= 4 && $4 != "" {print $4}' \
             "$RUNNER_TEMP/release-contracts.tsv" | sort -u)
+          preferred_run_ids=$(awk -F '\\t' 'NF >= 5 && $5 != "" {print $5}' \
+            "$RUNNER_TEMP/release-contracts.tsv" | sort -u)
           signer_args=()
+          run_args=()
           if [[ -n "$preferred_tags" ]]; then
             [[ "$(printf '%s\n' "$preferred_tags" | wc -l)" -eq 1 ]] || {
               echo "::error::Release profiles disagree on signature source tag"; exit 1;
             }
             signer_args+=(--preferred-tag "$preferred_tags")
           fi
+          if [[ -n "$preferred_run_ids" ]]; then
+            [[ "$(printf '%s\\n' "$preferred_run_ids" | wc -l)" -eq 1 ]] || {
+              echo "::error::Release profiles disagree on qualified RC workflow run"; exit 1;
+            }
+            run_args+=(--preferred-run-id "$preferred_run_ids")
+          fi
           python3 scripts/resolve_release_signer.py \
             --repository "$GITHUB_REPOSITORY" \
             --release-tag "$RELEASE_TAG" \
-            --source-sha "$SOURCE_SHA" "${signer_args[@]}" \
+            --source-sha "$SOURCE_SHA" "${signer_args[@]}" "${run_args[@]}" \
             --output "$RUNNER_TEMP/release-signer.json"
           signer_tag=$(jq -er '.signer_tag' "$RUNNER_TEMP/release-signer.json")
+          signer_run_id=$(jq -er '.signer_run_id' "$RUNNER_TEMP/release-signer.json")
           echo "signer_tag=$signer_tag" >> "$GITHUB_OUTPUT"
-          echo "Exact Cosign workflow identity is bound to $signer_tag at $SOURCE_SHA"
+          echo "signer_run_id=$signer_run_id" >> "$GITHUB_OUTPUT"
+          echo "Exact Cosign workflow identity is bound to $signer_tag via successful publish run $signer_run_id at $SOURCE_SHA"
 
       - name: Verify advertised tags, digests, indices, platform manifests, and attestations
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
           SOURCE_SHA: ${{ steps.release.outputs.source_sha }}
           SIGNER_TAG: ${{ steps.signer.outputs.signer_tag }}
+          SIGNER_RUN_ID: ${{ steps.signer.outputs.signer_run_id }}
         run: |
           set -euo pipefail
           failures=0
@@ -263,6 +276,11 @@ jobs:
 
           while IFS=$'\t' read -r target ref expected_digest advertised_signer_tag; do
             [[ -z "${ref}" ]] && continue
+            if [[ -n "${advertised_signer_run_id}" && "${advertised_signer_run_id}" != "${SIGNER_RUN_ID}" ]]; then
+              echo "::error::${ref} advertises signer run ${advertised_signer_run_id}, but resolved run is ${SIGNER_RUN_ID}"
+              failures=$((failures + 1))
+              continue
+            fi
             if [[ -n "${advertised_signer_tag}" && "${advertised_signer_tag}" != "${SIGNER_TAG}" ]]; then
               echo "::error::${ref} advertises signer ${advertised_signer_tag}, but resolved identity is ${SIGNER_TAG}"
               failures=$((failures + 1))
