@@ -23,6 +23,18 @@ class ReleaseSignerTests(unittest.TestCase):
             lambda tag: SHA if tag == "v1.5.1-rc.2" else OTHER),
             "v1.5.1-rc.2")
 
+    def test_declared_signer_tag_is_verified_against_exact_source(self):
+        self.assertEqual(resolve_signer("v1.5.1", SHA, [],
+                                        lambda tag: SHA,
+                                        preferred_tag="v1.5.1-rc.2"),
+                         "v1.5.1-rc.2")
+        with self.assertRaises(SignerResolutionError):
+            resolve_signer("v1.5.1", SHA, [],
+                           lambda tag: SHA, preferred_tag="v1.5.0-rc.2")
+        with self.assertRaises(SignerResolutionError):
+            resolve_signer("v1.5.1-rc.1", SHA, [],
+                           lambda tag: SHA, preferred_tag="v1.5.1-rc.2")
+
     def test_ga_without_matching_rc_is_denied(self):
         with self.assertRaises(SignerResolutionError):
             resolve_signer("v1.5.1", SHA, ["v1.5.1-rc.1"],
