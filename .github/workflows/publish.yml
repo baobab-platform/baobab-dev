@@ -2108,7 +2108,7 @@ jobs:
             }
             # Re-scan the exact immutable OCI digest on the protected
             # promotion runner, independent of build-time Trivy evidence.
-            trivy image --scanners vuln --pkg-types os,library \
+            trivy image --scanners vuln --pkg-types os,library --list-all-pkgs \
               --severity HIGH,CRITICAL --format json \
               --output "$RUNNER_TEMP/security-$target.json" "$image@$digest"
             decision_file="security/decisions/$RELEASE_TAG/$target.json"
