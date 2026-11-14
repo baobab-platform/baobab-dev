@@ -142,9 +142,8 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 20
 
-    # `contents: read` only. CHANGED: this job no longer auto-commits
-    # anything (see "Fail on lockfile drift" below), so it no longer needs
-    # `contents: write`.
+    # Read-only contents plus read-only upstream attestation access for the
+    # publisher-verified pnpm assets. This job never writes repository state.
     permissions:
       attestations: read
       contents: read
