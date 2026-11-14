@@ -501,6 +501,10 @@ PNPM_SHA256_ARM64=$(yaml '.package_managers.pnpm.sha256_arm64')
 [[ "$PNPM_SHA256_AMD64" =~ ^[a-f0-9]{64}$ &&
    "$PNPM_SHA256_ARM64" =~ ^[a-f0-9]{64}$ ]] ||
     die "Missing/invalid native pnpm 12 publisher SHA256 digest"
+# Verify the exact release assets against GitHub SLSA attestations from the
+# signed pnpm release workflow, then compare their actual bytes to the pins.
+bash "${REPO_ROOT}/scripts/verify_pnpm_release_assets.sh" \
+    "$PNPM_VERSION" "$PNPM_SHA256_AMD64" "$PNPM_SHA256_ARM64"
 COREPACK_VERSION=$(resolve_npm '.package_managers.corepack.version' 'corepack' 'COREPACK_VERSION')
 
 # ------------------------------------------------------------------------------
