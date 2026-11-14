@@ -18,6 +18,7 @@ TARGETS = ("final", "frontend", "frontend-e2e", "infra")
 HEADER = re.compile(r"(?m)^\*\*(?P<target>[^*\r\n]+):\*\*\s*$")
 PULL = re.compile(r"(?m)^docker pull\s+(?P<ref>\S+)\s*$")
 DIGEST = re.compile(r"(?m)^Verify \(digest `(?P<digest>sha256:[0-9a-f]{64})`\):\s*$")
+SIGNER = re.compile(r"(?m)^Signature source: `(?P<tag>v[0-9]+\\.[0-9]+\\.[0-9]+(?:-rc\\.[1-9][0-9]*)?)`$")
 # RCs are real versioned development-image releases, never GA aliases.
 TAG = re.compile(r"^v(?P<version>[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[1-9][0-9]*)?)$")
 
@@ -26,7 +27,7 @@ class ContractError(ValueError):
     pass
 
 
-def parse_contracts(body: str, release_tag: str) -> list[tuple[str, str, str]]:
+def parse_contracts(body: str, release_tag: str) -> list[tuple[str, str, str, str]]:
     version_match = TAG.fullmatch(release_tag)
     if not version_match:
         raise ContractError("not a stable semver or numbered RC release")
@@ -48,15 +49,31 @@ def parse_contracts(body: str, release_tag: str) -> list[tuple[str, str, str]]:
         if len(pulls) != 1 or len(digests) != 1:
             raise ContractError(f"{target}: requires exactly one pull ref and digest")
         ref, digest = pulls[0], digests[0]
+        signer_tags = SIGNER.findall(chunk)
+        if len(signer_tags) > 1:
+            raise ContractError(f"{target}: duplicate signature source declarations")
+        signer_tag = signer_tags[0] if signer_tags else ""
+        if signer_tag:
+            signer_rc = re.fullmatch(r"^(v[0-9]+\\.[0-9]+\\.[0-9]+)-rc\\.[1-9][0-9]*$", signer_tag)
+            release_rc = re.fullmatch(r"^(v[0-9]+\\.[0-9]+\\.[0-9]+)-rc\\.[1-9][0-9]*$", release_tag)
+            if release_rc and signer_tag != release_tag:
+                raise ContractError(f"{target}: RC must be signed by its exact release tag")
+            if not release_rc and signer_tag != release_tag and (
+                    signer_rc is None or signer_rc.group(1) != release_tag):
+                raise ContractError(f"{target}: signer tag is outside the exact GA version family")
         expected_tag = version if target == "final" else f"{version}-{target}"
         expected_ref = f"{IMAGE}:{expected_tag}"
         if ref != expected_ref:
             raise ContractError(f"{target}: expected exact ref {expected_ref}, got {ref}")
-        found[target] = (target, ref, digest)
+        found[target] = (target, ref, digest, signer_tag)
     if set(found) != set(TARGETS):
         raise ContractError(f"missing advertised profiles: {sorted(set(TARGETS) - set(found))}")
     if len({row[2] for row in found.values()}) != len(TARGETS):
         raise ContractError("release target digests are not distinct")
+    declared_signers = {row[3] for row in found.values() if row[3]}
+    if len(declared_signers) > 1 or (declared_signers and
+            any(not row[3] for row in found.values())):
+        raise ContractError("release profiles disagree on the exact signature source tag")
     return [found[target] for target in TARGETS]
 
 
@@ -72,7 +89,7 @@ def main() -> int:
         args.output.write_text("".join("\t".join(contract) + "\n" for contract in contracts))
         print(json.dumps({"schema": "baobab.dev10.release-contract.v1",
                           "release_tag": args.tag, "targets": len(contracts),
-                          "contracts": [dict(target=t, ref=r, digest=d) for t, r, d in contracts]},
+                          "contracts": [dict(target=t, ref=r, digest=d, signer_tag=s) for t, r, d, s in contracts]},
                          indent=2))
         return 0
     except (ContractError, OSError) as exc:
