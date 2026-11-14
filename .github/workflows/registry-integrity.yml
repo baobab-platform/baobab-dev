@@ -195,7 +195,7 @@ jobs:
           if [[ -n "$tag" && "$TAG_NAME" != "$tag" ]]; then
             echo "::error::Release API returned wrong selected tag"; exit 1;
           fi
-          if [[ "$TAG_NAME" == v1.5.0-rc.* ]]; then
+          if [[ "$TAG_NAME" =~ ^v[0-9]+\\.[0-9]+\\.[0-9]+-rc\\.[1-9][0-9]*$ ]]; then
             [[ "$(jq -r '.prerelease' "${RUNNER_TEMP}/release.json")" == true ]] || {
               echo "::error::RC release must be marked prerelease"; exit 1;
             }
@@ -224,6 +224,7 @@ jobs:
       - name: Resolve exact OIDC signer tag for the selected release source
         id: signer
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
           SOURCE_SHA: ${{ steps.release.outputs.source_sha }}
         run: |
