@@ -49,6 +49,9 @@ def main():
     try:
         tags = remote_tags(args.remote)
         candidate = next_rc(args.failed_tag, tags)
+        # Refresh main before validating ancestry; never trust a stale tracking ref.
+        subprocess.run(["git", "fetch", "--no-tags", args.remote, "main"],
+                       check=True, capture_output=True)
         # A replacement must be a reviewed commit in main history.
         subprocess.run(["git", "merge-base", "--is-ancestor", args.replacement_sha,
                         args.remote + "/main"], check=True, capture_output=True)
