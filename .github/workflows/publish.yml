@@ -327,6 +327,10 @@ jobs:
           for target in final frontend frontend-e2e infra; do
             gh run download "$RC_RUN" --repo "$GITHUB_REPOSITORY" --name "published-info-$target" --dir "$RUNNER_TEMP/rc"
           done
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/runs/${RC_RUN}/artifacts?per_page=100" > "$RUNNER_TEMP/rc-artifact-pages.json"
+          python3 scripts/verify_actions_artifact_containers.py \
+            --input "$RUNNER_TEMP/rc-artifact-pages.json" --channel rc \
+            --run-id "$RC_RUN" --sha "$GITHUB_SHA"
           python3 scripts/prepare_ga_reuse.py --run "$RUNNER_TEMP/run.json" --records "$RUNNER_TEMP/rc" --tag "$TAG" --sha "$GITHUB_SHA" --output "$RUNNER_TEMP/ga"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -1977,6 +1981,16 @@ jobs:
             --actor "$GITHUB_ACTOR" --tag "$RELEASE_TAG" \
             --output "$RUNNER_TEMP/r5-promotion-evidence/approval.json"
 
+      - name: Verify Actions candidate artifact containers before download
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL: ${{ needs.sanity-check.outputs.is_stable_release == 'true' && 'ga' || 'rc' }}
+        run: |
+          set -euo pipefail
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" > "$RUNNER_TEMP/artifact-pages.json"
+          python3 scripts/verify_actions_artifact_containers.py \
+            --input "$RUNNER_TEMP/artifact-pages.json" --channel "$CHANNEL" \
+            --run-id "$GITHUB_RUN_ID" --sha "$GITHUB_SHA"
       - name: Download candidate records for release channel
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -2128,6 +2142,16 @@ jobs:
       # RC builds publish published-info-* records; GA reuses the exact
       # qualified RC digests in ga-reused-candidates. Both channels must
       # render release notes from the records actually promoted.
+      - name: Verify Actions candidate artifact containers before download
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL: ${{ needs.sanity-check.outputs.is_stable_release == 'true' && 'ga' || 'rc' }}
+        run: |
+          set -euo pipefail
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" > "$RUNNER_TEMP/artifact-pages.json"
+          python3 scripts/verify_actions_artifact_containers.py \
+            --input "$RUNNER_TEMP/artifact-pages.json" --channel "$CHANNEL" \
+            --run-id "$GITHUB_RUN_ID" --sha "$GITHUB_SHA"
       - name: Download channel candidate records
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
