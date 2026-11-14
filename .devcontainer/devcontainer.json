@@ -1,16 +1,19 @@
 {
   "name": "Baobab Enterprise Platform",
 
-  // Pinned to v1.4.2 (not :latest) for deterministic, reproducible parity
-  // with config/versions.lock across all workstations and CI. Published by
-  // .github/workflows/publish.yml after Cosign sign/attest + Trivy gate.
-  // NOTE: GHCR does not enforce tag immutability server-side — this tag is
-  // "immutable" only by this repo's release policy. For registry-enforced
-  // immutability, pin by digest instead/in addition:
-  //   "image": "ghcr.io/baobab-platform/baobab-dev:1.4.4@sha256:<digest>"
-  // (get <digest> from the v1.4.4 GitHub Release notes, or
-  // `docker buildx imagetools inspect ghcr.io/baobab-platform/baobab-dev:1.4.4`).
-  "image": "ghcr.io/baobab-platform/baobab-dev:1.4.4",
+  // Development-only image: qualified v1.5.1 GA final-profile multiarch manifest.
+  // Release candidate v1.5.1-rc.2 was scanned and signed; GA reused the exact
+  // OCI digests and verified Cosign OIDC identity, SLSA and SPDX attestations.
+  // The tag identifies the release; the @sha256 suffix fixes the content,
+  // independently of GHCR tag mutability. Do not replace it with :latest.
+  // Check the manifest digest against the v1.5.1 GitHub Release before updates.
+  // This does not grant staging/production authority or close DEV-14 consumer
+  // qualification. Development-only kernel CVE risk acceptance expires
+  // 2026-11-26T00:00:00Z; it is not vulnerability remediation.
+  "image": "ghcr.io/baobab-platform/baobab-dev:1.5.1@sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed@sha256:<digest>"
+  // (get <digest> from the v1.5.1 GitHub Release notes, or
+  // `docker buildx imagetools inspect ghcr.io/baobab-platform/baobab-dev:1.5.1@sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed`).
+  "image": "ghcr.io/baobab-platform/baobab-dev:1.5.1@sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed",
   // "build": {
   //   // Repo root, not .devcontainer — Dockerfile COPYs config/ and scripts/
   //   // from the build context root.
