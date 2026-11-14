@@ -220,6 +220,16 @@ jobs:
           sudo install -m 0755 /tmp/yq /usr/local/bin/yq
           rm -f /tmp/yq
 
+      # Mandatory on PR, main, tag and manual validation. Run before any
+      # image build/publish job can consume the sanity-check result.
+      # Covers exact workflow OIDC identity, RC inference and fail-closed
+      # malformed/future tag rejection without requiring live GHCR access.
+      - name: DEV-10 release identity preflight (positive and negative)
+        run: |
+          set -euo pipefail
+          bash -n scripts/verify-image.sh scripts/test-verify-image-release-identity.sh
+          bash scripts/test-verify-image-release-identity.sh
+
       - name: DEV-10 R5 negative unit tests (release contracts + Trivy DB freshness)
         run: |
           set -euo pipefail
