@@ -106,12 +106,63 @@ def matching_rc_tags(repository: str, release_tag: str) -> list[str]:
     return tags
 
 
+
+def validate_qualified_run(run: object, signer_tag: str, source_sha: str,
+                           expected_run_id: int | None = None) -> int:
+    if not isinstance(run, dict):
+        raise SignerResolutionError("qualified RC workflow run response is malformed")
+    run_id = run.get("id")
+    if isinstance(run_id, bool) or not isinstance(run_id, int) or run_id <= 0:
+        raise SignerResolutionError("qualified RC workflow run ID is invalid")
+    if expected_run_id is not None and run_id != expected_run_id:
+        raise SignerResolutionError("release metadata run ID does not match the GitHub Actions record")
+    if run.get("status") != "completed" or run.get("conclusion") != "success":
+        raise SignerResolutionError("RC workflow run is not completed successfully")
+    if run.get("event") != "push" or run.get("head_branch") != signer_tag:
+        raise SignerResolutionError("RC workflow run is not the exact tag-push run")
+    if run.get("head_sha") != source_sha:
+        raise SignerResolutionError("RC workflow run source SHA differs from the release")
+    path = run.get("path")
+    if not isinstance(path, str) or path.split("@", 1)[0] != ".github/workflows/publish.yml":
+        raise SignerResolutionError("RC workflow run did not execute the canonical publish workflow")
+    return run_id
+
+
+def resolve_qualified_run(repository: str, signer_tag: str, source_sha: str,
+                          preferred_run_id: int | None = None) -> int:
+    if preferred_run_id is not None:
+        run = gh_json([f"repos/{repository}/actions/runs/{preferred_run_id}"])
+        return validate_qualified_run(run, signer_tag, source_sha, preferred_run_id)
+    pages = gh_json(["--paginate", "--slurp",
+                     f"repos/{repository}/actions/workflows/publish.yml/runs"
+                     f"?head_sha={source_sha}&branch={signer_tag}&event=push&per_page=100"])
+    if isinstance(pages, list) and pages and all(isinstance(page, list) for page in pages):
+        runs = [run for page in pages for run in page]
+    elif isinstance(pages, list):
+        runs = pages
+    else:
+        raise SignerResolutionError("GitHub Actions run search response is malformed")
+    valid = []
+    for run in runs:
+        try:
+            valid.append(validate_qualified_run(run, signer_tag, source_sha))
+        except SignerResolutionError:
+            continue
+    ids = sorted(set(valid))
+    if len(ids) != 1:
+        raise SignerResolutionError(
+            "expected exactly one successful canonical publish run for the signer tag and source SHA; found "
+            + str(len(ids)))
+    return ids[0]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repository", required=True)
     parser.add_argument("--release-tag", required=True)
     parser.add_argument("--source-sha", required=True)
     parser.add_argument("--preferred-tag")
+    parser.add_argument("--preferred-run-id", type=int)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
@@ -127,9 +178,11 @@ def main() -> int:
         signer = resolve_signer(args.release_tag, args.source_sha, candidates,
                                 lambda tag: dereference_tag(args.repository, tag),
                                 preferred_tag=args.preferred_tag)
+        signer_run_id = resolve_qualified_run(args.repository, signer, args.source_sha,
+                                              args.preferred_run_id)
         result = {"schema": "baobab.dev10.release-signer.v1",
                   "release_tag": args.release_tag, "signer_tag": signer,
-                  "source_sha": args.source_sha}
+                  "signer_run_id": signer_run_id, "source_sha": args.source_sha}
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
         print(json.dumps(result, sort_keys=True))
