@@ -10,7 +10,7 @@ VERSION = "1.5.0"
 TAG = "v" + VERSION
 
 
-def body(targets=TARGETS, version=VERSION, signer_tag=None):
+def body(targets=TARGETS, version=VERSION, signer_tag=None, signer_run_id=None):
     chunks = ["### Container Pull Directives"]
     for index, t in enumerate(targets):
         suffix = "" if t == "final" else "-" + t
@@ -29,13 +29,19 @@ class ContractTest(unittest.TestCase):
         self.assertEqual([x[0] for x in result], list(TARGETS))
 
     def test_ga_signer_source_is_consistent_and_same_version(self):
-        result = parse_contracts(body(version="1.5.1", signer_tag="v1.5.1-rc.2"),
+        result = parse_contracts(body(version="1.5.1", signer_tag="v1.5.1-rc.2", signer_run_id=123),
                                  "v1.5.1")
         self.assertEqual({x[3] for x in result}, {"v1.5.1-rc.2"})
+        self.assertEqual({x[4] for x in result}, {"123"})
         for release, signer in (("v1.5.1", "v1.5.0-rc.2"),
                                 ("v1.5.2-rc.1", "v1.5.2-rc.2")):
             with self.subTest(release=release, signer=signer), self.assertRaises(ContractError):
-                parse_contracts(body(version=release[1:], signer_tag=signer), release)
+                parse_contracts(body(version=release[1:], signer_tag=signer, signer_run_id=123), release)
+
+    def test_ga_rc_signer_requires_qualified_run_id(self):
+        with self.assertRaises(ContractError):
+            parse_contracts(body(version="1.5.1", signer_tag="v1.5.1-rc.2"),
+                            "v1.5.1")
 
     def test_missing_profile(self):
         with self.assertRaises(ContractError):
