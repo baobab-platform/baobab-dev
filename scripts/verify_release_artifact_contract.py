@@ -13,7 +13,7 @@ from pathlib import Path
 TARGETS = ("final", "frontend", "frontend-e2e", "infra")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 NUM = r"(?:0|[1-9][0-9]*)"
-TAG = re.compile(rf"^v{NUM}\\.{NUM}\\.{NUM}(?:-rc\\.[1-9][0-9]*)?$")
+TAG = re.compile(rf"^v{NUM}\.{NUM}\.{NUM}(?:-rc\.[1-9][0-9]*)?$")
 BASE = "ghcr.io/baobab-platform/baobab-dev:"
 
 def validate(directory: Path, tag: str, channel: str):
