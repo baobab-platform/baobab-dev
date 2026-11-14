@@ -2129,6 +2129,7 @@ jobs:
     # that needs it now; `publish`'s matrix legs no longer touch releases.
     permissions:
       contents: write
+      actions: read
 
     steps:
       - name: Checkout repository
