@@ -11,7 +11,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/post-create.sh'
 
 
 class PostCreateTests(unittest.TestCase):
-    def run_case(self, files, *, fail='', pnpm='11.24.0', members='yes'):
+    def run_case(self, files, *, fail='', pnpm='12.21.0', members='yes'):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root/'config').mkdir()
@@ -26,7 +26,7 @@ class PostCreateTests(unittest.TestCase):
                 body='#!/bin/sh\nprintf "%s\\n" "'+tool+' $*" >> "$TRACE"\n'
                 if tool=='node':
                     body += """if [ "$1" = "--version" ]; then
-  printf 'v24.21.0\\n'
+  printf 'v26.13.1\\n'
 elif [ "$1" = "-e" ]; then
   exec "$REAL_NODE" "$@"
 else
@@ -85,11 +85,11 @@ fi
         self.assertNotIn('npm install',t)
 
     def test_pnpm_exact_project_pin_and_frozen_install(self):
-        files={'package.json':json.dumps({'packageManager':'pnpm@11.24.0'}),'pnpm-lock.yaml':''}
+        files={'package.json':json.dumps({'packageManager':'pnpm@12.21.0'}),'pnpm-lock.yaml':''}
         r,t=self.run_case(files)
         self.assertEqual(0,r.returncode,r.stdout+r.stderr)
         self.assertIn('pnpm install --frozen-lockfile',t)
-        r,t=self.run_case(files,pnpm='11.23.0')
+        r,t=self.run_case(files,pnpm='12.20.0')
         self.assertNotEqual(0,r.returncode)
         self.assertNotIn('pnpm install',t)
 
@@ -128,7 +128,7 @@ fi
 
     def test_conflicting_node_locks_and_wrong_node_pin_refused(self):
         for files in ({'package.json':'{}','package-lock.json':'','pnpm-lock.yaml':''},
-                      {'package.json':'{}','package-lock.json':'','.node-version':'24.20.0'}):
+                      {'package.json':'{}','package-lock.json':'','.node-version':'26.13.0'}):
             r,t=self.run_case(files)
             self.assertNotEqual(0,r.returncode)
             self.assertNotIn('npm ci',t)
