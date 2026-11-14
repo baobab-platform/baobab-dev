@@ -224,6 +224,12 @@ jobs:
       # image build/publish job can consume the sanity-check result.
       # Covers exact workflow OIDC identity, RC inference and fail-closed
       # malformed/future tag rejection without requiring live GHCR access.
+      - name: DEV-10 mandatory pre-tag release matrix
+        run: |
+          set -euo pipefail
+          python3 scripts/preflight_release_matrix.py
+          python3 -m unittest -v tests/test_preflight_release_matrix.py
+
       - name: DEV-10 release identity preflight (positive and negative)
         run: |
           set -euo pipefail
