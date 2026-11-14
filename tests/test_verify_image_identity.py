@@ -60,17 +60,17 @@ class SigningIdentityContractTest(unittest.TestCase):
     def test_digest_without_explicit_release_tag_denied(self):
         result = self.verify(DIGEST_REF)
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Specify stable semver or approved", result.stderr)
+        self.assertIn("Specify canonical vMAJOR.MINOR.PATCH", result.stderr)
         self.assertFalse(self.log.exists())
 
     def test_rc_tags_verify_exact_signer_identity(self):
-        for candidate in ("v1.5.0-rc.1", "v1.5.0-rc.2", "v1.5.0-rc.10", "v1.5.1-rc.1", "v1.5.1-rc.10", "v1.5.2-rc.1", "v1.5.2-rc.10"):
+        for candidate in ("v1.5.0-rc.1", "v1.5.0-rc.2", "v1.5.0-rc.10", "v1.5.1-rc.1", "v1.5.1-rc.10", "v1.5.2-rc.1", "v1.5.2-rc.10", "v1.5.3-rc.1", "v2.0.0-rc.1", "v10.3.12-rc.10"):
             self.log.unlink(missing_ok=True)
             result = self.verify(DIGEST_REF, candidate)
             self.assertEqual(result.returncode, 0, result.stderr)
             commands = self.log.read_text().splitlines()
             self.assertEqual(len(commands), 3)
-            expected = EXPECTED.replace("v1.5.0", candidate)
+            expected = "https://github.com/baobab-platform/baobab-dev/.github/workflows/publish.yml@refs/tags/" + candidate
             self.assertTrue(all(f"--certificate-identity {expected}" in c
                                 for c in commands))
             self.assertTrue(all("--certificate-identity-regexp" not in c
@@ -78,17 +78,20 @@ class SigningIdentityContractTest(unittest.TestCase):
 
     def test_other_prerelease_tags_denied(self):
         for candidate in ("v1.5.0-rc.0", "v1.5.0-rc.01",
-                          "v1.5.3-rc.1", "v1.5.1-rc.0", "v1.5.1-rc.01", "v1.5.0-beta.1"):
+                          "v1.5.3-rc.0", "v1.5.3-rc.01", "v1.5.1-rc.0", "v1.5.1-rc.01", "v1.5.2-beta.1", "v01.5.2-rc.1"):
             self.log.unlink(missing_ok=True)
             with self.subTest(candidate=candidate):
                 result = self.verify(DIGEST_REF, candidate)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertFalse(self.log.exists())
 
-    def test_mutable_tag_infers_stable_release_identity(self):
-        result = self.verify("ghcr.io/baobab-platform/baobab-dev:1.5.0")
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn(EXPECTED, self.log.read_text())
+    def test_mutable_tag_infers_canonical_release_identity(self):
+        for image_tag in ("1.5.0", "v2.0.0", "10.3.12"):
+            self.log.unlink(missing_ok=True)
+            result = self.verify("ghcr.io/baobab-platform/baobab-dev:" + image_tag)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            expected = "https://github.com/baobab-platform/baobab-dev/.github/workflows/publish.yml@refs/tags/v" + image_tag.lstrip("v")
+            self.assertIn(expected, self.log.read_text())
 
 
 if __name__ == "__main__":
