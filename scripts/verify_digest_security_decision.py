@@ -58,6 +58,17 @@ def validate(decision, report, *, target, digest, release_tag, now):
     if (decision["schema_version"] != 1 or decision["target"] != target
         or decision["digest"] != digest or decision["release_tag"] != release_tag):
         raise ValueError("decision is not bound to this exact release target and digest")
+    # Compare approval inventory to the independently scanned package set,
+    # not merely to a self-declared checksum in the approval record.
+    scanned_packages = set()
+    for result in report["Results"]:
+        for pkg in result.get("Packages") or []:
+            if not all(isinstance(pkg.get(k), str) and pkg[k] for k in ("Name", "Version")):
+                raise ValueError("invalid scanned package")
+            scanned_packages.add((pkg["Name"], pkg["Version"]))
+    approved_packages = {(pkg["name"], pkg["version"]) for pkg in decision["package_inventory"]}
+    if not scanned_packages or scanned_packages != approved_packages:
+        raise ValueError("approval package inventory differs from independently scanned inventory")
     if inventory_hash(decision["package_inventory"]) != decision["inventory_sha256"]:
         raise ValueError("package inventory hash mismatch")
     if not isinstance(decision["approver"], str) or not decision["approver"].strip():
