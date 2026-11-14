@@ -87,6 +87,7 @@ esac
         calls = self.log.read_text().splitlines()
         self.assertEqual(len(calls), 2)
         for call, asset in zip(calls, ASSETS):
+            self.assertIn(asset, call)
             self.assertIn("--repo pnpm/pnpm", call)
             self.assertIn("--signer-workflow pnpm/pnpm/.github/workflows/release.yml", call)
             self.assertIn("--source-ref refs/tags/v12.21.0", call)
