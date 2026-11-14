@@ -233,11 +233,11 @@ jobs:
             --release-body "$RUNNER_TEMP/release-body.md" \
             --tag "$RELEASE_TAG" \
             --output "$RUNNER_TEMP/release-contracts.tsv"
-          preferred_tags=$(awk -F '\\t' 'NF >= 4 && $4 != "" {print $4}' \\
+          preferred_tags=$(awk -F '\t' 'NF >= 4 && $4 != "" {print $4}' \
             "$RUNNER_TEMP/release-contracts.tsv" | sort -u)
           signer_args=()
           if [[ -n "$preferred_tags" ]]; then
-            [[ "$(printf '%s\\n' "$preferred_tags" | wc -l)" -eq 1 ]] || {
+            [[ "$(printf '%s\n' "$preferred_tags" | wc -l)" -eq 1 ]] || {
               echo "::error::Release profiles disagree on signature source tag"; exit 1;
             }
             signer_args+=(--preferred-tag "$preferred_tags")
@@ -261,7 +261,7 @@ jobs:
           failures=0
           mkdir -p "$RUNNER_TEMP/registry-native-evidence"
 
-          while IFS=$'\\t' read -r target ref expected_digest advertised_signer_tag; do
+          while IFS=$'\t' read -r target ref expected_digest advertised_signer_tag; do
             [[ -z "${ref}" ]] && continue
             if [[ -n "${advertised_signer_tag}" && "${advertised_signer_tag}" != "${SIGNER_TAG}" ]]; then
               echo "::error::${ref} advertises signer ${advertised_signer_tag}, but resolved identity is ${SIGNER_TAG}"
