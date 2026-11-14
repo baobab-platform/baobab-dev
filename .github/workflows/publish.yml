@@ -103,6 +103,7 @@ on:
       - ".devcontainer/**"
       - "config/**"
       - "scripts/**"
+      - "tests/**"
       - ".github/workflows/publish.yml"
 
   # Manual validation is main-only. Rebuilding an arbitrary tag in the
