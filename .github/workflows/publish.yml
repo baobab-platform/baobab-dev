@@ -142,10 +142,9 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 20
 
-    # Read-only contents plus read-only upstream attestation access for the
-    # publisher-verified pnpm assets. This job never writes repository state.
+    # Contents are read-only. Public pnpm release attestations are verified
+    # anonymously against pnpm/pnpm; this job never writes repository state.
     permissions:
-      attestations: read
       contents: read
 
     outputs:
