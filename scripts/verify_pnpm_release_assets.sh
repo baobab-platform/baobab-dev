@@ -41,8 +41,8 @@ trap 'rm -rf "$tmp_dir"' EXIT
 verify_asset() {
   local asset="$1"
   local expected="$2"
-  local file="$tmp_dir/$asset"
   local actual
+  local file="$tmp_dir/$asset"
 
   curl --fail --location --silent --show-error --retry 3 \
     "https://github.com/pnpm/pnpm/releases/download/v${version}/${asset}" \
