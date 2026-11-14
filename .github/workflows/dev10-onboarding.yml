@@ -26,14 +26,27 @@ jobs:
         env:
           TOKEN: ${{ github.token }}
         run: printf '%s' "$TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin >/dev/null
-      - name: Execute actual locked repository onboarding in the published image
+      - name: Resolve current stable image to an immutable OCI index digest
+        id: stable-image
+        env:
+          IMAGE_TAG: ghcr.io/baobab-platform/baobab-dev:v1.5.1
         run: |
           set -euo pipefail
-          image=ghcr.io/baobab-platform/baobab-dev:1.4.4
-          docker pull "$image"
-          docker image inspect --format '{{json .RepoDigests}}' "$image"
+          docker pull "$IMAGE_TAG"
+          image_ref=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE_TAG")
+          [[ "$image_ref" =~ ^ghcr\.io/baobab-platform/baobab-dev@sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::Stable image did not resolve to an immutable GHCR index digest"; exit 1;
+          }
+          echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
+          echo "Onboarding base: $image_ref" >> "$GITHUB_STEP_SUMMARY"
+      - name: Execute actual locked repository onboarding in the published image
+        env:
+          IMAGE_REF: ${{ steps.stable-image.outputs.image_ref }}
+        run: |
+          set -euo pipefail
+          docker image inspect --format '{{json .RepoDigests}}' "$IMAGE_REF"
           docker run --rm -e HOME=/tmp/dev10-home \
-            -v "$GITHUB_WORKSPACE:/source:ro" "$image" bash -c '
+            -v "$GITHUB_WORKSPACE:/source:ro" "$IMAGE_REF" bash -c '
               set -euo pipefail
               mkdir -p "$HOME" /tmp/dev10-project
               cp -R /source/. /tmp/dev10-project/
@@ -43,10 +56,12 @@ jobs:
               python3 -B -m unittest discover -s tests -v
             '
       - name: Root frozen pnpm workspace covers frontend without an unlocked fallback
+        env:
+          IMAGE_REF: ${{ steps.stable-image.outputs.image_ref }}
         run: |
           set -euo pipefail
           docker run --rm -e HOME=/tmp/dev10-home -v "$GITHUB_WORKSPACE:/workspace:ro" -w /workspace \
-            ghcr.io/baobab-platform/baobab-dev:1.4.4 bash -c '
+            "$IMAGE_REF" bash -c '
               set -euo pipefail
               mkdir -p "$HOME"
               cp -R tests/fixtures/pnpm-workspace /tmp/dev10-workspace
@@ -57,11 +72,13 @@ jobs:
               test ! -f frontend/package-lock.json
             '
       - name: A failed final verifier must fail the actual container lifecycle
+        env:
+          IMAGE_REF: ${{ steps.stable-image.outputs.image_ref }}
         run: |
           set -euo pipefail
           result=0
           docker run --rm -e HOME=/tmp/dev10-home -v "$GITHUB_WORKSPACE:/source:ro" \
-            ghcr.io/baobab-platform/baobab-dev:1.4.4 bash -c '
+            "$IMAGE_REF" bash -c '
               set -euo pipefail
               mkdir -p "$HOME" /tmp/dev10-fail/config /tmp/dev10-fail/bin
               cp -R /source/config/. /tmp/dev10-fail/config/
