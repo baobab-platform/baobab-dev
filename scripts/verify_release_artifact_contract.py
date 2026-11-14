@@ -54,7 +54,7 @@ def validate(directory: Path, tag: str, channel: str):
             raise ValueError("invalid OCI digest: " + target)
         if channel == "ga":
             signer_tag = record["signer_tag"]
-            signer_match = re.fullmatch(rf"(v{NUM}\\.{NUM}\\.{NUM})-rc\\.[1-9][0-9]*", signer_tag) if isinstance(signer_tag, str) else None
+            signer_match = re.fullmatch(rf"(v{NUM}\.{NUM}\.{NUM})-rc\.[1-9][0-9]*", signer_tag) if isinstance(signer_tag, str) else None
             run_id = record["signer_run_id"]
             if signer_match is None or signer_match.group(1) != tag:
                 raise ValueError("GA signer tag must be a numbered RC in the exact release version family")
