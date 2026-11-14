@@ -19,7 +19,7 @@ owns its user credential probe and authenticated frozen install. A successful
 Actions GHCR login is not evidence that a new user's Codespace can read packages.
 Never put tokens into source, image build arguments, `.env` or shell tracing.
 
-The DEV-10 workflow resolves the published v1.5.1 stable tag to an immutable OCI
+The DEV-10 workflow resolves the published GHCR 1.5.1 stable tag (the corresponding Git tag is v1.5.1) to an immutable OCI
 index digest, then executes this checkout's actual post-create script and locked
 uv dependencies inside that exact digest as its native vscode user, on an owned copy.
 The published-image lifecycle runs on both native GitHub-hosted architectures:
