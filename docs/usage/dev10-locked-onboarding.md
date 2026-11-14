@@ -19,8 +19,9 @@ owns its user credential probe and authenticated frozen install. A successful
 Actions GHCR login is not evidence that a new user's Codespace can read packages.
 Never put tokens into source, image build arguments, `.env` or shell tracing.
 
-The DEV-10 workflow executes this checkout's actual post-create script and locked
-uv dependencies inside the published 1.4.4 image as its native vscode user, on an owned copy
+The DEV-10 workflow resolves the published v1.5.1 stable tag to an immutable OCI
+index digest, then executes this checkout's actual post-create script and locked
+uv dependencies inside that exact digest as its native vscode user, on an owned copy
 of a read-only source mount. A raw host UID without passwd/cache remapping is
 not treated as a valid Dev Container. It records
 the resolved image digest in the job log. Mock-CLI regressions separately prove
