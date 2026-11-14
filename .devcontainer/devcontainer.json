@@ -40,7 +40,9 @@
   "securityOpt": ["seccomp=unconfined"],
 
   "containerEnv": {
-    "TZ": "UTC"
+    "TZ": "UTC",
+    "COREPACK_HOME": "/home/vscode/.cache/baobab-corepack",
+    "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0"
   },
   "remoteUser": "vscode",
   "updateRemoteUserUID": true,
