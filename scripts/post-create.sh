@@ -269,8 +269,8 @@ run_post_create() {
         # that would bypass the root's committed lock and workspace policy.
         if [ -f package.json ] && [ -f pnpm-workspace.yaml ]; then
             [ -f pnpm-lock.yaml ] || die "Root pnpm workspace requires a committed pnpm-lock.yaml."
-            command -v pnpm >/dev/null 2>&1 || die "pnpm is required by the root workspace."
-            if ! { pnpm list -r --depth -1 --json | node -e '
+            command -v corepack >/dev/null 2>&1 || die "Corepack is required by the root workspace."
+            if ! { corepack pnpm list -r --depth -1 --json | node -e '
                 const fs=require("fs");
                 try {
                     const rows=JSON.parse(fs.readFileSync(0,"utf8"));
