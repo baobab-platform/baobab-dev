@@ -68,6 +68,9 @@
 set -euo pipefail
 
 export CI=true COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+# Keep Corepack downloads out of the image-owned /usr/local/share cache.
+export COREPACK_HOME="${COREPACK_HOME:-${HOME}/.cache/baobab-corepack}"
+mkdir -p "$COREPACK_HOME" || { echo "Corepack cache is not writable: $COREPACK_HOME" >&2; exit 1; }
 
 STAGE="post-create"
 
