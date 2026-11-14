@@ -221,7 +221,7 @@ jobs:
           echo "source_sha=${object_sha}" >> "$GITHUB_OUTPUT"
           echo "Verifying release ${TAG_NAME}: ${RELEASE_URL} source ${object_sha}"
 
-      - name: Resolve exact OIDC signer tag for the selected release source
+      - name: Parse release contract and resolve exact OIDC signer tag
         id: signer
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -229,24 +229,27 @@ jobs:
           SOURCE_SHA: ${{ steps.release.outputs.source_sha }}
         run: |
           set -euo pipefail
-          python3 scripts/resolve_release_signer.py \
-            --repository "$GITHUB_REPOSITORY" \
-            --release-tag "$RELEASE_TAG" \
-            --source-sha "$SOURCE_SHA" \
-            --output "$RUNNER_TEMP/release-signer.json"
-          signer_tag=$(jq -er '.signer_tag' "$RUNNER_TEMP/release-signer.json")
-          echo "signer_tag=$signer_tag" >> "$GITHUB_OUTPUT"
-          echo "Exact Cosign workflow identity is bound to $signer_tag at $SOURCE_SHA"
-
-      - name: Parse and require all four advertised RC/GA release contracts
-        env:
-          RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
-        run: |
-          set -euo pipefail
           python3 scripts/verify_release_contracts.py \
             --release-body "$RUNNER_TEMP/release-body.md" \
             --tag "$RELEASE_TAG" \
             --output "$RUNNER_TEMP/release-contracts.tsv"
+          preferred_tags=$(awk -F '\\t' 'NF >= 4 && $4 != "" {print $4}' \
+            "$RUNNER_TEMP/release-contracts.tsv" | sort -u)
+          signer_args=()
+          if [[ -n "$preferred_tags" ]]; then
+            [[ "$(printf '%s\\n' "$preferred_tags" | wc -l)" -eq 1 ]] || {
+              echo "::error::Release profiles disagree on signature source tag"; exit 1;
+            }
+            signer_args+=(--preferred-tag "$preferred_tags")
+          fi
+          python3 scripts/resolve_release_signer.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-tag "$RELEASE_TAG" \
+            --source-sha "$SOURCE_SHA" "${signer_args[@]}" \
+            --output "$RUNNER_TEMP/release-signer.json"
+          signer_tag=$(jq -er '.signer_tag' "$RUNNER_TEMP/release-signer.json")
+          echo "signer_tag=$signer_tag" >> "$GITHUB_OUTPUT"
+          echo "Exact Cosign workflow identity is bound to $signer_tag at $SOURCE_SHA"
 
       - name: Verify advertised tags, digests, indices, platform manifests, and attestations
         env:
@@ -260,6 +263,11 @@ jobs:
 
           while IFS=$'\t' read -r target ref expected_digest; do
             [[ -z "${ref}" ]] && continue
+            if [[ -n "${advertised_signer_tag}" && "${advertised_signer_tag}" != "${SIGNER_TAG}" ]]; then
+              echo "::error::${ref} advertises signer ${advertised_signer_tag}, but resolved identity is ${SIGNER_TAG}"
+              failures=$((failures + 1))
+              continue
+            fi
             echo "::group::Verify ${ref}"
 
             if ! actual_digest=$(crane digest "${ref}" 2>&1); then
