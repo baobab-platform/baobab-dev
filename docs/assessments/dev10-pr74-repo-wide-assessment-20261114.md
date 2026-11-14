@@ -129,7 +129,7 @@ PR #74 remains open and unmerged until all of the following are satisfied:
 - BuildKit's concurrent build-graph solver and unused-stage elimination: https://docs.docker.com/build/buildkit/
 
 
-The new pnpm attestation verifier's five isolated unit tests were also executed locally with mocked GitHub CLI and download responses; all five passed. Those tests validate exact signer-workflow/source-ref arguments, old-CLI rejection, attestation failure, checksum mismatch and malformed-input denial. They do **not** prove the live pnpm release assets or their real attestations; the final-head resolver workflow must perform that external verification.
+A local harness mirroring the five pnpm-attestation test cases was run against the verifier shell logic with mocked GitHub CLI and download responses; all five passed. The cases cover exact signer-workflow/source-ref arguments, old-CLI rejection, attestation failure, checksum mismatch and malformed-input denial. This is not a final-head run of the repository's complete test suite and does **not** prove the live pnpm release assets or their real attestations; the final-head resolver workflow must perform that external verification.
 
 Additional primary references for the publisher check:
 
