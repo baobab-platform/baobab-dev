@@ -251,7 +251,7 @@ def verify(image: str, tag: str, expected_sha: str,
 
     return {"schema": "baobab.dev10.readonly-registry-native-qualification.v1",
             "status": status, "image": image,
-            "release_tag": tag, "source_sha": expected_sha,
+            "release_tag": tag, "signer_tag": signer_tag, "source_sha": expected_sha,
             "native": evidence, "signed_predicate_evidence": signed}
 
 
@@ -263,7 +263,7 @@ def main() -> int:
     p.add_argument("--evidence", type=Path, required=True)
     a = p.parse_args()
     try:
-        result = verify(a.image, a.tag, a.expected_sha)
+        result = verify(a.image, a.tag, a.expected_sha, signer_tag=a.signer_tag)
         a.evidence.parent.mkdir(parents=True, exist_ok=True)
         a.evidence.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
         if result["status"] != "STRICT_SIGNED_NATIVE_CONTENT_VERIFIED":
