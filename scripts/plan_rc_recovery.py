@@ -49,6 +49,17 @@ def main():
     try:
         tags = remote_tags(args.remote)
         candidate = next_rc(args.failed_tag, tags)
+        failed_ref = subprocess.run(["git", "ls-remote", "--tags", args.remote,
+                                     "refs/tags/" + args.failed_tag,
+                                     "refs/tags/" + args.failed_tag + "^{}"],
+                                    check=True, capture_output=True, text=True)
+        from verify_remote_release_tag import SHA as REMOTE_SHA
+        entries = dict((parts[1], parts[0]) for line in failed_ref.stdout.splitlines()
+                       if len(parts := line.split()) == 2 and REMOTE_SHA.fullmatch(parts[0]))
+        old_sha = entries.get("refs/tags/" + args.failed_tag + "^{}",
+                              entries.get("refs/tags/" + args.failed_tag))
+        if old_sha is None or old_sha == args.replacement_sha:
+            raise ValueError("replacement must differ from existing failed RC source")
         # Refresh main before validating ancestry; never trust a stale tracking ref.
         subprocess.run(["git", "fetch", "--no-tags", args.remote, "main"],
                        check=True, capture_output=True)
