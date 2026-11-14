@@ -9,7 +9,7 @@ m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 NOW=dt.datetime(2026,11,14,tzinfo=dt.timezone.utc)
 DIGEST="sha256:"+"a"*64
 PKG={"name":"openssl","version":"1.2.3","type":"os"}
-REPORT={"Results":[{"Vulnerabilities":[{"Severity":"HIGH","VulnerabilityID":"CVE-2026-12345","PkgName":"openssl","InstalledVersion":"1.2.3"}]}]}
+REPORT={"Results":[{"Packages":[{"Name":"openssl","Version":"1.2.3"}],"Vulnerabilities":[{"Severity":"HIGH","VulnerabilityID":"CVE-2026-12345","PkgName":"openssl","InstalledVersion":"1.2.3"}]}]}
 def decision():
     return {"schema_version":1,"release_tag":"v1.5.2-rc.1","target":"final","digest":DIGEST,
             "package_inventory":[PKG],"inventory_sha256":m.inventory_hash([PKG]),
