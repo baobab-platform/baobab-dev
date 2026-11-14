@@ -175,9 +175,9 @@ install_node_project() {
         [[ "$manager" =~ ^pnpm@([0-9]+\.[0-9]+\.[0-9]+)(\+sha(224|512)\.[0-9a-f]+)?$ ]] \
             || die "package.json must declare an exact pnpm packageManager."
         local pin="${BASH_REMATCH[1]}"
-        command -v pnpm >/dev/null 2>&1 || die "pnpm is required."
-        [ "$(pnpm --version)" = "$pin" ] || die "Project pnpm version mismatch."
-        pnpm install --frozen-lockfile
+        command -v corepack >/dev/null 2>&1 || die "Corepack is required for project-pinned pnpm."
+        [ "$(corepack pnpm --version)" = "$pin" ] || die "Project pnpm version mismatch."
+        corepack pnpm install --frozen-lockfile
     elif [ -f yarn.lock ]; then
         [[ "$manager" =~ ^yarn@([0-9]+\.[0-9]+\.[0-9]+)$ ]] || die "Exact Yarn packageManager is required."
         local pin="${BASH_REMATCH[1]}"
