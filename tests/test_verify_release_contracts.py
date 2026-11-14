@@ -53,7 +53,7 @@ class ContractTest(unittest.TestCase):
                 result = parse_contracts(body(version=rc), "v" + rc)
                 self.assertEqual([x[0] for x in result], list(TARGETS))
                 self.assertTrue(all(":" + rc in x[1] for x in result))
-        for rc in ("v1.5.0-rc.0", "v1.5.0-rc.01", "v1.5.1-rc.1",
+        for rc in ("v1.5.0-rc.0", "v1.5.0-rc.01", "v1.5.2-rc.01",
                    "v1.5.0-rc.foo", "v1.5.0-rc.1-extra"):
             with self.subTest(rc=rc), self.assertRaises(ContractError):
                 parse_contracts(body(version=rc.lstrip("v")), rc)
