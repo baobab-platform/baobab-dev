@@ -89,7 +89,10 @@ package_managers:
     version: "12.21.0"
     source: "github-release"
     # Publisher-release asset SHA-256 for the two official Linux glibc
-    # binaries; install exact native PNPM, never an arbitrary Corepack shim.
+    # binaries. config/resolve.sh verifies each asset's GitHub SLSA attestation
+    # against pnpm/pnpm/.github/workflows/release.yml and refs/tags/v12.21.0,
+    # then recomputes and compares the bytes before the Docker build can use it.
+    # Install exact native PNPM, never an arbitrary Corepack shim.
     sha256_amd64: "565ff81174a14f6f7bd5d84c1b17e51031a80230d370a1fe24be5d16bd02a825"
     sha256_arm64: "f5847699e5d528f8f8e9bcfb385e58cb9fba7482af1b1aa7b70737be42277f81"
     # Security-sensitive native executable: all installed bytes are matched
