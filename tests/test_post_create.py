@@ -22,7 +22,7 @@ class PostCreateTests(unittest.TestCase):
             for name, data in files.items():
                 p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(data)
             binpath=root/'bin';binpath.mkdir()
-            for tool in ['uv','poetry','npm','pnpm','node']:
+            for tool in ['uv','poetry','npm','pnpm','corepack','node']:
                 body='#!/bin/sh\nprintf "%s\\n" "'+tool+' $*" >> "$TRACE"\n'
                 if tool=='node':
                     body += """if [ "$1" = "--version" ]; then
@@ -33,7 +33,7 @@ else
   /usr/bin/python3 -c 'import json; print(json.load(open("package.json")).get("packageManager", ""))'
 fi
 """
-                elif tool=='pnpm':
+                elif tool=='corepack':
                     body += """if [ "$1" = "--version" ]; then
   printf '%s\\n' 'VERSION_PIN'
   exit 0
@@ -88,10 +88,10 @@ fi
         files={'package.json':json.dumps({'packageManager':'pnpm@11.24.0'}),'pnpm-lock.yaml':''}
         r,t=self.run_case(files)
         self.assertEqual(0,r.returncode,r.stdout+r.stderr)
-        self.assertIn('pnpm install --frozen-lockfile',t)
+        self.assertIn('corepack pnpm install --frozen-lockfile',t)
         r,t=self.run_case(files,pnpm='11.23.0')
         self.assertNotEqual(0,r.returncode)
-        self.assertNotIn('pnpm install',t)
+        self.assertNotIn('corepack pnpm install',t)
 
     def test_frontend_uses_same_frozen_failure_path(self):
         r,t=self.run_case({'frontend/package.json':'{}','frontend/package-lock.json':'{}'},fail='npm')
@@ -108,13 +108,13 @@ fi
         r, trace = self.run_case(files, members='no')
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn('not a declared member', r.stderr)
-        self.assertIn('pnpm list -r --depth -1 --json', trace)
+        self.assertIn('corepack pnpm list -r --depth -1 --json', trace)
         self.assertNotIn('npm ci', trace)
-        self.assertEqual(1, trace.count('pnpm install --frozen-lockfile'))
+        self.assertEqual(1, trace.count('corepack pnpm install --frozen-lockfile'))
         r, trace = self.run_case(files, members='yes')
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn('Frontend covered by the root frozen pnpm workspace lock', r.stdout)
-        self.assertEqual(1, trace.count('pnpm install --frozen-lockfile'))
+        self.assertEqual(1, trace.count('corepack pnpm install --frozen-lockfile'))
 
     def test_root_pnpm_workspace_without_lock_fails_closed(self):
         r, trace = self.run_case({
