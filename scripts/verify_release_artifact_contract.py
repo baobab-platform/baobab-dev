@@ -25,7 +25,9 @@ def validate(directory: Path, tag: str, channel: str):
     expected = {t + ".json" for t in TARGETS}
     if not directory.is_dir() or {p.name for p in directory.iterdir()} != expected:
         raise ValueError("candidate artifact files must be exactly: " + ", ".join(sorted(expected)))
-    results = {}\n    common_signer = None\n    common_run_id = None\n    for target in TARGETS:
+    results = {}
+    common_signer = None
+    common_run_id = None
         path = directory / (target + ".json")
         if path.is_symlink() or not path.is_file():
             raise ValueError("candidate record must be a regular file: " + target)
