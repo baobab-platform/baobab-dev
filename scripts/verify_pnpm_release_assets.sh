@@ -29,9 +29,14 @@ done
 # gh <=2.101.0 had prefix/case matching defects in --signer-workflow and
 # --source-ref. Require the fixed implementation before trusting those flags.
 gh_version="$(gh version | awk 'NR == 1 { print $3 }')"
-if [[ -z "$gh_version" ]] ||
-   [[ "$(printf '%s\n' "2.102.0" "$gh_version" | sort -V | head -n 1)" != "2.102.0" ]]; then
-  echo "::error::GitHub CLI >=2.102.0 is required for exact attestation identity checks (found: ${gh_version:-missing})" >&2
+if [[ ! "$gh_version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+  echo "::error::Could not parse GitHub CLI version: ${gh_version:-missing}" >&2
+  exit 1
+fi
+gh_major="${BASH_REMATCH[1]}"
+gh_minor="${BASH_REMATCH[2]}"
+if (( gh_major < 2 || (gh_major == 2 && gh_minor < 102) )); then
+  echo "::error::GitHub CLI >=2.102.0 is required for exact attestation identity checks (found: $gh_version)" >&2
   exit 1
 fi
 
