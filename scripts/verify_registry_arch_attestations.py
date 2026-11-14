@@ -31,7 +31,8 @@ from verify_legacy_provenance import (
 IMAGE = "ghcr.io/baobab-platform/baobab-dev"
 INDEX_REF = re.compile(r"^ghcr\.io/baobab-platform/baobab-dev@sha256:[a-f0-9]{64}$")
 SHA = re.compile(r"^[a-f0-9]{40}$")
-TAG = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[1-9][0-9]*)?$")
+NUM = r"(?:0|[1-9][0-9]*)"
+TAG = re.compile(rf"^v{NUM}\\.{NUM}\\.{NUM}(?:-rc\\.[1-9][0-9]*)?$")
 DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 PLATFORMS = ("amd64", "arm64")
 SLSA = "https://slsa.dev/provenance/v1"
