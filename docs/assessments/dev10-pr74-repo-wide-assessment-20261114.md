@@ -136,4 +136,5 @@ Additional primary references for the publisher check:
 - GitHub CLI attestation verification flags: https://cli.github.com/manual/gh_attestation_verify
 - pnpm v12.21.0 release workflow and its `actions/attest-build-provenance` step: https://github.com/pnpm/pnpm/blob/v12.21.0/.github/workflows/release.yml
 - pnpm's release-asset verification guidance: https://get.pnpm.io/README.md
-- GitHub CLI attestation identity-matching security fix (minimum enforced by the verifier): https://github.com/cli/cli/security/advisories/GHSA-wjmr-j3rp-mh2g
+- GitHub CLI signer-workflow prefix-match fix (minimum enforced by the verifier): https://github.com/cli/cli/security/advisories/GHSA-wjmr-j3rp-mh2g
+- GitHub CLI case-insensitive source-ref comparison fix (same minimum): https://github.com/cli/cli/security/advisories/GHSA-4mq3-hpgx-9cx8
