@@ -16,8 +16,9 @@ import sys
 from typing import Callable
 
 SHA = re.compile(r"^[a-f0-9]{40}$")
-STABLE = re.compile(r"^v(?P<version>[0-9]+\.[0-9]+\.[0-9]+)$")
-RC = re.compile(r"^v(?P<version>[0-9]+\.[0-9]+\.[0-9]+)-rc\.(?P<number>[1-9][0-9]*)$")
+NUM = r"(?:0|[1-9][0-9]*)"
+STABLE = re.compile(rf"^v(?P<version>{NUM}\\.{NUM}\\.{NUM})$")
+RC = re.compile(rf"^v(?P<version>{NUM}\\.{NUM}\\.{NUM})-rc\\.(?P<number>[1-9][0-9]*)$")
 
 
 class SignerResolutionError(ValueError):
