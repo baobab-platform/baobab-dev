@@ -233,12 +233,12 @@ check_exact_version() {
 }
 
 # check_major_version: like check_exact_version, but compares only the
-# leading major-version component (e.g. Node's "v24.5.1" vs expected "24").
+# leading major-version component (e.g. Node's "v26.13.1" vs expected "26").
 # Node's own point releases move independently of this file (NodeSource
 # apt tracks the newest patch on the ${NODE_MAJOR}.x line automatically),
 # so an exact full-version match would be a false failure on every routine
 # Node patch release — the policy this image actually enforces is the
-# major-version baseline (Node 24), not a specific patch.
+# major-version baseline (Node 26), not a specific patch.
 check_major_version() {
 
     local label="$1"
