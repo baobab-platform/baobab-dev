@@ -29,7 +29,7 @@ class ContractError(ValueError):
 def parse_contracts(body: str, release_tag: str) -> list[tuple[str, str, str]]:
     version_match = TAG.fullmatch(release_tag)
     if not version_match:
-        raise ContractError("not a stable semver or approved v1.5.0-rc.N release")
+        raise ContractError("not a stable semver or numbered RC release")
     version = version_match.group("version")
     headers = list(HEADER.finditer(body))
     if len(headers) != len(TARGETS):
