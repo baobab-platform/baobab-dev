@@ -16,8 +16,16 @@ jobs:
           persist-credentials: false
       - run: bash -n scripts/post-create.sh && bash -n scripts/verify.sh && bash -n scripts/build-security-pip.sh && python3 -B -m unittest discover -s tests -v
   published-image:
-    runs-on: ubuntu-26.04
-    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-26.04
+          - architecture: arm64
+            runner: ubuntu-26.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -46,7 +54,7 @@ jobs:
           }
           docker pull "$image_ref"
           echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
-          echo "Onboarding base: $image_ref" >> "$GITHUB_STEP_SUMMARY"
+          echo "Onboarding base: $image_ref (${{ matrix.architecture }} native runner)" >> "$GITHUB_STEP_SUMMARY"
       - name: Execute actual locked repository onboarding in the published image
         env:
           IMAGE_REF: ${{ steps.stable-image.outputs.image_ref }}
