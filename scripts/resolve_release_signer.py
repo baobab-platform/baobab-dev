@@ -25,11 +25,23 @@ class SignerResolutionError(ValueError):
 
 
 def resolve_signer(release_tag: str, source_sha: str, candidate_tags: list[str],
-                   resolve_tag: Callable[[str], str]) -> str:
+                   resolve_tag: Callable[[str], str], preferred_tag: str | None = None) -> str:
     if not SHA.fullmatch(source_sha):
         raise SignerResolutionError("invalid release source SHA")
     rc_match = RC.fullmatch(release_tag)
     stable_match = STABLE.fullmatch(release_tag)
+    if preferred_tag is not None:
+        preferred_rc = RC.fullmatch(preferred_tag)
+        if rc_match and preferred_tag != release_tag:
+            raise SignerResolutionError("RC release must declare its own exact signer tag")
+        if stable_match and preferred_tag != release_tag and (
+                preferred_rc is None or preferred_rc.group("version") != stable_match.group("version")):
+            raise SignerResolutionError("declared GA signer is outside the exact release version family")
+        if not rc_match and not stable_match:
+            raise SignerResolutionError("release tag must be stable semver or numbered RC")
+        if resolve_tag(preferred_tag) != source_sha:
+            raise SignerResolutionError("declared signer tag does not resolve to the release source SHA")
+        return preferred_tag
     if rc_match:
         if resolve_tag(release_tag) != source_sha:
             raise SignerResolutionError("RC tag does not resolve to the selected release source")
@@ -98,18 +110,22 @@ def main() -> int:
     parser.add_argument("--repository", required=True)
     parser.add_argument("--release-tag", required=True)
     parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--preferred-tag")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", args.repository):
             raise SignerResolutionError("invalid repository name")
         rc_match = RC.fullmatch(args.release_tag)
-        if rc_match:
+        if args.preferred_tag:
+            candidates = [args.preferred_tag]
+        elif rc_match:
             candidates = [args.release_tag]
         else:
             candidates = matching_rc_tags(args.repository, args.release_tag)
         signer = resolve_signer(args.release_tag, args.source_sha, candidates,
-                                lambda tag: dereference_tag(args.repository, tag))
+                                lambda tag: dereference_tag(args.repository, tag),
+                                preferred_tag=args.preferred_tag)
         result = {"schema": "baobab.dev10.release-signer.v1",
                   "release_tag": args.release_tag, "signer_tag": signer,
                   "source_sha": args.source_sha}
