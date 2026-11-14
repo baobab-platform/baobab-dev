@@ -2276,8 +2276,15 @@ jobs:
               target=$(jq -r '.target' "$f")
               tag=$(jq -r '.tag' "$f")
               digest=$(jq -r '.digest' "$f")
+              signer_tag=$(jq -r '.signer_tag // empty' "$f")
+              signer_run_id=$(jq -r '.signer_run_id // empty' "$f")
+              [[ -n "$signer_tag" ]] || signer_tag="${{ needs.sanity-check.outputs.release_tag }}"
 
               echo "**${target}:**"
+              echo "Signature source: \`${signer_tag}\`"
+              if [[ -n "$signer_run_id" ]]; then
+                echo "Qualified RC workflow run: [${signer_run_id}](https://github.com/${{ github.repository }}/actions/runs/${signer_run_id})"
+              fi
               echo '```bash'
               echo "docker pull ${tag}"
               echo '```'
@@ -2285,13 +2292,13 @@ jobs:
               echo "Verify (digest \`${digest}\`):"
               echo '```bash'
               echo "cosign verify \\"
-              echo "  --certificate-identity \"https://github.com/${{ github.repository }}/.github/workflows/publish.yml@refs/tags/${{ needs.sanity-check.outputs.release_tag }}\" \\"
+              echo "  --certificate-identity \"https://github.com/${{ github.repository }}/.github/workflows/publish.yml@refs/tags/${signer_tag}\" \\"
               echo "  --certificate-oidc-issuer \"https://token.actions.githubusercontent.com\" \\"
               echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${digest}"
               echo ""
               echo "cosign verify-attestation \\"
               echo "  --type slsaprovenance1 \\"
-              echo "  --certificate-identity \"https://github.com/${{ github.repository }}/.github/workflows/publish.yml@refs/tags/${{ needs.sanity-check.outputs.release_tag }}\" \\"
+              echo "  --certificate-identity \"https://github.com/${{ github.repository }}/.github/workflows/publish.yml@refs/tags/${signer_tag}\" \\"
               echo "  --certificate-oidc-issuer \"https://token.actions.githubusercontent.com\" \\"
               echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${digest}"
               echo '```'
