@@ -22,6 +22,17 @@ class ArtifactContractTests(unittest.TestCase):
                       "digest": "sha256:" + format(index + 1, "064x")}
             (self.directory / (target + ".json")).write_text(json.dumps(record))
 
+    def make_ga(self, signer_tag="v1.5.2-rc.2", signer_run_id=123):
+        ga_tag = "v1.5.2"
+        for target in module.TARGETS:
+            path = self.directory / (target + ".json")
+            record = json.loads(path.read_text())
+            suffix = "" if target == "final" else "-" + target
+            record.update(tag=module.BASE + ga_tag[1:] + suffix,
+                          signer_tag=signer_tag, signer_run_id=signer_run_id)
+            path.write_text(json.dumps(record))
+        return ga_tag
+
     def edit(self, target, change):
         path = self.directory / (target + ".json")
         item = json.loads(path.read_text())
@@ -30,6 +41,26 @@ class ArtifactContractTests(unittest.TestCase):
 
     def test_valid_rc_records(self):
         self.assertEqual(len(module.validate(self.directory, self.tag, "rc")), 4)
+
+    def test_valid_ga_records_bind_one_qualified_rc_run(self):
+        ga_tag = self.make_ga()
+        self.assertEqual(len(module.validate(self.directory, ga_tag, "ga")), 4)
+
+    def test_ga_rejects_wrong_version_or_malformed_signer(self):
+        for signer in ("v1.5.1-rc.2", "v1.5.2-rc.0", "v1.5.2-rc.02", "v1.5.2"):
+            with self.subTest(signer=signer):
+                self.make_ga(signer_tag=signer)
+                with self.assertRaises(ValueError):
+                    module.validate(self.directory, "v1.5.2", "ga")
+
+    def test_ga_rejects_invalid_or_inconsistent_run_id(self):
+        self.make_ga(signer_run_id=True)
+        with self.assertRaises(ValueError):
+            module.validate(self.directory, "v1.5.2", "ga")
+        self.make_ga()
+        self.edit("infra", {"signer_run_id": 124})
+        with self.assertRaises(ValueError):
+            module.validate(self.directory, "v1.5.2", "ga")
 
     def test_missing_target(self):
         (self.directory / "infra.json").unlink()
