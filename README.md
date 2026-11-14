@@ -159,6 +159,10 @@ Do not use an RC tag to bypass the same security and provenance gates.
 
 ## Foundation 4
 
-This repository dogfoods `ghcr.io/baobab-platform/baobab-dev:1.4.4`. Its SHA-pinned
-Foundation gate validates the environment contract and scans both source and
-the development-container build. Consumers must pin v1.4.1 profiles explicitly.
+This repository dogfoods the published `ghcr.io/baobab-platform/baobab-dev:1.5.1`
+stable image. Its SHA-pinned Foundation gate validates the environment contract
+and scans both source and the development-container build. Consumers should pin
+the matching versioned profile tag (`1.5.1`, `1.5.1-frontend`,
+`1.5.1-frontend-e2e`, or `1.5.1-infra`) and, where reproducibility matters,
+record the corresponding OCI index digest. GHCR tag names alone are not a
+server-enforced immutability guarantee.
