@@ -32,11 +32,19 @@ jobs:
           IMAGE_TAG: ghcr.io/baobab-platform/baobab-dev:v1.5.1
         run: |
           set -euo pipefail
-          docker pull "$IMAGE_TAG"
-          image_ref=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE_TAG")
+          docker buildx imagetools inspect --raw "$IMAGE_TAG" > "$RUNNER_TEMP/baobab-dev-index.json"
+          jq -e '
+            (.mediaType == "application/vnd.oci.image.index.v1+json" or
+             .mediaType == "application/vnd.docker.distribution.manifest.list.v2+json") and
+            ([.manifests[] | select(.platform.os == "linux" and .platform.architecture == "amd64")] | length == 1) and
+            ([.manifests[] | select(.platform.os == "linux" and .platform.architecture == "arm64")] | length == 1)
+          ' "$RUNNER_TEMP/baobab-dev-index.json" >/dev/null
+          digest="sha256:$(sha256sum "$RUNNER_TEMP/baobab-dev-index.json" | cut -d ' ' -f 1)"
+          image_ref="ghcr.io/baobab-platform/baobab-dev@$digest"
           [[ "$image_ref" =~ ^ghcr\.io/baobab-platform/baobab-dev@sha256:[0-9a-f]{64}$ ]] || {
             echo "::error::Stable image did not resolve to an immutable GHCR index digest"; exit 1;
           }
+          docker pull "$image_ref"
           echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
           echo "Onboarding base: $image_ref" >> "$GITHUB_STEP_SUMMARY"
       - name: Execute actual locked repository onboarding in the published image
