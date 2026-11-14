@@ -14,6 +14,7 @@ def body(targets=TARGETS, version=VERSION, signer_tag=None):
     chunks = ["### Container Pull Directives"]
     for index, t in enumerate(targets):
         suffix = "" if t == "final" else "-" + t
+        signer_line = f"Signature source: `\x60{signer_tag}\x60`\\n" if signer_tag else ""
         chunks.append(
             f"**{t}:**\n\x60\x60\x60bash\ndocker pull {IMAGE}:{version}{suffix}\n"
             f"\x60\x60\x60\n\nVerify (digest \x60sha256:{index + 1:064x}\x60):\n\x60\x60\x60bash\n"
