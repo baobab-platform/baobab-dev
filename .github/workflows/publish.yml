@@ -7,9 +7,9 @@
 #   2. Concurrency: cancels superseded PR/branch runs; never cancels main/tags.
 #   3. Least privilege: global `contents: read`, elevated per job only.
 #   4. Native Buildx SBOM (sbom: true) + SLSA provenance (provenance: true).
-#   5. Trivy gates refuse new/unapproved CRITICAL/HIGH CVEs. v1.5.0-rc.N
-#      and v1.5.0 DEVELOPMENT distributions may use issue #54's pinned,
-#      time-limited owner-directed residual-risk decision, never silent ignores.
+#   5. Trivy gates refuse new/unapproved CRITICAL/HIGH CVEs. Any residual-risk
+#      decision is exact-ref, package/CVE, digest and time scoped; it is never
+#      inferred from a tag family or implemented as a silent scanner ignore.
 #   6. Keyless Cosign signing/attestation via GitHub OIDC — no static keys.
 #      Cosign CLI v3.x since 2026-08-23 (see "Install Cosign CLI tool" below
 #      for why this was a forced, non-optional major-version upgrade).
@@ -17,10 +17,10 @@
 #
 # PUBLISH TRIGGER POLICY:
 #   Build and unrestricted Trivy checks run on PR, main and tag pushes.
-#   A reviewed stable semver tag, or specifically v1.5.0-rc.N, may push,
-#   scan exact GHCR digests, sign and publish a GitHub Release. RCs are
-#   GitHub prereleases and publish only versioned RC tags (never aliases);
-#   stable v1.5.0 promotes versioned + latest/major/minor consumer aliases.
+#   A canonical stable semver or numbered RC tag may enter the release path.
+#   The separate security gate decides whether that exact ref/package/CVE scope
+#   is authorised to publish. RCs are prereleases with versioned tags only;
+#   stable GA promotion moves versioned + latest/major/minor consumer aliases.
 #   Manual workflow_dispatch is validation-only
 #   on main; it cannot substitute an alternate tag or source revision.
 #   Every checkout uses github.sha, the GitHub-supplied immutable event SHA.
@@ -147,7 +147,7 @@ jobs:
       contents: read
 
     outputs:
-      # is_release: GA tag or explicitly approved v1.5.0-rc.N tag.
+      # is_release: canonical GA or numbered RC tag; security eligibility is a separate gate.
       # is_stable_release: GA tag only. Manual dispatch stays read-only.
       release_tag: ${{ steps.release-context.outputs.release_tag }}
       is_release: ${{ steps.release-context.outputs.is_release }}
@@ -1917,7 +1917,7 @@ jobs:
             echo "### Security & Hygiene Controls Applied"
             echo "- ✅ **Pinned GitHub Actions:** Immutable 40-character commit SHAs"
             echo "- ✅ **Concurrency Control:** Auto-cancels obsolete build runs on PRs"
-            echo "- ✅ **Exact remote digest Trivy:** Both architectures scanned; CLEAN or separately approved v1.5.0-rc.N / v1.5.0 DEV-only residual-risk evidence (issue #54)"
+            echo "- ✅ **Exact remote digest Trivy:** Both architectures scanned; CLEAN or an exact, independently authorised DEV-only residual-risk decision for this ref, package, CVE set and digest"
             echo "- ✅ **SBOM & SLSA Attestations:** Embedded directly into OCI index"
             echo "- ✅ **Keyless Cosign Signature:** Signed via GitHub Actions OIDC identity"
             echo "- ✅ **Post-Publish Verification:** Signature and attestations independently re-verified against the published digest (scripts/verify-image.sh)"
