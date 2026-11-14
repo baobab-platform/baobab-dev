@@ -1977,6 +1977,15 @@ jobs:
           path: ${{ runner.temp }}/published-info
           pattern: ${{ needs.sanity-check.outputs.is_stable_release == 'true' && 'ga-reused-candidates' || 'published-info-*' }}
           merge-multiple: true
+      - name: Enforce producer-consumer candidate artifact contract
+        env:
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+          CHANNEL: ${{ needs.sanity-check.outputs.is_stable_release == 'true' && 'ga' || 'rc' }}
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_release_artifact_contract.py \
+            --directory "$RUNNER_TEMP/published-info" \
+            --tag "$RELEASE_TAG" --channel "$CHANNEL"
       - name: Independently verify GA continuity against qualified RC records
         if: needs.sanity-check.outputs.is_stable_release == 'true'
         env:
@@ -2119,6 +2128,16 @@ jobs:
           path: ${{ runner.temp }}/published-info
           pattern: ${{ needs.sanity-check.outputs.is_stable_release == 'true' && 'ga-reused-candidates' || 'published-info-*' }}
           merge-multiple: true
+
+      - name: Enforce release metadata artifact contract
+        env:
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+          CHANNEL: ${{ needs.sanity-check.outputs.is_stable_release == 'true' && 'ga' || 'rc' }}
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_release_artifact_contract.py \
+            --directory "$RUNNER_TEMP/published-info" \
+            --tag "$RELEASE_TAG" --channel "$CHANNEL"
 
       # Builds the release body from whatever published-info JSON files are
       # actually present — genuinely no hardcoded target list, so this
