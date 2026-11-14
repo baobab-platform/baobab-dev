@@ -37,7 +37,7 @@ jobs:
       - name: Resolve current stable image to an immutable OCI index digest
         id: stable-image
         env:
-          IMAGE_TAG: ghcr.io/baobab-platform/baobab-dev:v1.5.1
+          IMAGE_TAG: ghcr.io/baobab-platform/baobab-dev:1.5.1
         run: |
           set -euo pipefail
           docker buildx imagetools inspect --raw "$IMAGE_TAG" > "$RUNNER_TEMP/baobab-dev-index.json"
