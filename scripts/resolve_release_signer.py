@@ -136,7 +136,10 @@ def resolve_qualified_run(repository: str, signer_tag: str, source_sha: str,
     pages = gh_json(["--paginate", "--slurp",
                      f"repos/{repository}/actions/workflows/publish.yml/runs"
                      f"?head_sha={source_sha}&branch={signer_tag}&event=push&per_page=100"])
-    if isinstance(pages, list) and pages and all(isinstance(page, list) for page in pages):
+    if isinstance(pages, list) and pages and all(isinstance(page, dict) and
+            isinstance(page.get("workflow_runs"), list) for page in pages):
+        runs = [run for page in pages for run in page["workflow_runs"]]
+    elif isinstance(pages, list) and pages and all(isinstance(page, list) for page in pages):
         runs = [run for page in pages for run in page]
     elif isinstance(pages, list):
         runs = pages
