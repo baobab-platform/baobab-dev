@@ -18,7 +18,7 @@ TARGETS = ("final", "frontend", "frontend-e2e", "infra")
 HEADER = re.compile(r"(?m)^\*\*(?P<target>[^*\r\n]+):\*\*\s*$")
 PULL = re.compile(r"(?m)^docker pull\s+(?P<ref>\S+)\s*$")
 DIGEST = re.compile(r"(?m)^Verify \(digest `(?P<digest>sha256:[0-9a-f]{64})`\):\s*$")
-RUN_ID = re.compile(r"(?m)^Qualified RC workflow run: \\[(?P<id>[1-9][0-9]*)\\]\\(https://github\\.com/baobab-platform/baobab-dev/actions/runs/(?P=id)\\)$")
+RUN_ID = re.compile(r"(?m)^Qualified RC workflow run: \[(?P<id>[1-9][0-9]*)\]\(https://github\.com/baobab-platform/baobab-dev/actions/runs/(?P=id)\)$")
 # RCs are real versioned development-image releases, never GA aliases.
 NUM = r"(?:0|[1-9][0-9]*)"
 SIGNER = re.compile(rf"(?m)^Signature source: `(?P<tag>v{NUM}\.{NUM}\.{NUM}(?:-rc\.[1-9][0-9]*)?)`$")
