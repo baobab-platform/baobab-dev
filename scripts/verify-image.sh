@@ -63,7 +63,7 @@ if [[ -z "$RELEASE_TAG" ]]; then
   # A version tag can be inferred from a tagged image, but not a digest.
   candidate="${IMAGE##*:}"
   if [[ "$candidate" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ||
-        "$candidate" =~ ^v?1\.5\.[01]-rc\.[1-9][0-9]*$ ]]; then
+        "$candidate" =~ ^v?1\.5\.[012]-rc\.[1-9][0-9]*$ ]]; then
     RELEASE_TAG="v${candidate#v}"
   fi
 fi
