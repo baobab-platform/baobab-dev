@@ -127,3 +127,13 @@ PR #74 remains open and unmerged until all of the following are satisfied:
 - pnpm's CI/Docker guidance recommends a lockfile-only `pnpm fetch` layer for ephemeral builders, followed by install/build layers: https://pnpm.io/docker
 - GitHub documents cache poisoning risks and the read/write trust boundaries for workflow caches: https://docs.github.com/en/actions/concepts/workflows-and-actions/dependency-caching
 - BuildKit's concurrent build-graph solver and unused-stage elimination: https://docs.docker.com/build/buildkit/
+
+
+The new pnpm attestation verifier's five isolated unit tests were also executed locally with mocked GitHub CLI and download responses; all five passed. Those tests validate exact signer-workflow/source-ref arguments, old-CLI rejection, attestation failure, checksum mismatch and malformed-input denial. They do **not** prove the live pnpm release assets or their real attestations; the final-head resolver workflow must perform that external verification.
+
+Additional primary references for the publisher check:
+
+- GitHub CLI attestation verification flags: https://cli.github.com/manual/gh_attestation_verify
+- pnpm v12.21.0 release workflow and its `actions/attest-build-provenance` step: https://github.com/pnpm/pnpm/blob/v12.21.0/.github/workflows/release.yml
+- pnpm's release-asset verification guidance: https://get.pnpm.io/README.md
+- GitHub CLI attestation identity-matching security fix (minimum enforced by the verifier): https://github.com/cli/cli/security/advisories/GHSA-wjmr-j3rp-mh2g
