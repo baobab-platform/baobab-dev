@@ -143,3 +143,19 @@ Additional primary references for the publisher check:
 ### Final-head execution status
 
 At the time of this update, PR #74 head is `6addb6b4d9db2eec4a3a60026f9d94ff354c4bd6`. The GitHub Actions connector returned no workflow runs or combined status checks associated with that head or its PR merge ref. Earlier runs were queued/cancelled and do not qualify the later code changes. The PR remains draft; do not interpret the absence of checks as a pass. Final-head workflow execution is still required.
+
+
+### Live v1.5.1 registry verification evidence
+
+The updated read-only registry observer completed successfully in [workflow run 43642422231](https://github.com/baobab-platform/baobab-dev/actions/runs/43642422231). It resolved the v1.5.1 Git release tag to source SHA `13493b24d6af1a9e7bddf7df9be555d1c06a635d`, identified the same-source signer tag `v1.5.1-rc.2`, and validated the successful publish workflow run `43493272371`. The legacy GA release body did not carry signer metadata, so the unique same-version RC fallback was exercised against real GitHub and GHCR data.
+
+All four OCI index digests matched the release contract; both linux/amd64 and linux/arm64 image manifests and their attestation digests were resolvable and verified:
+
+| Profile | OCI index digest |
+|---|---|
+| final | `sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed` |
+| frontend | `sha256:388d604293fc6a2046d1abb9c7b80b32e78c6003636b091d1e9c7c827e34766d` |
+| frontend-e2e | `sha256:5b4a9ce1ac819a2b125f078fef4b14837b5b65b46527087a2bb8898b4811bb0b` |
+| infra | `sha256:5b39e71dd068da12e009421012d7c3620339746c2a39839182ea1f4fe788ffda` |
+
+This proves the GA signer-identity correction against the live v1.5.1 release. It does not qualify PR #74's new candidate or resolve its Foundation CVE gate.
