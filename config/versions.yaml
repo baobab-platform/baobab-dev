@@ -302,32 +302,15 @@ security:
 infra:
 
   terraform:
-    # Security patch on the approved 1.16.x line: Go 1.26.10 and x/net 0.60.0.
-    # Official SHA256SUMS pins for both Linux architectures in versions.lock.
+    # Explicit pin: an unreviewed Terraform/provider upgrade can change
+    # live infrastructure behaviour. Version 1.17.1 is the current
+    # development-tool baseline; infrastructure consumer tests remain
+    # separate release gates.
     version: "1.17.1"
     source: "hashicorp"
-    # Explicit pin, NOT "latest" — same rationale as development.maven
-    # above: infra tooling is exactly the class of dependency where a
-    # silent version float carries real risk (a `terraform apply` running
-    # against live AWS infrastructure with an unreviewed provider/engine
-    # upgrade). 1.16.1 was HashiCorp's stable release at original authoring
-    # time (2026-09-02/03); bumped to 1.16.2 (HashiCorp's release from
-    # 2026-09-09) on 2026-09-15 after this pin's own Trivy gate started
-    # failing the v1.4.0 publish build on CVE-2026-84304 and CVE-2026-84445
-    # (google.golang.org/grpc, both HIGH) in the 1.16.1 binary. 1.16.2's own
-    # go.mod bumps google.golang.org/grpc straight to v1.83.2, which carries
-    # the fix for both CVEs (84304 needs >=1.83.1, 84445 needs >=1.82.2/
-    # 1.83.2) — live-verified against
-    # github.com/hashicorp/terraform/blob/v1.16.2/go.mod and
-    # releases.hashicorp.com/terraform/1.16.2/terraform_1.16.2_SHA256SUMS.
-    #
-    # Distribution is a per-architecture zip (unlike Maven's single
-    # architecture-independent tarball). HashiCorp publishes one SHA256SUMS
-    # manifest per release covering every platform's asset — verified via
-    # the same sha256sum -c mechanism as the GitHub-release binaries in the
-    # cli-tools stage (see resolve.sh's terraform_sha256_for_asset()),
-    # just sourced from releases.hashicorp.com instead of GitHub's API.
-
+    # The per-architecture zip assets are checked against HashiCorp's
+    # official SHA256SUMS manifest by config/resolve.sh and rechecked
+    # during image build.
   aws_cli:
     version: "2.36.38"
     source: "aws"
