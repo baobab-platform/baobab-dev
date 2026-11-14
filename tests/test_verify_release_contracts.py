@@ -15,8 +15,9 @@ def body(targets=TARGETS, version=VERSION, signer_tag=None, signer_run_id=None):
     for index, t in enumerate(targets):
         suffix = "" if t == "final" else "-" + t
         signer_line = f"Signature source: `{signer_tag}`\n" if signer_tag else ""
+        run_line = (f"Qualified RC workflow run: [{signer_run_id}](https://github.com/baobab-platform/baobab-dev/actions/runs/{signer_run_id})\\n" if signer_run_id else "")
         chunks.append(
-            f"**{t}:**\n{signer_line}\x60\x60\x60bash\ndocker pull {IMAGE}:{version}{suffix}\n"
+            f"**{t}:**\n{signer_line}{run_line}\x60\x60\x60bash\ndocker pull {IMAGE}:{version}{suffix}\n"
             f"\x60\x60\x60\n\nVerify (digest \x60sha256:{index + 1:064x}\x60):\n\x60\x60\x60bash\n"
             f"cosign verify {IMAGE}@sha256:{index + 1:064x}\n\x60\x60\x60"
         )
