@@ -126,7 +126,7 @@ class ReadOnlyRegistryProofTests(unittest.TestCase):
                              for cmd in self.commands))
 
     def test_each_approved_rc_requires_full_native_signed_content(self):
-        for rc in ("v1.5.0-rc.1", "v1.5.0-rc.2", "v1.5.0-rc.10"):
+        for rc in ("v1.5.0-rc.1", "v1.5.0-rc.2", "v1.5.0-rc.10", "v1.5.2-rc.1", "v1.5.2-rc.10"):
             with self.subTest(rc=rc):
                 self.current_tag = rc
                 self.signer_tag = rc
@@ -222,7 +222,7 @@ class ReadOnlyRegistryProofTests(unittest.TestCase):
             (IMAGE + ":1.5.0", TAG, SHA),
             (REF, "v1.5.0-rc.0", SHA),
             (REF, "v1.5.0-rc.01", SHA),
-            (REF, "v1.5.1-rc.1", SHA),
+            (REF, "v1.5.1-rc.01", SHA),
             (REF, TAG, "invalid"),
             ("ghcr.io/evil/image@" + INDEX, TAG, SHA),
         ):
