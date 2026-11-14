@@ -32,7 +32,7 @@ IMAGE = "ghcr.io/baobab-platform/baobab-dev"
 INDEX_REF = re.compile(r"^ghcr\.io/baobab-platform/baobab-dev@sha256:[a-f0-9]{64}$")
 SHA = re.compile(r"^[a-f0-9]{40}$")
 NUM = r"(?:0|[1-9][0-9]*)"
-TAG = re.compile(rf"^v{NUM}\\.{NUM}\\.{NUM}(?:-rc\\.[1-9][0-9]*)?$")
+TAG = re.compile(rf"^v{NUM}\.{NUM}\.{NUM}(?:-rc\.[1-9][0-9]*)?$")
 DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 PLATFORMS = ("amd64", "arm64")
 SLSA = "https://slsa.dev/provenance/v1"
@@ -155,8 +155,8 @@ def verify(image: str, tag: str, expected_sha: str,
     require(bool(TAG.fullmatch(tag)), "expected stable semver or numbered RC release tag")
     signer_tag = signer_tag or tag
     require(bool(TAG.fullmatch(signer_tag)), "expected stable semver or numbered RC signer tag")
-    release_rc = re.fullmatch(r"^(v[0-9]+\.[0-9]+\.[0-9]+)-rc\.[1-9][0-9]*$", tag)
-    signer_rc = re.fullmatch(r"^(v[0-9]+\.[0-9]+\.[0-9]+)-rc\.[1-9][0-9]*$", signer_tag)
+    release_rc = re.fullmatch(rf"^(v{NUM}\.{NUM}\.{NUM})-rc\.[1-9][0-9]*$", tag)
+    signer_rc = re.fullmatch(rf"^(v{NUM}\.{NUM}\.{NUM})-rc\.[1-9][0-9]*$", signer_tag)
     if release_rc:
         require(signer_tag == tag, "an RC release must be signed by its own exact tag")
     else:
