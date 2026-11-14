@@ -14,8 +14,9 @@
 # • This manifest declares desired versions; config/versions.lock pins resolved bytes.
 # • Re-run config/resolve.sh and review all digest/install contract changes.
 # • Keep security vendoring, native consumer pins and image readback consistent.
-# • Node 26/pnpm 12/Java 21/Python 3.14.10 below are PR #57 candidates,
-#   not authority to publish v1.5.0 or activate unqualified consumer upgrades.
+# • The declared versions are the current toolchain baseline, not release or
+#   consumer-upgrade approval. Release eligibility and consumer qualification
+#   are enforced by separate, evidence-producing gates.
 # ==============================================================================
 
 manifest:
@@ -230,9 +231,10 @@ development:
 #                    Playwright's Chromium, per ADR-0001's brainstorm — no
 #                    second browser install)
 #
-# Verified as real, currently-published packages at authoring time
-# (2026-08-26): turbo 2.10.12, playwright 1.62.1, sharp 0.35.4,
-# lighthouse 13.4.1. Not pinned to these numbers — see note above.
+# Resolved exact package versions are written to versions.lock by
+# config/resolve.sh. Do not maintain a second historical version list here;
+# Playwright remains an explicit compatibility pin, while the other tools
+# follow the resolver policy above.
 # ------------------------------------------------------------------------------
 
 frontend_tooling:
