@@ -10,9 +10,6 @@
   // This does not grant staging/production authority or close DEV-14 consumer
   // qualification. Development-only kernel CVE risk acceptance expires
   // 2026-11-26T00:00:00Z; it is not vulnerability remediation.
-  "image": "ghcr.io/baobab-platform/baobab-dev:1.5.1@sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed@sha256:<digest>"
-  // (get <digest> from the v1.5.1 GitHub Release notes, or
-  // `docker buildx imagetools inspect ghcr.io/baobab-platform/baobab-dev:1.5.1@sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed`).
   "image": "ghcr.io/baobab-platform/baobab-dev:1.5.1@sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed",
   // "build": {
   //   // Repo root, not .devcontainer — Dockerfile COPYs config/ and scripts/
