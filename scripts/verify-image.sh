@@ -68,8 +68,8 @@ if [[ -z "$RELEASE_TAG" ]]; then
   fi
 fi
 if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ &&
-      ! "$RELEASE_TAG" =~ ^v1\.5\.[01]-rc\.[1-9][0-9]*$ ]]; then
-  echo "::error::Specify stable semver or approved v1.5.0/v1.5.1-rc.N tag as argument 2 for digest references." >&2
+      ! "$RELEASE_TAG" =~ ^v1\.5\.[012]-rc\.[1-9][0-9]*$ ]]; then
+  echo "::error::Specify stable semver or approved v1.5.0/v1.5.1/v1.5.2-rc.N tag as argument 2 for digest references." >&2
   exit 1
 fi
 OIDC_ISSUER="https://token.actions.githubusercontent.com"
