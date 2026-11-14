@@ -31,7 +31,7 @@ from verify_legacy_provenance import (
 IMAGE = "ghcr.io/baobab-platform/baobab-dev"
 INDEX_REF = re.compile(r"^ghcr\.io/baobab-platform/baobab-dev@sha256:[a-f0-9]{64}$")
 SHA = re.compile(r"^[a-f0-9]{40}$")
-TAG = re.compile(r"^(?:v[0-9]+\.[0-9]+\.[0-9]+|v1\.5\.0-rc\.[1-9][0-9]*)$")
+TAG = re.compile(r"^v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[1-9][0-9]*)?$")
 DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 PLATFORMS = ("amd64", "arm64")
 SLSA = "https://slsa.dev/provenance/v1"
@@ -148,9 +148,19 @@ def run_cli(argv: list[str]) -> str:
 
 
 def verify(image: str, tag: str, expected_sha: str,
-           runner: Callable[[list[str]], str] = run_cli) -> dict:
+           runner: Callable[[list[str]], str] = run_cli,
+           signer_tag: str | None = None) -> dict:
     require(bool(INDEX_REF.fullmatch(image)), "must verify exact Baobab GHCR index digest")
-    require(bool(TAG.fullmatch(tag)), "expected stable semver or approved v1.5.0-rc.N tag")
+    require(bool(TAG.fullmatch(tag)), "expected stable semver or numbered RC release tag")
+    signer_tag = signer_tag or tag
+    require(bool(TAG.fullmatch(signer_tag)), "expected stable semver or numbered RC signer tag")
+    release_rc = re.fullmatch(r"^(v[0-9]+\.[0-9]+\.[0-9]+)-rc\.[1-9][0-9]*$", tag)
+    signer_rc = re.fullmatch(r"^(v[0-9]+\.[0-9]+\.[0-9]+)-rc\.[1-9][0-9]*$", signer_tag)
+    if release_rc:
+        require(signer_tag == tag, "an RC release must be signed by its own exact tag")
+    else:
+        require(signer_tag == tag or (signer_rc is not None and signer_rc.group(1) == tag),
+                "GA signer must be the same-version RC tag or the exact GA tag")
     require(bool(SHA.fullmatch(expected_sha)), "expected 40-character release source SHA")
     index = parse_object(runner(["crane", "manifest", image]), "OCI index")
     targets = native_index(index)
@@ -197,7 +207,7 @@ def verify(image: str, tag: str, expected_sha: str,
     # cosign verify-attestation performs actual cryptographic verification;
     # parse_verified only consumes the resulting *verified* stdout.
     identity = ("https://github.com/baobab-platform/baobab-dev/"
-                ".github/workflows/publish.yml@refs/tags/" + tag)
+                ".github/workflows/publish.yml@refs/tags/" + signer_tag)
     base = ["--certificate-identity", identity,
             "--certificate-oidc-issuer", "https://token.actions.githubusercontent.com",
             "--output", "json", image]
@@ -259,6 +269,7 @@ def main() -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--image", required=True)
     p.add_argument("--tag", required=True)
+    p.add_argument("--signer-tag")
     p.add_argument("--expected-sha", required=True)
     p.add_argument("--evidence", type=Path, required=True)
     a = p.parse_args()
@@ -282,6 +293,7 @@ def main() -> int:
             "status": "DENIED",
             "image": a.image,
             "release_tag": a.tag,
+            "signer_tag": a.signer_tag or a.tag,
             "error": str(exc),
         }
         try:
