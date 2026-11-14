@@ -63,7 +63,7 @@ The first PR #74 CI inspection identified independent failures. The following ch
 - The registry observer checks the Git tag object resolves to the release source SHA, checks the actual GitHub Actions run record, then checks exact Cosign workflow identity, issuer, native image revision labels, SLSA provenance, and SPDX content.
 - Old releases without signer metadata are resolved by a fail-closed same-version RC tag lookup; zero or multiple matching RC tags are denied.
 
-This is a correction to the release observer, not proof that the live registry has passed. The updated `Verify Released GHCR Contracts` workflow must succeed against the actual v1.5.1 release.
+This is a correction to the release observer, not proof that the live registry has passed. The GitHub tag ruleset itself was not readable through the available repository interface and remains an owner/admin verification item; a SHA check is not a substitute for server-enforced immutability. The updated `Verify Released GHCR Contracts` workflow must succeed against the actual v1.5.1 release.
 
 ## 4. Security gate: intentionally unresolved
 
@@ -114,6 +114,7 @@ PR #74 remains open and unmerged until all of the following are satisfied:
 - [ ] DEV-14 developer doctor and all required Foundation/Publish/security workflows pass.
 - [ ] The registry observer verifies all four live v1.5.1 image digests, both architectures, exact signer tag, successful publish run, exact OIDC identity, SLSA provenance and SPDX inventory.
 - [ ] PR #74's eight-CVE package scope receives a separate, attributable security decision or the underlying package findings are remediated. No implicit extension from PR #71 or PR #62.
+- [ ] A repository administrator independently confirms an active GitHub tag ruleset prevents update and deletion of every `refs/tags/v*` release tag. The recovery script and remote-SHA check do not replace server-enforced immutability.
 - [ ] The four image profiles and both architectures have reproducible consumer qualification evidence; a source test is not a substitute for an actual Codespaces/consumer test.
 - [ ] One consolidated qualification report records source SHA, image digests, test runs, evidence hashes, approvals, exceptions and unresolved items.
 
