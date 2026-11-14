@@ -138,3 +138,8 @@ Additional primary references for the publisher check:
 - pnpm's release-asset verification guidance: https://get.pnpm.io/README.md
 - GitHub CLI signer-workflow prefix-match fix (minimum enforced by the verifier): https://github.com/cli/cli/security/advisories/GHSA-wjmr-j3rp-mh2g
 - GitHub CLI case-insensitive source-ref comparison fix (same minimum): https://github.com/cli/cli/security/advisories/GHSA-4mq3-hpgx-9cx8
+
+
+### Final-head execution status
+
+At the time of this update, PR #74 head is `6addb6b4d9db2eec4a3a60026f9d94ff354c4bd6`. The GitHub Actions connector returned no workflow runs or combined status checks associated with that head or its PR merge ref. Earlier runs were queued/cancelled and do not qualify the later code changes. The PR remains draft; do not interpret the absence of checks as a pass. Final-head workflow execution is still required.
