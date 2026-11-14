@@ -82,8 +82,9 @@ internally vendored msgpack 1.1.2 (CVE-2026-114613 /
 GHSA-6v7p-g79w-8964) and setuptools 70.3.0 (CVE-2025-47273).
 This is observed scan evidence, not an inference from upstream release notes.
 
-The fixes deliberately preserve the Python 3.14 / Node 24 / PostgreSQL 17
-project baselines and frozen onboarding behavior:
+The published v1.5.1 baseline is Python 3.14.10 / Node 26.13.1 / pnpm 12.21.0 /
+PostgreSQL 17. Consumer projects must pin the matching Node and pnpm versions and
+retain frozen-lockfile onboarding behavior:
 
 - Terraform upgrades to vendor release 1.17.1 on the infra profile, with
   its amd64/arm64 SHA-256 digests pinned from HashiCorp's official
