@@ -20,8 +20,8 @@ PULL = re.compile(r"(?m)^docker pull\s+(?P<ref>\S+)\s*$")
 DIGEST = re.compile(r"(?m)^Verify \(digest `(?P<digest>sha256:[0-9a-f]{64})`\):\s*$")
 # RCs are real versioned development-image releases, never GA aliases.
 NUM = r"(?:0|[1-9][0-9]*)"
-SIGNER = re.compile(rf"(?m)^Signature source: `(?P<tag>v{NUM}\\.{NUM}\\.{NUM}(?:-rc\\.[1-9][0-9]*)?)`$")
-TAG = re.compile(rf"^v(?P<version>{NUM}\\.{NUM}\\.{NUM}(?:-rc\\.[1-9][0-9]*)?)$")
+SIGNER = re.compile(rf"(?m)^Signature source: `(?P<tag>v{NUM}\.{NUM}\.{NUM}(?:-rc\.[1-9][0-9]*)?)`$")
+TAG = re.compile(rf"^v(?P<version>{NUM}\.{NUM}\.{NUM}(?:-rc\.[1-9][0-9]*)?)$")
 
 
 class ContractError(ValueError):
@@ -55,8 +55,8 @@ def parse_contracts(body: str, release_tag: str) -> list[tuple[str, str, str, st
             raise ContractError(f"{target}: duplicate signature source declarations")
         signer_tag = signer_tags[0] if signer_tags else ""
         if signer_tag:
-            signer_rc = re.fullmatch(rf'^(v{NUM}\\.{NUM}\\.{NUM})-rc\\.[1-9][0-9]*$', signer_tag)
-            release_rc = re.fullmatch(rf'^(v{NUM}\\.{NUM}\\.{NUM})-rc\\.[1-9][0-9]*$', release_tag)
+            signer_rc = re.fullmatch(rf'^(v{NUM}\.{NUM}\.{NUM})-rc\.[1-9][0-9]*$', signer_tag)
+            release_rc = re.fullmatch(rf'^(v{NUM}\.{NUM}\.{NUM})-rc\.[1-9][0-9]*$', release_tag)
             if release_rc and signer_tag != release_tag:
                 raise ContractError(f"{target}: RC must be signed by its exact release tag")
             if not release_rc and signer_tag != release_tag and (
