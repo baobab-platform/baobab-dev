@@ -496,6 +496,7 @@ jobs:
       # for their own smoke test ("Execute container smoke test (non-final
       # targets)" below).
       - name: Build local single-manifest image for scanning
+        id: build-local-image
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
@@ -696,7 +697,9 @@ jobs:
       # exact bytes GHCR served. Genuinely target-agnostic (`!= 'final'`,
       # not an enumerated list) — a future target needs no change here.
       - name: Execute container smoke test (non-final targets)
-        if: matrix.target != 'final'
+        # Functional qualification is independent of the security decision:
+        # run whenever the image built, even if Trivy blocks this job.
+        if: ${{ !cancelled() && steps.build-local-image.outcome == 'success' && matrix.target != 'final' }}
         run: |
           docker run --rm baobab-dev:scan baobab-verify
 
@@ -708,7 +711,9 @@ jobs:
       # followed by negative tests for wrong packageManager and bad lock.
       # Corepack is only responsible for Yarn; no pnpm download/shim is used.
       - name: Execute non-interactive package-manager provisioning test
-        if: (matrix.target == 'frontend' || matrix.target == 'frontend-e2e') && matrix.platform == 'linux/amd64'
+        # Keep this independent qualification running after a Trivy denial,
+        # but never run it without a successfully built local image.
+        if: ${{ !cancelled() && steps.build-local-image.outcome == 'success' && (matrix.target == 'frontend' || matrix.target == 'frontend-e2e') && matrix.platform == 'linux/amd64' }}
         run: |
           set -euo pipefail
           # shellcheck disable=SC1091

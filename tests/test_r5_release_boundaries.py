@@ -31,6 +31,24 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertNotIn("push-by-digest=true", build)
         self.assertIn("Scan built container with Trivy", build)
 
+    def test_local_runtime_qualification_runs_after_scan_denial_when_build_succeeded(self):
+        build = active_yaml(jobs()["build"])
+        self.assertIn("id: build-local-image", build)
+        self.assertIn(
+            "if: ${{ !cancelled() && steps.build-local-image.outcome == 'success' "
+            "&& matrix.target != 'final' }}",
+            build,
+        )
+        self.assertIn(
+            "if: ${{ !cancelled() && steps.build-local-image.outcome == 'success' "
+            "&& (matrix.target == 'frontend' || matrix.target == 'frontend-e2e') "
+            "&& matrix.platform == 'linux/amd64' }}",
+            build,
+        )
+        # These tests must not become a way around the required Trivy gate.
+        self.assertIn("Scan built container with Trivy", build)
+        self.assertIn("--exit-code 1", build)
+
     def test_tag_only_exact_digest_security_is_required(self):
         run = jobs()["release-digests"]
         self.assertIn("needs: [sanity-check, build]", run)
