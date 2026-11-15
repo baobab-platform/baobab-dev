@@ -77,6 +77,39 @@ class ProtectedDecisionTests(unittest.TestCase):
         return policy.evaluate(decision_bytes,
                                self.report if report is None else report, **args)
 
+    def test_actual_issue_54_eight_cve_inventory_is_exactly_qualifiable(self):
+        cves = [
+            "CVE-2022-50240", "CVE-2025-40190", "CVE-2026-68103",
+            "CVE-2026-72198", "CVE-2026-74578", "CVE-2026-89805",
+            "CVE-2026-98376", "CVE-2026-98420",
+        ]
+        decision = copy.deepcopy(self.decision)
+        decision["findings"] = [
+            {"cve": cve, "package": "linux-libc-dev",
+             "version": "7.0.0-43.43", "severity": "HIGH", "type": "ubuntu"}
+            for cve in cves
+        ]
+        report = copy.deepcopy(self.report)
+        report["Results"][0]["Vulnerabilities"] = [
+            {"VulnerabilityID": cve, "PkgName": "linux-libc-dev",
+             "InstalledVersion": "7.0.0-43.43", "Severity": "HIGH"}
+            for cve in cves
+        ]
+        result = self.evaluate(decision=decision, report=report)
+        self.assertEqual(result["observed_findings"], 8)
+        self.assertEqual(result["approved_findings"], 8)
+
+    def test_all_four_profiles_and_both_architectures_are_supported(self):
+        for profile in policy.PROFILES:
+            for architecture in policy.ARCHES:
+                report = copy.deepcopy(self.report)
+                report["Metadata"]["ImageConfig"]["architecture"] = architecture.split("/")[1]
+                with self.subTest(profile=profile, architecture=architecture):
+                    result = self.evaluate(report=report, profile=profile,
+                                            architecture=architecture)
+                    self.assertEqual(result["status"],
+                                     "accepted_residual_risk_not_remediated")
+
     def test_new_candidate_digest_qualifies_against_same_policy(self):
         report = copy.deepcopy(self.report)
         report["ArtifactName"] = f"{IMAGE}@{OTHER_DIGEST}"
