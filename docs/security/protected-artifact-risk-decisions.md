@@ -113,3 +113,16 @@ review new or changed security findings, and approve/reject bounded risk
 decisions when necessary. Clean scans and later candidate builds matching an
 active approved policy require no repeated risk approval. Genuine remediation,
 compatibility and governance exceptions still require engineering intervention.
+
+## Upstream contracts consulted
+
+- Trivy JSON reporting documents SchemaVersion, ArtifactType, RepoDigests and
+  ImageConfig architecture metadata used to bind scan evidence:
+  https://trivy.dev/docs/dev/guide/configuration/reporting/
+- GitHub CODEOWNERS documentation requires teams to be visible and have
+  explicit repository write permission, and uses the base branch's CODEOWNERS
+  file for pull-request review requests:
+  https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+- GitHub protected-branch documentation describes required code-owner reviews,
+  stale-review dismissal and approval of the latest reviewable push:
+  https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches
