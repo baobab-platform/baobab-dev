@@ -8,3 +8,8 @@
 /docs/security/ @baobab-platform/security
 /scripts/evaluate_protected_risk_decision.py @baobab-platform/security
 /tests/test_protected_risk_decision.py @baobab-platform/security
+
+# DEV-10 protected policy trust boundary
+/scripts/verify_protected_risk_custody.py @baobab-platform/security
+/tests/test_protected_risk_custody.py @baobab-platform/security
+/.github/workflows/dev10-protected-risk-qualification.yml @baobab-platform/security
