@@ -20,7 +20,9 @@ def decision():
 def verify(d,report=REPORT,tag="v1.5.2-rc.1",digest=DIGEST):
     return m.validate(d,report,target="final",digest=digest,release_tag=tag,now=NOW)
 class SecurityDecisionTests(unittest.TestCase):
-    def test_valid(self):self.assertEqual(verify(decision())["status"],"approved-exact-digest")
+    def test_legacy_approval_is_not_authority(self):
+        with self.assertRaisesRegex(ValueError, "protected custody required"):
+            verify(decision())
     def test_clean_no_exception(self):self.assertEqual(verify(None,{"Results":[]})["status"],"no-high-critical-findings")
     def test_missing_decision(self):
         with self.assertRaises(ValueError):verify(None)
