@@ -95,18 +95,13 @@ jobs:
             [[ -f "$decision_file" && -n "$TRUSTED_POLICY_SHA" && -n "$TRUSTED_APPROVERS" ]] || {
               echo "::error::Authenticated development risk policy is not provisioned"; exit 2;
             }
-            python3 scripts/verify_protected_policy_hash.py \
-              --decision "$decision_file" --trusted-sha256 "$TRUSTED_POLICY_SHA"
             python3 scripts/verify_protected_risk_custody.py \
               --decision "$decision_file" --trusted-approvers "$TRUSTED_APPROVERS"
-            python3 scripts/dev10_kernel_risk_gate.py \
-              --raw-trivy "${RUNNER_TEMP}/foundation-trivy-raw.json" \
-              --inventory docs/assessments/dev10-kernel-cves.tsv \
-              --target final --platform linux/amd64 \
-              --event "${GITHUB_EVENT_NAME}" --ref "${GITHUB_REF}" \
-              --repository "${GITHUB_REPOSITORY}" --pr-number "$PR_NUMBER" \
-              --output "${REPORT_DIR}/dev10-executive-risk-acceptance.json"
-          fi
+            python3 scripts/verify_protected_policy_hash.py \
+              --decision "$decision_file" --trusted-sha256 "$TRUSTED_POLICY_SHA" \
+              --report "${RUNNER_TEMP}/foundation-trivy-raw.json" \
+              --profile final --architecture linux/amd64 \
+              > "${REPORT_DIR}/dev10-protected-risk-acceptance.json"
       - name: Retain sanitized vulnerability and risk evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
