@@ -4,3 +4,7 @@
 /.baobab/ @baobab-platform/platform-engineering
 /Dockerfile @baobab-platform/platform-engineering @baobab-platform/security
 /SECURITY.md @baobab-platform/security
+/security/decisions/ @baobab-platform/security
+/docs/security/ @baobab-platform/security
+/scripts/evaluate_protected_risk_decision.py @baobab-platform/security
+/tests/test_protected_risk_decision.py @baobab-platform/security

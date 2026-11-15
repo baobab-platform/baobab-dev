@@ -44,9 +44,19 @@ decision record and independent approval. An approved_by string or evidence
 URL is not, by itself, authentication.
 
 The policy file must live on the protected default branch under
-security/decisions/. Its approval record must be attributable through the
+security/decisions/. CODEOWNERS assigns that path, the evaluator, its tests and
+the security-decision documentation to @baobab-platform/security. The
+approval_evidence field must point to the merged pull request that introduced
+the exact decision file. Its approval record must be attributable through the
 repository's protected review process, with an independent reviewer, no
-self-approval and auditable review evidence. The preparer and approver must be
+self-approval and auditable review evidence.
+
+CODEOWNERS only requests the correct reviewer by default. The default-branch
+ruleset must also require pull-request reviews and code-owner approval, dismiss
+stale approvals after new commits, and require approval of the latest reviewable
+push by someone other than its author. I could not inspect the repository's
+branch-protection settings through the available GitHub integration, so these
+settings remain an activation prerequisite rather than a verified fact. The preparer and approver must be
 different principals. The trust-anchor update must be a separately controlled
 administrative operation.
 

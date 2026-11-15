@@ -187,8 +187,11 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
     demand(prepared_by.casefold() != approved_by.casefold(),
            "maker-checker violation: preparer cannot approve the same decision")
     demand(isinstance(evidence, str)
-           and evidence.startswith("https://github.com/baobab-platform/baobab-dev/"),
-           "approval evidence must link to the protected Baobab-dev decision record")
+           and re.fullmatch(
+               r"https://github\\.com/baobab-platform/baobab-dev/pull/[1-9][0-9]*",
+               evidence,
+           ) is not None,
+           "approval evidence must link to the merged protected decision pull request")
 
     approved_at = _timestamp(decision, "approved_at")
     expires_at = _timestamp(decision, "expires_at")

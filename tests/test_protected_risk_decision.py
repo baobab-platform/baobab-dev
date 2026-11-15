@@ -29,7 +29,7 @@ class ProtectedDecisionTests(unittest.TestCase):
             "approval_id": "DEV10-RISK-EXAMPLE",
             "prepared_by": "engineering-maker",
             "approved_by": "independent-security-checker",
-            "approval_evidence": "https://github.com/baobab-platform/baobab-dev/issues/54",
+            "approval_evidence": "https://github.com/baobab-platform/baobab-dev/pull/999",
             "approved_at": "2026-11-14T00:00:00Z",
             "expires_at": "2026-11-26T00:00:00Z",
             "findings": [
