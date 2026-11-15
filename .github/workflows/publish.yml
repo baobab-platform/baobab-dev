@@ -624,6 +624,10 @@ jobs:
       # previous step's comment on the disk-quota root cause).
       - name: Scan built container with Trivy
         id: trivy-scan
+        env:
+          TRUSTED_POLICY_SHA: ${{ vars.DEV10_PROTECTED_DECISION_SHA256 }}
+          TRUSTED_APPROVERS: ${{ vars.DEV10_SECURITY_APPROVER_LOGINS }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [[ "${{ matrix.target }}" == "final" ]]; then
@@ -675,15 +679,20 @@ jobs:
               echo "::error::Trivy scan execution failed (exit ${scan_rc}); not a vulnerability risk decision."
               exit "${scan_rc}"
             fi
-            python3 scripts/dev10_kernel_risk_gate.py \
-              --raw-trivy "${RUNNER_TEMP}/trivy-raw.json" \
-              --inventory docs/assessments/dev10-kernel-cves.tsv \
-              --target "${{ matrix.target }}" --platform "${{ matrix.platform }}" \
-              --event "${GITHUB_EVENT_NAME}" --ref "${GITHUB_REF}" \
-              --repository "${GITHUB_REPOSITORY}" \
-              --pr-number "${{ github.event.pull_request.number || 0 }}" \
-              --output "${REPORT_DIR}/dev10-executive-risk-acceptance.json"
-            echo "::warning::Unfixed kernel-source advisories remain; DEVELOPMENT risk accepted under issue #54, not remediated."
+            # Authenticated, reusable development policy only. Never infer
+            # approval from a PR ref, release tag or free-text reviewer.
+            decision_file="security/decisions/development/foundation.json"
+            [[ -f "$decision_file" && -n "$TRUSTED_POLICY_SHA" && -n "$TRUSTED_APPROVERS" ]] || {
+              echo "::error::Protected development policy/hash/reviewer custody unavailable"; exit 2;
+            }
+            python3 scripts/verify_protected_risk_custody.py \
+              --decision "$decision_file" --trusted-approvers "$TRUSTED_APPROVERS"
+            python3 scripts/verify_protected_policy_hash.py \
+              --decision "$decision_file" --trusted-sha256 "$TRUSTED_POLICY_SHA" \
+              --report "${RUNNER_TEMP}/trivy-raw.json" \
+              --profile "${{ matrix.target }}" --architecture "${{ matrix.platform }}" \
+              > "${REPORT_DIR}/dev10-protected-risk-acceptance.json"
+            echo "::warning::Authenticated development-only residual risk accepted; NOT remediated or release-authorized."
           fi
 
       - name: Retain unfiltered Trivy vulnerability evidence
