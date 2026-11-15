@@ -26,7 +26,8 @@ class PromotionEnvironmentTests(unittest.TestCase):
             },
         }
         self.policies = {
-            "branch_policies": [{"type": "tag", "name": "v*.*.*"}],
+            "branch_policies": [{"type": "tag", "name": "v*.*.*"},
+                                {"type": "tag", "name": "v*.*.*-rc.*"}],
         }
 
     def test_explicit_independent_review_and_tag_admission_pass(self):
@@ -34,11 +35,29 @@ class PromotionEnvironmentTests(unittest.TestCase):
         self.assertEqual(evidence["required_reviewers"], 1)
         self.assertEqual(evidence["accepted_tag_patterns"], ["v*.*.*"])
 
+    def test_exact_two_owner_configured_tag_patterns_required(self):
+        for missing in ("v*.*.*", "v*.*.*-rc.*"):
+            candidate = deepcopy(self.policies)
+            candidate["branch_policies"] = [entry for entry in candidate["branch_policies"]
+                                            if entry["name"] != missing]
+            with self.subTest(missing=missing), self.assertRaises(mod.PromotionEnvironmentError):
+                mod.qualify(self.env, candidate, "v1.5.0")
+        for extra in ("v*", "v2.*.*", "main", "v*.*.*-beta.*"):
+            candidate = deepcopy(self.policies)
+            candidate["branch_policies"].append({"type": "tag", "name": extra})
+            with self.subTest(extra=extra), self.assertRaises(mod.PromotionEnvironmentError):
+                mod.qualify(self.env, candidate, "v1.5.0")
+        candidate = deepcopy(self.policies)
+        candidate["branch_policies"].append({"type": "tag", "name": "v*.*.*"})
+        with self.assertRaises(mod.PromotionEnvironmentError):
+            mod.qualify(self.env, candidate, "v1.5.0")
+
     def test_rc_series_uses_same_independent_protected_environment(self):
         for tag in ("v1.5.0-rc.1", "v2.0.0-rc.2", "v10.3.12-rc.10"):
             with self.subTest(tag=tag):
                 evidence = mod.qualify(self.env, self.policies, tag)
                 self.assertTrue(evidence["prevent_self_review"])
+                self.assertIn("v*.*.*-rc.*", evidence["accepted_tag_patterns"])
                 self.assertEqual(evidence["release_tag"], tag)
         weak = deepcopy(self.env)
         weak["protection_rules"][0]["prevent_self_review"] = False
