@@ -21,6 +21,8 @@ import subprocess
 import sys
 from typing import Callable
 
+from release_tag_policy import classify
+
 from verify_signed_release_predicates import (
     PredicateError, fingerprint, parse_verified, qualify as verify_predicates,
 )
@@ -152,9 +154,9 @@ def verify(image: str, tag: str, expected_sha: str,
            runner: Callable[[list[str]], str] = run_cli,
            signer_tag: str | None = None) -> dict:
     require(bool(INDEX_REF.fullmatch(image)), "must verify exact Baobab GHCR index digest")
-    require(bool(TAG.fullmatch(tag)), "expected stable semver or numbered RC release tag")
+    require(classify(tag) is not None, "expected stable semver or numbered RC release tag")
     signer_tag = signer_tag or tag
-    require(bool(TAG.fullmatch(signer_tag)), "expected stable semver or numbered RC signer tag")
+    require(classify(signer_tag) is not None, "expected stable semver or numbered RC signer tag")
     release_rc = re.fullmatch(rf"^(v{NUM}\.{NUM}\.{NUM})-rc\.[1-9][0-9]*$", tag)
     signer_rc = re.fullmatch(rf"^(v{NUM}\.{NUM}\.{NUM})-rc\.[1-9][0-9]*$", signer_tag)
     if release_rc:
