@@ -90,6 +90,14 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         self.assertEqual(result["known_cves_observed"], 295)
         self.assertEqual(result["expiry_utc"], "2026-11-26T00:00:00+00:00")
 
+    def test_release_disclosure_scope_matches_security_allowlist(self):
+        for tag in ("v1.5.0", "v1.5.0-rc.1", "v1.5.1", "v1.5.1-rc.9"):
+            with self.subTest(tag=tag):
+                self.assertTrue(mod.is_approved_development_image_ref(tag))
+        for tag in ("v1.5.2", "v1.5.2-rc.1", "v1.5.1-beta.1", "v1.5.0-rc.0"):
+            with self.subTest(tag=tag):
+                self.assertFalse(mod.is_approved_development_image_ref(tag))
+
     def test_v151_release_family_and_expiry(self):
         for tag in ("v1.5.1-rc.1", "v1.5.1-rc.9", "v1.5.1"):
             with self.subTest(tag=tag):
