@@ -930,7 +930,7 @@ HEALTHCHECK \
 
 CMD ["sleep", "infinity"]
 
-# Stage: frontend-e2e — extends `frontend` with browser-dependent tooling
+# Stage: frontend-e2e — extends the shared frontend build stage with browser tooling
 # for end-to-end testing, image processing, and performance auditing.
 #
 # NOT a daily devcontainer image — a repo's own .baobab/environment.yaml
