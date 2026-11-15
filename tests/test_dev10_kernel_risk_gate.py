@@ -187,7 +187,8 @@ class DevelopmentRiskGateTests(unittest.TestCase):
                     self.assertIn("no staging/production", result["scope"])
 
     def test_all_other_tag_or_deployment_contexts_denied(self):
-        self.qualify(event="push", ref="refs/heads/main", pr_number=0)
+        with self.assertRaises(mod.RiskGateError):
+            self.qualify(event="push", ref="refs/heads/main", pr_number=0)
         for event, ref, number in (
             ("push", "refs/tags/v1.4.4", 0),
             ("push", "refs/tags/v1.5.2", 0),
