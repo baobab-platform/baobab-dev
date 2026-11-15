@@ -76,19 +76,19 @@ jobs:
           IMAGE_REF: ${{ steps.stable-image.outputs.image_ref }}
         run: |
           set -euo pipefail
-          docker run --rm -e HOME=/tmp/dev10-home -v "$GITHUB_WORKSPACE:/workspace:ro" -w /workspace \
+          docker run --rm -e HOME=/tmp/dev10-home -v "$GITHUB_WORKSPACE:/source:ro" \
             "$IMAGE_REF" bash -c '
               set -euo pipefail
               mkdir -p "$HOME"
               # This exercises the published v1.5.1 image baseline (pnpm 12.16.1).
               # The branch's newer 12.21.0 pin is qualified by source and candidate-image builds.
-              cp -R tests/fixtures/pnpm-workspace /tmp/dev10-workspace
+              cp -R /source/tests/fixtures/pnpm-workspace /tmp/dev10-workspace
               mv /tmp/dev10-workspace/package.json.fixture /tmp/dev10-workspace/package.json
               mv /tmp/dev10-workspace/frontend/package.json.fixture /tmp/dev10-workspace/frontend/package.json
-              cp -R config /tmp/dev10-workspace/config
+              cp -R /source/config /tmp/dev10-workspace/config
               export WORKSPACE_DIR=/tmp/dev10-workspace
               cd "$WORKSPACE_DIR"
-              bash /workspace/scripts/post-create.sh --stage=post-create
+              bash /source/scripts/post-create.sh --stage=post-create
               test ! -f frontend/package-lock.json
             '
       - name: A failed final verifier must fail the actual container lifecycle
