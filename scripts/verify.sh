@@ -71,6 +71,12 @@ fi
 : "${PYTHON_MINOR:=3.14}"
 : "${PYTHON_VERSION:=3.14}"
 : "${NODE_MAJOR:=26}"
+: "${NODE_VERSION:=}"
+: "${COREPACK_VERSION:=}"
+: "${TASK_VERSION:=}"
+: "${YQ_VERSION:=}"
+: "${GH_VERSION:=}"
+: "${COSIGN_VERSION:=}"
 : "${PNPM_VERSION:=}"
 : "${PLAYWRIGHT_VERSION:=}"
 : "${FLUTTER_VERSION:=unknown}"
@@ -440,8 +446,9 @@ section "JavaScript"
 # unconditionally, which is why this section previously had no gate at all.
 if [[ "$BAOBAB_BUILD_PROFILE" != "infra" ]]; then
 
-    check_major_version "Node.js" node "${NODE_MAJOR}"
+    check_exact_version "Node.js" node "${NODE_VERSION}"
     check_required "npm" npm
+    check_exact_version "Corepack" corepack "${COREPACK_VERSION}"
     check_exact_version "pnpm" pnpm "${PNPM_VERSION}"
     check_optional "Yarn" yarn
 
@@ -631,7 +638,7 @@ fi
 
 section "GitHub"
 
-check_required "GitHub CLI" gh
+check_exact_version "GitHub CLI" gh "${GH_VERSION}" "gh --version | head -n1 | awk '{print $3}'"
 
 if command -v gh >/dev/null; then
 
@@ -653,7 +660,12 @@ check_required "ripgrep" rg
 check_required "fd" fd
 check_required "bat" bat
 check_required "eza" eza
+check_exact_version "Task" task "${TASK_VERSION}"
+check_exact_version "yq" yq "${YQ_VERSION}" "yq --version | awk '{print $NF}'"
 check_required "fzf" fzf
+if [[ "$BAOBAB_BUILD_PROFILE" == "full" ]]; then
+    check_exact_version "Cosign" cosign "${COSIGN_VERSION}" "cosign version | awk '/GitVersion:/ {print $2}'"
+fi
 check_optional "tmux" tmux "tmux -V"
 
 ###############################################################################
