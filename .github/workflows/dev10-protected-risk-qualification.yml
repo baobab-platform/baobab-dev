@@ -69,7 +69,7 @@ jobs:
           PY
           fi
 
-      - name: Install checksum-verified Trivy
+      - name: Verify evaluator negative controls\n        run: python3 -B -m unittest -v tests/test_protected_risk_decision.py\n\n      - name: Install checksum-verified Trivy
         run: |
           set -euo pipefail
           [[ "$(uname -m)" == "x86_64" ]] || {
@@ -82,7 +82,7 @@ jobs:
             --output "$RUNNER_TEMP/$asset"
           printf '%s  %s\n' "$checksum" "$RUNNER_TEMP/$asset" | sha256sum --check -
           tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP" trivy
-          install -m 0755 "$RUNNER_TEMP/trivy" /usr/local/bin/trivy
+          sudo install -m 0755 "$RUNNER_TEMP/trivy" /usr/local/bin/trivy
           trivy --version
 
       - name: Authenticate to GHCR and scan the exact child digest
