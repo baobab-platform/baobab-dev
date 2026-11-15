@@ -317,12 +317,49 @@ jobs:
       - name: Reuse immutable RC artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RC_RUN: ${{ vars.DEV10_QUALIFIED_RC_RUN_ID }}
           TAG: ${{ needs.sanity-check.outputs.release_tag }}
         run: |
           set -euo pipefail
-          [[ "$RC_RUN" =~ ^[1-9][0-9]*$ ]] || exit 1
           mkdir -p "$RUNNER_TEMP/rc" "$RUNNER_TEMP/ga"
+          # Resolve the latest successful Publish run for the exact GA source
+          # commit and version family. No mutable repository variable is
+          # trusted to nominate an RC run.
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=success&per_page=100" \
+            > "$RUNNER_TEMP/publish-runs.json"
+          RC_RUN=$(python3 - "$RUNNER_TEMP/publish-runs.json" "$TAG" "$GITHUB_SHA" <<'PY'
+          import json
+          import re
+          import sys
+
+          path, ga_tag, source_sha = sys.argv[1:]
+          data = json.load(open(path, encoding="utf-8"))
+          family = re.fullmatch(r"v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", ga_tag)
+          if family is None:
+              raise SystemExit("GA tag is not canonical stable semver")
+          rc_pattern = re.compile(re.escape(ga_tag) + r"-rc\.[1-9][0-9]*")
+          candidates = [
+              run for run in data.get("workflow_runs", [])
+              if isinstance(run, dict)
+              and run.get("path", "").split("@", 1)[0] == ".github/workflows/publish.yml"
+              and run.get("event") == "push"
+              and run.get("status") == "completed"
+              and run.get("conclusion") == "success"
+              and run.get("head_sha") == source_sha
+              and isinstance(run.get("head_branch"), str)
+              and rc_pattern.fullmatch(run["head_branch"])
+              and isinstance(run.get("id"), int)
+              and not isinstance(run.get("id"), bool)
+          ]
+          if not candidates:
+              raise SystemExit("no successful same-commit, same-version-family RC Publish run found")
+          selected = max(candidates, key=lambda run: (run.get("run_number", 0), run["id"]))
+          print(selected["id"])
+          PY
+          )
+          [[ "$RC_RUN" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::Could not resolve a qualified same-commit RC run"; exit 1;
+          }
+          echo "Reusing RC run $RC_RUN for $TAG at $GITHUB_SHA"
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RC_RUN}" > "$RUNNER_TEMP/run.json"
           for target in final frontend frontend-e2e infra; do
             gh run download "$RC_RUN" --repo "$GITHUB_REPOSITORY" --name "published-info-$target" --dir "$RUNNER_TEMP/rc"
