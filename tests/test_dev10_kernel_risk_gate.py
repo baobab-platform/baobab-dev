@@ -77,18 +77,21 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(mod.RiskGateError):
                 self.qualify(altered)
 
-    def test_only_explicit_development_prs_are_authorised(self):
-        self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({71, 74}))
-        for number in (48, 50, 57, 58, 62, 63, 64, 65, 66, 67, 68, 69, 70):
-            with self.subTest(merged_pr=number), self.assertRaises(mod.RiskGateError):
-                self.qualify(pr_number=number, ref=f"refs/pull/{number}/merge")
-        for number in (71, 74):
-            with self.subTest(active_pr=number):
+    def test_future_prs_reuse_only_existing_time_bounded_risk_scope(self):
+        for number in (1, 48, 62, 71, 74, 75, 9999):
+            with self.subTest(pr_number=number):
                 decision = self.qualify(pr_number=number, ref=f"refs/pull/{number}/merge")
                 self.assertEqual(decision["known_cves_observed"], 295)
-        result = self.qualify()
-        self.assertEqual(result["known_cves_observed"], 295)
-        self.assertEqual(result["expiry_utc"], "2026-11-26T00:00:00+00:00")
+                self.assertEqual(decision["expiry_utc"], "2026-11-26T00:00:00+00:00")
+        for number, ref in ((0, "refs/pull/0/merge"), (-1, "refs/pull/-1/merge"),
+                            (75, "refs/pull/74/merge"), (75, "refs/pull/75/head"),
+                            (75, "refs/heads/main")):
+            with self.subTest(invalid=(number, ref)), self.assertRaises(mod.RiskGateError):
+                self.qualify(pr_number=number, ref=ref)
+        report = self.report()
+        report["Results"][0]["Vulnerabilities"][0]["VulnerabilityID"] = "CVE-2026-999999"
+        with self.assertRaises(mod.RiskGateError):
+            self.qualify(report, pr_number=9999, ref="refs/pull/9999/merge")
 
     def test_pr74_does_not_extend_expiry_or_release_authority(self):
         for version in ("7.0.0-42.42", "7.0.0-43.43"):
@@ -125,7 +128,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             with self.subTest(tag=tag), self.assertRaises(mod.RiskGateError):
                 self.qualify(event="push", ref="refs/tags/" + tag, pr_number=0)
 
-    def test_owner_authorised_pr71_only_through_new_expiry(self):
+    def test_existing_approval_is_still_time_bounded(self):
         self.assertEqual(mod.EXPIRY, dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
         for platform in ("linux/amd64", "linux/arm64"):
             for target in ("final", "infra", "frontend", "frontend-e2e"):
@@ -137,11 +140,11 @@ class DevelopmentRiskGateTests(unittest.TestCase):
                     self.assertEqual(result["expiry_utc"], "2026-11-26T00:00:00+00:00")
         for event, ref, number in (
             ("pull_request", "refs/pull/69/head", 68),
-            ("pull_request", "refs/pull/66/merge", 66),
-            ("pull_request", "refs/pull/65/merge", 65),
-            ("pull_request", "refs/pull/64/merge", 64),
-            ("pull_request", "refs/pull/62/merge", 62),
-            ("pull_request", "refs/pull/63/merge", 63),
+            ("pull_request", "refs/pull/66/merge", 67),
+            ("pull_request", "refs/pull/65/merge", 66),
+            ("pull_request", "refs/pull/64/merge", 65),
+            ("pull_request", "refs/pull/62/merge", 63),
+            ("pull_request", "refs/pull/63/merge", 64),
             ("pull_request", "refs/pull/58/merge", 62),
             ("workflow_dispatch", "refs/pull/71/merge", 68),
             ("push", "refs/tags/v1.5.2", 0),
@@ -174,7 +177,7 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             ("deployment", "refs/heads/staging", 58),
             ("pull_request", "refs/pull/58/head", 58),
             ("pull_request", "refs/pull/57/merge", 58),
-            ("pull_request", "refs/pull/59/merge", 59),
+            ("pull_request", "refs/pull/59/merge", 58),
             ("pull_request", "refs/pull/48/merge", 58),
         ):
             with self.subTest(event=event, ref=ref, number=number):

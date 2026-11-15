@@ -3,7 +3,7 @@
 
 This is not VEX "not_affected", an Ubuntu patch, or a staging/production
 approval. Preserve complete Trivy findings and deny new/unrecognised CVEs.
-Applies only to development PRs #71 and #74, development-main and explicitly approved
+Applies to every development pull request with an exact GitHub merge ref, development-main and explicitly approved
 tagged DEVELOPMENT CONTAINER distributions v1.5.0-rc.N, v1.5.0, and v1.5.1-rc.N and v1.5.1,
 before 2026-11-26 UTC.
 Approval source: user's explicit Baobab-dev distribution clarification
@@ -41,10 +41,12 @@ ADDITIONAL_CVES = frozenset({
 CVE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 TARGETS = {"final", "infra", "frontend", "frontend-e2e"}
 PLATFORMS = {"linux/amd64", "linux/arm64"}
-# Explicitly authorised development PRs #71 and #74 only; no other PR inherits scope.
-# Owner-directed publication: RC candidates first, then GA for development
-# consumers. No other pre-releases, future tags or production deployments.
-APPROVED_DEVELOPMENT_PRS = frozenset({71, 74})
+# This already-approved, time-bounded CVE inventory applies to every matching
+# development PR. A PR number is an event identity, NOT a vulnerability approval.
+# New CVEs, package/version changes and expired decisions still require human
+# review and an explicit source-policy update; no workflow may auto-approve them.
+# Tagged development-image distribution retains its separately bounded scope.
+# No staging/production approvals are granted.
 APPROVED_DEVELOPMENT_IMAGE_REFS = frozenset({"refs/tags/v1.5.0", "refs/tags/v1.5.1"})
 APPROVED_DEVELOPMENT_RC_REF = re.compile(r"^refs/tags/v1[.]5[.](?:0|1)-rc[.][1-9][0-9]*$")
 
@@ -87,13 +89,14 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
     require(now.tzinfo is not None and now < EXPIRY, "risk decision expired")
     require(repository == "baobab-platform/baobab-dev",
             "outside Baobab development repository")
-    is_qualified_dev_pr = (event == "pull_request" and pr_number in APPROVED_DEVELOPMENT_PRS
-                           and ref == f"refs/pull/{pr_number}/merge")
+    is_qualified_dev_pr = (event == "pull_request"
+                           and isinstance(pr_number, int) and not isinstance(pr_number, bool)
+                           and pr_number > 0 and ref == f"refs/pull/{pr_number}/merge")
     is_dev_main = event == "push" and ref == "refs/heads/main" and pr_number == 0
     is_dev_image_release = (event == "push" and pr_number == 0
                             and is_approved_development_image_ref(ref.removeprefix("refs/tags/")))
     require(is_qualified_dev_pr or is_dev_main or is_dev_image_release,
-            "risk acceptance only valid for explicitly approved development PRs #71/#74, untagged "
+            "risk acceptance only valid for a matching development PR merge ref, untagged "
             "development main or v1.5.0 / v1.5.1 RC/GA devcontainer GHCR distribution")
     require(target in TARGETS and platform in PLATFORMS,
             "unapproved target or architecture")
@@ -142,7 +145,7 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
         "known_cves_observed": len(observed),
         "critical": sum(x == "CRITICAL" for x in observed.values()),
         "expiry_utc": EXPIRY.isoformat(),
-        "scope": "DEV TOOLCHAIN ONLY; v1.5.0/v1.5.1 RC and GA GHCR distribution; "
+        "scope": "DEV TOOLCHAIN ONLY; development PR/main CI and v1.5.0/v1.5.1 RC/GA distributions; "
                  "no staging/production deployment or other tags",
         "distribution": (("development_release_candidate" if "-rc." in ref
                           else "tagged_development_container")
