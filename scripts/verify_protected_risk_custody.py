@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Verify protected risk-policy approval custody using live GitHub REST evidence.
+
+Runs only in trusted default-branch workflows. GITHUB_TOKEN needs pull-requests:read.
+This verifies recorded reviewer approval and merged custody, not branch ruleset
+configuration; ruleset and CODEOWNERS enforcement require separate admin audit.
+"""
+import argparse
+import json
+import os
+import re
+import urllib.request
+from pathlib import Path
+
+
+def require(ok, message):
+    if not ok:
+        raise ValueError(message)
+
+
+def fetch(url, token):
+    req = urllib.request.Request(url, headers={
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    })
+    with urllib.request.urlopen(req, timeout=20) as response:
+        return json.load(response)
+
+
+def verify(decision, pull, reviews, files, *, trusted_approvers):
+    require(pull.get("merged_at") and pull.get("base", {}).get("ref") == "main",
+            "approval PR must be merged into protected main")
+    require(pull.get("state") == "closed", "approval PR must be closed and merged")
+    maker = decision.get("prepared_by", "").casefold()
+    checker = decision.get("approved_by", "").casefold()
+    require(maker and checker and maker != checker, "maker-checker separation missing")
+    require(pull.get("user", {}).get("login", "").casefold() == maker,
+            "decision preparer differs from approval PR author")
+    require(checker in {x.casefold() for x in trusted_approvers},
+            "reviewer is not in independently configured trusted approvers")
+    require(decision.get("approval_evidence") ==
+            pull.get("html_url"), "decision approval PR mismatch")
+    require(any(f.get("filename", "").startswith("security/decisions/")
+                and f.get("status") in ("added", "modified")
+                for f in files), "approval PR did not change protected decision records")
+    require(any(r.get("user", {}).get("login", "").casefold() == checker
+                and r.get("state") == "APPROVED"
+                and r.get("submitted_at")
+                for r in reviews), "independent approved review is missing")
+    # Require an actual review against the merged head, not a stale approval.
+    head = pull.get("head", {}).get("sha")
+    require(bool(head) and any(
+        r.get("user", {}).get("login", "").casefold() == checker
+        and r.get("state") == "APPROVED"
+        and r.get("commit_id") == head for r in reviews),
+        "no independent approval on merged head")
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--decision", type=Path, required=True)
+    p.add_argument("--trusted-approvers", required=True,
+                   help="comma-separated independently provisioned GitHub logins")
+    args = p.parse_args()
+    token = os.environ["GITHUB_TOKEN"]
+    decision = json.loads(args.decision.read_text())
+    evidence = decision.get("approval_evidence", "")
+    match = re.fullmatch(r"https://github\.com/baobab-platform/baobab-dev/pull/([1-9][0-9]*)", evidence)
+    require(match is not None, "invalid approval evidence URL")
+    base = "https://api.github.com/repos/baobab-platform/baobab-dev/pulls/" + match.group(1)
+    pull = fetch(base, token)
+    reviews = fetch(base + "/reviews?per_page=100", token)
+    files = fetch(base + "/files?per_page=100", token)
+    require(len(reviews) < 100 and len(files) < 100,
+            "pagination required: refuse incomplete approval evidence")
+    verify(decision, pull, reviews, files,
+           trusted_approvers=[x.strip() for x in args.trusted_approvers.split(",") if x.strip()])
+    print(json.dumps({"status": "approval_custody_verified", "approval_pr": evidence,
+                      "reviewer": decision["approved_by"], "merged_head": pull["head"]["sha"]}))
+
+
+if __name__ == "__main__":
+    main()
