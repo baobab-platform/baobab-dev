@@ -70,7 +70,10 @@ class ProtectedDecisionTests(unittest.TestCase):
                                self.report if report is None else report, **args)
 
     def test_new_candidate_digest_qualifies_against_same_policy(self):
-        result = self.evaluate(image_digest=OTHER_DIGEST)
+        report = copy.deepcopy(self.report)
+        report["ArtifactName"] = f"{IMAGE}@{OTHER_DIGEST}"
+        report["Metadata"]["RepoDigests"] = [f"{IMAGE}@{OTHER_DIGEST}"]
+        result = self.evaluate(report=report, image_digest=OTHER_DIGEST)
         self.assertEqual(result["status"], "accepted_residual_risk_not_remediated")
         self.assertEqual(result["image_digest"], OTHER_DIGEST)
         self.assertEqual(result["observed_findings"], 1)
