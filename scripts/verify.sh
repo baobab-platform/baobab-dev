@@ -70,7 +70,6 @@ fi
 
 : "${PYTHON_MINOR:=3.14}"
 : "${PYTHON_VERSION:=3.14}"
-: "${NODE_MAJOR:=26}"
 : "${NODE_VERSION:=}"
 : "${COREPACK_VERSION:=}"
 : "${TASK_VERSION:=}"
@@ -195,16 +194,12 @@ check_optional() {
     fi
 }
 
-# check_exact_version: like check_required, but additionally fails if the
-# installed version doesn't exactly match $expected (leading 'v' stripped
-# from both sides before comparing). Added for pnpm specifically — presence
-# alone (check_required) doesn't catch the image baking in a DIFFERENT pnpm
-# than config/versions.lock's own PNPM_VERSION resolved to, the exact class
-# of drift that let a stale/mismatched image slip through prior verify runs
-# undetected while Corepack silently tried (and, without a TTY, hung)
-# downloading whatever a consuming repo's package.json actually pinned.
-# $expected empty (versions.lock not sourced / PNPM_VERSION unresolved) is
-# reported as a warning, not a failure — there is nothing to compare against.
+# check_exact_version: enforce the exact version resolved in versions.lock.
+# This is applied to every pinned CLI/runtime whose installed version is part
+# of the image contract; presence-only checks are insufficient for reproducible
+# builds and for consumers that depend on Corepack/toolchain compatibility.
+# A leading 'v' is stripped from both sides before comparing. An empty expected
+# value is a warning because there is no trustworthy value to compare against.
 check_exact_version() {
 
     local label="$1"
@@ -236,43 +231,6 @@ check_exact_version() {
         ok "$label (${version})"
     else
         bad "$label version mismatch — Expected ${label} ${expected}. Found ${actual}."
-    fi
-}
-
-# check_major_version: like check_exact_version, but compares only the
-# leading major-version component (e.g. Node's "v26.13.1" vs expected "26").
-# Node's own point releases move independently of this file (NodeSource
-# apt tracks the newest patch on the ${NODE_MAJOR}.x line automatically),
-# so an exact full-version match would be a false failure on every routine
-# Node patch release — the policy this image actually enforces is the
-# major-version baseline (Node 26), not a specific patch.
-check_major_version() {
-
-    local label="$1"
-    local cmd="$2"
-    local expected_major="$3"
-    local version_cmd="${4:-$2 --version}"
-
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        bad "$label — '$cmd' not found"
-        return
-    fi
-
-    local version stderr_out rc=0
-    run_version_cmd "$version_cmd" version stderr_out || rc=$?
-
-    if [[ $rc -ne 0 || -z "$version" ]]; then
-        bad "$label — '$version_cmd' failed (exit ${rc})${stderr_out:+: ${stderr_out}}"
-        return
-    fi
-
-    local actual_major="${version#v}"
-    actual_major="${actual_major%%.*}"
-
-    if [[ "$actual_major" == "$expected_major" ]]; then
-        ok "$label (${version})"
-    else
-        bad "$label major-version mismatch — Expected ${label} ${expected_major}.x. Found ${version}."
     fi
 }
 
