@@ -96,9 +96,15 @@ build_cosign() {
     cd "$dest"
     # Cosign's Makefile is its authoritative release build: it injects
     # GitVersion, GitCommit, GitTreeState and reproducible BuildDate.
-    GIT_VERSION="v$COSIGN_VERSION" \
-      SOURCE_DATE_EPOCH="$source_date_epoch" \
-      make cosign
+    # Go 1.18+ VCS stamping sets debug.BuildInfo.Main.Version to a
+    # pseudo-version. release-utils prefers that value over its gitVersion
+    # linker variable, so disable automatic stamping and supply the exact
+    # release identity through Cosign's supported Makefile variables.
+    # Command-line assignments take precedence over upstream Makefile defaults.
+    GOFLAGS=-buildvcs=false make \
+      "GIT_VERSION=v$COSIGN_VERSION" \
+      "SOURCE_DATE_EPOCH=$source_date_epoch" \
+      cosign
   )
 
   install -m 0755 "$dest/cosign" /out/cosign
@@ -107,7 +113,27 @@ build_cosign() {
 
   /out/cosign version > /out/cosign.version 2>&1
   cat /out/cosign.version
-  grep -F "v$COSIGN_VERSION" /out/cosign.version
+
+  assert_version_field() {
+    local field="$1" expected="$2"
+    awk -F: -v key="$field" -v expected="$expected" '
+      $1 == key {
+        value = substr($0, index($0, ":") + 1)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+        if (value == expected) found = 1
+      }
+      END { exit(found ? 0 : 1) }
+    ' /out/cosign.version || {
+      echo "::error::Cosign $field mismatch; expected $expected" >&2
+      exit 1
+    }
+  }
+
+  expected_build_date="$(date -u -d "@$source_date_epoch" +'%Y-%m-%dT%H:%M:%SZ')"
+  assert_version_field GitVersion "v$COSIGN_VERSION"
+  assert_version_field GitCommit "$commit"
+  assert_version_field GitTreeState dirty
+  assert_version_field BuildDate "$expected_build_date"
 }
 
 build_gh
