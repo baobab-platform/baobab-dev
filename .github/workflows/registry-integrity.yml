@@ -60,6 +60,8 @@ on:
       - '.github/workflows/registry-integrity.yml'
       - 'scripts/verify-image.sh'
       - 'scripts/resolve_release_signer.py'
+      - 'scripts/release_tag_policy.py'
+      - 'tests/test_release_tag_policy.py'
       - 'tests/test_resolve_release_signer.py'
       - 'scripts/verify_release_contracts.py'
       - 'scripts/verify_registry_arch_attestations.py'
