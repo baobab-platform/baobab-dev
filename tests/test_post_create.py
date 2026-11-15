@@ -100,7 +100,7 @@ fi
 
     def test_root_pnpm_workspace_requires_declared_frontend_membership(self):
         files = {
-            'package.json': json.dumps({'packageManager': 'pnpm@11.24.0'}),
+            'package.json': json.dumps({'packageManager': 'pnpm@12.21.0'}),
             'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
             'pnpm-lock.yaml': 'lockfileVersion: 9.0\n',
             'frontend/package.json': json.dumps({'name': 'frontend'}),
