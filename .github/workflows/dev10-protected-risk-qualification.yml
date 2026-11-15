@@ -25,6 +25,7 @@ on:
 permissions:
   contents: read
   packages: read
+  pull-requests: read
 
 jobs:
   protected-qualification:
@@ -102,6 +103,21 @@ jobs:
             --severity HIGH,CRITICAL --ignorefile /dev/null \
             --format json --output "$RUNNER_TEMP/trivy-raw.json" \
             "$IMAGE_REPOSITORY@$IMAGE_DIGEST"
+
+      - name: Verify independent approval custody for selected risk policy
+        if: inputs.decision_path != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DECISION_PATH: ${{ inputs.decision_path }}
+          TRUSTED_APPROVERS: ${{ vars.DEV10_SECURITY_APPROVER_LOGINS }}
+        run: |
+          set -euo pipefail
+          test -n "$TRUSTED_APPROVERS" || {
+            echo "::error::Protected approver allow-list is not provisioned"; exit 2;
+          }
+          python3 scripts/verify_protected_risk_custody.py \
+            --decision "$DECISION_PATH" \
+            --trusted-approvers "$TRUSTED_APPROVERS"
 
       - name: Evaluate policy against exact scan evidence
         id: evaluate
