@@ -24,7 +24,6 @@ RUN_ID = re.compile(r"(?m)^Qualified RC workflow run: \[(?P<id>[1-9][0-9]*)\]\(h
 # RCs are real versioned development-image releases, never GA aliases.
 NUM = r"(?:0|[1-9][0-9]*)"
 SIGNER = re.compile(rf"(?m)^Signature source: `(?P<tag>v{NUM}\.{NUM}\.{NUM}(?:-rc\.[1-9][0-9]*)?)`$")
-TAG = re.compile(rf"^v(?P<version>{NUM}\.{NUM}\.{NUM}(?:-rc\.[1-9][0-9]*)?)$")
 
 
 class ContractError(ValueError):
