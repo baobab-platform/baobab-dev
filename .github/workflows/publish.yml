@@ -225,6 +225,8 @@ jobs:
       # or a narrowly declared maintenance release.
       - name: DEV-10 release-family eligibility
         if: steps.release-context.outputs.is_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git fetch --no-tags origin '+refs/tags/v*:refs/tags/v*'
