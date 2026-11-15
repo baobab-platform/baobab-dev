@@ -422,7 +422,7 @@ fi
 
 if [[ "$BAOBAB_BUILD_PROFILE" == "frontend-e2e" ]]; then
     check_exact_version "Playwright" playwright "${PLAYWRIGHT_VERSION}" \
-        "playwright --version | awk '{print $NF}'"
+        'playwright --version | grep -oE "[0-9]+([.][0-9]+){2}" | head -n1'
 
     verify_playwright_chromium() {
         local browsers_path="${PLAYWRIGHT_BROWSERS_PATH:-}"
@@ -621,10 +621,10 @@ check_required "fd" fd
 check_required "bat" bat
 check_required "eza" eza
 check_exact_version "Task" task "${TASK_VERSION}"
-check_exact_version "yq" yq "${YQ_VERSION}" "yq --version | awk '{print $NF}'"
+check_exact_version "yq" yq "${YQ_VERSION}" 'yq --version | grep -oE "[0-9]+([.][0-9]+){2}" | tail -n1'
 check_required "fzf" fzf
 if [[ "$BAOBAB_BUILD_PROFILE" == "full" ]]; then
-    check_exact_version "Cosign" cosign "${COSIGN_VERSION}" "cosign version | awk '/GitVersion:/ {print $2}'"
+    check_exact_version "Cosign" cosign "${COSIGN_VERSION}" 'cosign version | grep "^GitVersion:" | grep -oE "[0-9]+([.][0-9]+){2}" | head -n1'
 fi
 check_optional "tmux" tmux "tmux -V"
 
