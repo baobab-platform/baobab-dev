@@ -13,6 +13,8 @@ from pathlib import Path
 import re
 import sys
 
+from release_tag_policy import classify
+
 IMAGE = "ghcr.io/baobab-platform/baobab-dev"
 TARGETS = ("final", "frontend", "frontend-e2e", "infra")
 HEADER = re.compile(r"(?m)^\*\*(?P<target>[^*\r\n]+):\*\*\s*$")
@@ -30,10 +32,9 @@ class ContractError(ValueError):
 
 
 def parse_contracts(body: str, release_tag: str) -> list[tuple[str, str, str, str, str]]:
-    version_match = TAG.fullmatch(release_tag)
-    if not version_match:
+    if classify(release_tag) is None:
         raise ContractError("not a stable semver or numbered RC release")
-    version = version_match.group("version")
+    version = release_tag[1:]
     headers = list(HEADER.finditer(body))
     if len(headers) != len(TARGETS):
         raise ContractError(f"expected exactly {len(TARGETS)} target headers; found {len(headers)}")
