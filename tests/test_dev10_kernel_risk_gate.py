@@ -38,79 +38,15 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         return mod.validate(report if report is not None else self.report(),
                             self.allowed, **args)
 
-    def test_real_inventory_approved_scope_for_pr71(self):
-        result = self.qualify()
-        self.assertEqual(result["known_cves_observed"], 295)
-        self.assertEqual(result["critical"], 12)
-        self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
+    def test_legacy_pr_acceptance_denied_without_authenticated_policy(self):
+        for number in (62, 71, 74, 9999):
+            with self.subTest(pr=number), self.assertRaisesRegex(mod.RiskGateError, "authenticated reusable policy"):
+                self.qualify(pr_number=number, ref=f"refs/pull/{number}/merge")
 
-    def test_exact_new_ubuntu_version_eight_high_findings_accepted(self):
-        report = {"Results": [{"Target": "ubuntu 26.04", "Type": "ubuntu",
-            "Vulnerabilities": [
-                {"VulnerabilityID": cve, "PkgName": "linux-libc-dev",
-                 "InstalledVersion": "7.0.0-43.43", "Severity": "HIGH"}
-                for cve in sorted(mod.ADDITIONAL_CVES)]}]}
-        self.assertEqual(len(mod.ADDITIONAL_CVES), 8)
-        for platform in ("linux/amd64", "linux/arm64"):
-            for target in ("final", "infra", "frontend", "frontend-e2e"):
-                with self.subTest(platform=platform, target=target):
-                    decision = self.qualify(report, platform=platform, target=target)
-                    self.assertEqual(decision["version"], "7.0.0-43.43")
-                    self.assertEqual(decision["known_cves_observed"], 8)
-                    self.assertEqual(decision["critical"], 0)
-        for mutation in ("extra", "missing", "severity", "fixed", "package", "version"):
-            import copy
-            altered = copy.deepcopy(report)
-            vulns = altered["Results"][0]["Vulnerabilities"]
-            if mutation == "extra":
-                vulns.append({**vulns[0], "VulnerabilityID": "CVE-2026-999999"})
-            elif mutation == "missing":
-                vulns.pop()
-            elif mutation == "severity":
-                vulns[0]["Severity"] = "CRITICAL"
-            elif mutation == "fixed":
-                vulns[0]["FixedVersion"] = "7.0.0-44.44"
-            elif mutation == "package":
-                vulns[0]["PkgName"] = "openssl"
-            else:
-                vulns[0]["InstalledVersion"] = "7.0.0-44.44"
-            with self.subTest(mutation=mutation), self.assertRaises(mod.RiskGateError):
-                self.qualify(altered)
-
-    def test_future_prs_reuse_only_existing_time_bounded_risk_scope(self):
-        for number in (1, 48, 62, 71, 74, 75, 9999):
-            with self.subTest(pr_number=number):
-                decision = self.qualify(pr_number=number, ref=f"refs/pull/{number}/merge")
-                self.assertEqual(decision["known_cves_observed"], 295)
-                self.assertEqual(decision["expiry_utc"], "2026-11-26T00:00:00+00:00")
-        for number, ref in ((0, "refs/pull/0/merge"), (-1, "refs/pull/-1/merge"),
-                            (75, "refs/pull/74/merge"), (75, "refs/pull/75/head"),
-                            (75, "refs/heads/main")):
-            with self.subTest(invalid=(number, ref)), self.assertRaises(mod.RiskGateError):
-                self.qualify(pr_number=number, ref=ref)
-        report = self.report()
-        report["Results"][0]["Vulnerabilities"][0]["VulnerabilityID"] = "CVE-2026-999999"
-        with self.assertRaises(mod.RiskGateError):
-            self.qualify(report, pr_number=9999, ref="refs/pull/9999/merge")
-
-    def test_pr74_does_not_extend_expiry_or_release_authority(self):
-        for version in ("7.0.0-42.42", "7.0.0-43.43"):
-            report = self.report() if version == "7.0.0-42.42" else {"Results": [{
-                "Target": "ubuntu 26.04", "Type": "ubuntu",
-                "Vulnerabilities": [{"VulnerabilityID": cve, "PkgName": "linux-libc-dev",
-                    "InstalledVersion": version, "Severity": "HIGH"}
-                    for cve in sorted(mod.ADDITIONAL_CVES)]}]}
-            decision = self.qualify(report, pr_number=74, ref="refs/pull/74/merge")
-            self.assertEqual(decision["version"], version)
-            self.assertEqual(decision["expiry_utc"], "2026-11-26T00:00:00+00:00")
-            with self.assertRaises(mod.RiskGateError):
-                self.qualify(report, pr_number=74, ref="refs/pull/74/merge",
-                    now=dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
-            with self.assertRaises(mod.RiskGateError):
-                self.qualify(report, event="push", pr_number=0, ref="refs/tags/v1.5.2-rc.1")
-            with self.assertRaises(mod.RiskGateError):
-                self.qualify(report, pr_number=74, ref="refs/pull/71/merge")
-
+    def test_legacy_main_acceptance_denied_without_authenticated_policy(self):
+        with self.assertRaisesRegex(mod.RiskGateError, "authenticated reusable policy"):
+            self.qualify(event="push", ref="refs/heads/main", pr_number=0)
+ 
     def test_release_disclosure_scope_matches_security_allowlist(self):
         for tag in ("v1.5.0", "v1.5.0-rc.1", "v1.5.1", "v1.5.1-rc.9"):
             with self.subTest(tag=tag):
@@ -133,11 +69,10 @@ class DevelopmentRiskGateTests(unittest.TestCase):
         for platform in ("linux/amd64", "linux/arm64"):
             for target in ("final", "infra", "frontend", "frontend-e2e"):
                 with self.subTest(platform=platform, target=target):
-                    result = self.qualify(pr_number=71, ref="refs/pull/71/merge",
-                                          now=dt.datetime(2026, 11, 12, tzinfo=dt.timezone.utc),
-                                          platform=platform, target=target)
-                    self.assertEqual(result["known_cves_observed"], 295)
-                    self.assertEqual(result["expiry_utc"], "2026-11-26T00:00:00+00:00")
+                    with self.assertRaises(mod.RiskGateError):
+                        self.qualify(pr_number=71, ref="refs/pull/71/merge",
+                                     now=dt.datetime(2026, 11, 12, tzinfo=dt.timezone.utc),
+                                     platform=platform, target=target)
         for event, ref, number in (
             ("pull_request", "refs/pull/69/head", 68),
             ("pull_request", "refs/pull/66/merge", 67),
