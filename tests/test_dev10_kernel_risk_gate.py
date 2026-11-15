@@ -77,18 +77,36 @@ class DevelopmentRiskGateTests(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(mod.RiskGateError):
                 self.qualify(altered)
 
-    def test_only_open_pr71_is_authorised(self):
-        self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({71}))
+    def test_only_explicit_development_prs_are_authorised(self):
+        self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({71, 74}))
         for number in (48, 50, 57, 58, 62, 63, 64, 65, 66, 67, 68, 69, 70):
             with self.subTest(merged_pr=number), self.assertRaises(mod.RiskGateError):
                 self.qualify(pr_number=number, ref=f"refs/pull/{number}/merge")
-        for number in (71,):
+        for number in (71, 74):
             with self.subTest(active_pr=number):
                 decision = self.qualify(pr_number=number, ref=f"refs/pull/{number}/merge")
                 self.assertEqual(decision["known_cves_observed"], 295)
         result = self.qualify()
         self.assertEqual(result["known_cves_observed"], 295)
         self.assertEqual(result["expiry_utc"], "2026-11-26T00:00:00+00:00")
+
+    def test_pr74_does_not_extend_expiry_or_release_authority(self):
+        for version in ("7.0.0-42.42", "7.0.0-43.43"):
+            report = self.report() if version == "7.0.0-42.42" else {"Results": [{
+                "Target": "ubuntu 26.04", "Type": "ubuntu",
+                "Vulnerabilities": [{"VulnerabilityID": cve, "PkgName": "linux-libc-dev",
+                    "InstalledVersion": version, "Severity": "HIGH"}
+                    for cve in sorted(mod.ADDITIONAL_CVES)]}]}
+            decision = self.qualify(report, pr_number=74, ref="refs/pull/74/merge")
+            self.assertEqual(decision["version"], version)
+            self.assertEqual(decision["expiry_utc"], "2026-11-26T00:00:00+00:00")
+            with self.assertRaises(mod.RiskGateError):
+                self.qualify(report, pr_number=74, ref="refs/pull/74/merge",
+                    now=dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
+            with self.assertRaises(mod.RiskGateError):
+                self.qualify(report, event="push", pr_number=0, ref="refs/tags/v1.5.2-rc.1")
+            with self.assertRaises(mod.RiskGateError):
+                self.qualify(report, pr_number=74, ref="refs/pull/71/merge")
 
     def test_release_disclosure_scope_matches_security_allowlist(self):
         for tag in ("v1.5.0", "v1.5.0-rc.1", "v1.5.1", "v1.5.1-rc.9"):
