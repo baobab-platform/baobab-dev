@@ -79,7 +79,11 @@ def verify_current_approval(pr, reviews, author):
             raise ReleaseEligibilityError("unrecognized review state")
         if not review.get("submitted_at"):
             raise ReleaseEligibilityError("submitted review timestamp missing")
-        latest[actor.casefold()] = review
+        key = actor.casefold()
+        previous = latest.get(key)
+        if previous is None or (review["submitted_at"], review.get("id", 0)) > (
+                previous["submitted_at"], previous.get("id", 0)):
+            latest[key] = review
     if not any(review["state"] == "APPROVED" and review.get("commit_id") == head
                for review in latest.values()):
         raise ReleaseEligibilityError("no current independent approval on merged head")
