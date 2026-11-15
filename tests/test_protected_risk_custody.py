@@ -89,5 +89,15 @@ class CustodyTests(unittest.TestCase):
             self.check()
 
 
+    def test_out_of_order_reviews_do_not_restore_stale_approval(self):
+        self.reviews = [
+            {"user": {"login": "checker"}, "state": "CHANGES_REQUESTED",
+             "submitted_at": "2026-11-15T10:00:00Z", "commit_id": SHA},
+            {"user": {"login": "checker"}, "state": "APPROVED",
+             "submitted_at": "2026-11-15T09:00:00Z", "commit_id": SHA},
+        ]
+        with self.assertRaises(ValueError):
+            self.check()
+
 if __name__ == "__main__":
     unittest.main()
