@@ -231,7 +231,9 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin '+refs/tags/v*:refs/tags/v*'
           python3 scripts/release_eligibility.py --tag "$GITHUB_REF_NAME"
-          python3 -m unittest -v tests/test_release_eligibility.py
+
+      - name: DEV-10 release eligibility regression tests
+        run: python3 -m unittest -v tests/test_release_eligibility.py
 
       # Mandatory on PR, main, tag and manual validation. Run before any
       # image build/publish job can consume the sanity-check result.
