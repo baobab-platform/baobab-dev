@@ -48,5 +48,15 @@ class ReleaseEligibilityTests(unittest.TestCase):
             mod.verify_current_approval(pr, [review("APPROVED")], "security-reviewer")
         with self.assertRaises(mod.ReleaseEligibilityError):
             mod.verify_current_approval(pr, [review("APPROVED")] * 100, "author")
+    def test_out_of_order_reviews_do_not_restore_stale_approval(self):
+        head = "a" * 40
+        pr = {"head": {"sha": head}}
+        approval = {"user": {"login": "checker"}, "state": "APPROVED",
+                    "commit_id": head, "submitted_at": "2026-11-15T09:00:00Z"}
+        superseding = {"user": {"login": "checker"}, "state": "COMMENTED",
+                       "commit_id": head, "submitted_at": "2026-11-15T10:00:00Z"}
+        with self.assertRaises(mod.ReleaseEligibilityError):
+            mod.verify_current_approval(pr, [superseding, approval], "maker")
+
 if __name__ == "__main__":
     unittest.main()
