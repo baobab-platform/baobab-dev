@@ -220,6 +220,17 @@ jobs:
           sudo install -m 0755 /tmp/yq /usr/local/bin/yq
           rm -f /tmp/yq
 
+      # Only tag pushes are release-eligible. GA reuses the qualified RC;
+      # RC families must carry a semantic manifest change and refreshed lock,
+      # or a narrowly declared maintenance release.
+      - name: DEV-10 release-family eligibility
+        if: steps.release-context.outputs.is_release == 'true'
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin '+refs/tags/v*:refs/tags/v*'
+          python3 scripts/release_eligibility.py --tag "$GITHUB_REF_NAME"
+          python3 -m unittest -v tests/test_release_eligibility.py
+
       # Mandatory on PR, main, tag and manual validation. Run before any
       # image build/publish job can consume the sanity-check result.
       # Covers exact workflow OIDC identity, RC inference and fail-closed
