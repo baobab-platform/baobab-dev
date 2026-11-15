@@ -26,6 +26,7 @@ jobs:
   # Retain full Trivy coverage; only exact known CVEs can be risk accepted.
   dev10-container-risk:
     name: DEV-10 / Foundation container CVE gate
+    environment: dev10-security-policy-read
     runs-on: ubuntu-26.04
     timeout-minutes: 60
     permissions:
