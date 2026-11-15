@@ -28,7 +28,7 @@ def fetch(url, token):
         return json.load(response)
 
 
-def verify(decision, pull, reviews, files, *, trusted_approvers):
+def verify(decision, pull, reviews, files, *, trusted_approvers, decision_path=None):
     require(pull.get("merged_at") and pull.get("base", {}).get("ref") == "main",
             "approval PR must be merged into protected main")
     require(pull.get("state") == "closed", "approval PR must be closed and merged")
@@ -41,9 +41,12 @@ def verify(decision, pull, reviews, files, *, trusted_approvers):
             "reviewer is not in independently configured trusted approvers")
     require(decision.get("approval_evidence") ==
             pull.get("html_url"), "decision approval PR mismatch")
-    require(any(f.get("filename", "").startswith("security/decisions/")
+    require(any(f.get("filename") == decision_path
                 and f.get("status") in ("added", "modified")
-                for f in files), "approval PR did not change protected decision records")
+                for f in files) if decision_path else any(
+                    f.get("filename", "").startswith("security/decisions/")
+                    and f.get("status") in ("added", "modified") for f in files),
+            "approval PR did not change the selected protected decision record")
     head = pull.get("head", {}).get("sha")
     require(isinstance(head, str) and re.fullmatch(r"[a-f0-9]{40}", head),
             "merged approval PR head is unavailable")
@@ -74,6 +77,9 @@ def main():
     args = p.parse_args()
     token = os.environ["GITHUB_TOKEN"]
     decision = json.loads(args.decision.read_text())
+    decision_path = args.decision.as_posix()
+    require(decision_path.startswith("security/decisions/") and ".." not in args.decision.parts,
+            "decision must be a protected repository-relative path")
     evidence = decision.get("approval_evidence", "")
     match = re.fullmatch(r"https://github\.com/baobab-platform/baobab-dev/pull/([1-9][0-9]*)", evidence)
     require(match is not None, "invalid approval evidence URL")
@@ -84,7 +90,8 @@ def main():
     require(len(reviews) < 100 and len(files) < 100,
             "pagination required: refuse incomplete approval evidence")
     verify(decision, pull, reviews, files,
-           trusted_approvers=[x.strip() for x in args.trusted_approvers.split(",") if x.strip()])
+           trusted_approvers=[x.strip() for x in args.trusted_approvers.split(",") if x.strip()],
+           decision_path=decision_path)
     print(json.dumps({"status": "approval_custody_verified", "approval_pr": evidence,
                       "reviewer": decision["approved_by"], "merged_head": pull["head"]["sha"]}))
 
