@@ -169,15 +169,16 @@ jobs:
           set -euo pipefail
           # PR/schedule defaults to latest GA. A successful tag-push
           # workflow_run instead checks that exact published RC or GA.
+          classify_release_tag() {
+            python3 scripts/release_tag_policy.py --tag "$1"
+          }
           tag="$REQUESTED_TAG"
           if [[ -z "$tag" && "$TRIGGER_EVENT" == "push" ]] &&
-             [[ "$TRIGGER_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*$ ||
-                "$TRIGGER_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+             trigger_kind=$(classify_release_tag "$TRIGGER_TAG" 2>/dev/null); then
             tag="$TRIGGER_TAG"
           fi
           if [[ -n "$tag" ]]; then
-            [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*$ ||
-               "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            release_kind=$(classify_release_tag "$tag") || {
               echo "::error::Unexpected release tag requested for integrity observer"; exit 1;
             }
             gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" > "${RUNNER_TEMP}/release.json"
@@ -189,14 +190,13 @@ jobs:
           jq -r '.body // ""' "${RUNNER_TEMP}/release.json" > "${RUNNER_TEMP}/release-body.md"
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
           echo "release_url=${RELEASE_URL}" >> "$GITHUB_OUTPUT"
-          [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*$ ||
-             "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+          release_kind=$(classify_release_tag "$TAG_NAME") || {
             echo "::error::Unexpected GitHub release tag"; exit 1;
           }
           if [[ -n "$tag" && "$TAG_NAME" != "$tag" ]]; then
             echo "::error::Release API returned wrong selected tag"; exit 1;
           fi
-          if [[ "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*$ ]]; then
+          if [[ "$release_kind" == "rc" ]]; then
             [[ "$(jq -r '.prerelease' "${RUNNER_TEMP}/release.json")" == true ]] || {
               echo "::error::RC release must be marked prerelease"; exit 1;
             }
