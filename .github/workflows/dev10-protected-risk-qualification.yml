@@ -71,7 +71,7 @@ jobs:
           fi
 
       - name: Verify evaluator negative controls
-        run: python3 -B -m unittest discover -s tests -p 'test_protected_risk_decision.py' -v
+        run: python3 -B -m unittest discover -s tests -p 'test_protected_risk*.py' -v
 
       - name: Install checksum-verified Trivy
         run: |
