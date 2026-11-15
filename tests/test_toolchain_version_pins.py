@@ -34,10 +34,7 @@ class ToolchainVersionPinTests(unittest.TestCase):
         lock = read("config/versions.lock")
         rebuild = read("scripts/build-security-clis.sh")
         for key, version in (("task", "3.54.0"), ("yq", "4.54.1")):
-            self.assertRegex(
-                manifest,
-                rf'(?m)^  {key}:\n    version: "{re.escape(version)}"$',
-            )
+            self.assertEqual(manifest_version(manifest, key), version)
             self.assertRegex(lock, rf"(?m)^export {key.upper()}_VERSION={re.escape(version)}$")
         self.assertIn('[[ "$TASK_VERSION" == 3.54.0 && "$YQ_VERSION" == 4.54.1 ]]', rebuild)
 

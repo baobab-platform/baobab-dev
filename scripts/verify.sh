@@ -598,7 +598,7 @@ fi
 
 section "GitHub"
 
-check_exact_version "GitHub CLI" gh "${GH_VERSION}" "gh --version | head -n1 | awk '{print $3}'"
+check_exact_version "GitHub CLI" gh "${GH_VERSION}" "gh --version | head -n1 | cut -d' ' -f3"
 
 if command -v gh >/dev/null; then
 

@@ -55,7 +55,7 @@ class FetchCompleteOciIndexRetryTests(unittest.TestCase):
                 "MANIFEST_RETRY_MAX_DELAY": "0",
             })
             result = subprocess.run(
-                [str(SCRIPT), "ghcr.io/baobab-platform/baobab-dev", "sha256:" + "c" * 64],
+                ["bash", str(SCRIPT), "ghcr.io/baobab-platform/baobab-dev", "sha256:" + "c" * 64],
                 text=True, capture_output=True, env=env, check=False, timeout=10,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
