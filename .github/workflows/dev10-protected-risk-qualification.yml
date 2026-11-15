@@ -22,9 +22,6 @@ on:
       decision_path:
         description: Protected default-branch decision JSON under security/decisions/
         required: true
-      decision_sha256:
-        description: SHA-256 recorded by independent policy custodian
-        required: true
 
 permissions:
   contents: read
@@ -80,7 +77,7 @@ jobs:
       - name: Evaluate against independently protected policy
         env:
           DECISION_PATH: ${{ inputs.decision_path }}
-          DECISION_SHA: ${{ inputs.decision_sha256 }}
+          DECISION_SHA: ${{ vars.DEV10_PROTECTED_DECISION_SHA256 }}
           IMAGE_DIGEST: ${{ inputs.image_digest }}
           PROFILE: ${{ inputs.profile }}
           ARCH: ${{ inputs.architecture }}
