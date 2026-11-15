@@ -1271,7 +1271,7 @@ RUN mv /tmp/baobab-pip.whl /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
 # framework-version-agnostic.
 # 5. Flutter + Dart (copied from the flutter-sdk builder stage)
 # -----------------------------------------------------------------------------
-COPY --from=flutter-sdk /opt/flutter-tmp /opt/flutter
+COPY --chown=1000:1000 --from=flutter-sdk /opt/flutter-tmp /opt/flutter
 ENV PUB_CACHE=/opt/flutter/.pub-cache
 
 # Pre-fetch platform-independent Flutter/Dart artifacts so first-run inside
@@ -1534,7 +1534,6 @@ ENV JAVA_HOME="/opt/java" \
 # Give the vscode user ownership of the entire Flutter SDK (not just the
 # pub-cache) so `flutter`/`dart` can update internal lockfiles, engine
 # caches, and version state without needing sudo at runtime.
-RUN chown -R vscode:vscode /opt/flutter
 
 # -----------------------------------------------------------------------------
 # 11. Shell enhancements: completions, aliases, colored prompt, history
