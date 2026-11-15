@@ -65,6 +65,25 @@ class ToolchainVersionPinTests(unittest.TestCase):
         self.assertNotIn('grep -F "v$COSIGN_VERSION" /out/cosign.version', rebuild)
         self.assertIn("apt-get install -y --no-install-recommends ca-certificates curl tar git make", dockerfile)
 
+    def test_flutter_runtime_caches_are_writable_without_full_sdk_chown(self):
+        dockerfile = read(".devcontainer/docker/Dockerfile")
+        self.assertIn(
+            "COPY --chown=1000:1000 --from=flutter-sdk /opt/flutter-tmp /opt/flutter",
+            dockerfile,
+        )
+        flutter_preload = dockerfile.split(
+            "RUN git config --system --add safe.directory /opt/flutter", 1
+        )[1].split("# 6. PostgreSQL", 1)[0]
+        self.assertIn("mkdir -p /opt/flutter/bin/cache /opt/flutter/.pub-cache", flutter_preload)
+        self.assertIn(
+            "chown -R 1000:1000 /opt/flutter/bin/cache /opt/flutter/.pub-cache",
+            flutter_preload,
+        )
+        self.assertNotIn("RUN chown -R vscode:vscode /opt/flutter", dockerfile)
+        # The build-time verifier runs as vscode and exercises flutter/dart
+        # version commands, which update the engine stamp in bin/cache.
+        self.assertIn("RUN baobab-verify", dockerfile)
+
     def test_locked_runtime_and_package_managers_are_checked_exactly(self):
         lock = read("config/versions.lock")
         verifier = read("scripts/verify.sh")

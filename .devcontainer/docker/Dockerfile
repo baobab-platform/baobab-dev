@@ -1295,9 +1295,16 @@ ENV PUB_CACHE=/opt/flutter/.pub-cache
 # Invoked via absolute path rather than relying on PATH: PATH is defined
 # exactly once, in its final complete form, in section 11 below — Flutter
 # isn't on it yet at this point in the build.
+# Flutter's update_engine_version.sh atomically writes bin/cache/engine.stamp,
+# even for `flutter --version`. COPY --chown gives the SDK to UID 1000, but the
+# root-run precache above creates root-owned mutable cache files. Restore
+# ownership only on the runtime caches in this existing layer; do not add a
+# second recursive chown of the entire SDK.
 RUN git config --system --add safe.directory /opt/flutter && \
     /opt/flutter/bin/flutter config --no-analytics --no-cli-animations && \
     /opt/flutter/bin/flutter precache --universal --no-android --no-ios --no-fuchsia && \
+    mkdir -p /opt/flutter/bin/cache /opt/flutter/.pub-cache && \
+    chown -R 1000:1000 /opt/flutter/bin/cache /opt/flutter/.pub-cache && \
     chmod -R a+rX /opt/flutter
 
 # -----------------------------------------------------------------------------
@@ -1528,9 +1535,8 @@ ENV JAVA_HOME="/opt/java" \
     POETRY_NO_INTERACTION=1 \
     BAOBAB_BUILD_PROFILE=full
 
-# Give the vscode user ownership of the entire Flutter SDK (not just the
-# pub-cache) so `flutter`/`dart` can update internal lockfiles, engine
-# caches, and version state without needing sudo at runtime.
+# The SDK itself retains its COPY --chown=1000:1000 ownership. Only the
+# mutable cache trees are reassigned after the root-run precache above.
 
 # -----------------------------------------------------------------------------
 # 11. Shell enhancements: completions, aliases, colored prompt, history
