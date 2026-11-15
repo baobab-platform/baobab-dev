@@ -113,6 +113,13 @@ package_managers:
     # Node 26 does not bundle Corepack. Exact package + npm-registry integrity
     # is mandatory, before any noninteractive pnpm activation.
 
+  yarn:
+    version: "4.18.1"
+    source: "corepack"
+    # Pin the official Yarn Berry release explicitly; never resolve @stable
+    # during image construction. Corepack activation is qualified by the
+    # exact-version image verifier and consumer packageManager contract.
+
   npm:
     version: "latest"
     source: "npm"
