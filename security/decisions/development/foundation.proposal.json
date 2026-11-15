@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "status": "pending_independent_review",
+  "revoked_at": null,
+  "repository": "baobab-platform/baobab-dev",
+  "image_repository": "ghcr.io/baobab-platform/baobab-dev",
+  "environment": "development",
+  "profiles": [
+    "final"
+  ],
+  "architectures": [
+    "linux/amd64"
+  ],
+  "approval_id": null,
+  "prepared_by": null,
+  "approved_by": null,
+  "approval_evidence": null,
+  "approved_at": null,
+  "expires_at": null,
+  "findings": [],
+  "notes": "PROPOSAL ONLY. Not an approved policy. Reconcile issue #54 and PRs #62/#71, extract exact current Trivy scan inventory (including package version, severity, ecosystem), obtain an independent GitHub PR approval, then publish immutable approved foundation.json and provision its SHA-256 in protected environment. Do not rename or use this draft as an exception."
+}
