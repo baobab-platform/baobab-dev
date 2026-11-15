@@ -99,7 +99,8 @@ def evaluate(decision: dict | None, report: dict, *, image_repository: str,
     demand(now.tzinfo is not None, "timezone-aware clock required")
     demand(environment == "development", "risk decisions are development-only")
     demand(image_repository == IMAGE_REPOSITORY, "unapproved image repository")
-    demand(bool(DIGEST.fullmatch(image_digest)), "immutable image digest required")
+    demand(isinstance(image_digest, str) and bool(DIGEST.fullmatch(image_digest)),
+           "immutable image digest required")
     demand(profile in PROFILES and architecture in ARCHES, "unknown profile or architecture")
     demand(expected_trivy_version == TRIVY_VERSION, "unqualified Trivy version")
     demand(isinstance(report, dict), "invalid Trivy report")
@@ -154,8 +155,16 @@ def evaluate(decision: dict | None, report: dict, *, image_repository: str,
            "image repository is outside the approved risk scope")
     demand(decision.get("environment") == environment,
            "environment is outside the approved risk scope")
-    demand(profile in decision.get("profiles", []), "image profile is outside the approved risk scope")
-    demand(architecture in decision.get("architectures", []),
+    approved_profiles = decision.get("profiles")
+    approved_architectures = decision.get("architectures")
+    demand(isinstance(approved_profiles, list) and bool(approved_profiles)
+           and all(item in PROFILES for item in approved_profiles),
+           "invalid approved image profile scope")
+    demand(isinstance(approved_architectures, list) and bool(approved_architectures)
+           and all(item in ARCHES for item in approved_architectures),
+           "invalid approved architecture scope")
+    demand(profile in approved_profiles, "image profile is outside the approved risk scope")
+    demand(architecture in approved_architectures,
            "architecture is outside the approved risk scope")
 
     approval_id = decision.get("approval_id")
@@ -223,9 +232,10 @@ def main() -> int:
         report = json.loads(raw_report)
         decision = None
         policy_sha256 = None
+        scan_results = report.get("Results") if isinstance(report, dict) else None
         has_findings = any(
             isinstance(item, dict) and bool(item.get("Vulnerabilities"))
-            for item in (report.get("Results") or []) if isinstance(report, dict)
+            for item in (scan_results or [])
         )
         if has_findings:
             demand(args.decision is not None, "risk decision file is required for HIGH/CRITICAL findings")
@@ -246,7 +256,7 @@ def main() -> int:
             report_sha256=hashlib.sha256(raw_report).hexdigest(),
         )
         exit_code = 0
-    except (DecisionDenied, OSError, ValueError, TypeError, KeyError) as exc:
+    except (DecisionDenied, OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
         result = {"status": "denied", "reason": str(exc)}
         print("SECURITY DENIED:", exc, file=sys.stderr)
         exit_code = 2

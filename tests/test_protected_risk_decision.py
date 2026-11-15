@@ -160,10 +160,18 @@ class ProtectedDecisionTests(unittest.TestCase):
                 self.evaluate(decision=decision)
 
     def test_profile_and_architecture_scope_are_enforced(self):
-        for changes in ({"profile": "infra"}, {"architecture": "linux/arm64"}):
-            with self.subTest(changes=changes), self.assertRaises(policy.DecisionDenied):
-                self.evaluate(decision={**self.decision, "profiles": ["final"],
-                                        "architectures": ["linux/amd64"]}, **changes)
+        with self.assertRaises(policy.DecisionDenied):
+            self.evaluate(decision={**self.decision, "profiles": ["frontend"]},
+                          profile="final")
+        report = copy.deepcopy(self.report)
+        report["Metadata"]["ImageConfig"]["architecture"] = "arm64"
+        with self.assertRaises(policy.DecisionDenied):
+            self.evaluate(decision={**self.decision, "architectures": ["linux/amd64"]},
+                          report=report, architecture="linux/arm64")
+        decision = copy.deepcopy(self.decision)
+        decision["profiles"] = "final"
+        with self.assertRaises(policy.DecisionDenied):
+            self.evaluate(decision=decision)
 
     def test_invalid_cve_types_and_duplicate_policy_findings_are_denied(self):
         decision = copy.deepcopy(self.decision)
