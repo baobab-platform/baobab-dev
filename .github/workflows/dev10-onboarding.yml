@@ -80,6 +80,8 @@ jobs:
             "$IMAGE_REF" bash -c '
               set -euo pipefail
               mkdir -p "$HOME"
+              # This exercises the published v1.5.1 image baseline (pnpm 12.16.1).
+              # The branch's newer 12.21.0 pin is qualified by source and candidate-image builds.
               cp -R tests/fixtures/pnpm-workspace /tmp/dev10-workspace
               mv /tmp/dev10-workspace/package.json.fixture /tmp/dev10-workspace/package.json
               mv /tmp/dev10-workspace/frontend/package.json.fixture /tmp/dev10-workspace/frontend/package.json
