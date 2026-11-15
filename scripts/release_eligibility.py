@@ -60,6 +60,31 @@ def manifest(ref):
     raw = run("git", "show", f"{ref}:config/versions.yaml")
     return json.loads(run("yq", "eval", "-o=json", ".", "-", input=raw))
 
+def verify_current_approval(pr, reviews, author):
+    """Require a live independent approval on the exact merged PR head."""
+    if not isinstance(reviews, list) or len(reviews) >= 100:
+        raise ReleaseEligibilityError("incomplete or invalid review history")
+    head = (pr.get("head") or {}).get("sha")
+    if not isinstance(head, str) or not re.fullmatch(r"[0-9a-f]{40}", head):
+        raise ReleaseEligibilityError("merged PR head is unavailable")
+    latest = {}
+    for review in reviews:
+        if not isinstance(review, dict):
+            raise ReleaseEligibilityError("malformed review evidence")
+        actor = (review.get("user") or {}).get("login")
+        state = review.get("state")
+        if not actor or actor.casefold() == str(author).casefold() or state == "PENDING":
+            continue
+        if state not in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED", "DISMISSED"):
+            raise ReleaseEligibilityError("unrecognized review state")
+        if not review.get("submitted_at"):
+            raise ReleaseEligibilityError("submitted review timestamp missing")
+        latest[actor.casefold()] = review
+    if not any(review["state"] == "APPROVED" and review.get("commit_id") == head
+               for review in latest.values()):
+        raise ReleaseEligibilityError("no current independent approval on merged head")
+
+
 def maintenance(family, previous):
     if not EXCEPTION.is_file():
         return False
@@ -98,19 +123,7 @@ def maintenance(family, previous):
     if not pr.get("merged") or not isinstance(merged_sha, str):
         raise ReleaseEligibilityError("maintenance exception PR is not merged")
     run("git", "merge-base", "--is-ancestor", merged_sha, "HEAD")
-    # Evaluate the latest submitted decision per reviewer; a withdrawn or
-    # subsequently rejected approval must not be treated as current authority.
-    if not isinstance(reviews, list):
-        raise ReleaseEligibilityError("invalid maintenance PR reviews")
-    latest = {}
-    for review in reviews:
-        if not isinstance(review, dict):
-            continue
-        actor = (review.get("user") or {}).get("login")
-        if actor and actor != author and review.get("state") in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED"):
-            latest[actor] = review["state"]
-    if "APPROVED" not in latest.values():
-        raise ReleaseEligibilityError("maintenance exception lacks current independent PR approval")
+    verify_current_approval(pr, reviews, author)
     return True
 
 def main():
