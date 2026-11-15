@@ -139,7 +139,6 @@ class ProtectedDecisionTests(unittest.TestCase):
             ("VulnerabilityID", "CVE-2026-99999"),
             ("Severity", "CRITICAL"), ("PkgName", "openssl"),
             ("InstalledVersion", "9.9"), ("FixedVersion", "7.0.0-44.44"),
-            ("Type", "alpine"),
         ):
             report = copy.deepcopy(self.report)
             report["Results"][0]["Vulnerabilities"][0][field] = value
@@ -151,6 +150,12 @@ class ProtectedDecisionTests(unittest.TestCase):
         report["Results"].append(copy.deepcopy(report["Results"][0]))
         result = self.evaluate(report=report)
         self.assertEqual(result["observed_findings"], 1)
+
+    def test_package_ecosystem_type_is_part_of_policy_identity(self):
+        report = copy.deepcopy(self.report)
+        report["Results"][0]["Type"] = "alpine"
+        with self.assertRaises(policy.DecisionDenied):
+            self.evaluate(report=report)
 
     def test_subset_of_approved_findings_is_allowed_after_partial_remediation(self):
         result = self.evaluate()

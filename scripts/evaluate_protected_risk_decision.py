@@ -51,7 +51,7 @@ def _timestamp(decision: dict, field: str) -> dt.datetime:
     return parsed
 
 
-def _finding_key(finding: dict) -> tuple[str, str, str, str]:
+def _finding_key(finding: dict) -> tuple[str, str, str, str, str]:
     demand(isinstance(finding, dict), "invalid vulnerability finding")
     cve, package, version, severity, package_type = (
         finding.get("cve"), finding.get("package"),
@@ -111,7 +111,7 @@ def evaluate(decision: dict | None, report: dict, *, image_repository: str,
     results = report.get("Results")
     demand(isinstance(results, list) and bool(results),
            "missing Trivy result inventory; scan cannot be treated as clean")
-    observed: set[tuple[str, str, str, str]] = set()
+    observed: set[tuple[str, str, str, str, str]] = set()
     for result in results:
         demand(isinstance(result, dict) and isinstance(result.get("Target"), str),
                "invalid Trivy scan target")
@@ -193,7 +193,7 @@ def evaluate(decision: dict | None, report: dict, *, image_repository: str,
     expected_findings = decision.get("findings")
     demand(isinstance(expected_findings, list) and bool(expected_findings),
            "approved finding inventory is missing")
-    approved: set[tuple[str, str, str, str]] = set()
+    approved: set[tuple[str, str, str, str, str]] = set()
     for finding in expected_findings:
         key = _finding_key(finding)
         demand(key not in approved, "duplicate finding in approved risk inventory")
