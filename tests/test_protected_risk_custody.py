@@ -71,6 +71,18 @@ class CustodyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.check()
 
+    def test_approval_must_modify_selected_decision(self):
+        self.files = [{"filename": "security/decisions/unrelated.json", "status": "added"}]
+        with self.assertRaises(ValueError):
+            mod.verify(self.decision, self.pull, self.reviews, self.files,
+                       trusted_approvers=["checker"],
+                       decision_path="security/decisions/development/foundation.json")
+
+    def test_approval_exact_decision_path(self):
+        mod.verify(self.decision, self.pull, self.reviews, self.files,
+                   trusted_approvers=["checker"],
+                   decision_path="security/decisions/decision.json")
+
     def test_unrelated_pr_denied(self):
         self.files = [{"filename": "README.md", "status": "modified"}]
         with self.assertRaises(ValueError):
