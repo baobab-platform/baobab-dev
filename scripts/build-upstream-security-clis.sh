@@ -1,46 +1,112 @@
 #!/usr/bin/env bash
-# Rebuild upstream gh/cosign from exact reviewed Git commit trees, with the
-# fixed x/net module. No vulnerable release binary is copied into the image.
+# Rebuild upstream gh/cosign from exact reviewed release-tag commits.
+# Release metadata comes from versions.lock; no binary is accepted as "DEV".
 set -euo pipefail
 export PATH="/build/go/bin:$PATH" GOTOOLCHAIN=local CGO_ENABLED=0
 export GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org
+
+# The lock is the sole version source. The pinned source commits below are
+# independently checked against the corresponding upstream release tags.
+# shellcheck disable=SC1091
+. /build/versions.lock
+: "$GH_VERSION" "$COSIGN_VERSION"
+
 go version | grep -F 'go1.27.3'
 mkdir -p /out
-for tool in gh cosign; do
-  case "$tool" in
-    gh)
-      repo=https://github.com/cli/cli.git
-      commit=89d7dcec017194af1d6f8853176b2dae9c1da762
-      package=./cmd/gh ;;
-    cosign)
-      repo=https://github.com/sigstore/cosign.git
-      commit=0e48502cf5ef34e2e60bbd3617aa19945712f705
-      package=./cmd/cosign ;;
-  esac
-  dest="/build/upstream-$tool"
+
+prepare_source() {
+  local tool="$1" repo="$2" commit="$3" version="$4"
+  local dest="/build/upstream-$tool" tag_commit source_date_epoch
+
   mkdir -p "$dest"
   git -C "$dest" init -q
   git -C "$dest" remote add origin "$repo"
   git -C "$dest" fetch --depth 1 origin "$commit"
   git -C "$dest" checkout --detach -q FETCH_HEAD
+
   [[ "$(git -C "$dest" rev-parse HEAD)" == "$commit" ]] || {
-    echo "::error::Upstream $tool source commit mismatch" >&2; exit 1;
+    echo "::error::Upstream $tool source commit mismatch" >&2
+    exit 1
   }
-  cd "$dest"
-  # Upstream released binaries embed x/net 0.60.0/0.61.0 respectively.
-  # Resolve and verify the fixed graph against the Go checksum database.
-  go get golang.org/x/net@v0.62.0
-  go mod tidy
-  go mod verify
-  selected="$(go list -m -f '{{.Version}}' golang.org/x/net)"
-  [[ "$selected" == "v0.62.0" ]] || {
-    echo "::error::$tool selected x/net $selected, not v0.62.0" >&2; exit 1;
+
+  git -C "$dest" fetch --depth 1 origin "refs/tags/v$version"
+  tag_commit="$(git -C "$dest" rev-parse 'FETCH_HEAD^{commit}')"
+  [[ "$tag_commit" == "$commit" ]] || {
+    echo "::error::Upstream $tool tag v$version resolves to $tag_commit, expected $commit" >&2
+    exit 1
   }
-  go build -trimpath -buildvcs=false -ldflags="-s -w" -o "/out/$tool" "$package"
-  go version -m "/out/$tool" | tee "/out/$tool.buildinfo"
-  grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' "/out/$tool.buildinfo"
-  "/out/$tool" version > "/out/$tool.version" 2>&1 || {
-    # Some upstream CLIs use --version rather than the version subcommand.
-    "/out/$tool" --version > "/out/$tool.version"
-  }
-done
+  git -C "$dest" checkout --detach -q "$commit"
+
+  source_date_epoch="$(git -C "$dest" show -s --format=%ct HEAD)"
+  printf '%s\n' "$source_date_epoch"
+}
+
+verify_fixed_xnet() {
+  local tool="$1" dest="$2" selected
+  (
+    cd "$dest"
+    # The upstream release source is retained, with only the reviewed x/net
+    # security override applied and verified against the Go checksum database.
+    go get golang.org/x/net@v0.62.0
+    go mod tidy
+    go mod verify
+    selected="$(go list -m -f '{{.Version}}' golang.org/x/net)"
+    [[ "$selected" == "v0.62.0" ]] || {
+      echo "::error::$tool selected x/net $selected, not v0.62.0" >&2
+      exit 1
+    }
+  )
+}
+
+build_gh() {
+  local repo="https://github.com/cli/cli.git"
+  local commit="89d7dcec017194af1d6f8853176b2dae9c1da762"
+  local dest="/build/upstream-gh" source_date_epoch
+
+  source_date_epoch="$(prepare_source gh "$repo" "$commit" "$GH_VERSION")"
+  verify_fixed_xnet gh "$dest"
+
+  (
+    cd "$dest"
+    # Use GitHub CLI's own build task so Version and Date are injected using
+    # the same linker variables as upstream release builds.
+    go run script/build.go bin/gh \
+      "GH_VERSION=$GH_VERSION" \
+      "SOURCE_DATE_EPOCH=$source_date_epoch"
+  )
+
+  install -m 0755 "$dest/bin/gh" /out/gh
+  go version -m /out/gh | tee /out/gh.buildinfo
+  grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' /out/gh.buildinfo
+
+  /out/gh version > /out/gh.version 2>&1 || /out/gh --version > /out/gh.version 2>&1
+  grep -F "gh version $GH_VERSION" /out/gh.version
+}
+
+build_cosign() {
+  local repo="https://github.com/sigstore/cosign.git"
+  local commit="0e48502cf5ef34e2e60bbd3617aa19945712f705"
+  local dest="/build/upstream-cosign" source_date_epoch
+
+  source_date_epoch="$(prepare_source cosign "$repo" "$commit" "$COSIGN_VERSION")"
+  verify_fixed_xnet cosign "$dest"
+
+  (
+    cd "$dest"
+    # Cosign's Makefile is its authoritative release build: it injects
+    # GitVersion, GitCommit, GitTreeState and reproducible BuildDate.
+    GIT_VERSION="v$COSIGN_VERSION" \
+      SOURCE_DATE_EPOCH="$source_date_epoch" \
+      make cosign
+  )
+
+  install -m 0755 "$dest/cosign" /out/cosign
+  go version -m /out/cosign | tee /out/cosign.buildinfo
+  grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' /out/cosign.buildinfo
+
+  /out/cosign version > /out/cosign.version 2>&1
+  grep -Eq "^GitVersion:[[:space:]]+v$COSIGN_VERSION$" /out/cosign.version
+}
+
+build_gh
+build_cosign

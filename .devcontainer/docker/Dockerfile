@@ -279,12 +279,12 @@ RUN set -euo pipefail; \
 # filenames also come exclusively from versions.lock's *_ASSET_* variables,
 # not reconstructed inline, so a filename typo simply 404s at build time
 # instead of silently verifying against the wrong file.
-# Security rebuild of the adopted Task/yq releases; project Go baselines do
-# not change. Sources, compiler and patched dependency graphs are pinned.
+# Security rebuild of adopted GitHub CLI, Cosign, Task and yq releases.
+# Source commits, release tags, compiler and patched dependency graphs are pinned.
 FROM ubuntu:${UBUNTU_VERSION} AS patched-go-clis
 ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tar git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tar git make && rm -rf /var/lib/apt/lists/*
 COPY config/versions.lock /build/versions.lock
 COPY config/security/ /build/security/
 COPY scripts/build-security-clis.sh /build/build-security-clis.sh

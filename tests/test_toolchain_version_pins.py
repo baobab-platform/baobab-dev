@@ -40,6 +40,24 @@ class ToolchainVersionPinTests(unittest.TestCase):
             self.assertRegex(lock, rf"(?m)^export {key.upper()}_VERSION={re.escape(version)}$")
         self.assertIn('[[ "$TASK_VERSION" == 3.54.0 && "$YQ_VERSION" == 4.54.1 ]]', rebuild)
 
+    def test_upstream_security_cli_rebuilds_embed_locked_release_metadata(self):
+        lock = read("config/versions.lock")
+        rebuild = read("scripts/build-upstream-security-clis.sh")
+        dockerfile = read(".devcontainer/docker/Dockerfile")
+
+        self.assertIn("export GH_VERSION=2.102.1", lock)
+        self.assertIn("export COSIGN_VERSION=3.1.4", lock)
+        self.assertIn(". /build/versions.lock", rebuild)
+        self.assertIn('git -C "$dest" fetch --depth 1 origin "refs/tags/v$version"', rebuild)
+        self.assertIn("go run script/build.go bin/gh", rebuild)
+        self.assertIn('"GH_VERSION=$GH_VERSION"', rebuild)
+        self.assertIn('"SOURCE_DATE_EPOCH=$source_date_epoch"', rebuild)
+        self.assertIn('GIT_VERSION="v$COSIGN_VERSION"', rebuild)
+        self.assertIn("make cosign", rebuild)
+        self.assertIn('grep -F "gh version $GH_VERSION"', rebuild)
+        self.assertIn('grep -Eq "^GitVersion:[[:space:]]+v$COSIGN_VERSION$"', rebuild)
+        self.assertIn("apt-get install -y --no-install-recommends ca-certificates curl tar git make", dockerfile)
+
     def test_locked_runtime_and_package_managers_are_checked_exactly(self):
         lock = read("config/versions.lock")
         verifier = read("scripts/verify.sh")
