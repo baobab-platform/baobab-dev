@@ -29,5 +29,24 @@ class ReleaseEligibilityTests(unittest.TestCase):
             mod.decide("v1.5.2-beta.1", self.tags, True, True)
     def test_numeric_previous_ga(self):
         self.assertEqual(mod.previous_ga("v2.0.0", ["v1.9.0", "v1.10.0"]), "v1.10.0")
+    def test_current_head_review_transitions(self):
+        head = "a" * 40
+        pr = {"head": {"sha": head}}
+        def review(state, sha=head):
+            return {"user": {"login": "security-reviewer"}, "state": state,
+                    "commit_id": sha, "submitted_at": "2026-11-15T12:00:00Z"}
+        mod.verify_current_approval(pr, [review("APPROVED")], "author")
+        for sequence in (
+            [review("APPROVED", "b" * 40)],
+            [review("APPROVED"), review("COMMENTED")],
+            [review("APPROVED"), review("CHANGES_REQUESTED")],
+            [review("APPROVED"), review("DISMISSED")],
+        ):
+            with self.subTest(sequence=sequence), self.assertRaises(mod.ReleaseEligibilityError):
+                mod.verify_current_approval(pr, sequence, "author")
+        with self.assertRaises(mod.ReleaseEligibilityError):
+            mod.verify_current_approval(pr, [review("APPROVED")], "security-reviewer")
+        with self.assertRaises(mod.ReleaseEligibilityError):
+            mod.verify_current_approval(pr, [review("APPROVED")] * 100, "author")
 if __name__ == "__main__":
     unittest.main()
