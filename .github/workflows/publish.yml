@@ -1971,6 +1971,7 @@ jobs:
       contents: read
       packages: write
       actions: read
+      pull-requests: read
     steps:
       - name: Refuse promotion until independently protected environment is configured
         env:
@@ -2105,6 +2106,9 @@ jobs:
 
       - name: Verify all candidate records, signatures and expected release labels
         env:
+          TRUSTED_POLICY_SHA: ${{ vars.DEV10_PROTECTED_DECISION_SHA256 }}
+          TRUSTED_APPROVERS: ${{ vars.DEV10_SECURITY_APPROVER_LOGINS }}
+          GITHUB_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
         run: |
           set -euo pipefail
@@ -2147,15 +2151,36 @@ jobs:
             trivy image --scanners vuln --pkg-types os,library --list-all-pkgs \
               --severity HIGH,CRITICAL --format json \
               --output "$RUNNER_TEMP/security-$target.json" "$image@$digest"
+            # A release scan with residual HIGH/CRITICAL findings must be
+            # authorized by a protected, hash-pinned and independently reviewed
+            # policy. No legacy free-text release decision is accepted.
             decision_file="security/decisions/$RELEASE_TAG/$target.json"
             decision_args=()
             if [[ -f "$decision_file" ]]; then
-              decision_args=(--decision "$decision_file")
+              [[ -n "$TRUSTED_POLICY_SHA" && -n "$TRUSTED_APPROVERS" ]] || {
+                echo "::error::Protected risk trust anchor and reviewer configuration required"; exit 2;
+              }
+              python3 scripts/verify_protected_risk_custody.py \
+                --decision "$decision_file" --trusted-approvers "$TRUSTED_APPROVERS"
+              decision_args=(--decision "$decision_file" --trusted-decision-sha256 "$TRUSTED_POLICY_SHA")
             fi
-            python3 scripts/verify_digest_security_decision.py \
-              --report "$RUNNER_TEMP/security-$target.json" \
-              --target "$target" --digest "$digest" --release-tag "$RELEASE_TAG" \
-              "${decision_args[@]}" > "$RUNNER_TEMP/security-decision-$target.json"
+            # This evaluator only permits development-scoped policy decisions;
+            # no staging/production authority is implied by promotion.
+            # The scan must identify the immutable GHCR digest and architecture.
+            for architecture in linux/amd64 linux/arm64; do
+              child=$(jq -r --arg arch "${architecture#linux/}" '.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest' "$RUNNER_TEMP/verified-$target-index.json")
+              [[ "$child" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::Missing exact architecture child digest"; exit 2; }
+              trivy image --scanners vuln,secret --pkg-types os,library \
+                --severity HIGH,CRITICAL --ignorefile /dev/null --format json \
+                --output "$RUNNER_TEMP/security-$target-${architecture#linux/}.json" "$image@$child"
+              python3 scripts/evaluate_protected_risk_decision.py \
+                --report "$RUNNER_TEMP/security-$target-${architecture#linux/}.json" \
+                --image-repository "$image" --digest "$child" \
+                --profile "$target" --architecture "$architecture" \
+                --environment development \
+                "${decision_args[@]}" \
+                --result-output "$RUNNER_TEMP/security-decision-$target-${architecture#linux/}.json"
+            done
             bash scripts/verify-image.sh "$image@$digest" "$verification_tag"
             echo "::notice::Promotion precheck: $target digest $digest verified"
           done
