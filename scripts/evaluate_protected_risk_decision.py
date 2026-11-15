@@ -69,7 +69,7 @@ def evaluate(decision: dict, report: dict, *, image_digest: str,
     for finding in expected:
         demand(isinstance(finding, dict), "invalid approved finding")
         key = (finding.get("cve"), finding.get("package"), finding.get("version"), finding.get("severity"))
-        demand(bool(CVE.fullmatch(key[0] or "")) and all(isinstance(v, str) and v for v in key), "invalid finding identity")
+        demand(isinstance(key[0], str) and bool(CVE.fullmatch(key[0])) and all(isinstance(v, str) and v for v in key), "invalid finding identity")
         demand(key not in approved_findings, "duplicate approved finding")
         approved_findings.add(key)
     demand(isinstance(report.get("Results"), list) and report["Results"], "missing Trivy results")
