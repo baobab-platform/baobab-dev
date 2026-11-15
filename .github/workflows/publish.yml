@@ -951,8 +951,8 @@ jobs:
             "${{ matrix.target }}" "${{ matrix.platform }}"
           # Trivy is NEVER bypassed for tagged images. A real finding (rc=1)
           # can only be accepted by the same independent exact-CVE gate as
-          # local PR scans, bounded to owner-approved v1.5.0 development
-          # distribution and expiring 2026-11-26 UTC. Different versions,
+          # local PR scans, bounded to the owner-approved v1.5.0/v1.5.1
+          # development-image allow-list and expiring 2026-11-26 UTC. Different versions,
           # vulnerabilities, available fixes, secrets, or tool failures deny.
           if (( rc != 0 )); then
             if (( rc != 1 )); then
