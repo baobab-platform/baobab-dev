@@ -179,6 +179,14 @@ class ProtectedDecisionTests(unittest.TestCase):
         with self.assertRaises(policy.DecisionDenied):
             self.evaluate(report=report)
 
+    def test_issue_reference_cannot_substitute_for_decision_approval(self):
+        decision = copy.deepcopy(self.decision)
+        decision["approval_evidence"] = (
+            "https://github.com/baobab-platform/baobab-dev/issues/54"
+        )
+        with self.assertRaises(policy.DecisionDenied):
+            self.evaluate(decision=decision)
+
     def test_revocation_expiry_context_and_maker_checker_are_enforced(self):
         mutations = (
             ("status", "revoked"), ("revoked_at", "2026-11-14T12:00:00Z"),
