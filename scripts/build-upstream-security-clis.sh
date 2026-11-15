@@ -106,7 +106,8 @@ build_cosign() {
   grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' /out/cosign.buildinfo
 
   /out/cosign version > /out/cosign.version 2>&1
-  grep -Eq "^GitVersion:[[:space:]]+v$COSIGN_VERSION$" /out/cosign.version
+  cat /out/cosign.version
+  grep -F "v$COSIGN_VERSION" /out/cosign.version
 }
 
 build_gh

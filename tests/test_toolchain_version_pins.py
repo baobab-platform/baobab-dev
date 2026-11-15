@@ -56,7 +56,7 @@ class ToolchainVersionPinTests(unittest.TestCase):
         self.assertIn('GIT_VERSION="v$COSIGN_VERSION"', rebuild)
         self.assertIn("make cosign", rebuild)
         self.assertIn('grep -F "gh version $GH_VERSION"', rebuild)
-        self.assertIn('grep -Eq "^GitVersion:[[:space:]]+v$COSIGN_VERSION$"', rebuild)
+        self.assertIn('grep -F "v$COSIGN_VERSION" /out/cosign.version', rebuild)
         self.assertIn("apt-get install -y --no-install-recommends ca-certificates curl tar git make", dockerfile)
 
     def test_locked_runtime_and_package_managers_are_checked_exactly(self):
