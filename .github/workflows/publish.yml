@@ -175,11 +175,8 @@ jobs:
           fi
 
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == refs/tags/* ]]; then
-            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
-               [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*$ ]]; then
-              echo "::error::Only GA or numbered RC semver can publish; other prereleases are denied."
-              exit 1
-            fi
+            # release_tag_policy.py is the single syntax/channel authority.
+            # The following ancestry gate invokes it before any build job starts.
             echo "release_tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
             echo "is_release=true" >> "$GITHUB_OUTPUT"
             echo "is_stable_release=$(is_stable_release "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
