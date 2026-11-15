@@ -49,6 +49,12 @@ APPROVED_DEVELOPMENT_IMAGE_REFS = frozenset({"refs/tags/v1.5.0", "refs/tags/v1.5
 APPROVED_DEVELOPMENT_RC_REF = re.compile(r"^refs/tags/v1[.]5[.](?:0|1)-rc[.][1-9][0-9]*$")
 
 
+def is_approved_development_image_ref(tag: str) -> bool:
+    """Return whether a release tag is explicitly in the development-risk scope."""
+    ref = f"refs/tags/{tag}"
+    return ref in APPROVED_DEVELOPMENT_IMAGE_REFS or APPROVED_DEVELOPMENT_RC_REF.fullmatch(ref) is not None
+
+
 class RiskGateError(ValueError):
     pass
 
@@ -85,8 +91,7 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
                            and ref == f"refs/pull/{pr_number}/merge")
     is_dev_main = event == "push" and ref == "refs/heads/main" and pr_number == 0
     is_dev_image_release = (event == "push" and pr_number == 0
-                            and (ref in APPROVED_DEVELOPMENT_IMAGE_REFS
-                                 or APPROVED_DEVELOPMENT_RC_REF.fullmatch(ref) is not None))
+                            and is_approved_development_image_ref(ref.removeprefix("refs/tags/")))
     require(is_qualified_dev_pr or is_dev_main or is_dev_image_release,
             "risk acceptance only valid for open PR #71, untagged "
             "development main or v1.5.0 / v1.5.1 RC/GA devcontainer GHCR distribution")
