@@ -7,7 +7,6 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import sys
 
 DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 CVE = re.compile(r"^CVE-[0-9]{4}-[0-9]{4,}$")
@@ -147,6 +146,9 @@ def evaluate(decision: dict | None, report: dict, *, image_repository: str,
 
     demand(isinstance(decision, dict),
            "HIGH/CRITICAL findings exist but no protected risk decision was supplied")
+    demand(isinstance(policy_sha256, str)
+           and re.fullmatch(r"[a-f0-9]{64}", policy_sha256) is not None,
+           "risk decision must be loaded through the protected SHA-256 trust anchor")
     demand(decision.get("schema_version") == 2, "unsupported risk decision schema")
     demand(decision.get("status") == "approved", "risk decision is not approved or has been revoked")
     demand(decision.get("revoked_at") in (None, ""), "risk decision has been revoked")

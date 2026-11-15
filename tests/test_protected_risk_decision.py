@@ -64,7 +64,8 @@ class ProtectedDecisionTests(unittest.TestCase):
 
     def evaluate(self, decision=None, report=None, **changes):
         args = dict(image_repository=IMAGE, image_digest=DIGEST, profile="final",
-                    architecture="linux/amd64", environment="development", now=NOW)
+                    architecture="linux/amd64", environment="development",
+                    policy_sha256="c" * 64, now=NOW)
         args.update(changes)
         return policy.evaluate(self.decision if decision is None else decision,
                                self.report if report is None else report, **args)
@@ -81,6 +82,15 @@ class ProtectedDecisionTests(unittest.TestCase):
     def test_clean_scan_needs_no_policy_or_approval(self):
         result = self.evaluate(decision=None, report=self.report_for(DIGEST, "amd64"))
         self.assertEqual(result["status"], "clean_no_exception_required")
+
+    def test_direct_evaluation_without_verified_policy_hash_is_denied(self):
+        with self.assertRaises(policy.DecisionDenied):
+            policy.evaluate(
+                self.decision, self.report,
+                image_repository=IMAGE, image_digest=DIGEST,
+                profile="final", architecture="linux/amd64",
+                environment="development", now=NOW,
+            )
 
     def test_policy_file_requires_independent_trusted_hash(self):
         with tempfile.TemporaryDirectory() as directory:
