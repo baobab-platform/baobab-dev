@@ -70,11 +70,11 @@ fi
 
 : "${PYTHON_MINOR:=3.14}"
 : "${PYTHON_VERSION:=3.14}"
-: "${NODE_MAJOR:=24}"
+: "${NODE_MAJOR:=26}"
 : "${PNPM_VERSION:=}"
 : "${PLAYWRIGHT_VERSION:=}"
 : "${FLUTTER_VERSION:=unknown}"
-: "${JAVA_MAJOR:=17}"
+: "${JAVA_MAJOR:=21}"
 : "${EXPECTED_USER:=vscode}"
 : "${EXPECTED_UID:=1000}"
 : "${EXPECTED_GID:=1000}"
@@ -455,7 +455,7 @@ fi
 
 if [[ "$BAOBAB_BUILD_PROFILE" == "frontend-e2e" ]]; then
     check_exact_version "Playwright" playwright "${PLAYWRIGHT_VERSION}" \
-        "playwright --version | awk '{print \\$NF}'"
+        "playwright --version | awk '{print $NF}'"
 
     verify_playwright_chromium() {
         local browsers_path="${PLAYWRIGHT_BROWSERS_PATH:-}"
