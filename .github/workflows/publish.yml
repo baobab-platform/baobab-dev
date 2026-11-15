@@ -324,7 +324,7 @@ jobs:
           # Resolve the latest successful Publish run for the exact GA source
           # commit and version family. No mutable repository variable is
           # trusted to nominate an RC run.
-          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=success&per_page=100" \
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=completed&per_page=100" \
             > "$RUNNER_TEMP/publish-runs.json"
           RC_RUN=$(python3 scripts/select_qualified_rc_run.py \
             --input "$RUNNER_TEMP/publish-runs.json" --tag "$TAG" --sha "$GITHUB_SHA")
@@ -2023,7 +2023,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/qualified-rc-records"
-          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=success&per_page=100" \
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=completed&per_page=100" \
             > "$RUNNER_TEMP/publish-runs.json"
           RC_RUN=$(python3 scripts/select_qualified_rc_run.py \
             --input "$RUNNER_TEMP/publish-runs.json" --tag "$TAG" --sha "$GITHUB_SHA")
