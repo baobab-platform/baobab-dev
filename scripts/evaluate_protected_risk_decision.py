@@ -15,7 +15,7 @@ PROFILES = frozenset(("final", "frontend", "frontend-e2e", "infra"))
 ARCHES = frozenset(("linux/amd64", "linux/arm64"))
 SEVERITIES = frozenset(("HIGH", "CRITICAL"))
 REPOSITORY = "baobab-platform/baobab-dev"
-IMAGE_REPOSITORY = "ghcr.io/baobab-platform/baobab-dev"
+IMAGE_REPOSITORY = f"ghcr.io/{REPOSITORY}"
 TRIVY_VERSION = "0.73.0"
 
 
@@ -189,7 +189,7 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
            "maker-checker violation: preparer cannot approve the same decision")
     demand(isinstance(evidence, str)
            and re.fullmatch(
-               r"https://github\.com/baobab-platform/baobab-dev/pull/[1-9][0-9]*",
+               rf"https://github\\.com/{re.escape(REPOSITORY)}/pull/[1-9][0-9]*",
                evidence,
            ) is not None,
            "approval evidence must link to the merged protected decision pull request")

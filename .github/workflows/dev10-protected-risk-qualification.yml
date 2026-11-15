@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 25
     env:
-      IMAGE_REPOSITORY: ghcr.io/baobab-platform/baobab-dev
+      IMAGE_REPOSITORY: ghcr.io/${{ github.repository }}
       TRIVY_VERSION: "0.73.0"
     steps:
       - name: Reject non-default-branch workflow source
