@@ -934,7 +934,10 @@ HEALTHCHECK \
     --timeout=10s \
     --start-period=15s \
     --retries=3 \
-    CMD baobab-verify || exit 1
+    # Build-time baobab-verify already validates the complete toolchain.
+    # The runtime command is sleep infinity, so health is process liveness;
+    # rerunning dozens of tool/version probes every minute wastes CPU.
+    CMD ["CMD-SHELL", "kill -0 1"]
 
 CMD ["sleep", "infinity"]
 # -----------------------------------------------------------------------------
@@ -959,6 +962,11 @@ FROM frontend AS frontend-e2e
 
 USER root
 
+# Playwright is installed as root during image construction but consumed by
+# the non-root vscode user at runtime. An explicit shared browser path avoids
+# populating /root/.cache/ms-playwright, which vscode cannot read.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+
 # npm_install_retry wraps the `npm install -g` below (three
 # npm-registry-published packages in one call — the same install class
 # that already broke twice for npm itself; see with-node's equivalent
@@ -977,7 +985,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         "playwright@${PLAYWRIGHT_VERSION}" \
         "sharp@${SHARP_VERSION}" \
         "lighthouse@${LIGHTHOUSE_VERSION}" && \
-    npx playwright install --with-deps chromium firefox webkit
+    mkdir -p "${PLAYWRIGHT_BROWSERS_PATH}" && \
+    npx playwright install --with-deps chromium firefox webkit && \
+    chmod -R a+rX "${PLAYWRIGHT_BROWSERS_PATH}"
 
 # Lighthouse deliberately does NOT get its own browser install — it reuses
 # the Chromium binary Playwright just installed above. Do not add a second
@@ -1005,7 +1015,10 @@ HEALTHCHECK \
     --timeout=10s \
     --start-period=15s \
     --retries=3 \
-    CMD baobab-verify || exit 1
+    # Build-time baobab-verify already validates the complete toolchain.
+    # The runtime command is sleep infinity, so health is process liveness;
+    # rerunning dozens of tool/version probes every minute wastes CPU.
+    CMD ["CMD-SHELL", "kill -0 1"]
 
 CMD ["sleep", "infinity"]
 # -----------------------------------------------------------------------------
@@ -1591,7 +1604,10 @@ HEALTHCHECK \
     --timeout=10s \
     --start-period=15s \
     --retries=3 \
-    CMD baobab-verify || exit 1
+    # Build-time baobab-verify already validates the complete toolchain.
+    # The runtime command is sleep infinity, so health is process liveness;
+    # rerunning dozens of tool/version probes every minute wastes CPU.
+    CMD ["CMD-SHELL", "kill -0 1"]
 
 CMD ["sleep", "infinity"]
 
@@ -1834,6 +1850,9 @@ HEALTHCHECK \
     --timeout=10s \
     --start-period=15s \
     --retries=3 \
-    CMD baobab-verify || exit 1
+    # Build-time baobab-verify already validates the complete toolchain.
+    # The runtime command is sleep infinity, so health is process liveness;
+    # rerunning dozens of tool/version probes every minute wastes CPU.
+    CMD ["CMD-SHELL", "kill -0 1"]
 
 CMD ["sleep", "infinity"]
