@@ -50,6 +50,11 @@ class ToolchainVersionPinTests(unittest.TestCase):
             "PNPM_VERSION": "12.21.0",
             "COREPACK_VERSION": "0.36.0",
             "YARN_VERSION": "4.18.1",
+            "TASK_VERSION": "3.54.0",
+            "YQ_VERSION": "4.54.1",
+            "GH_VERSION": "2.102.1",
+            "COSIGN_VERSION": "3.1.4",
+            "PLAYWRIGHT_VERSION": "1.65.0",
         }
         labels = {
             "NODE_VERSION": "Node.js",
@@ -57,6 +62,11 @@ class ToolchainVersionPinTests(unittest.TestCase):
             "PNPM_VERSION": "pnpm",
             "COREPACK_VERSION": "Corepack",
             "YARN_VERSION": "Yarn",
+            "TASK_VERSION": "Task",
+            "YQ_VERSION": "yq",
+            "GH_VERSION": "GitHub CLI",
+            "COSIGN_VERSION": "Cosign",
+            "PLAYWRIGHT_VERSION": "Playwright",
         }
         for name, version in expected.items():
             with self.subTest(name=name):
