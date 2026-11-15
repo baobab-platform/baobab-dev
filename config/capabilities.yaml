@@ -63,7 +63,7 @@ capabilities:
     development:
       docker: true
       github_cli: true
-      maven: "3.10.0"
+      maven: "3.10"
     security:
       cosign: true
 
@@ -88,7 +88,7 @@ capabilities:
     development:
       docker: true
       github_cli: true
-      terraform: "1.17.1"
+      terraform: "1.17"
       aws_cli: "2"
 
 # ------------------------------------------------------------------------------
