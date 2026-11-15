@@ -138,7 +138,10 @@ package_managers:
 utilities:
 
   task:
-    version: "latest"
+    # Exact release currently covered by the reproducible security rebuild
+    # in scripts/build-security-clis.sh. Bump only with its source, module
+    # locks, compiler and architecture qualification updated together.
+    version: "3.54.0"
     source: "github"
 
   ripgrep:
@@ -162,7 +165,10 @@ utilities:
     source: "apt"
 
   yq:
-    version: "latest"
+    # Exact release currently covered by the reproducible security rebuild
+    # in scripts/build-security-clis.sh. Bump only with its source, module
+    # locks, compiler and architecture qualification updated together.
+    version: "4.54.1"
     source: "github"
 
   fzf:
