@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Bounded DEV-10 executive risk acceptance of *known*, unremediated OS advisories.
+"""Legacy DEV-10 development-container risk gate (strictly limited compatibility).
 
-This is not VEX "not_affected", an Ubuntu patch, or a staging/production
-approval. Preserve complete Trivy findings and deny new/unrecognised CVEs.
-Applies to every development pull request with an exact GitHub merge ref, development-main and explicitly approved
-tagged DEVELOPMENT CONTAINER distributions v1.5.0-rc.N, v1.5.0, and v1.5.1-rc.N and v1.5.1,
-before 2026-11-26 UTC.
-Approval source: user's explicit Baobab-dev distribution clarification
-(2026-11-03). A tag is a development image distribution, not deployment.
-Directive / audit: https://github.com/baobab-platform/baobab-dev/issues/54
+PR and main CI MUST use authenticated protected policy evaluation. This legacy
+path cannot authorize a new development PR merely from its GitHub ref.
+Historical v1.5.0/v1.5.1 image distributions remain separately bounded by
+the exact inventory, installed version, CVE severity and expiry. No v1.5.2+
+release, staging, production or VEX not_affected authority is granted.
+See https://github.com/baobab-platform/baobab-dev/issues/54.
 """
 from __future__ import annotations
 
@@ -41,11 +39,9 @@ ADDITIONAL_CVES = frozenset({
 CVE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 TARGETS = {"final", "infra", "frontend", "frontend-e2e"}
 PLATFORMS = {"linux/amd64", "linux/arm64"}
-# This already-approved, time-bounded CVE inventory applies to every matching
-# development PR. A PR number is an event identity, NOT a vulnerability approval.
-# New CVEs, package/version changes and expired decisions still require human
-# review and an explicit source-policy update; no workflow may auto-approve them.
-# Tagged development-image distribution retains its separately bounded scope.
+# Historical legacy risk scope is restricted to explicitly listed v1.5.0 and
+# v1.5.1 development-image distribution tags. All PR/main events are denied
+# here and must use the authenticated protected policy verifier instead.
 # No staging/production approvals are granted.
 APPROVED_DEVELOPMENT_IMAGE_REFS = frozenset({"refs/tags/v1.5.0", "refs/tags/v1.5.1"})
 APPROVED_DEVELOPMENT_RC_REF = re.compile(r"^refs/tags/v1[.]5[.](?:0|1)-rc[.][1-9][0-9]*$")
@@ -102,8 +98,7 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
     require(not (is_qualified_dev_pr or is_dev_main),
             "legacy PR/main risk acceptance disabled: authenticated reusable policy required")
     require(is_qualified_dev_pr or is_dev_main or is_dev_image_release,
-            "risk acceptance only valid for a matching development PR merge ref, untagged "
-            "development main or v1.5.0 / v1.5.1 RC/GA devcontainer GHCR distribution")
+            "legacy risk acceptance only valid for explicitly bounded v1.5.0 / v1.5.1 RC/GA devcontainer distribution")
     require(target in TARGETS and platform in PLATFORMS,
             "unapproved target or architecture")
     results = report.get("Results")
@@ -151,7 +146,7 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
         "known_cves_observed": len(observed),
         "critical": sum(x == "CRITICAL" for x in observed.values()),
         "expiry_utc": EXPIRY.isoformat(),
-        "scope": "DEV TOOLCHAIN ONLY; development PR/main CI and v1.5.0/v1.5.1 RC/GA distributions; "
+        "scope": "DEV TOOLCHAIN ONLY; historical v1.5.0/v1.5.1 RC/GA distributions; "
                  "no staging/production deployment or other tags",
         "distribution": (("development_release_candidate" if "-rc." in ref
                           else "tagged_development_container")
