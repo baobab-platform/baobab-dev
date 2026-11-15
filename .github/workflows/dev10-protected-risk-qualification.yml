@@ -31,6 +31,7 @@ jobs:
   protected-qualification:
     runs-on: ubuntu-26.04
     timeout-minutes: 25
+    environment: dev10-security-policy-read
     env:
       IMAGE_REPOSITORY: ghcr.io/${{ github.repository }}
       TRIVY_VERSION: "0.73.0"
