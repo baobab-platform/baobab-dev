@@ -8,11 +8,14 @@ RC candidate artifacts retain for 30 days.
 
 ## General availability
 
-GA tag pushes do **not** rebuild or re-sign images. The `ga-reuse` job reads
-`DEV10_QUALIFIED_RC_RUN_ID`, independently checks the successful completed
-RC tag-push workflow, source SHA and version family, and downloads all four
-published-info artifacts. It creates GA candidate records referencing the
-**same OCI digests**, then uploads those records to the current GA run.
+GA tag pushes do **not** rebuild or re-sign images. The `ga-reuse` job queries
+the Publish workflow's successful push runs for the exact GA source SHA, then
+selects the latest completed run whose RC tag belongs to the same version
+family. It validates the workflow path, event, conclusion, source SHA and RC
+tag before downloading all four published-info artifacts. It creates GA
+candidate records referencing the **same OCI digests**, then uploads those
+records to the current GA run. No manually maintained repository variable
+selects the RC run.
 
 The protected `promote` job downloads those GA records and independently
 re-fetches the selected RC run and its records. It refuses GA if any image
@@ -37,9 +40,9 @@ tag-push rehearsal. End-to-end acceptance requires:
 5. failure-injection evidence for drift, missing artifacts and rollback;
 6. required CI passing at final PR head.
 
-A GA tag on a different commit must fail: build new RC instead. The repository
-variable must reference the selected qualified RC workflow run; it cannot
-bypass the GitHub Environment. Security risk acceptances are not extended.
+A GA tag on a different commit must fail: build a new RC instead. Automatic
+run discovery does not bypass the GitHub Environment or artifact-continuity
+checks. Security risk acceptances are not extended.
 
 ## Platform adoption
 
