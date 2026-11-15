@@ -72,6 +72,7 @@ fi
 : "${PYTHON_VERSION:=3.14}"
 : "${NODE_MAJOR:=24}"
 : "${PNPM_VERSION:=}"
+: "${PLAYWRIGHT_VERSION:=}"
 : "${FLUTTER_VERSION:=unknown}"
 : "${JAVA_MAJOR:=17}"
 : "${EXPECTED_USER:=vscode}"
@@ -446,6 +447,48 @@ if [[ "$BAOBAB_BUILD_PROFILE" != "infra" ]]; then
 
 else
     say "  Skipped — profile '${BAOBAB_BUILD_PROFILE}' does not include Node.js"
+fi
+
+###############################################################################
+# Playwright (CI-only frontend-e2e profile)
+###############################################################################
+
+if [[ "$BAOBAB_BUILD_PROFILE" == "frontend-e2e" ]]; then
+    check_exact_version "Playwright" playwright "${PLAYWRIGHT_VERSION}" \
+        "playwright --version | awk '{print \\$NF}'"
+
+    verify_playwright_chromium() {
+        local browsers_path="${PLAYWRIGHT_BROWSERS_PATH:-}"
+        local playwright_package
+        if [[ -z "$browsers_path" || ! -d "$browsers_path" ]]; then
+            bad "Playwright browser directory is unavailable to ${EXPECTED_USER}"
+            return
+        fi
+        playwright_package="$(npm root -g)/playwright"
+        if [[ ! -f "${playwright_package}/package.json" ]]; then
+            bad "Global Playwright package not found"
+            return
+        fi
+        if node - "${playwright_package}" <<'NODE'
+const { chromium } = require(process.argv[2]);
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  await browser.close();
+})().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+NODE
+        then
+            ok "Playwright Chromium launches as ${EXPECTED_USER}"
+        else
+            bad "Playwright Chromium failed to launch as ${EXPECTED_USER}"
+        fi
+    }
+
+    verify_playwright_chromium
+else
+    say "  Skipped — profile '${BAOBAB_BUILD_PROFILE}' does not include Playwright"
 fi
 
 ###############################################################################
