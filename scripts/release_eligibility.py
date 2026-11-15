@@ -98,12 +98,19 @@ def maintenance(family, previous):
     if not pr.get("merged") or not isinstance(merged_sha, str):
         raise ReleaseEligibilityError("maintenance exception PR is not merged")
     run("git", "merge-base", "--is-ancestor", merged_sha, "HEAD")
-    if not isinstance(reviews, list) or not any(
-            r.get("state") == "APPROVED"
-            and (r.get("user") or {}).get("login")
-            and (r.get("user") or {}).get("login") != author
-            for r in reviews if isinstance(r, dict)):
-        raise ReleaseEligibilityError("maintenance exception lacks independent PR approval")
+    # Evaluate the latest submitted decision per reviewer; a withdrawn or
+    # subsequently rejected approval must not be treated as current authority.
+    if not isinstance(reviews, list):
+        raise ReleaseEligibilityError("invalid maintenance PR reviews")
+    latest = {}
+    for review in reviews:
+        if not isinstance(review, dict):
+            continue
+        actor = (review.get("user") or {}).get("login")
+        if actor and actor != author and review.get("state") in ("APPROVED", "CHANGES_REQUESTED", "DISMISSED"):
+            latest[actor] = review["state"]
+    if "APPROVED" not in latest.values():
+        raise ReleaseEligibilityError("maintenance exception lacks current independent PR approval")
     return True
 
 def main():
