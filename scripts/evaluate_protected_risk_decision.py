@@ -7,6 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import sys
 
 DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 CVE = re.compile(r"^CVE-[0-9]{4}-[0-9]{4,}$")
