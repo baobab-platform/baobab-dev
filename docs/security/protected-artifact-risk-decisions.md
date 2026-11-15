@@ -51,12 +51,20 @@ the exact decision file. Its approval record must be attributable through the
 repository's protected review process, with an independent reviewer, no
 self-approval and auditable review evidence.
 
-CODEOWNERS only requests the correct reviewer by default. The default-branch
-ruleset must also require pull-request reviews and code-owner approval, dismiss
-stale approvals after new commits, and require approval of the latest reviewable
-push by someone other than its author. I could not inspect the repository's
-branch-protection settings through the available GitHub integration, so these
-settings remain an activation prerequisite rather than a verified fact. The preparer and approver must be
+CODEOWNERS only requests the correct reviewer by default. A review
+request to @baobab-platform/security for PR #74 was rejected by GitHub with
+HTTP 422 because that team is not currently a collaborator on this repository.
+Consequently, the security-team CODEOWNERS assignment is not yet verified as
+enforceable. Before activation, grant the security team repository write access
+(or designate an authorized security reviewer who already has write access)
+and verify that GitHub accepts the review request.
+
+The default-branch ruleset must also require pull-request reviews and code-owner
+approval, dismiss stale approvals after new commits, and require approval of the
+latest reviewable push by someone other than its author. I could not inspect
+the repository's branch-protection settings through the available GitHub
+integration, so these settings also remain an activation prerequisite rather
+than a verified fact. The preparer and approver must be
 different principals. The trust-anchor update must be a separately controlled
 administrative operation.
 
