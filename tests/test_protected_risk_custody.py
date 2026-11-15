@@ -35,6 +35,27 @@ class CustodyTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.check()
 
+    def test_approval_superseded_by_effective_review_state(self):
+        for state in ("COMMENTED", "CHANGES_REQUESTED", "DISMISSED"):
+            with self.subTest(state=state):
+                self.reviews = [
+                    {"user": {"login": "checker"}, "state": "APPROVED",
+                     "submitted_at": "2026-11-15T09:00:00Z", "commit_id": SHA},
+                    {"user": {"login": "checker"}, "state": state,
+                     "submitted_at": "2026-11-15T09:30:00Z", "commit_id": SHA},
+                ]
+                with self.assertRaises(ValueError):
+                    self.check()
+
+    def test_later_current_head_approval_restores_authority(self):
+        self.reviews = [
+            {"user": {"login": "checker"}, "state": "COMMENTED",
+             "submitted_at": "2026-11-15T09:00:00Z", "commit_id": SHA},
+            {"user": {"login": "checker"}, "state": "APPROVED",
+             "submitted_at": "2026-11-15T09:30:00Z", "commit_id": SHA},
+        ]
+        self.check()
+
     def test_untrusted_reviewer_denied(self):
         self.decision["approved_by"] = "intruder"
         with self.assertRaises(ValueError):
