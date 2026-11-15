@@ -610,11 +610,8 @@ ENV COREPACK_HOME=/usr/local/share/baobab/corepack
 # npm's own registry-level integrity check (Subresource
 # Integrity, sha512) is what verifies the package on install; there's
 # nothing for this Dockerfile to additionally check by hand, matching
-# versions.yaml's own pnpm.source: npm declaration. yarn has no
-# corresponding entry in versions.yaml at all (no version to pin), so
-# `@stable` is left as-is — not an oversight, there's nothing to pin it to
-# yet, and it hasn't (yet) failed the way npm's own floating tag did (see
-# FIX 2026-08-28 below) — tracked as a follow-up, not bundled into that fix.
+# versions.yaml declares Yarn 4.18.1 explicitly; Corepack never
+# resolves the mutable `@stable` dist-tag during image construction.
 #
 # npm was explicitly self-upgraded to latest right after install. The npm
 # build bundled inside NodeSource's Node ${NODE_MAJOR}.x tarball carries
@@ -772,10 +769,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     install -m 0755 "${PNPM_BIN}" /usr/local/bin/pnpm && \
     test "$(pnpm --version)" = "${PNPM_VERSION}" && \
     rm -rf /tmp/dev10-pnpm-native && \
-    # Legacy Yarn is Corepack-managed, pnpm stays the publisher binary.
+    # Yarn is exact-version Corepack-managed, pnpm stays the publisher binary.
     corepack enable yarn && \
-    corepack prepare yarn@stable --activate && \
+    corepack prepare "yarn@${YARN_VERSION}" --activate && \
     test "$(pnpm --version)" = "${PNPM_VERSION}" && \
+    test "$(yarn --version)" = "${YARN_VERSION}" && \
     chmod -R a+rX "${COREPACK_HOME}"
 
 # Two distinct package-manager authorities live in this image:
