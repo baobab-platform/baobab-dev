@@ -28,8 +28,10 @@ class QualifiedRcRunSelectionTests(unittest.TestCase):
             run(11, 11, tag="v1.5.1-rc.9"),
             run(12, 12, sha=OTHER),
             run(13, 13, tag="v1.5.2-rc.2"),
+            # The live GitHub API returns the workflow path without an @ref suffix.
+            run(14, 14, tag="v1.5.2-rc.3", path=".github/workflows/publish.yml"),
         ]}
-        self.assertEqual(select_qualified_rc_run(data, "v1.5.2", SHA)["id"], 13)
+        self.assertEqual(select_qualified_rc_run(data, "v1.5.2", SHA)["id"], 14)
 
     def test_rejects_other_workflow_event_status_or_conclusion(self):
         candidates = [
