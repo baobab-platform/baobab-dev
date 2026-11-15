@@ -159,3 +159,23 @@ All four OCI index digests matched the release contract; both linux/amd64 and li
 | infra | `sha256:5b39e71dd068da12e009421012d7c3620339746c2a39839182ea1f4fe788ffda` |
 
 This proves the GA signer-identity correction against the live v1.5.1 release. It does not qualify PR #74's new candidate or resolve its Foundation CVE gate.
+
+
+## PR #74 CI failure review — 15 November 2026
+
+Reviewed the completed workflow runs for head `8ebb3ddb757de177d61782e49cd2cf7ad0a5e393`. Five jobs failed across three workflows; the two onboarding architecture jobs and source suite shared one test defect.
+
+| Failed job | Root cause established from its job log | Disposition |
+|---|---|---|
+| DEV-10 locked onboarding / source | `test_root_pnpm_workspace_requires_declared_frontend_membership` used a stale `pnpm@11.24.0` fixture while the test harness and published image now use pnpm 12.21.0. The post-create script correctly rejected the mismatch before reaching the workspace-membership assertion. | Fixed the fixture pin to `pnpm@12.21.0`. |
+| DEV-10 locked onboarding / published-image amd64 | Same stale fixture caused the complete in-image suite to fail one of 251 tests. | Same shared fixture correction; no weakening of the post-create version guard. |
+| DEV-10 locked onboarding / published-image arm64 | Same stale fixture caused the complete in-image suite to fail one of 251 tests. | Same shared fixture correction; no weakening of the post-create version guard. |
+| Publish Baobab Dev Container / Frozen Lockfile Integrity | `config/resolve.sh --locked` invokes GitHub CLI while the workflow step exposed only `GITHUB_TOKEN`. The CLI explicitly reported that `GH_TOKEN` is required. | Fixed the workflow step to expose the same Actions token as both `GH_TOKEN` (GitHub CLI contract) and `GITHUB_TOKEN` (existing resolver contract). |
+| Foundation Repository Gates / DEV-10 container CVE gate | The unfiltered Trivy scan found the eight HIGH `linux-libc-dev=7.0.0-43.43` advisories. The risk policy deliberately rejects PR #74: its currently approved PR scope is #71 only. The policy's 12 November package-version extension did not authorize a new PR scope. | **Not waived.** Do not add PR #74 to `APPROVED_DEVELOPMENT_PRS` or suppress the scan. Clear this gate only through supported package remediation and a clean rescan, or a new explicit, attributable, exact-scope security decision with expiry and independent review. |
+
+### Corrective commits
+
+- `1ee11ac575afd41341ff78269386a8e1f6581b01` — align the workspace-membership test fixture to the published pnpm 12.21.0 baseline.
+- `d58aca2d371555ce53612b9c5d2b92215b88c358` — expose `GH_TOKEN` to the release lock resolver while retaining `GITHUB_TOKEN`.
+
+The five failures were observed on the earlier head above. The corrective commits are now on the PR branch, but no Actions runs were returned for the new head `d58aca2d371555ce53612b9c5d2b92215b88c358` when this review was written. Therefore the two code/workflow fixes are **not yet CI-verified**. The Foundation security gate remains a deliberate blocker pending a properly authorised decision or remediation. No merge recommendation follows from these source changes alone.
