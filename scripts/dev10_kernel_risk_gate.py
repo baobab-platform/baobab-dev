@@ -95,6 +95,12 @@ def validate(report: dict, allowed: dict[str, str], *, target: str, platform: st
     is_dev_main = event == "push" and ref == "refs/heads/main" and pr_number == 0
     is_dev_image_release = (event == "push" and pr_number == 0
                             and is_approved_development_image_ref(ref.removeprefix("refs/tags/")))
+    # A syntactically matching PR is an event identity, not risk authority.
+    # The legacy inventory has no independently authenticated reusable policy
+    # record. Until protected policy custody is connected, reject new PR/main
+    # acceptance rather than silently granting the eight-CVE amendment.
+    require(not (is_qualified_dev_pr or is_dev_main),
+            "legacy PR/main risk acceptance disabled: authenticated reusable policy required")
     require(is_qualified_dev_pr or is_dev_main or is_dev_image_release,
             "risk acceptance only valid for a matching development PR merge ref, untagged "
             "development main or v1.5.0 / v1.5.1 RC/GA devcontainer GHCR distribution")
