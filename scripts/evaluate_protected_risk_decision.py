@@ -188,7 +188,7 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
            "maker-checker violation: preparer cannot approve the same decision")
     demand(isinstance(evidence, str)
            and re.fullmatch(
-               r"https://github\\.com/baobab-platform/baobab-dev/pull/[1-9][0-9]*",
+               r"https://github\.com/baobab-platform/baobab-dev/pull/[1-9][0-9]*",
                evidence,
            ) is not None,
            "approval evidence must link to the merged protected decision pull request")
