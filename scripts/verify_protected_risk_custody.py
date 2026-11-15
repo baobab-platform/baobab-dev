@@ -62,7 +62,10 @@ def verify(decision, pull, reviews, files, *, trusted_approvers, decision_path=N
         require(state in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED", "DISMISSED"),
                 "unknown effective review state")
         require(bool(review.get("submitted_at")), "review timestamp missing")
-        latest[actor] = review
+        previous = latest.get(actor)
+        if previous is None or (review["submitted_at"], review.get("id", 0)) > (
+                previous["submitted_at"], previous.get("id", 0)):
+            latest[actor] = review
     approved = latest.get(checker)
     require(approved is not None and approved.get("state") == "APPROVED"
             and approved.get("commit_id") == head,
