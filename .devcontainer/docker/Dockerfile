@@ -811,9 +811,8 @@ ENV COREPACK_ENABLE_NETWORK=0 \
 # -----------------------------------------------------------------------------
 FROM with-node AS frontend-build
 
-# ARGs do NOT propagate across stage boundaries the way ENV does — each
-# Build metadata is declared only in the final image stage below, after
-# all expensive tool-install and verification RUN layers have completed.
+# Build metadata ARGs and OCI labels are applied only in final image stages,
+# after expensive tool-install and verification RUN layers have completed.
 # Turborepo — npm-sourced, resolved the same way pnpm is (no compiled
 # per-architecture binary the way ripgrep/task/uv/gh/cosign have; npm's own
 # install-time integrity checking is the verification mechanism here).
