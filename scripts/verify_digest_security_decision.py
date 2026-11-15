@@ -50,58 +50,12 @@ def validate(decision, report, *, target, digest, release_tag, now):
     observed = findings(report)
     if not observed:
         return {"status": "no-high-critical-findings", "digest": digest}
-    # Legacy schema v1 has no authenticated custody or protected policy hash.
-    # Refuse residual-risk release promotion until the protected evaluator is
-    # integrated; clean scans continue without an exception.
-    raise ValueError("legacy free-text release decisions are not authenticated; protected custody required")
     if not isinstance(decision, dict) or set(decision) != {
         "schema_version", "release_tag", "target", "digest", "package_inventory",
         "inventory_sha256", "exceptions", "approver", "approved_at", "expires_at",
         "evidence_url"}:
         raise ValueError("exact-digest security decision required")
-    if (decision["schema_version"] != 1 or decision["target"] != target
-        or decision["digest"] != digest or decision["release_tag"] != release_tag):
-        raise ValueError("decision is not bound to this exact release target and digest")
-    # Compare approval inventory to the independently scanned package set,
-    # not merely to a self-declared checksum in the approval record.
-    scanned_packages = set()
-    for result in report["Results"]:
-        for pkg in result.get("Packages") or []:
-            if not all(isinstance(pkg.get(k), str) and pkg[k] for k in ("Name", "Version")):
-                raise ValueError("invalid scanned package")
-            scanned_packages.add((pkg["Name"], pkg["Version"]))
-    approved_packages = {(pkg["name"], pkg["version"]) for pkg in decision["package_inventory"]}
-    if not scanned_packages or scanned_packages != approved_packages:
-        raise ValueError("approval package inventory differs from independently scanned inventory")
-    if inventory_hash(decision["package_inventory"]) != decision["inventory_sha256"]:
-        raise ValueError("package inventory hash mismatch")
-    if not isinstance(decision["approver"], str) or not decision["approver"].strip():
-        raise ValueError("independent approver required")
-    if not isinstance(decision["evidence_url"], str) or not decision["evidence_url"].startswith("https://"):
-        raise ValueError("immutable approval evidence URL required")
-    try:
-        approved = dt.datetime.fromisoformat(decision["approved_at"].replace("Z","+00:00"))
-        expires = dt.datetime.fromisoformat(decision["expires_at"].replace("Z","+00:00"))
-    except (ValueError, AttributeError) as exc:
-        raise ValueError("invalid decision dates") from exc
-    if any(v.tzinfo is None for v in (approved, expires, now)) or not (approved <= now < expires):
-        raise ValueError("decision not yet approved or expired")
-    if not isinstance(decision["exceptions"], list):
-        raise ValueError("exceptions must be a list")
-    allowed = set()
-    for entry in decision["exceptions"]:
-        if not isinstance(entry, dict) or set(entry) != {"cve", "package", "installed_version", "justification"}:
-            raise ValueError("incomplete CVE exception")
-        if not isinstance(entry["justification"], str) or not entry["justification"].strip():
-            raise ValueError("missing CVE justification")
-        allowed.add((entry["cve"], entry["package"], entry["installed_version"]))
-    if len(allowed) != len(decision["exceptions"]) or allowed != observed:
-        raise ValueError("CVE/package/version exceptions differ from live scan")
-    inventory = {(p["name"],p["version"]) for p in decision["package_inventory"]}
-    if any((pkg,version) not in inventory for _,pkg,version in observed):
-        raise ValueError("vulnerable package missing from decision inventory")
-    return {"status": "approved-exact-digest", "digest": digest,
-            "approver": decision["approver"], "expires_at": decision["expires_at"]}
+    raise ValueError("legacy free-text release decisions are not authenticated; protected custody required")
 
 def main():
     p=argparse.ArgumentParser()
