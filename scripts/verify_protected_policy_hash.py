@@ -18,7 +18,7 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture, now=
     decision, actual_hash = load_verified_decision(Path(decision_path), trusted_sha256)
     demand(decision.get("schema_version") == 2 and decision.get("status") == "approved"
            and not decision.get("revoked_at"), "decision is not approved")
-    demand(decision.get("repository") == REPOSITORY
+    demand(isinstance(decision.get("approval_id"), str) and bool(decision["approval_id"])\n           and isinstance(decision.get("approval_evidence"), str)\n           and decision["approval_evidence"].startswith("https://github.com/baobab-platform/baobab-dev/pull/"),\n           "authenticated approval identity and custody link required")\n    demand(decision.get("repository") == REPOSITORY
            and decision.get("environment") == "development",
            "policy is not approved for this development repository")
     demand(profile in decision.get("profiles", [])
@@ -32,14 +32,14 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture, now=
     approved = {_finding_key(item) for item in decision.get("findings", [])}
     demand(bool(approved) and len(approved) == len(decision.get("findings", [])),
            "invalid or duplicated approved inventory")
-    results = report.get("Results")
+    demand(report.get("SchemaVersion") == 2 and report.get("ArtifactType") == "container_image",\n           "raw Trivy container image report required")\n    demand(isinstance(report.get("Trivy"), dict)\n           and report["Trivy"].get("Version") == "0.73.0", "Trivy version mismatch")\n    results = report.get("Results")
     demand(isinstance(results, list) and bool(results), "missing scan inventory")
     observed = set()
     for result in results:
         demand(isinstance(result, dict) and isinstance(result.get("Target"), str),
                "invalid scan target")
         demand(not result.get("Secrets"), "secret findings are not accepted")
-        for finding in result.get("Vulnerabilities") or []:
+        demand(not result.get("Secrets"), "secret findings are not accepted")\n        for finding in result.get("Vulnerabilities") or []:
             demand(not finding.get("FixedVersion"), "fixed version available")
             key = _finding_key({"cve": finding.get("VulnerabilityID"),
                                 "package": finding.get("PkgName"),
