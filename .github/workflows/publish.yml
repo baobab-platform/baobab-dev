@@ -238,7 +238,7 @@ jobs:
       - name: DEV-10 R5 negative unit tests (release contracts + Trivy DB freshness)
         run: |
           set -euo pipefail
-          python3 -m unittest -v tests/test_go_mod_download_retry.py tests/test_pnpm_release_asset_attestation.py tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_release_artifact_contract.py tests/test_actions_artifact_containers.py tests/test_independent_oci_index.py tests/test_digest_security_decision.py tests/test_immutable_rc_recovery.py tests/test_verify_remote_release_tag.py tests/test_verify_image_identity.py tests/test_verify_release_environment.py tests/test_verify_promotion_approval.py tests/test_release_tag_policy.py tests/test_release_promotion.py tests/test_r5_release_boundaries.py tests/test_signed_release_predicates.py tests/test_legacy_provenance.py
+          python3 -m unittest -v tests/test_go_mod_download_retry.py tests/test_pnpm_release_asset_attestation.py tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_release_artifact_contract.py tests/test_actions_artifact_containers.py tests/test_independent_oci_index.py tests/test_digest_security_decision.py tests/test_immutable_rc_recovery.py tests/test_verify_remote_release_tag.py tests/test_verify_image_identity.py tests/test_verify_release_environment.py tests/test_verify_promotion_approval.py tests/test_release_tag_policy.py tests/test_release_promotion.py tests/test_r5_release_boundaries.py tests/test_select_qualified_rc_run.py tests/test_signed_release_predicates.py tests/test_legacy_provenance.py
       - name: Verify committed resolutions and upstream asset checksums
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -979,7 +979,7 @@ jobs:
           # Trivy is NEVER bypassed for tagged images. A real finding (rc=1)
           # can only be accepted by the same independent exact-CVE gate as
           # local PR scans, bounded to owner-approved v1.5.0 development
-          # distribution and expiring 2026-11-13 UTC. Different versions,
+          # distribution and expiring 2026-11-26 UTC. Different versions,
           # vulnerabilities, available fixes, secrets, or tool failures deny.
           if (( rc != 0 )); then
             if (( rc != 1 )); then
@@ -2047,12 +2047,17 @@ jobs:
         if: needs.sanity-check.outputs.is_stable_release == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RC_RUN: ${{ vars.DEV10_QUALIFIED_RC_RUN_ID }}
           TAG: ${{ needs.sanity-check.outputs.release_tag }}
         run: |
           set -euo pipefail
-          [[ "$RC_RUN" =~ ^[1-9][0-9]*$ ]] || exit 1
           mkdir -p "$RUNNER_TEMP/qualified-rc-records"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=success&per_page=100" \
+            > "$RUNNER_TEMP/publish-runs.json"
+          RC_RUN=$(python3 scripts/select_qualified_rc_run.py \
+            --input "$RUNNER_TEMP/publish-runs.json" --tag "$TAG" --sha "$GITHUB_SHA")
+          [[ "$RC_RUN" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::Could not resolve a qualified same-commit RC run"; exit 1;
+          }
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RC_RUN}" > "$RUNNER_TEMP/qualified-rc-run.json"
           for target in final frontend frontend-e2e infra; do
             gh run download "$RC_RUN" --repo "$GITHUB_REPOSITORY" --name "published-info-$target" --dir "$RUNNER_TEMP/qualified-rc-records"
