@@ -386,6 +386,7 @@ jobs:
     # no per-step scoping) outside tag pushes.
     permissions:
       contents: read
+      pull-requests: read
 
     # TIER 1 (baobab-dev-v1_1_0-release-plan-amended.md tasks 1.9/1.10;
     # ADR-0001): build and Trivy-scan every Dockerfile target on every
@@ -399,6 +400,7 @@ jobs:
     # This runs 4 targets × 2 platforms on every PR/push — an accepted,
     # disclosed cost of validating every stage continuously rather than
     # only at publish time.
+    environment: dev10-security-policy-read
     strategy:
       fail-fast: false
       matrix:
@@ -990,14 +992,8 @@ jobs:
               echo "::error::Exact remote-digest Trivy tool failed (rc=$rc); cannot publish."
               exit "$rc"
             fi
-            python3 scripts/dev10_kernel_risk_gate.py \
-              --raw-trivy "$RUNNER_TEMP/trivy-exact-raw.json" \
-              --inventory docs/assessments/dev10-kernel-cves.tsv \
-              --target "${{ matrix.target }}" --platform "${{ matrix.platform }}" \
-              --event "${GITHUB_EVENT_NAME}" --ref "${GITHUB_REF}" \
-              --repository "${GITHUB_REPOSITORY}" --pr-number 0 \
-              --output "$RUNNER_TEMP/trivy-exact-evidence/dev10-executive-risk-acceptance.json"
-            echo "::warning::EXACT remote $PLATFORM development image ${image}: known kernel-header CVEs accepted, NOT remediated; see issue #54."
+            echo "::error::Residual vulnerabilities in a tagged remote image require separately authenticated exact-digest release approval; development-only acceptance is insufficient."
+            exit 2
           else
             echo "::notice::Remote digest Trivy CLEAN: $image"
           fi
