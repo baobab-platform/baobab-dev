@@ -73,6 +73,7 @@ fi
 : "${NODE_VERSION:=}"
 : "${COREPACK_VERSION:=}"
 : "${YARN_VERSION:=}"
+: "${NPM_VERSION:=}"
 : "${TASK_VERSION:=}"
 : "${YQ_VERSION:=}"
 : "${GH_VERSION:=}"
@@ -406,7 +407,7 @@ section "JavaScript"
 if [[ "$BAOBAB_BUILD_PROFILE" != "infra" ]]; then
 
     check_exact_version "Node.js" node "${NODE_VERSION}"
-    check_required "npm" npm
+    check_exact_version "npm" npm "${NPM_VERSION}"
     check_exact_version "Corepack" corepack "${COREPACK_VERSION}"
     check_exact_version "pnpm" pnpm "${PNPM_VERSION}"
     check_exact_version "Yarn" yarn "${YARN_VERSION}"
