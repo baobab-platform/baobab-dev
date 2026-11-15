@@ -404,22 +404,6 @@ RUN bash /build/build-security-pip.sh
 FROM ubuntu:${UBUNTU_VERSION} AS base
 
 ARG TARGETARCH
-# Build metadata supplied by GitHub Actions
-ARG BUILD_DATE
-ARG VERSION
-ARG REVISION
-
-LABEL org.opencontainers.image.title="baobab-dev" \
-      org.opencontainers.image.description="Standard development container for the BAOBAB Enterprise Platform (Nabhold Group Africa)" \
-      org.opencontainers.image.vendor="Nabhold Group Africa" \
-      org.opencontainers.image.source="https://github.com/baobab-platform/baobab-dev" \
-      org.opencontainers.image.licenses="Apache-2.0" \
-      org.opencontainers.image.created=$BUILD_DATE \
-      org.opencontainers.image.version=$VERSION \
-      org.opencontainers.image.revision=$REVISION \
-      org.opencontainers.image.authors="Platform Engineering <platform@nabhold.com>" \
-      org.opencontainers.image.documentation="https://github.com/baobab-platform/baobab-dev/blob/main/README.md"
-
 # -----------------------------------------------------------------------------
 # devcontainer.metadata image label — Development Environment Contract task
 # 1.4 (baobab-dev-v1_1_0-release-plan-amended.md / original plan task 1.4).
@@ -825,18 +809,11 @@ ENV COREPACK_ENABLE_NETWORK=0 \
 #
 # NEW stage (baobab-dev-v1_1_0-release-plan-amended.md task 1.9; ADR-0001).
 # -----------------------------------------------------------------------------
-FROM with-node AS frontend
+FROM with-node AS frontend-build
 
 # ARGs do NOT propagate across stage boundaries the way ENV does — each
-# stage that references a build ARG in its own instructions must re-declare
-# it, even when deriving FROM a previous internal stage. Without this,
-# ${VERSION}/${BUILD_DATE}/${REVISION} below would silently resolve to
-# empty strings — no build error, just a wrong (empty) image version baked
-# in. Caught during design, not via a failed build.
-ARG BUILD_DATE
-ARG VERSION
-ARG REVISION
-
+# Build metadata is declared only in the final image stage below, after
+# all expensive tool-install and verification RUN layers have completed.
 # Turborepo — npm-sourced, resolved the same way pnpm is (no compiled
 # per-architecture binary the way ripgrep/task/uv/gh/cosign have; npm's own
 # install-time integrity checking is the verification mechanism here).
@@ -891,10 +868,7 @@ RUN if id "ubuntu" &>/dev/null; then userdel -r ubuntu; fi && \
 # default to "full" and fail on every Python/Flutter/Postgres/Docker check
 # this profile deliberately never installs.
 ENV PATH="/home/vscode/.local/bin:/usr/local/bin:${PATH}" \
-    BAOBAB_BUILD_PROFILE=frontend \
-    BAOBAB_IMAGE_VERSION=${VERSION} \
-    BAOBAB_BUILD_DATE=${BUILD_DATE} \
-    BAOBAB_GIT_REVISION=${REVISION}
+    BAOBAB_BUILD_PROFILE=frontend
 
 # Shell completions — gh only. No Poetry completion (Poetry isn't part of
 # this profile); no Docker completion (Docker CLI isn't installed here
@@ -929,18 +903,34 @@ WORKDIR /workspaces
 
 RUN baobab-verify 
 
+FROM frontend-build AS frontend
+ARG BUILD_DATE
+ARG VERSION
+ARG REVISION
+ENV BAOBAB_IMAGE_VERSION=${VERSION} \
+    BAOBAB_BUILD_DATE=${BUILD_DATE} \
+    BAOBAB_GIT_REVISION=${REVISION}
+LABEL org.opencontainers.image.title="baobab-dev" \
+      org.opencontainers.image.description="Standard development container for the BAOBAB Enterprise Platform (Nabhold Group Africa)" \
+      org.opencontainers.image.vendor="Nabhold Group Africa" \
+      org.opencontainers.image.source="https://github.com/baobab-platform/baobab-dev" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.revision=$REVISION \
+      org.opencontainers.image.authors="Platform Engineering <platform@nabhold.com>" \
+      org.opencontainers.image.documentation="https://github.com/baobab-platform/baobab-dev/blob/main/README.md"
+
 HEALTHCHECK \
     --interval=60s \
     --timeout=10s \
     --start-period=15s \
     --retries=3 \
-    # Build-time baobab-verify already validates the complete toolchain.
-    # The runtime command is sleep infinity, so health is process liveness;
-    # rerunning dozens of tool/version probes every minute wastes CPU.
+    # The runtime command is sleep infinity, so health is process liveness.
     CMD ["CMD-SHELL", "kill -0 1"]
 
 CMD ["sleep", "infinity"]
-# -----------------------------------------------------------------------------
+
 # Stage: frontend-e2e — extends `frontend` with browser-dependent tooling
 # for end-to-end testing, image processing, and performance auditing.
 #
@@ -958,7 +948,7 @@ CMD ["sleep", "infinity"]
 # installs real browser binaries (Chromium/Firefox/WebKit), which is a
 # materially different CVE surface than anything else in this file.
 # -----------------------------------------------------------------------------
-FROM frontend AS frontend-e2e
+FROM frontend-build AS frontend-e2e
 
 USER root
 
@@ -1010,6 +1000,23 @@ USER vscode
 
 RUN baobab-verify 
 
+ARG BUILD_DATE
+ARG VERSION
+ARG REVISION
+ENV BAOBAB_IMAGE_VERSION=${VERSION} \
+    BAOBAB_BUILD_DATE=${BUILD_DATE} \
+    BAOBAB_GIT_REVISION=${REVISION}
+LABEL org.opencontainers.image.title="baobab-dev" \
+      org.opencontainers.image.description="Standard development container for the BAOBAB Enterprise Platform (Nabhold Group Africa)" \
+      org.opencontainers.image.vendor="Nabhold Group Africa" \
+      org.opencontainers.image.source="https://github.com/baobab-platform/baobab-dev" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.revision=$REVISION \
+      org.opencontainers.image.authors="Platform Engineering <platform@nabhold.com>" \
+      org.opencontainers.image.documentation="https://github.com/baobab-platform/baobab-dev/blob/main/README.md"
+
 HEALTHCHECK \
     --interval=60s \
     --timeout=10s \
@@ -1036,11 +1043,7 @@ CMD ["sleep", "infinity"]
 # -----------------------------------------------------------------------------
 FROM with-node AS final
 
-# Same ARG re-declaration requirement as `frontend` above — see that
-# stage's comment for why this is necessary, not redundant.
-ARG BUILD_DATE
-ARG VERSION
-ARG REVISION
+# Build metadata is appended after the expensive image layers below.
 
 # -----------------------------------------------------------------------------
 # devcontainer.metadata override — `final` is the only profile that actually
@@ -1526,10 +1529,7 @@ ENV JAVA_HOME="/opt/java" \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
     POETRY_NO_INTERACTION=1 \
-    BAOBAB_BUILD_PROFILE=full \
-    BAOBAB_IMAGE_VERSION=${VERSION} \
-    BAOBAB_BUILD_DATE=${BUILD_DATE} \
-    BAOBAB_GIT_REVISION=${REVISION}
+    BAOBAB_BUILD_PROFILE=full
 
 # Give the vscode user ownership of the entire Flutter SDK (not just the
 # pub-cache) so `flutter`/`dart` can update internal lockfiles, engine
@@ -1598,6 +1598,23 @@ RUN set -euo pipefail; \
 
 RUN baobab-verify
 
+ARG BUILD_DATE
+ARG VERSION
+ARG REVISION
+ENV BAOBAB_IMAGE_VERSION=${VERSION} \
+    BAOBAB_BUILD_DATE=${BUILD_DATE} \
+    BAOBAB_GIT_REVISION=${REVISION}
+LABEL org.opencontainers.image.title="baobab-dev" \
+      org.opencontainers.image.description="Standard development container for the BAOBAB Enterprise Platform (Nabhold Group Africa)" \
+      org.opencontainers.image.vendor="Nabhold Group Africa" \
+      org.opencontainers.image.source="https://github.com/baobab-platform/baobab-dev" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.revision=$REVISION \
+      org.opencontainers.image.authors="Platform Engineering <platform@nabhold.com>" \
+      org.opencontainers.image.documentation="https://github.com/baobab-platform/baobab-dev/blob/main/README.md"
+
 HEALTHCHECK \
     --interval=60s \
     --timeout=10s \
@@ -1628,10 +1645,7 @@ CMD ["sleep", "infinity"]
 # -----------------------------------------------------------------------------
 FROM base AS infra
 
-# Same ARG re-declaration requirement as `frontend`/`final` above.
-ARG BUILD_DATE
-ARG VERSION
-ARG REVISION
+# Build metadata is appended after the expensive image layers below.
 
 # devcontainer.metadata override — infra has none of `base`'s Next.js dev
 # server (no Node in this profile at all) and none of `final`'s platform
@@ -1810,10 +1824,7 @@ RUN if id "ubuntu" &>/dev/null; then userdel -r ubuntu; fi && \
 # would default to "full" and fail on every Python/Flutter/Java/Postgres/
 # Node check this profile deliberately never installs.
 ENV PATH="/home/vscode/.local/bin:/usr/local/bin:${PATH}" \
-    BAOBAB_BUILD_PROFILE=infra \
-    BAOBAB_IMAGE_VERSION=${VERSION} \
-    BAOBAB_BUILD_DATE=${BUILD_DATE} \
-    BAOBAB_GIT_REVISION=${REVISION}
+    BAOBAB_BUILD_PROFILE=infra
 
 # Shell completions — gh and docker (unlike `frontend`, which has neither
 # Docker CLI nor a completion for it). No Poetry completion — Poetry isn't
@@ -1843,6 +1854,23 @@ WORKDIR /workspaces
 # -----------------------------------------------------------------------------
 
 RUN baobab-verify
+
+ARG BUILD_DATE
+ARG VERSION
+ARG REVISION
+ENV BAOBAB_IMAGE_VERSION=${VERSION} \
+    BAOBAB_BUILD_DATE=${BUILD_DATE} \
+    BAOBAB_GIT_REVISION=${REVISION}
+LABEL org.opencontainers.image.title="baobab-dev" \
+      org.opencontainers.image.description="Standard development container for the BAOBAB Enterprise Platform (Nabhold Group Africa)" \
+      org.opencontainers.image.vendor="Nabhold Group Africa" \
+      org.opencontainers.image.source="https://github.com/baobab-platform/baobab-dev" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.revision=$REVISION \
+      org.opencontainers.image.authors="Platform Engineering <platform@nabhold.com>" \
+      org.opencontainers.image.documentation="https://github.com/baobab-platform/baobab-dev/blob/main/README.md"
 
 HEALTHCHECK \
     --interval=60s \
