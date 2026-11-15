@@ -215,3 +215,7 @@ The attached review was checked against the current branch and the governing Sha
 
 The changes above are source modifications, not qualification evidence. PR #74 remains draft and unmerged. No v1.5.2 tag, image publication, registry promotion or security exception was created. The Foundation CVE gate remains a blocker unless the exact findings are remediated or the owner supplies a new attributable, independently reviewed, exact-scope decision. Final-head CI, native multi-architecture builds, consumer qualification and live release-transaction rehearsal remain required.
 
+### Final-head CI observation
+
+The review-follow-through changes are present on PR #74 head `91ceb98da76c77294ce8660e538947b6b19648b8`. GitHub reported these pull-request workflow runs as queued/pending when checked: DEV-10 locked onboarding `43679826223`, Publish `43679826228`, Foundation Repository Gates `43679826931`, Security `43679826551`, registry integrity `43679826342`, DEV-14 developer doctor `43679826288`, and documentation deployment `43679826485`. These are not passing results. The new retry, RC-selection, version-verification and container-runtime checks therefore remain unqualified until those runs complete and their job logs are reviewed.
+
