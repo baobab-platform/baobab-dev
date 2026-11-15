@@ -85,11 +85,23 @@ jobs:
       # Step 2: Install yq Dependency
       # RATIONALE: resolve.sh requires yq v4+ to parse YAML input manifests.
       # ------------------------------------------------------------------------
-      - name: Install yq CLI dependency
+      - name: Install checksum-verified yq CLI dependency
         run: |
-          sudo wget -qO /usr/local/bin/yq \
-            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
+          set -euo pipefail
+          # Bootstrap from the committed lock before resolve.sh can update it.
+          # This keeps the resolver's YAML parser deterministic and verifies
+          # the downloaded bytes against the same per-architecture lock used
+          # by image builds.
+          source config/versions.lock
+          [[ "${YQ_VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "${YQ_ASSET_AMD64}" == "yq_linux_amd64" ]]
+          [[ "${YQ_SHA256_AMD64}" =~ ^[a-f0-9]{64}$ ]]
+          curl -fsSL --retry 5 --retry-all-errors \
+            "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/${YQ_ASSET_AMD64}" \
+            -o "${RUNNER_TEMP}/yq"
+          printf '%s  %s\n' "${YQ_SHA256_AMD64}" "${RUNNER_TEMP}/yq" | sha256sum --check --strict
+          sudo install -m 0755 "${RUNNER_TEMP}/yq" /usr/local/bin/yq
+          yq --version
 
       # ------------------------------------------------------------------------
       # Step 3: Execute Version Resolver
@@ -125,7 +137,9 @@ jobs:
           BASE: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          git add -A
+          # Resolve only the two declared lock artifacts; never stage unrelated
+          # resolver output, runner state, or future files added to the checkout.
+          git add -- config/versions.lock .python-version
           if git diff --cached --quiet; then
             echo "No lockfile drift detected."
             if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
@@ -152,9 +166,9 @@ jobs:
           - `.python-version`
 
           ### Verification & Merge Process
-          1. CI will run multi-arch container builds, Trivy vulnerability scans, and smoke tests against this PR.
-          2. Review the lockfile diff to verify updated versions and checksum hashes.
-          3. Approve and merge when CI checks pass.
+          1. Review the lockfile diff to verify updated versions and checksum hashes.
+          2. This workflow uses GITHUB_TOKEN; GitHub does not trigger PR workflows from events created with that token. A maintainer must explicitly run the required CI checks against this PR head.
+          3. Approve and merge only after those checks pass.
           BODY
             number=$(gh pr list --head "$BRANCH" --base "$BASE" --state open --json number --jq '.[0].number')
           fi
