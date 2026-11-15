@@ -70,7 +70,30 @@ def maintenance(family, previous):
                or p in ("scripts/dev10_kernel_risk_gate.py", ".github/workflows/security.yml")
                for p in changed):
         raise ReleaseEligibilityError("maintenance release has no qualifying security/packaging change")
-    # PR review itself remains protected by the repository's merge policy.
+    # Verify a merged, independently approved PR. A PR number alone is not
+    # evidence of review; reject missing/unavailable API evidence.
+    import os
+    if not os.environ.get("GH_TOKEN"):
+        raise ReleaseEligibilityError("maintenance exception requires GitHub review evidence")
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
+        raise ReleaseEligibilityError("invalid GitHub repository identity")
+    try:
+        pr = json.loads(run("gh", "api", f"repos/{repo}/pulls/{decision['review_pr']}"))
+        reviews = json.loads(run("gh", "api", f"repos/{repo}/pulls/{decision['review_pr']}/reviews?per_page=100"))
+    except (ValueError, ReleaseEligibilityError) as exc:
+        raise ReleaseEligibilityError("cannot verify independent maintenance approval") from exc
+    author = (pr.get("user") or {}).get("login")
+    merged_sha = pr.get("merge_commit_sha")
+    if not pr.get("merged") or not isinstance(merged_sha, str):
+        raise ReleaseEligibilityError("maintenance exception PR is not merged")
+    run("git", "merge-base", "--is-ancestor", merged_sha, "HEAD")
+    if not isinstance(reviews, list) or not any(
+            r.get("state") == "APPROVED"
+            and (r.get("user") or {}).get("login")
+            and (r.get("user") or {}).get("login") != author
+            for r in reviews if isinstance(r, dict)):
+        raise ReleaseEligibilityError("maintenance exception lacks independent PR approval")
     return True
 
 def main():
