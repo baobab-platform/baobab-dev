@@ -21,6 +21,7 @@ REQUIRED_FILES = (
     "scripts/verify_release_artifact_contract.py",
     "scripts/verify_rc_ga_workflow.py",
     "scripts/prepare_ga_reuse.py",
+    "scripts/select_qualified_rc_run.py",
     "scripts/release_tag_policy.py",
     "scripts/plan_rc_recovery.py",
     "config/resolve.sh",
