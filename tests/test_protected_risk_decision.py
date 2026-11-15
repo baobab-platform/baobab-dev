@@ -34,9 +34,9 @@ class ProtectedDecisionTests(unittest.TestCase):
             "expires_at": "2026-11-26T00:00:00Z",
             "findings": [
                 {"cve": "CVE-2026-12345", "package": "linux-libc-dev",
-                 "version": "7.0.0-43.43", "severity": "HIGH"},
+                 "version": "7.0.0-43.43", "severity": "HIGH", "type": "ubuntu"},
                 {"cve": "CVE-2026-12346", "package": "linux-libc-dev",
-                 "version": "7.0.0-43.43", "severity": "HIGH"},
+                 "version": "7.0.0-43.43", "severity": "HIGH", "type": "ubuntu"},
             ],
         }
         self.report = self.report_for(DIGEST, "amd64")
@@ -139,11 +139,18 @@ class ProtectedDecisionTests(unittest.TestCase):
             ("VulnerabilityID", "CVE-2026-99999"),
             ("Severity", "CRITICAL"), ("PkgName", "openssl"),
             ("InstalledVersion", "9.9"), ("FixedVersion", "7.0.0-44.44"),
+            ("Type", "alpine"),
         ):
             report = copy.deepcopy(self.report)
             report["Results"][0]["Vulnerabilities"][0][field] = value
             with self.subTest(field=field), self.assertRaises(policy.DecisionDenied):
                 self.evaluate(report=report)
+
+    def test_duplicate_identical_scan_occurrences_are_deduplicated(self):
+        report = copy.deepcopy(self.report)
+        report["Results"].append(copy.deepcopy(report["Results"][0]))
+        result = self.evaluate(report=report)
+        self.assertEqual(result["observed_findings"], 1)
 
     def test_subset_of_approved_findings_is_allowed_after_partial_remediation(self):
         result = self.evaluate()

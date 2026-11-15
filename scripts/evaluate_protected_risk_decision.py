@@ -53,17 +53,18 @@ def _timestamp(decision: dict, field: str) -> dt.datetime:
 
 def _finding_key(finding: dict) -> tuple[str, str, str, str]:
     demand(isinstance(finding, dict), "invalid vulnerability finding")
-    cve, package, version, severity = (
+    cve, package, version, severity, package_type = (
         finding.get("cve"), finding.get("package"),
-        finding.get("version"), finding.get("severity")
+        finding.get("version"), finding.get("severity"),
+        finding.get("type")
     )
     demand(isinstance(cve, str) and CVE.fullmatch(cve) is not None,
            "invalid CVE identifier in finding")
     demand(all(isinstance(value, str) and value.strip()
-               for value in (package, version, severity)),
-           "finding package, version or severity is missing")
+               for value in (package, version, severity, package_type)),
+           "finding package, version, severity or ecosystem type is missing")
     demand(severity in SEVERITIES, "only HIGH/CRITICAL findings may be risk accepted")
-    return cve, package, version, severity
+    return cve, package, version, severity, package_type
 
 
 def _validate_scan_identity(report: dict, *, image_repository: str,
@@ -126,10 +127,12 @@ def evaluate(decision: dict | None, report: dict, *, image_repository: str,
                 "package": vulnerability.get("PkgName"),
                 "version": vulnerability.get("InstalledVersion"),
                 "severity": vulnerability.get("Severity"),
+                "type": result.get("Type"),
             })
             demand(not vulnerability.get("FixedVersion"),
                    "a fixed version is available; remediate instead of accepting risk")
-            demand(key not in observed, "duplicate vulnerability identity in scan report")
+            # The same package advisory can appear under multiple Trivy targets.
+            # It is one policy identity; preserve it once rather than false-failing.
             observed.add(key)
 
     common = {
@@ -209,8 +212,8 @@ def evaluate(decision: dict | None, report: dict, *, image_repository: str,
         "expires_at": decision["expires_at"],
         "approved_findings": len(approved),
         "observed_findings": len(observed),
-        "findings": [dict(cve=a, package=b, version=c, severity=d)
-                     for a, b, c, d in sorted(observed)],
+        "findings": [dict(cve=a, package=b, version=c, severity=d, type=e)
+                     for a, b, c, d, e in sorted(observed)],
         **common,
     }
 

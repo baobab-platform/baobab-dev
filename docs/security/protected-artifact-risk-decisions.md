@@ -6,7 +6,7 @@ This change issues no new risk acceptance and does not qualify PR #74.
 ## Decision model
 
 PR numbers are review-container identifiers, not vulnerability-risk identities.
-A reusable risk-policy decision scopes the exact CVE, package, installed version
+A reusable risk-policy decision scopes the exact CVE, package ecosystem/type, installed version
 and severity; GHCR image repository; permitted profiles and architectures;
 development-only environment; independent preparer/checker identities; approval
 reference; timestamps; expiry and revocation state.
