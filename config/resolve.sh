@@ -508,6 +508,8 @@ PNPM_SHA256_ARM64=$(yaml '.package_managers.pnpm.sha256_arm64')
 bash "${REPO_ROOT}/scripts/verify_pnpm_release_assets.sh" \
     "$PNPM_VERSION" "$PNPM_SHA256_AMD64" "$PNPM_SHA256_ARM64"
 COREPACK_VERSION=$(resolve_npm '.package_managers.corepack.version' 'corepack' 'COREPACK_VERSION')
+YARN_VERSION=$(yaml '.package_managers.yarn.version')
+[[ "$YARN_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "Missing/invalid exact Yarn version"
 
 # ------------------------------------------------------------------------------
 # GitHub tools
@@ -795,6 +797,7 @@ export PNPM_VERSION=${PNPM_VERSION}
 export PNPM_SHA256_AMD64=${PNPM_SHA256_AMD64}
 export PNPM_SHA256_ARM64=${PNPM_SHA256_ARM64}
 export COREPACK_VERSION=${COREPACK_VERSION}
+export YARN_VERSION=${YARN_VERSION}
 export POETRY_VERSION=${POETRY_VERSION}
 
 export UV_VERSION=${UV_VERSION}
