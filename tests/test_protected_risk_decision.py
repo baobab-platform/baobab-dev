@@ -62,12 +62,19 @@ class ProtectedDecisionTests(unittest.TestCase):
             }],
         }
 
-    def evaluate(self, decision=None, report=None, **changes):
+    def evaluate(self, decision="__default__", report=None, **changes):
+        if decision == "__default__":
+            decision = self.decision
+        decision_bytes = None
+        trusted_hash = None
+        if isinstance(decision, dict):
+            decision_bytes = json.dumps(decision, sort_keys=True).encode()
+            trusted_hash = hashlib.sha256(decision_bytes).hexdigest()
         args = dict(image_repository=IMAGE, image_digest=DIGEST, profile="final",
                     architecture="linux/amd64", environment="development",
-                    policy_sha256="c" * 64, now=NOW)
+                    trusted_decision_sha256=trusted_hash, now=NOW)
         args.update(changes)
-        return policy.evaluate(self.decision if decision is None else decision,
+        return policy.evaluate(decision_bytes,
                                self.report if report is None else report, **args)
 
     def test_new_candidate_digest_qualifies_against_same_policy(self):

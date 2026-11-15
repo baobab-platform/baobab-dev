@@ -27,17 +27,22 @@ def demand(condition: bool, reason: str) -> None:
         raise DecisionDenied(reason)
 
 
-def load_verified_decision(path: Path, trusted_sha256: str) -> tuple[dict, str]:
-    """Load policy bytes only when their hash matches a protected trust anchor."""
+def verify_decision_bytes(raw: bytes, trusted_sha256: str) -> tuple[dict, str]:
+    """Authenticate exact policy bytes against a protected, independently managed hash."""
+    demand(isinstance(raw, bytes), "risk decision must be supplied as raw file bytes")
     demand(isinstance(trusted_sha256, str)
            and re.fullmatch(r"[a-f0-9]{64}", trusted_sha256) is not None,
            "missing or invalid protected policy SHA-256")
-    raw = path.read_bytes()
     actual = hashlib.sha256(raw).hexdigest()
     demand(actual == trusted_sha256, "decision bytes differ from protected approval")
     decision = json.loads(raw)
     demand(isinstance(decision, dict), "invalid decision document")
     return decision, actual
+
+
+def load_verified_decision(path: Path, trusted_sha256: str) -> tuple[dict, str]:
+    """Load a policy file and authenticate its exact bytes against the trust anchor."""
+    return verify_decision_bytes(path.read_bytes(), trusted_sha256)
 
 
 def _timestamp(decision: dict, field: str) -> dt.datetime:
@@ -88,10 +93,10 @@ def _validate_scan_identity(report: dict, *, image_repository: str,
            "scanned image architecture differs from the requested architecture")
 
 
-def evaluate(decision: dict | None, report: dict, *, image_repository: str,
+def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: str,
              image_digest: str, profile: str, architecture: str,
              environment: str, expected_trivy_version: str = TRIVY_VERSION,
-             policy_sha256: str | None = None,
+             trusted_decision_sha256: str | None = None,
              report_sha256: str | None = None,
              now: dt.datetime | None = None) -> dict:
     """Qualify a scan; a clean scan needs no risk decision."""
@@ -147,11 +152,11 @@ def evaluate(decision: dict | None, report: dict, *, image_repository: str,
     if not observed:
         return {"status": "clean_no_exception_required", **common, "findings": 0}
 
-    demand(isinstance(decision, dict),
+    demand(isinstance(decision_bytes, bytes),
            "HIGH/CRITICAL findings exist but no protected risk decision was supplied")
-    demand(isinstance(policy_sha256, str)
-           and re.fullmatch(r"[a-f0-9]{64}", policy_sha256) is not None,
-           "risk decision must be loaded through the protected SHA-256 trust anchor")
+    decision, policy_sha256 = verify_decision_bytes(
+        decision_bytes, trusted_decision_sha256
+    )
     demand(decision.get("schema_version") == 2, "unsupported risk decision schema")
     demand(decision.get("status") == "approved", "risk decision is not approved or has been revoked")
     demand(decision.get("revoked_at") in (None, ""), "risk decision has been revoked")
@@ -235,8 +240,7 @@ def main() -> int:
     try:
         raw_report = args.report.read_bytes()
         report = json.loads(raw_report)
-        decision = None
-        policy_sha256 = None
+        decision_bytes = None
         scan_results = report.get("Results") if isinstance(report, dict) else None
         has_findings = any(
             isinstance(item, dict) and bool(item.get("Vulnerabilities"))
@@ -246,18 +250,16 @@ def main() -> int:
             demand(args.decision is not None, "risk decision file is required for HIGH/CRITICAL findings")
             demand(args.trusted_decision_sha256 is not None,
                    "protected decision SHA-256 is required for HIGH/CRITICAL findings")
-            decision, policy_sha256 = load_verified_decision(
-                args.decision, args.trusted_decision_sha256
-            )
+            decision_bytes = args.decision.read_bytes()
         result = evaluate(
-            decision, report,
+            decision_bytes, report,
             image_repository=args.image_repository,
             image_digest=args.digest,
             profile=args.profile,
             architecture=args.architecture,
             environment=args.environment,
             expected_trivy_version=args.expected_trivy_version,
-            policy_sha256=policy_sha256,
+            trusted_decision_sha256=args.trusted_decision_sha256,
             report_sha256=hashlib.sha256(raw_report).hexdigest(),
         )
         exit_code = 0
