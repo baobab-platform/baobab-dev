@@ -50,6 +50,10 @@ def validate(decision, report, *, target, digest, release_tag, now):
     observed = findings(report)
     if not observed:
         return {"status": "no-high-critical-findings", "digest": digest}
+    # Legacy schema v1 has no authenticated custody or protected policy hash.
+    # Refuse residual-risk release promotion until the protected evaluator is
+    # integrated; clean scans continue without an exception.
+    raise ValueError("legacy free-text release decisions are not authenticated; protected custody required")
     if not isinstance(decision, dict) or set(decision) != {
         "schema_version", "release_tag", "target", "digest", "package_inventory",
         "inventory_sha256", "exceptions", "approver", "approved_at", "expires_at",
