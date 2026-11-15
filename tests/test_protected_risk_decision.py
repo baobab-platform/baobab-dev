@@ -1,4 +1,4 @@
-"""Regression and denial tests for protected digest-bound risk decisions."""
+"""Regression and denial tests for reusable artifact-bound DEV-10 risk policies."""
 import copy
 import datetime as dt
 import hashlib
@@ -13,81 +13,167 @@ spec = importlib.util.spec_from_file_location("protected_risk", path)
 policy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(policy)
 DIGEST = "sha256:" + "a" * 64
+OTHER_DIGEST = "sha256:" + "b" * 64
 NOW = dt.datetime(2026, 11, 15, tzinfo=dt.timezone.utc)
+IMAGE = policy.IMAGE_REPOSITORY
 
 
 class ProtectedDecisionTests(unittest.TestCase):
     def setUp(self):
         self.decision = {
-            "schema_version": 1, "status": "approved",
-            "repository": "baobab-platform/baobab-dev", "environment": "development",
-            "image_digests": [DIGEST], "profiles": ["final"],
-            "architectures": ["linux/amd64"], "approval_id": "example-only",
-            "approved_by": "independent-reviewer", "approval_evidence": "https://example.org/approval",
-            "approved_at": "2026-11-14T00:00:00Z", "expires_at": "2026-11-26T00:00:00Z",
-            "findings": [{"cve": "CVE-2026-12345", "package": "linux-libc-dev",
-                          "version": "7.0.0-43.43", "severity": "HIGH"}],
+            "schema_version": 2, "status": "approved",
+            "repository": policy.REPOSITORY, "image_repository": IMAGE,
+            "environment": "development",
+            "profiles": ["final", "frontend", "frontend-e2e", "infra"],
+            "architectures": ["linux/amd64", "linux/arm64"],
+            "approval_id": "DEV10-RISK-EXAMPLE",
+            "prepared_by": "engineering-maker",
+            "approved_by": "independent-security-checker",
+            "approval_evidence": "https://github.com/baobab-platform/baobab-dev/issues/54",
+            "approved_at": "2026-11-14T00:00:00Z",
+            "expires_at": "2026-11-26T00:00:00Z",
+            "findings": [
+                {"cve": "CVE-2026-12345", "package": "linux-libc-dev",
+                 "version": "7.0.0-43.43", "severity": "HIGH"},
+                {"cve": "CVE-2026-12346", "package": "linux-libc-dev",
+                 "version": "7.0.0-43.43", "severity": "HIGH"},
+            ],
         }
-        self.report = {"Results": [{"Target": "ubuntu:26.04",
-            "Vulnerabilities": [{"VulnerabilityID": "CVE-2026-12345",
-                "PkgName": "linux-libc-dev", "InstalledVersion": "7.0.0-43.43",
-                "Severity": "HIGH"}]}]}
+        self.report = self.report_for(DIGEST, "amd64")
+        self.report["Results"][0]["Vulnerabilities"] = [
+            {"VulnerabilityID": "CVE-2026-12345", "PkgName": "linux-libc-dev",
+             "InstalledVersion": "7.0.0-43.43", "Severity": "HIGH"},
+        ]
+
+    @staticmethod
+    def report_for(digest, architecture):
+        return {
+            "SchemaVersion": 2,
+            "ArtifactName": f"{IMAGE}@{digest}",
+            "ArtifactType": "container_image",
+            "Trivy": {"Version": policy.TRIVY_VERSION},
+            "Metadata": {
+                "RepoDigests": [f"{IMAGE}@{digest}"],
+                "ImageConfig": {"os": "linux", "architecture": architecture},
+            },
+            "Results": [{
+                "Target": "ubuntu:26.04", "Type": "ubuntu",
+                "Vulnerabilities": [], "Secrets": [],
+            }],
+        }
 
     def evaluate(self, decision=None, report=None, **changes):
-        args = dict(image_digest=DIGEST, profile="final", architecture="linux/amd64",
-                    environment="development", now=NOW)
+        args = dict(image_repository=IMAGE, image_digest=DIGEST, profile="final",
+                    architecture="linux/amd64", environment="development", now=NOW)
         args.update(changes)
         return policy.evaluate(self.decision if decision is None else decision,
                                self.report if report is None else report, **args)
 
-    def test_digest_bound_decision_without_pr_number(self):
-        self.assertEqual(self.evaluate()["status"], "accepted_residual_risk")
+    def test_new_candidate_digest_qualifies_against_same_policy(self):
+        result = self.evaluate(image_digest=OTHER_DIGEST)
+        self.assertEqual(result["status"], "accepted_residual_risk_not_remediated")
+        self.assertEqual(result["image_digest"], OTHER_DIGEST)
+        self.assertEqual(result["observed_findings"], 1)
 
-    def test_decision_file_requires_independent_hash(self):
+    def test_clean_scan_needs_no_policy_or_approval(self):
+        result = self.evaluate(decision=None, report=self.report_for(DIGEST, "amd64"))
+        self.assertEqual(result["status"], "clean_no_exception_required")
+
+    def test_policy_file_requires_independent_trusted_hash(self):
         with tempfile.TemporaryDirectory() as directory:
-            p = Path(directory) / "decision.json"
-            raw = json.dumps(self.decision).encode()
-            p.write_bytes(raw)
-            sha = hashlib.sha256(raw).hexdigest()
-            self.assertEqual(policy.load_verified_decision(p, sha), self.decision)
-            p.write_bytes(raw + b" ")
+            path = Path(directory) / "decision.json"
+            raw = json.dumps(self.decision, sort_keys=True).encode()
+            path.write_bytes(raw)
+            digest = hashlib.sha256(raw).hexdigest()
+            loaded, actual = policy.load_verified_decision(path, digest)
+            self.assertEqual(loaded, self.decision)
+            self.assertEqual(actual, digest)
+            path.write_bytes(raw + b" ")
             with self.assertRaises(policy.DecisionDenied):
-                policy.load_verified_decision(p, sha)
+                policy.load_verified_decision(path, digest)
 
-    def test_unapproved_contexts_and_digest_denied(self):
-        for change in ({"image_digest": "sha256:" + "b" * 64},
-                       {"profile": "infra"}, {"architecture": "linux/arm64"},
-                       {"environment": "production"},
-                       {"now": dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc)}):
-            with self.subTest(change=change), self.assertRaises(policy.DecisionDenied):
-                self.evaluate(**change)
+    def test_exact_digest_repository_and_architecture_are_verified(self):
+        for changes in (
+            {"image_digest": OTHER_DIGEST},
+            {"image_repository": "ghcr.io/attacker/baobab-dev"},
+            {"architecture": "linux/arm64"},
+        ):
+            with self.subTest(changes=changes), self.assertRaises(policy.DecisionDenied):
+                self.evaluate(**changes)
 
-    def test_revocation_and_unattributed_approval_denied(self):
-        for field, value in (("status", "revoked"), ("approved_by", ""),
-                             ("approval_evidence", ""), ("approval_id", "")):
-            d = copy.deepcopy(self.decision)
-            d[field] = value
-            with self.subTest(field=field), self.assertRaises(policy.DecisionDenied):
-                self.evaluate(decision=d)
+    def test_report_architecture_and_repo_digest_must_match(self):
+        report = copy.deepcopy(self.report)
+        report["Metadata"]["ImageConfig"]["architecture"] = "arm64"
+        with self.assertRaises(policy.DecisionDenied):
+            self.evaluate(report=report)
+        report = copy.deepcopy(self.report)
+        report["Metadata"]["RepoDigests"] = [f"{IMAGE}@{OTHER_DIGEST}"]
+        with self.assertRaises(policy.DecisionDenied):
+            self.evaluate(report=report)
 
-    def test_changed_or_fixed_vulnerability_denied(self):
-        for field, value in (("VulnerabilityID", "CVE-2026-99999"),
-                             ("Severity", "CRITICAL"), ("PkgName", "openssl"),
-                             ("FixedVersion", "7.0.0-44.44")):
+    def test_scan_tool_and_report_type_are_pinned(self):
+        report = copy.deepcopy(self.report)
+        report["Trivy"]["Version"] = "0.74.0"
+        with self.assertRaises(policy.DecisionDenied):
+            self.evaluate(report=report)
+        report = copy.deepcopy(self.report)
+        report["ArtifactType"] = "filesystem"
+        with self.assertRaises(policy.DecisionDenied):
+            self.evaluate(report=report)
+
+    def test_new_or_changed_findings_are_denied(self):
+        for field, value in (
+            ("VulnerabilityID", "CVE-2026-99999"),
+            ("Severity", "CRITICAL"), ("PkgName", "openssl"),
+            ("InstalledVersion", "9.9"), ("FixedVersion", "7.0.0-44.44"),
+        ):
             report = copy.deepcopy(self.report)
             report["Results"][0]["Vulnerabilities"][0][field] = value
             with self.subTest(field=field), self.assertRaises(policy.DecisionDenied):
                 self.evaluate(report=report)
 
-    def test_secret_and_incomplete_inventory_denied(self):
+    def test_subset_of_approved_findings_is_allowed_after_partial_remediation(self):
+        result = self.evaluate()
+        self.assertEqual(result["observed_findings"], 1)
+        self.assertEqual(result["approved_findings"], 2)
+
+    def test_secrets_and_malformed_scan_evidence_are_denied(self):
         report = copy.deepcopy(self.report)
         report["Results"][0]["Secrets"] = [{"RuleID": "credential"}]
         with self.assertRaises(policy.DecisionDenied):
             self.evaluate(report=report)
         report = copy.deepcopy(self.report)
-        report["Results"][0]["Vulnerabilities"] = []
+        report["Results"] = []
         with self.assertRaises(policy.DecisionDenied):
             self.evaluate(report=report)
+
+    def test_revocation_expiry_context_and_maker_checker_are_enforced(self):
+        mutations = (
+            ("status", "revoked"), ("revoked_at", "2026-11-14T12:00:00Z"),
+            ("approved_by", "engineering-maker"), ("approved_by", ""),
+            ("environment", "production"), ("expires_at", "2026-11-14T00:00:00Z"),
+        )
+        for field, value in mutations:
+            decision = copy.deepcopy(self.decision)
+            decision[field] = value
+            with self.subTest(field=field), self.assertRaises(policy.DecisionDenied):
+                self.evaluate(decision=decision)
+
+    def test_profile_and_architecture_scope_are_enforced(self):
+        for changes in ({"profile": "infra"}, {"architecture": "linux/arm64"}):
+            with self.subTest(changes=changes), self.assertRaises(policy.DecisionDenied):
+                self.evaluate(decision={**self.decision, "profiles": ["final"],
+                                        "architectures": ["linux/amd64"]}, **changes)
+
+    def test_invalid_cve_types_and_duplicate_policy_findings_are_denied(self):
+        decision = copy.deepcopy(self.decision)
+        decision["findings"][0]["cve"] = 12345
+        with self.assertRaises(policy.DecisionDenied):
+            self.evaluate(decision=decision)
+        decision = copy.deepcopy(self.decision)
+        decision["findings"].append(copy.deepcopy(decision["findings"][0]))
+        with self.assertRaises(policy.DecisionDenied):
+            self.evaluate(decision=decision)
 
 
 if __name__ == "__main__":

@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed, PR-number-independent risk decision evaluator.
-
-The decision must be supplied by a trusted protected-policy workflow, not by
-untrusted PR checkout. A pinned SHA-256 from that workflow authenticates the
-exact decision bytes; a hash supplied by the same PR is NOT authorization.
-This module does not approve any existing CVE or image.
-"""
+"""Evaluate an approved DEV-10 risk policy against one exact GHCR image digest."""
 from __future__ import annotations
 import argparse
 import datetime as dt
@@ -13,15 +7,20 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import sys
 
 DIGEST = re.compile(r"^sha256:[a-f0-9]{64}$")
 CVE = re.compile(r"^CVE-[0-9]{4}-[0-9]{4,}$")
 PROFILES = frozenset(("final", "frontend", "frontend-e2e", "infra"))
 ARCHES = frozenset(("linux/amd64", "linux/arm64"))
+SEVERITIES = frozenset(("HIGH", "CRITICAL"))
+REPOSITORY = "baobab-platform/baobab-dev"
+IMAGE_REPOSITORY = "ghcr.io/baobab-platform/baobab-dev"
+TRIVY_VERSION = "0.73.0"
 
 
 class DecisionDenied(ValueError):
-    pass
+    """The scan or policy does not satisfy the protected risk contract."""
 
 
 def demand(condition: bool, reason: str) -> None:
@@ -29,91 +28,234 @@ def demand(condition: bool, reason: str) -> None:
         raise DecisionDenied(reason)
 
 
-def load_verified_decision(path: Path, trusted_sha256: str) -> dict:
-    """Only call with SHA-256 sourced from an independent protected authority."""
-    demand(bool(re.fullmatch(r"[a-f0-9]{64}", trusted_sha256)), "invalid trusted policy hash")
+def load_verified_decision(path: Path, trusted_sha256: str) -> tuple[dict, str]:
+    """Load policy bytes only when their hash matches a protected trust anchor."""
+    demand(isinstance(trusted_sha256, str)
+           and re.fullmatch(r"[a-f0-9]{64}", trusted_sha256) is not None,
+           "missing or invalid protected policy SHA-256")
     raw = path.read_bytes()
-    demand(hashlib.sha256(raw).hexdigest() == trusted_sha256, "decision bytes differ from protected approval")
+    actual = hashlib.sha256(raw).hexdigest()
+    demand(actual == trusted_sha256, "decision bytes differ from protected approval")
     decision = json.loads(raw)
     demand(isinstance(decision, dict), "invalid decision document")
-    return decision
+    return decision, actual
 
 
-def evaluate(decision: dict, report: dict, *, image_digest: str,
-             profile: str, architecture: str, environment: str,
+def _timestamp(decision: dict, field: str) -> dt.datetime:
+    value = decision.get(field)
+    demand(isinstance(value, str) and bool(value), f"{field} is missing")
+    try:
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise DecisionDenied(f"{field} is invalid") from exc
+    demand(parsed.tzinfo is not None, f"{field} must include a timezone")
+    return parsed
+
+
+def _finding_key(finding: dict) -> tuple[str, str, str, str]:
+    demand(isinstance(finding, dict), "invalid vulnerability finding")
+    cve, package, version, severity = (
+        finding.get("cve"), finding.get("package"),
+        finding.get("version"), finding.get("severity")
+    )
+    demand(isinstance(cve, str) and CVE.fullmatch(cve) is not None,
+           "invalid CVE identifier in finding")
+    demand(all(isinstance(value, str) and value.strip()
+               for value in (package, version, severity)),
+           "finding package, version or severity is missing")
+    demand(severity in SEVERITIES, "only HIGH/CRITICAL findings may be risk accepted")
+    return cve, package, version, severity
+
+
+def _validate_scan_identity(report: dict, *, image_repository: str,
+                            image_digest: str, architecture: str,
+                            expected_trivy_version: str) -> None:
+    demand(report.get("SchemaVersion") == 2, "unsupported or missing Trivy report schema")
+    demand(report.get("ArtifactType") == "container_image", "Trivy report is not a container image scan")
+    trivy = report.get("Trivy")
+    demand(isinstance(trivy, dict) and trivy.get("Version") == expected_trivy_version,
+           "unexpected Trivy version")
+    metadata = report.get("Metadata")
+    demand(isinstance(metadata, dict), "Trivy image metadata is missing")
+    expected_ref = f"{image_repository}@{image_digest}"
+    repo_digests = metadata.get("RepoDigests")
+    demand(isinstance(repo_digests, list) and expected_ref in repo_digests,
+           "Trivy report does not identify the exact requested GHCR digest")
+    image_config = metadata.get("ImageConfig")
+    demand(isinstance(image_config, dict), "Trivy image configuration metadata is missing")
+    demand(image_config.get("os") == "linux", "scanned image operating system is not linux")
+    demand(image_config.get("architecture") == architecture.split("/", 1)[1],
+           "scanned image architecture differs from the requested architecture")
+
+
+def evaluate(decision: dict | None, report: dict, *, image_repository: str,
+             image_digest: str, profile: str, architecture: str,
+             environment: str, expected_trivy_version: str = TRIVY_VERSION,
+             policy_sha256: str | None = None,
+             report_sha256: str | None = None,
              now: dt.datetime | None = None) -> dict:
+    """Qualify a scan; a clean scan needs no risk decision."""
     now = now or dt.datetime.now(dt.timezone.utc)
     demand(now.tzinfo is not None, "timezone-aware clock required")
-    demand(environment == "development", "risk decision not valid outside development")
-    demand(profile in PROFILES and architecture in ARCHES, "unknown image profile or architecture")
+    demand(environment == "development", "risk decisions are development-only")
+    demand(image_repository == IMAGE_REPOSITORY, "unapproved image repository")
     demand(bool(DIGEST.fullmatch(image_digest)), "immutable image digest required")
-    demand(decision.get("schema_version") == 1, "unsupported decision schema")
-    demand(decision.get("status") == "approved", "decision not approved or revoked")
-    demand(decision.get("environment") == environment, "environment outside approval")
-    demand(decision.get("repository") == "baobab-platform/baobab-dev", "repository mismatch")
-    demand(image_digest in decision.get("image_digests", []), "image digest not authorized")
-    demand(profile in decision.get("profiles", []), "profile not authorized")
-    demand(architecture in decision.get("architectures", []), "architecture not authorized")
-    demand(isinstance(decision.get("approval_id"), str) and bool(decision["approval_id"]), "approval identifier missing")
-    demand(isinstance(decision.get("approved_by"), str) and bool(decision["approved_by"]), "reviewer identity missing")
-    demand(isinstance(decision.get("approval_evidence"), str) and decision["approval_evidence"].startswith("https://"), "approval evidence missing")
-    try:
-        expiry = dt.datetime.fromisoformat(decision["expires_at"].replace("Z", "+00:00"))
-        approved = dt.datetime.fromisoformat(decision["approved_at"].replace("Z", "+00:00"))
-    except (KeyError, AttributeError, ValueError) as exc:
-        raise DecisionDenied("invalid approval timestamps") from exc
-    demand(expiry.tzinfo is not None and approved.tzinfo is not None and approved <= now < expiry, "approval outside validity period")
-    expected = decision.get("findings")
-    demand(isinstance(expected, list) and bool(expected), "approved findings inventory missing")
-    approved_findings = set()
-    for finding in expected:
-        demand(isinstance(finding, dict), "invalid approved finding")
-        key = (finding.get("cve"), finding.get("package"), finding.get("version"), finding.get("severity"))
-        demand(isinstance(key[0], str) and bool(CVE.fullmatch(key[0])) and all(isinstance(v, str) and v for v in key), "invalid finding identity")
-        demand(key not in approved_findings, "duplicate approved finding")
-        approved_findings.add(key)
-    demand(isinstance(report.get("Results"), list) and report["Results"], "missing Trivy results")
-    observed = set()
-    for result in report["Results"]:
-        demand(isinstance(result, dict) and isinstance(result.get("Target"), str), "invalid scan result")
-        demand(not result.get("Secrets"), "secret findings cannot be accepted")
-        vulns = result.get("Vulnerabilities") or []
-        demand(isinstance(vulns, list), "invalid vulnerability list")
-        for vuln in vulns:
-            demand(isinstance(vuln, dict), "invalid vulnerability")
-            key = (vuln.get("VulnerabilityID"), vuln.get("PkgName"),
-                   vuln.get("InstalledVersion"), vuln.get("Severity"))
-            demand(key in approved_findings, "new or changed vulnerability requires approval")
-            demand(not vuln.get("FixedVersion"), "fixed version available; remediate")
-            demand(key not in observed, "duplicate scan finding")
+    demand(profile in PROFILES and architecture in ARCHES, "unknown profile or architecture")
+    demand(expected_trivy_version == TRIVY_VERSION, "unqualified Trivy version")
+    demand(isinstance(report, dict), "invalid Trivy report")
+    _validate_scan_identity(report, image_repository=image_repository,
+                            image_digest=image_digest, architecture=architecture,
+                            expected_trivy_version=expected_trivy_version)
+
+    results = report.get("Results")
+    demand(isinstance(results, list) and bool(results),
+           "missing Trivy result inventory; scan cannot be treated as clean")
+    observed: set[tuple[str, str, str, str]] = set()
+    for result in results:
+        demand(isinstance(result, dict) and isinstance(result.get("Target"), str),
+               "invalid Trivy scan target")
+        secrets = result.get("Secrets") or []
+        demand(isinstance(secrets, list), "invalid Trivy secret findings")
+        demand(not secrets, "secret findings cannot be risk accepted")
+        vulnerabilities = result.get("Vulnerabilities") or []
+        demand(isinstance(vulnerabilities, list), "invalid Trivy vulnerability list")
+        for vulnerability in vulnerabilities:
+            demand(isinstance(vulnerability, dict), "invalid Trivy vulnerability")
+            key = _finding_key({
+                "cve": vulnerability.get("VulnerabilityID"),
+                "package": vulnerability.get("PkgName"),
+                "version": vulnerability.get("InstalledVersion"),
+                "severity": vulnerability.get("Severity"),
+            })
+            demand(not vulnerability.get("FixedVersion"),
+                   "a fixed version is available; remediate instead of accepting risk")
+            demand(key not in observed, "duplicate vulnerability identity in scan report")
             observed.add(key)
-    demand(bool(observed), "no findings: use clean scan path")
-    demand(observed == approved_findings, "approved inventory differs from scanned findings")
-    return {"status": "accepted_residual_risk", "approval_id": decision["approval_id"],
-            "image_digest": image_digest, "profile": profile, "architecture": architecture,
-            "findings": len(observed), "expires_at": decision["expires_at"]}
+
+    common = {
+        "image_repository": image_repository,
+        "image_digest": image_digest,
+        "profile": profile,
+        "architecture": architecture,
+        "environment": environment,
+        "trivy_version": expected_trivy_version,
+        "report_sha256": report_sha256,
+    }
+    if not observed:
+        return {"status": "clean_no_exception_required", **common, "findings": 0}
+
+    demand(isinstance(decision, dict),
+           "HIGH/CRITICAL findings exist but no protected risk decision was supplied")
+    demand(decision.get("schema_version") == 2, "unsupported risk decision schema")
+    demand(decision.get("status") == "approved", "risk decision is not approved or has been revoked")
+    demand(decision.get("revoked_at") in (None, ""), "risk decision has been revoked")
+    demand(decision.get("repository") == REPOSITORY, "risk decision repository mismatch")
+    demand(decision.get("image_repository") == image_repository,
+           "image repository is outside the approved risk scope")
+    demand(decision.get("environment") == environment,
+           "environment is outside the approved risk scope")
+    demand(profile in decision.get("profiles", []), "image profile is outside the approved risk scope")
+    demand(architecture in decision.get("architectures", []),
+           "architecture is outside the approved risk scope")
+
+    approval_id = decision.get("approval_id")
+    prepared_by = decision.get("prepared_by")
+    approved_by = decision.get("approved_by")
+    evidence = decision.get("approval_evidence")
+    demand(isinstance(approval_id, str) and approval_id.strip(), "approval identifier missing")
+    demand(isinstance(prepared_by, str) and prepared_by.strip(), "decision preparer identity missing")
+    demand(isinstance(approved_by, str) and approved_by.strip(), "independent approver identity missing")
+    demand(prepared_by.casefold() != approved_by.casefold(),
+           "maker-checker violation: preparer cannot approve the same decision")
+    demand(isinstance(evidence, str)
+           and evidence.startswith("https://github.com/baobab-platform/baobab-dev/"),
+           "approval evidence must link to the protected Baobab-dev decision record")
+
+    approved_at = _timestamp(decision, "approved_at")
+    expires_at = _timestamp(decision, "expires_at")
+    demand(approved_at <= now < expires_at and approved_at < expires_at,
+           "risk decision is not currently valid")
+
+    expected_findings = decision.get("findings")
+    demand(isinstance(expected_findings, list) and bool(expected_findings),
+           "approved finding inventory is missing")
+    approved: set[tuple[str, str, str, str]] = set()
+    for finding in expected_findings:
+        key = _finding_key(finding)
+        demand(key not in approved, "duplicate finding in approved risk inventory")
+        approved.add(key)
+
+    unapproved = observed - approved
+    demand(not unapproved,
+           "new or changed vulnerability requires a separate security decision: "
+           + ", ".join(sorted(item[0] for item in unapproved)))
+
+    return {
+        "status": "accepted_residual_risk_not_remediated",
+        "approval_id": approval_id,
+        "approved_by": approved_by,
+        "policy_sha256": policy_sha256,
+        "expires_at": decision["expires_at"],
+        "approved_findings": len(approved),
+        "observed_findings": len(observed),
+        "findings": [dict(cve=a, package=b, version=c, severity=d)
+                     for a, b, c, d in sorted(observed)],
+        **common,
+    }
 
 
 def main() -> int:
-    p = argparse.ArgumentParser()
-    p.add_argument("--decision", type=Path, required=True)
-    p.add_argument("--trusted-decision-sha256", required=True)
-    p.add_argument("--report", type=Path, required=True)
-    p.add_argument("--digest", required=True)
-    p.add_argument("--profile", required=True)
-    p.add_argument("--architecture", required=True)
-    p.add_argument("--environment", required=True)
-    args = p.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--decision", type=Path)
+    parser.add_argument("--trusted-decision-sha256")
+    parser.add_argument("--image-repository", required=True)
+    parser.add_argument("--digest", required=True)
+    parser.add_argument("--profile", required=True)
+    parser.add_argument("--architecture", required=True)
+    parser.add_argument("--environment", required=True)
+    parser.add_argument("--expected-trivy-version", default=TRIVY_VERSION)
+    parser.add_argument("--result-output", type=Path)
+    args = parser.parse_args()
+
     try:
-        result = evaluate(load_verified_decision(args.decision, args.trusted_decision_sha256),
-                          json.loads(args.report.read_text()), image_digest=args.digest,
-                          profile=args.profile, architecture=args.architecture,
-                          environment=args.environment)
-        print(json.dumps(result, sort_keys=True))
-        return 0
-    except (DecisionDenied, OSError, ValueError, TypeError) as exc:
-        print("SECURITY DENIED:", exc)
-        return 2
+        raw_report = args.report.read_bytes()
+        report = json.loads(raw_report)
+        decision = None
+        policy_sha256 = None
+        has_findings = any(
+            isinstance(item, dict) and bool(item.get("Vulnerabilities"))
+            for item in (report.get("Results") or []) if isinstance(report, dict)
+        )
+        if has_findings:
+            demand(args.decision is not None, "risk decision file is required for HIGH/CRITICAL findings")
+            demand(args.trusted_decision_sha256 is not None,
+                   "protected decision SHA-256 is required for HIGH/CRITICAL findings")
+            decision, policy_sha256 = load_verified_decision(
+                args.decision, args.trusted_decision_sha256
+            )
+        result = evaluate(
+            decision, report,
+            image_repository=args.image_repository,
+            image_digest=args.digest,
+            profile=args.profile,
+            architecture=args.architecture,
+            environment=args.environment,
+            expected_trivy_version=args.expected_trivy_version,
+            policy_sha256=policy_sha256,
+            report_sha256=hashlib.sha256(raw_report).hexdigest(),
+        )
+        exit_code = 0
+    except (DecisionDenied, OSError, ValueError, TypeError, KeyError) as exc:
+        result = {"status": "denied", "reason": str(exc)}
+        print("SECURITY DENIED:", exc, file=sys.stderr)
+        exit_code = 2
+
+    if args.result_output is not None:
+        args.result_output.parent.mkdir(parents=True, exist_ok=True)
+        args.result_output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    print(json.dumps(result, sort_keys=True))
+    return exit_code
 
 
 if __name__ == "__main__":

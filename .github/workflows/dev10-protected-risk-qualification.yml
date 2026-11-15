@@ -1,38 +1,38 @@
 name: DEV-10 Protected Security Decision Qualification
-
-# Deliberately read-only. Environment approval is not itself a risk decision.
-# This workflow MUST be installed on the protected default branch and the
-# dev10-security-approval environment MUST require independent reviewers.
+# Read-only qualification of an exact GHCR child digest. Policy approval is separate.
 on:
   workflow_dispatch:
     inputs:
       image_digest:
-        description: Immutable GHCR child image digest (sha256:...)
+        description: Immutable GHCR child digest (sha256:...)
         required: true
+        type: string
       profile:
         description: Image profile
         required: true
         type: choice
         options: [final, frontend, frontend-e2e, infra]
       architecture:
-        description: Platform
+        description: Platform represented by the child digest
         required: true
         type: choice
         options: [linux/amd64, linux/arm64]
       decision_path:
-        description: Protected default-branch decision JSON under security/decisions/
-        required: true
+        description: Optional protected policy JSON under security/decisions/
+        required: false
+        type: string
 
 permissions:
   contents: read
   packages: read
-  actions: read
 
 jobs:
   protected-qualification:
     runs-on: ubuntu-26.04
-    environment: dev10-security-approval
     timeout-minutes: 25
+    env:
+      IMAGE_REPOSITORY: ghcr.io/baobab-platform/baobab-dev
+      TRIVY_VERSION: "0.73.0"
     steps:
       - name: Reject non-default-branch workflow source
         env:
@@ -43,58 +43,108 @@ jobs:
           test "$EVENT_REF" = "refs/heads/$DEFAULT_BRANCH" || {
             echo "::error::Security qualification must execute protected default-branch code"; exit 1;
           }
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Validate protected decision location
+
+      - name: Validate candidate digest and optional protected policy path
         env:
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
           DECISION_PATH: ${{ inputs.decision_path }}
         run: |
           set -euo pipefail
-          python3 - <<'PY'
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::An immutable sha256 child digest is required"; exit 2;
+          }
+          if [[ -n "$DECISION_PATH" ]]; then
+            python3 - <<'PY'
           import os
           from pathlib import Path
-          path = Path(os.environ["DECISION_PATH"])
-          if path.is_absolute() or ".." in path.parts or not str(path).startswith("security/decisions/") or path.suffix != ".json" or not path.is_file():
+          value = os.environ["DECISION_PATH"]
+          path = Path(value)
+          if path.is_absolute() or ".." in path.parts or not value.startswith("security/decisions/") or path.suffix != ".json" or not path.is_file():
               raise SystemExit("invalid protected decision path")
           PY
-      - name: Verify GHCR image digest and obtain unfiltered vulnerability report
+          fi
+
+      - name: Install checksum-verified Trivy
+        run: |
+          set -euo pipefail
+          [[ "$(uname -m)" == "x86_64" ]] || {
+            echo "::error::This qualification runner requires the pinned Linux AMD64 Trivy artifact"; exit 1;
+          }
+          asset="trivy_"$TRIVY_VERSION"_Linux-64bit.tar.gz"
+          checksum="2edd39da482bb4e9831962487b68f68e3928ec3137794757f54d00383d79547b"
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://github.com/aquasecurity/trivy/releases/download/v$TRIVY_VERSION/$asset" \
+            --output "$RUNNER_TEMP/$asset"
+          printf '%s  %s\n' "$checksum" "$RUNNER_TEMP/$asset" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP" trivy
+          install -m 0755 "$RUNNER_TEMP/trivy" /usr/local/bin/trivy
+          trivy --version
+
+      - name: Authenticate to GHCR and scan the exact child digest
         env:
           GH_TOKEN: ${{ github.token }}
           IMAGE_DIGEST: ${{ inputs.image_digest }}
-          PROFILE: ${{ inputs.profile }}
         run: |
           set -euo pipefail
-          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || exit 2
-          case "$PROFILE" in final) image="ghcr.io/baobab-platform/baobab-dev";; *) image="ghcr.io/baobab-platform/baobab-dev-$PROFILE";; esac
-          echo "$GH_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
-          # Do not evaluate local synthetic JSON. Trivy must scan the exact remote digest.
-          docker run --rm -v "$RUNNER_TEMP:/evidence" aquasec/trivy:0.73.0 image \
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          mkdir -p "$RUNNER_TEMP/evidence"
+          # Raw report stays local because Trivy secret findings may contain credential material.
+          trivy image --no-progress --exit-code 0 \
             --scanners vuln,secret --pkg-types os,library \
             --severity HIGH,CRITICAL --ignorefile /dev/null \
-            --format json --output /evidence/trivy.json "$image@$IMAGE_DIGEST"
-      - name: Evaluate against independently protected policy
+            --format json --output "$RUNNER_TEMP/trivy-raw.json" \
+            "$IMAGE_REPOSITORY@$IMAGE_DIGEST"
+
+      - name: Evaluate policy against exact scan evidence
+        id: evaluate
         env:
           DECISION_PATH: ${{ inputs.decision_path }}
           DECISION_SHA: ${{ vars.DEV10_PROTECTED_DECISION_SHA256 }}
           IMAGE_DIGEST: ${{ inputs.image_digest }}
           PROFILE: ${{ inputs.profile }}
-          ARCH: ${{ inputs.architecture }}
+          ARCHITECTURE: ${{ inputs.architecture }}
         run: |
           set -euo pipefail
-          python3 scripts/evaluate_protected_risk_decision.py \
-            --decision "$DECISION_PATH" --trusted-decision-sha256 "$DECISION_SHA" \
-            --report "$RUNNER_TEMP/trivy.json" --digest "$IMAGE_DIGEST" \
-            --profile "$PROFILE" --architecture "$ARCH" --environment development \
-            | tee "$RUNNER_TEMP/decision-result.json"
-      - name: Retain qualification evidence
+          args=(
+            --report "$RUNNER_TEMP/trivy-raw.json"
+            --image-repository "$IMAGE_REPOSITORY"
+            --digest "$IMAGE_DIGEST"
+            --profile "$PROFILE"
+            --architecture "$ARCHITECTURE"
+            --environment development
+            --expected-trivy-version "$TRIVY_VERSION"
+            --result-output "$RUNNER_TEMP/evidence/decision-result.json"
+          )
+          if [[ -n "$DECISION_PATH" ]]; then
+            args+=(--decision "$DECISION_PATH")
+          fi
+          if [[ -n "$DECISION_SHA" ]]; then
+            args+=(--trusted-decision-sha256 "$DECISION_SHA")
+          fi
+          python3 scripts/evaluate_protected_risk_decision.py "${args[@]}"
+
+      - name: Produce sanitized Trivy evidence
+        if: always() && hashFiles(format('{0}/trivy-raw.json', runner.temp)) != ''
+        run: |
+          set -euo pipefail
+          python3 scripts/summarize-trivy-vulnerabilities.py \
+            "$RUNNER_TEMP/trivy-raw.json" \
+            "$RUNNER_TEMP/evidence/findings.json" \
+            "${{ inputs.profile }}" "${{ inputs.architecture }}"
+
+      - name: Retain sanitized qualification evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: protected-security-decision-${{ github.run_id }}
           path: |
-            ${{ runner.temp }}/trivy.json
-            ${{ runner.temp }}/decision-result.json
+            ${{ runner.temp }}/evidence/decision-result.json
+            ${{ runner.temp }}/evidence/findings.json
+            ${{ runner.temp }}/evidence/trivy-vulnerabilities.json
           if-no-files-found: warn
           retention-days: 30

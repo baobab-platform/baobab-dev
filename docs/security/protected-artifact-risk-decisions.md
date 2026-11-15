@@ -1,30 +1,97 @@
-# DEV-10 protected, artifact-bound security decisions — migration specification
+# DEV-10 protected, artifact-bound security decisions
 
-Status: **IMPLEMENTED EVALUATOR / NOT ACTIVATED** (PR #74). No new risk acceptance is issued by this change.
+Status: REUSABLE POLICY EVALUATOR IMPLEMENTED / NOT ACTIVATED (PR #74).
+This change issues no new risk acceptance and does not qualify PR #74.
 
-## Policy
+## Decision model
 
-PR numbers are review identifiers, **not** vulnerability-risk identities. Risk acceptance shall be scoped to verified findings (CVE, package, installed version and severity), the exact immutable image digest, profile, architecture, development-only environment, expiry, and an independently authenticated approval record. New or changed CVEs, available fixes, secrets, expired/revoked decisions and non-development use must fail closed.
+PR numbers are review-container identifiers, not vulnerability-risk identities.
+A reusable risk-policy decision scopes the exact CVE, package, installed version
+and severity; GHCR image repository; permitted profiles and architectures;
+development-only environment; independent preparer/checker identities; approval
+reference; timestamps; expiry and revocation state.
 
-The existing `scripts/dev10_kernel_risk_gate.py` remains unchanged and authoritative until a protected workflow has been connected and independently qualified. In particular, **PR #74 is NOT covered by the existing eight-CVE acceptance** for `linux-libc-dev=7.0.0-43.43`. Do not add PR #74, relax Trivy or create an approval from this specification.
+The policy deliberately does not enumerate candidate image digests. That
+allows later PRs to be evaluated automatically when their actual findings
+remain within the same approved package/CVE and operating-context boundary.
 
-## Implementation supplied
+Every successful evaluation is nevertheless bound to the exact image repository,
+child-manifest digest, profile, architecture, Trivy version and raw-report
+SHA-256. That output is qualification evidence for that artifact, not release
+authorization. Existing signature, SBOM, provenance, digest-continuity and
+protected RC-to-GA promotion controls remain mandatory.
 
-`scripts/evaluate_protected_risk_decision.py` is a reusable, read-only evaluator. It does not contain a PR allow-list and never creates or approves decisions. It verifies a protected policy file against a separately supplied trusted SHA-256, checks the exact immutable image digest, package/CVE inventory, approved context, expiry and revocation status. Its output records the decision identifier and digest. `tests/test_protected_risk_decision.py` covers positive and fail-closed negative cases.
+## Implementation
 
-The SHA-256 **must** come from a separately protected trust domain (for example a trusted, protected release workflow that obtains a policy revision from a protected branch or immutable signed policy store). A hash or decision supplied by the same untrusted PR checkout is not authority. A repository JSON file with an `approved_by` string or evidence URL is also **not** authenticated approval by itself.
+The reusable evaluator validates the Trivy report schema and scanner version,
+exact GHCR digest, actual image architecture, policy scope, CVE/package/version/
+severity identities, maker-checker separation, expiry and revocation. A clean
+scan needs no risk decision. A subset of approved findings is permitted after
+partial remediation; every new or changed finding and any fixed-version signal
+is denied.
 
-## Activation prerequisites (not yet satisfied)
+The protected qualification workflow uses checksum-verified Trivy 0.73.0,
+scans the exact remote GHCR child digest and uploads only sanitized evidence.
+The raw Trivy report is never uploaded because secret findings can contain
+matched credential material.
 
-1. Reconcile issue #54 and the 12/14 November decision custody discrepancy; appoint and authenticate an independent approver. No retroactive approval is inferred.
-2. Store approved decision records outside PR-controlled code and enforce independent approval, immutable policy revision, revocation and expiry. Record trusted SHA-256 from that protected source. Prevent PRs from changing evaluator or policy and approving themselves.
-3. Build and scan all four profiles on AMD64/ARM64, preserve unfiltered Trivy reports and independently resolve immutable index/child digests. The evaluator currently accepts one exact image digest per call; the protected orchestration must bind each report to its actual scanned digest.
-4. Execute the evaluator in a trusted workflow (not the untrusted PR checkout) using protected policy bytes and trust anchor. Preserve the raw scan, approval evidence, decision bytes/hash, evaluator version, exact digests, source SHA and run IDs.
-5. Add connected positive/negative integration tests with real Trivy JSON and GHCR evidence, including no decision, changed CVE, changed package, supported fixed version, expiry, revocation, forged reviewer, wrong digest and malicious PR policy edits.
-6. Only then replace the legacy PR-number exception in Foundation and Publish. Protected RC-to-GA promotion, signature/provenance checks and consumer qualification remain independent mandatory gates.
+## Approval custody
 
-**Important:** A reusable package-level risk policy can support routine PR scanning, but a new release digest is not automatically approved by an earlier exact-digest decision. If automated release authorization is desired, it must be based on a separately authenticated, narrowly scoped policy granting that specific derivation, and generate an independently auditable digest-bound decision. The present evaluator intentionally requires exact digest membership.
+The policy SHA-256 is a trust anchor, not a hash supplied by the candidate PR.
+The DEV10_PROTECTED_DECISION_SHA256 repository variable must be maintained
+only by the designated security-policy custodian after verifying the protected
+decision record and independent approval. An approved_by string or evidence
+URL is not, by itself, authentication.
+
+The policy file must live on the protected default branch under
+security/decisions/. Its approval record must be attributable through the
+repository's protected review process, with an independent reviewer, no
+self-approval and auditable review evidence. The preparer and approver must be
+different principals. The trust-anchor update must be a separately controlled
+administrative operation.
+
+A per-candidate GitHub environment approval is intentionally not used: it
+would turn routine artifact qualification into a repeated human gate. Human
+approval belongs to the risk-policy decision, not every subsequent matching PR.
+
+## Current authorization remains unchanged
+
+The legacy DEV-10 kernel risk gate remains authoritative for Foundation and
+Publish until a protected-policy record and trusted hash exist and a separately
+reviewed integration replaces the legacy path.
+
+- PR #74 is not added to the legacy PR allow-list.
+- The eight HIGH findings for linux-libc-dev 7.0.0-43.43 are not approved by
+  this evaluator implementation.
+- The 12 November issue #54 record names PR #62; the later executable gate
+  names PR #71. This custody discrepancy remains unresolved.
+- The 14 November PR #74 entry is assessment-only, not a risk acceptance.
+- No VEX not_affected claim, Trivy suppression, release waiver or promotion
+  authority is created here.
+
+A policy record must not be created for the eight findings until the owner and
+independent security reviewer reconcile the approval scope and custody
+discrepancy in issue #54.
+
+## Activation prerequisites
+
+1. Reconcile issue #54 and the 12/14 November package-version decision custody.
+2. Confirm the independent security approver and protected review path.
+3. Create the policy record only after an attributable, bounded approval.
+4. Set the protected SHA-256 trust anchor through the designated custodian.
+5. Add trusted automation that evaluates candidate scan evidence from PR builds
+   without executing PR-controlled evaluator or policy code. The current
+   workflow is a protected, read-only manual qualification tool, not an
+   automatic PR gate.
+6. Test real Trivy/GHCR evidence and malicious PR policy edits, wrong child
+   digest, architecture drift, new CVEs, package/version/severity changes,
+   fixed-version signals, expiry, revocation and secret findings.
+7. Keep exact-digest release qualification and protected promotion independent.
 
 ## Operating objective
 
-Normal human actions: edit `config/versions.yaml`; review newly detected or changed CVEs; approve/reject necessary bounded security decisions. Clean scans require no risk exception. Genuine engineering failures, security remediations and initial governance setup may still require intervention.
+The intended normal human actions remain: update config/versions.yaml,
+review new or changed security findings, and approve/reject bounded risk
+decisions when necessary. Clean scans and later candidate builds matching an
+active approved policy require no repeated risk approval. Genuine remediation,
+compatibility and governance exceptions still require engineering intervention.
