@@ -1,12 +1,15 @@
 """Regression and denial tests for reusable artifact-bound DEV-10 risk policies."""
 import copy
+import contextlib
 import datetime as dt
+import io
 import hashlib
 import importlib.util
 import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 path = Path(__file__).resolve().parents[1] / "scripts/evaluate_protected_risk_decision.py"
 spec = importlib.util.spec_from_file_location("protected_risk", path)
@@ -131,6 +134,30 @@ class ProtectedDecisionTests(unittest.TestCase):
                 profile="final", architecture="linux/amd64",
                 environment="development", now=NOW,
             )
+
+    def test_cli_denial_writes_evidence_and_reports_to_stderr(self):
+        with tempfile.TemporaryDirectory() as directory:
+            report_path = Path(directory) / "trivy.json"
+            result_path = Path(directory) / "decision-result.json"
+            report_path.write_text(json.dumps(self.report))
+            argv = [
+                "evaluate_protected_risk_decision.py",
+                "--report", str(report_path),
+                "--image-repository", IMAGE,
+                "--digest", DIGEST,
+                "--profile", "final",
+                "--architecture", "linux/amd64",
+                "--environment", "development",
+                "--result-output", str(result_path),
+            ]
+            stderr = io.StringIO()
+            stdout = io.StringIO()
+            with patch.object(policy.sys, "argv", argv):
+                with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(stdout):
+                    exit_code = policy.main()
+            self.assertEqual(exit_code, 2)
+            self.assertIn("SECURITY DENIED:", stderr.getvalue())
+            self.assertEqual(json.loads(result_path.read_text())["status"], "denied")
 
     def test_policy_file_requires_independent_trusted_hash(self):
         with tempfile.TemporaryDirectory() as directory:
