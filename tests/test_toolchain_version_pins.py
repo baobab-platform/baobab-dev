@@ -18,7 +18,70 @@ def manifest_version(manifest, key):
     remainder = manifest[match.end():]
     next_key = re.search(r"(?m)^  [A-Za-z0-9_-]+:\s*$", remainder)
     block = remainder[:next_key.start()] if next_key else remainder
-    version = re.search(r'(?m)^    version: "([^"]+)"\s*$', block)
+    version = re.search(r'(?m)^    version: "([^"]+)"\s*
+    def test_yarn_is_exact_in_manifest_lock_image_and_verifier(self):
+        manifest = read("config/versions.yaml")
+        lock = read("config/versions.lock")
+        resolver = read("config/resolve.sh")
+        dockerfile = read(".devcontainer/docker/Dockerfile")
+        verifier = read("scripts/verify.sh")
+
+        self.assertRegex(
+            manifest,
+            r'(?m)^  yarn:\n    version: "4\.18\.1"\n    source: "corepack"$',
+        )
+        self.assertIn("export YARN_VERSION=4.18.1", lock)
+        self.assertIn("YARN_VERSION=$(yaml '.package_managers.yarn.version')", resolver)
+        self.assertIn("export YARN_VERSION=${YARN_VERSION}", resolver)
+        self.assertIn('corepack prepare "yarn@${YARN_VERSION}" --activate', dockerfile)
+        self.assertNotIn("corepack prepare yarn@stable", dockerfile)
+        self.assertIn('check_exact_version "Yarn" yarn "${YARN_VERSION}"', verifier)
+
+    def test_security_rebuild_versions_match_manifest_and_lock(self):
+        manifest = read("config/versions.yaml")
+        lock = read("config/versions.lock")
+        rebuild = read("scripts/build-security-clis.sh")
+        for key, version in (("task", "3.54.0"), ("yq", "4.54.1")):
+            self.assertEqual(manifest_version(manifest, key), version)
+            self.assertRegex(lock, rf"(?m)^export {key.upper()}_VERSION={re.escape(version)}$")
+        self.assertIn('[[ "$TASK_VERSION" == 3.54.0 && "$YQ_VERSION" == 4.54.1 ]]', rebuild)
+
+    def test_locked_runtime_and_package_managers_are_checked_exactly(self):
+        lock = read("config/versions.lock")
+        verifier = read("scripts/verify.sh")
+        expected = {
+            "NODE_VERSION": "26.13.1",
+            "NPM_VERSION": "12.2.1",
+            "PNPM_VERSION": "12.21.0",
+            "COREPACK_VERSION": "0.36.0",
+            "YARN_VERSION": "4.18.1",
+            "TASK_VERSION": "3.54.0",
+            "YQ_VERSION": "4.54.1",
+            "GH_VERSION": "2.102.1",
+            "COSIGN_VERSION": "3.1.4",
+            "PLAYWRIGHT_VERSION": "1.65.0",
+        }
+        labels = {
+            "NODE_VERSION": "Node.js",
+            "NPM_VERSION": "npm",
+            "PNPM_VERSION": "pnpm",
+            "COREPACK_VERSION": "Corepack",
+            "YARN_VERSION": "Yarn",
+            "TASK_VERSION": "Task",
+            "YQ_VERSION": "yq",
+            "GH_VERSION": "GitHub CLI",
+            "COSIGN_VERSION": "Cosign",
+            "PLAYWRIGHT_VERSION": "Playwright",
+        }
+        for name, version in expected.items():
+            with self.subTest(name=name):
+                self.assertRegex(lock, rf"(?m)^export {name}={re.escape(version)}$")
+                self.assertIn(f'check_exact_version "{labels[name]}"', verifier)
+
+
+if __name__ == "__main__":
+    unittest.main()
+, block)
     return version.group(1) if version else None
 
 
@@ -46,7 +109,10 @@ class ToolchainVersionPinTests(unittest.TestCase):
         lock = read("config/versions.lock")
         rebuild = read("scripts/build-security-clis.sh")
         for key, version in (("task", "3.54.0"), ("yq", "4.54.1")):
-            self.assertEqual(manifest_version(manifest, key), version)
+            self.assertRegex(
+                manifest,
+                rf'(?m)^  {key}:\n    version: "{re.escape(version)}"$',
+            )
             self.assertRegex(lock, rf"(?m)^export {key.upper()}_VERSION={re.escape(version)}$")
         self.assertIn('[[ "$TASK_VERSION" == 3.54.0 && "$YQ_VERSION" == 4.54.1 ]]', rebuild)
 
