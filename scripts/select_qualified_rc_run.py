@@ -27,7 +27,8 @@ def select_qualified_rc_run(data: dict, ga_tag: str, source_sha: str) -> dict:
     for run in runs:
         if not isinstance(run, dict):
             continue
-        if run.get("path", "").split("@", 1)[0] != ".github/workflows/publish.yml":
+        workflow_path = run.get("path")
+        if not isinstance(workflow_path, str) or workflow_path.split("@", 1)[0] != ".github/workflows/publish.yml":
             continue
         if (run.get("event") != "push" or run.get("status") != "completed"
                 or run.get("conclusion") != "success" or run.get("head_sha") != source_sha):
