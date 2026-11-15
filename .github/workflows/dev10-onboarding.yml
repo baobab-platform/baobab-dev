@@ -72,7 +72,7 @@ jobs:
               python3 -B -m unittest discover -s tests -v
 
               # The published v1.5.1 image baseline is pnpm 12.16.1.
-              # The branch's newer 12.21.0 pin is qualified by source and candidate-image builds.
+              # Candidate pnpm 12.21.0 is qualified by source and candidate-image builds.
               test -d tests/fixtures/pnpm-workspace
               cp -R tests/fixtures/pnpm-workspace /tmp/dev10-workspace
               mv /tmp/dev10-workspace/package.json.fixture /tmp/dev10-workspace/package.json
