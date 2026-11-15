@@ -23,12 +23,12 @@ class LocalPolicyTests(unittest.TestCase):
             "schema_version": 2, "status": "approved", "revoked_at": None,
             "repository": "baobab-platform/baobab-dev", "environment": "development",
             "profiles": ["final"], "architectures": ["linux/amd64"],
-            "prepared_by": "maker", "approved_by": "checker",
+            "prepared_by": "maker", "approved_by": "checker",\n            "approval_id": "DEV10-TEST",\n            "approval_evidence": "https://github.com/baobab-platform/baobab-dev/pull/123",
             "approved_at": "2026-11-14T00:00:00Z",
             "expires_at": "2026-11-26T00:00:00Z",
             "findings": [dict(FINDING)],
         }
-        self.report = {"Results": [{"Target": "ubuntu:26.04", "Type": "ubuntu",
+        self.report = {"SchemaVersion": 2, "ArtifactType": "container_image",\n                       "Trivy": {"Version": "0.73.0"}, "Results": [{"Target": "ubuntu:26.04", "Type": "ubuntu",
             "Vulnerabilities": [{"VulnerabilityID": FINDING["cve"],
                 "PkgName": FINDING["package"], "InstalledVersion": FINDING["version"],
                 "Severity": "HIGH"}]}]}
@@ -64,7 +64,7 @@ class LocalPolicyTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 self.evaluate(report=report)
 
-    def test_wrong_scope_or_maker_checker(self):
+    def test_missing_approval_identity_or_scan_provenance(self):\n        policy = copy.deepcopy(self.policy)\n        policy["approval_evidence"] = None\n        with self.assertRaises(ValueError):\n            self.evaluate(policy=policy)\n        report = copy.deepcopy(self.report)\n        report.pop("Trivy")\n        with self.assertRaises(ValueError):\n            self.evaluate(report=report)\n\n    def test_wrong_scope_or_maker_checker(self):
         for field, value in (("environment", "production"),
                              ("profiles", ["infra"]),
                              ("approved_by", "maker"),
