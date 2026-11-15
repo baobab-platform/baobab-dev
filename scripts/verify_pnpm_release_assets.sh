@@ -53,7 +53,10 @@ verify_asset() {
     "https://github.com/pnpm/pnpm/releases/download/v${version}/${asset}" \
     --output "$file"
 
-  env -u GH_TOKEN -u GITHUB_TOKEN gh attestation verify "$file" \
+  # GitHub Actions requires GH_TOKEN for GitHub CLI API access. Keep the
+  # caller's read-only Actions token so public publisher attestations can be
+  # retrieved; never discard authentication inside the verifier subprocess.
+  gh attestation verify "$file" \
     --repo pnpm/pnpm \
     --signer-workflow pnpm/pnpm/.github/workflows/release.yml \
     --source-ref "refs/tags/v${version}" \

@@ -33,6 +33,7 @@ if [[ "$1" == "version" ]]; then
   echo "gh version ${FAKE_GH_VERSION:-2.102.1} (test)"
   exit 0
 fi
+: "${GH_TOKEN:?GH_TOKEN must be preserved for attestation API access}"
 printf '%s\\n' "$*" >> "$GH_ATTESTATION_LOG"
 [[ "${FAKE_GH_ATTESTATION_FAIL:-0}" != "1" ]]
 """,
@@ -62,6 +63,7 @@ esac
             **os.environ,
             "PATH": str(self.bin) + os.pathsep + os.environ.get("PATH", ""),
             "GH_ATTESTATION_LOG": str(self.log),
+            "GH_TOKEN": "test-token",
         }
 
     def tearDown(self):
