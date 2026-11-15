@@ -69,7 +69,10 @@ jobs:
           PY
           fi
 
-      - name: Verify evaluator negative controls\n        run: python3 -B -m unittest -v tests/test_protected_risk_decision.py\n\n      - name: Install checksum-verified Trivy
+      - name: Verify evaluator negative controls
+        run: python3 -B -m unittest discover -s tests -p 'test_protected_risk_decision.py' -v
+
+      - name: Install checksum-verified Trivy
         run: |
           set -euo pipefail
           [[ "$(uname -m)" == "x86_64" ]] || {
