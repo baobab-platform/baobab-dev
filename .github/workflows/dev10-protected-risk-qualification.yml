@@ -74,6 +74,21 @@ jobs:
       - name: Verify evaluator negative controls
         run: python3 -B -m unittest discover -s tests -p 'test_protected_risk*.py' -v
 
+      - name: Verify independent approval custody for selected risk policy
+        if: inputs.decision_path != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DECISION_PATH: ${{ inputs.decision_path }}
+          TRUSTED_APPROVERS: ${{ vars.DEV10_SECURITY_APPROVER_LOGINS }}
+        run: |
+          set -euo pipefail
+          test -n "$TRUSTED_APPROVERS" || {
+            echo "::error::Protected approver allow-list is not provisioned"; exit 2;
+          }
+          python3 scripts/verify_protected_risk_custody.py \
+            --decision "$DECISION_PATH" \
+            --trusted-approvers "$TRUSTED_APPROVERS"
+
       - name: Install checksum-verified Trivy
         run: |
           set -euo pipefail
@@ -89,6 +104,9 @@ jobs:
           tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP" trivy
           sudo install -m 0755 "$RUNNER_TEMP/trivy" /usr/local/bin/trivy
           trivy --version
+          trivy --version | grep -F "Version: $TRIVY_VERSION" >/dev/null || {
+            echo '::error::Unexpected Trivy version'; exit 2;
+          }
 
       - name: Authenticate to GHCR and scan the exact child digest
         env:
@@ -104,21 +122,6 @@ jobs:
             --severity HIGH,CRITICAL --ignorefile /dev/null \
             --format json --output "$RUNNER_TEMP/trivy-raw.json" \
             "$IMAGE_REPOSITORY@$IMAGE_DIGEST"
-
-      - name: Verify independent approval custody for selected risk policy
-        if: inputs.decision_path != ''
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          DECISION_PATH: ${{ inputs.decision_path }}
-          TRUSTED_APPROVERS: ${{ vars.DEV10_SECURITY_APPROVER_LOGINS }}
-        run: |
-          set -euo pipefail
-          test -n "$TRUSTED_APPROVERS" || {
-            echo "::error::Protected approver allow-list is not provisioned"; exit 2;
-          }
-          python3 scripts/verify_protected_risk_custody.py \
-            --decision "$DECISION_PATH" \
-            --trusted-approvers "$TRUSTED_APPROVERS"
 
       - name: Evaluate policy against exact scan evidence
         id: evaluate
@@ -149,9 +152,13 @@ jobs:
           python3 scripts/evaluate_protected_risk_decision.py "${args[@]}"
 
       - name: Produce sanitized Trivy evidence
-        if: always() && hashFiles(format('{0}/trivy-raw.json', runner.temp)) != ''
+        if: always()
         run: |
           set -euo pipefail
+          if [[ ! -s "$RUNNER_TEMP/trivy-raw.json" ]]; then
+            echo '::notice::No Trivy report exists; no findings summary generated'
+            exit 0
+          fi
           python3 scripts/summarize-trivy-vulnerabilities.py \
             "$RUNNER_TEMP/trivy-raw.json" \
             "$RUNNER_TEMP/evidence/findings.json" \
