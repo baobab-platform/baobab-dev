@@ -44,17 +44,26 @@ def verify(decision, pull, reviews, files, *, trusted_approvers):
     require(any(f.get("filename", "").startswith("security/decisions/")
                 and f.get("status") in ("added", "modified")
                 for f in files), "approval PR did not change protected decision records")
-    require(any(r.get("user", {}).get("login", "").casefold() == checker
-                and r.get("state") == "APPROVED"
-                and r.get("submitted_at")
-                for r in reviews), "independent approved review is missing")
-    # Require an actual review against the merged head, not a stale approval.
     head = pull.get("head", {}).get("sha")
-    require(bool(head) and any(
-        r.get("user", {}).get("login", "").casefold() == checker
-        and r.get("state") == "APPROVED"
-        and r.get("commit_id") == head for r in reviews),
-        "no independent approval on merged head")
+    require(isinstance(head, str) and re.fullmatch(r"[a-f0-9]{40}", head),
+            "merged approval PR head is unavailable")
+    require(isinstance(reviews, list) and len(reviews) < 100,
+            "complete approval review history required")
+    latest = {}
+    for review in reviews:
+        require(isinstance(review, dict), "malformed review evidence")
+        actor = (review.get("user") or {}).get("login", "").casefold()
+        state = review.get("state")
+        if not actor or state == "PENDING":
+            continue
+        require(state in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED", "DISMISSED"),
+                "unknown effective review state")
+        require(bool(review.get("submitted_at")), "review timestamp missing")
+        latest[actor] = review
+    approved = latest.get(checker)
+    require(approved is not None and approved.get("state") == "APPROVED"
+            and approved.get("commit_id") == head,
+            "no current independent approval on merged head")
 
 
 def main():
