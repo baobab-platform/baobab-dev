@@ -189,7 +189,7 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
            "maker-checker violation: preparer cannot approve the same decision")
     demand(isinstance(evidence, str)
            and re.fullmatch(
-               rf"https://github\\.com/{re.escape(REPOSITORY)}/pull/[1-9][0-9]*",
+               rf"https://github\.com/{re.escape(REPOSITORY)}/pull/[1-9][0-9]*",
                evidence,
            ) is not None,
            "approval evidence must link to the merged protected decision pull request")
