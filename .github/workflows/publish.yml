@@ -645,7 +645,7 @@ jobs:
             # The owner-approved, short-lived DEV-10 risk treatment is *not* VEX
             # "not_affected"; validate the complete unfiltered scanner report.
             # Unknown CVEs, packages, secrets and expired approval fail;
-            # only exact v1.5.0 tagged DEV CONTAINER distribution is in scope.
+            # only the exact v1.5.0/v1.5.1 development-image allow-list is in scope.
             if (( scan_rc != 1 )); then
               echo "::error::Trivy scan execution failed (exit ${scan_rc}); not a vulnerability risk decision."
               exit "${scan_rc}"
@@ -687,7 +687,7 @@ jobs:
       # exact bytes GHCR served. Genuinely target-agnostic (`!= 'final'`,
       # not an enumerated list) — a future target needs no change here.
       - name: Execute container smoke test (non-final targets)
-        if: matrix.target != 'final' && matrix.platform == 'linux/amd64'
+        if: matrix.target != 'final'
         run: |
           docker run --rm baobab-dev:scan baobab-verify
 
@@ -2252,19 +2252,29 @@ jobs:
             ordered_files+=("$f")
           done
 
+          RELEASE_TAG="${{ needs.sanity-check.outputs.release_tag }}"
           {
-            if [[ "${{ needs.sanity-check.outputs.release_tag }}" == "v1.5.0" || "${{ needs.sanity-check.outputs.release_tag }}" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ]]; then
-              echo "### Baobab development environment — v1.5.0"
+            # Render the disclosure from the same exact allow-list enforced by
+            # dev10_kernel_risk_gate.py. A syntactically valid future release
+            # must not inherit an older version's security exception.
+            if python3 - "${RELEASE_TAG}" <<'PY'
+          import sys
+          sys.path.insert(0, "scripts")
+          from dev10_kernel_risk_gate import is_approved_development_image_ref
+          raise SystemExit(0 if is_approved_development_image_ref(sys.argv[1]) else 1)
+          PY
+            then
+              echo "### Baobab development environment — ${RELEASE_TAG}"
               echo ""
               echo "**Intended use:** Organisation development environments, GitHub Codespaces and disposable local developer toolchains only. This is NOT an application staging/production deployment image."
               if [[ "${{ needs.sanity-check.outputs.is_stable_release }}" != "true" ]]; then
                 echo "**Release candidate:** This is an RC rehearsal. Four versioned RC tags are published and verified; major/minor/latest aliases stay on the current GA."
               else
                 echo "**General availability:** This is the approved development image. Versioned tags and latest/major/minor aliases are promoted together after all checks."
-                echo "**Consumer upgrade:** Owners of Nabhold, ZuriBeans, Thamani, CP, IAM and other Baobab development estates should update their devcontainer image pin to the verified v1.5.0 digest, rebuild and rerun their consumer tests."
+                echo "**Consumer upgrade:** Owners of Nabhold, ZuriBeans, Thamani, CP, IAM and other Baobab development estates should update their devcontainer image pin to the verified ${RELEASE_TAG} digest, rebuild and rerun their consumer tests."
               fi
               echo ""
-              echo "**Time-bounded security disclosure:** Native AMD64 and ARM64 image profiles were independently scanned with unfiltered Trivy; the user-approved, inventory-pinned linux-libc-dev=7.0.0-42.42 development-only CVE treatment under [issue #54](https://github.com/baobab-platform/baobab-dev/issues/54) may apply. The original 295 advisories (12 CRITICAL, 283 HIGH) remain tracked as unremediated/under investigation, **not declared harmless**. Review exact architecture scan artifacts and the recorded risk decision."
+              echo "**Time-bounded security disclosure:** Native AMD64 and ARM64 image profiles were independently scanned with unfiltered Trivy; the explicitly scoped, inventory-pinned linux-libc-dev development-only CVE treatment under [issue #54](https://github.com/baobab-platform/baobab-dev/issues/54) may apply. The original 295 advisories (12 CRITICAL, 283 HIGH) remain tracked as unremediated/under investigation, **not declared harmless**. Review exact architecture scan artifacts and the recorded risk decision."
               echo ""
               echo "**Review deadline:** 2026-11-26 00:00 UTC. Continued organisational consumption beyond the deadline needs remediation or re-review; the tag will not automatically disappear when the exception expires."
               echo ""
