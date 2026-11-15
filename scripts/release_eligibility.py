@@ -5,7 +5,17 @@ import json
 import re
 import subprocess
 from pathlib import Path
-from release_tag_policy import classify
+try:
+    from release_tag_policy import classify
+except ModuleNotFoundError as exc:
+    if exc.name != "release_tag_policy":
+        raise
+    import importlib.util
+    policy = Path(__file__).resolve().with_name("release_tag_policy.py")
+    spec = importlib.util.spec_from_file_location("dev10_release_tag_policy", policy)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    classify = module.classify
 
 GA = re.compile(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\Z")
 EXCEPTION = Path("config/dev10-maintenance-release.json")
