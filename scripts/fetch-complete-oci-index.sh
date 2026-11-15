@@ -92,7 +92,16 @@ manifest_backoff_sleep() {
 MANIFEST_JSON=""
 
 for attempt in $(seq 1 "${ATTEMPTS}"); do
-  CANDIDATE_JSON=$(crane manifest "${IMG}@${DIGEST}")
+  # A transient registry/network error is a retryable fetch failure. Under
+  # `set -e`, a bare command substitution exits the script before the retry
+  # loop can apply its bounded backoff, so handle the status explicitly.
+  if ! CANDIDATE_JSON=$(crane manifest "${IMG}@${DIGEST}"); then
+    echo "::warning:: fetch-complete-oci-index: attempt ${attempt}/${ATTEMPTS}: crane could not fetch ${IMG}@${DIGEST}." >&2
+    if [[ "${attempt}" -lt "${ATTEMPTS}" ]]; then
+      manifest_backoff_sleep "${attempt}"
+    fi
+    continue
+  fi
 
   complete=true
   for PLATFORM in linux/amd64 linux/arm64; do
