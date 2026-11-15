@@ -50,6 +50,7 @@ class ToolchainVersionPinTests(unittest.TestCase):
         self.assertIn(". /build/versions.lock", rebuild)
         self.assertIn('git -C "$dest" fetch --depth 1 origin "refs/tags/v$version"', rebuild)
         self.assertIn("go run script/build.go bin/gh", rebuild)
+        self.assertIn("mkdir -p bin", rebuild)
         self.assertIn('"GH_VERSION=$GH_VERSION"', rebuild)
         self.assertIn('"SOURCE_DATE_EPOCH=$source_date_epoch"', rebuild)
         self.assertIn('GIT_VERSION="v$COSIGN_VERSION"', rebuild)

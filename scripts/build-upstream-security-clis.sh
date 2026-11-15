@@ -70,6 +70,7 @@ build_gh() {
     cd "$dest"
     # Use GitHub CLI's own build task so Version and Date are injected using
     # the same linker variables as upstream release builds.
+    mkdir -p bin
     go run script/build.go bin/gh \
       "GH_VERSION=$GH_VERSION" \
       "SOURCE_DATE_EPOCH=$source_date_epoch"
