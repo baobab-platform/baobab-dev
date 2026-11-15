@@ -51,10 +51,17 @@ class ToolchainVersionPinTests(unittest.TestCase):
             "COREPACK_VERSION": "0.36.0",
             "YARN_VERSION": "4.18.1",
         }
+        labels = {
+            "NODE_VERSION": "Node.js",
+            "NPM_VERSION": "npm",
+            "PNPM_VERSION": "pnpm",
+            "COREPACK_VERSION": "Corepack",
+            "YARN_VERSION": "Yarn",
+        }
         for name, version in expected.items():
             with self.subTest(name=name):
                 self.assertRegex(lock, rf"(?m)^export {name}={re.escape(version)}$")
-                self.assertIn(f'check_exact_version "{name.removesuffix("_VERSION").title()}"', verifier)
+                self.assertIn(f'check_exact_version "{labels[name]}"', verifier)
 
 
 if __name__ == "__main__":
