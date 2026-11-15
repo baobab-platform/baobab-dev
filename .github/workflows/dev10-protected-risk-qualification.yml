@@ -1,0 +1,103 @@
+name: DEV-10 Protected Security Decision Qualification
+
+# Deliberately read-only. Environment approval is not itself a risk decision.
+# This workflow MUST be installed on the protected default branch and the
+# dev10-security-approval environment MUST require independent reviewers.
+on:
+  workflow_dispatch:
+    inputs:
+      image_digest:
+        description: Immutable GHCR child image digest (sha256:...)
+        required: true
+      profile:
+        description: Image profile
+        required: true
+        type: choice
+        options: [final, frontend, frontend-e2e, infra]
+      architecture:
+        description: Platform
+        required: true
+        type: choice
+        options: [linux/amd64, linux/arm64]
+      decision_path:
+        description: Protected default-branch decision JSON under security/decisions/
+        required: true
+      decision_sha256:
+        description: SHA-256 recorded by independent policy custodian
+        required: true
+
+permissions:
+  contents: read
+  packages: read
+  actions: read
+
+jobs:
+  protected-qualification:
+    runs-on: ubuntu-26.04
+    environment: dev10-security-approval
+    timeout-minutes: 25
+    steps:
+      - name: Reject non-default-branch workflow source
+        env:
+          EVENT_REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/$DEFAULT_BRANCH" || {
+            echo "::error::Security qualification must execute protected default-branch code"; exit 1;
+          }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Validate protected decision location
+        env:
+          DECISION_PATH: ${{ inputs.decision_path }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          path = Path(os.environ["DECISION_PATH"])
+          if path.is_absolute() or ".." in path.parts or not str(path).startswith("security/decisions/") or path.suffix != ".json" or not path.is_file():
+              raise SystemExit("invalid protected decision path")
+          PY
+      - name: Verify GHCR image digest and obtain unfiltered vulnerability report
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          PROFILE: ${{ inputs.profile }}
+        run: |
+          set -euo pipefail
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || exit 2
+          case "$PROFILE" in final) image="ghcr.io/baobab-platform/baobab-dev";; *) image="ghcr.io/baobab-platform/baobab-dev-$PROFILE";; esac
+          echo "$GH_TOKEN" | docker login ghcr.io -u "${GITHUB_ACTOR}" --password-stdin
+          # Do not evaluate local synthetic JSON. Trivy must scan the exact remote digest.
+          docker run --rm -v "$RUNNER_TEMP:/evidence" aquasec/trivy:0.73.0 image \
+            --scanners vuln,secret --pkg-types os,library \
+            --severity HIGH,CRITICAL --ignorefile /dev/null \
+            --format json --output /evidence/trivy.json "$image@$IMAGE_DIGEST"
+      - name: Evaluate against independently protected policy
+        env:
+          DECISION_PATH: ${{ inputs.decision_path }}
+          DECISION_SHA: ${{ inputs.decision_sha256 }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          PROFILE: ${{ inputs.profile }}
+          ARCH: ${{ inputs.architecture }}
+        run: |
+          set -euo pipefail
+          python3 scripts/evaluate_protected_risk_decision.py \
+            --decision "$DECISION_PATH" --trusted-decision-sha256 "$DECISION_SHA" \
+            --report "$RUNNER_TEMP/trivy.json" --digest "$IMAGE_DIGEST" \
+            --profile "$PROFILE" --architecture "$ARCH" --environment development \
+            | tee "$RUNNER_TEMP/decision-result.json"
+      - name: Retain qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: protected-security-decision-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/trivy.json
+            ${{ runner.temp }}/decision-result.json
+          if-no-files-found: warn
+          retention-days: 30
