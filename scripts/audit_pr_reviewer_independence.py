@@ -90,20 +90,17 @@ def audit(token, number):
         if type(review_id) is not int or review_id <= 0:
             raise IndependenceError("numeric review identity is missing")
         user = review.get("user") or {}
+        reviewer_id = uid({"databaseId": user.get("id")})
         result = classify_reviewer(user, author_id, contributors)
-        login = result["login"].casefold()
-        previous = reviewers.get(login)
-        if previous and previous.get("id") != user.get("id"):
-            raise IndependenceError("reviewer numeric identity changed during enumeration")
-        result["id"] = user.get("id")
-        reviewers[login] = result
+        result["id"] = reviewer_id
+        reviewers[reviewer_id] = result
     return {
         "pull_request": number,
         "head_sha": head,
         "contributor_count": len(contributors),
         "reviewers": [
             {key: value for key, value in result.items() if key != "id"}
-            for result in sorted(reviewers.values(), key=lambda item: item["login"].casefold())
+            for result in sorted(reviewers.values(), key=lambda item: item["id"])
         ],
         "note": "Independence results are not approval or trust decisions.",
     }
