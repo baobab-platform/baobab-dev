@@ -83,5 +83,6 @@
     "push_ref": "refs/heads/main",
     "pull_request_head_repository": "baobab-platform/baobab-dev"
   },
-  "prepared_by_id": 350241706
+  "prepared_by_id": 350241706,
+  "record_type": "proposed_approved_form"
 }
