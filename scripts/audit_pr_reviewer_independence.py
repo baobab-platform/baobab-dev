@@ -74,7 +74,7 @@ def audit(token, number):
     return {
         "pull_request": number,
         "head_sha": head,
-        "commit_count": len(contributors),
+        "contributor_count": len(contributors),
         "reviewers": [
             {key: value for key, value in result.items() if key != "id"}
             for result in sorted(reviewers.values(), key=lambda item: item["login"].casefold())
