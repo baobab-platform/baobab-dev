@@ -1,0 +1,20 @@
+name: DEV-10 policy decision contract
+on:
+  pull_request:
+    paths:
+      - "security/decisions/development/**"
+      - "docs/adr/ADR-DEV10-001-reusable-development-risk-policy.md"
+      - "tests/test_development_risk_decision_record.py"
+      - ".github/workflows/dev10-policy-decision.yml"
+permissions:
+  contents: read
+jobs:
+  decision-contract:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate decision schema and exact inventory
+        run: python3 -B -m unittest -v tests/test_development_risk_decision_record.py
