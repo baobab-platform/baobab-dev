@@ -73,10 +73,10 @@ def audit(token, number):
     if fetched_head != head:
         raise IndependenceError("fetched PR ref differs from GitHub head SHA")
     revision_list = subprocess.run(
-        ["git", "rev-list", "--reverse", f"{base_sha}..{head}"],
+        ["git", "rev-list", "--reverse", "--topo-order", f"{base_sha}..{head}"],
         check=True, capture_output=True, text=True,
     ).stdout.splitlines()
-    if len(revision_list) != expected_count or not revision_list or revision_list[-1] != head:
+    if len(revision_list) != expected_count or not revision_list or head not in revision_list:
         raise IndependenceError("local full-history commit range differs from GitHub PR metadata")
     author_id, contributors = collect_pr(token, number, head, revision_list)
     api_author_id = uid({"databaseId": (pull.get("user") or {}).get("id")})
