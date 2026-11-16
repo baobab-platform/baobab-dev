@@ -55,10 +55,16 @@ class CustodyIndependenceTests(unittest.TestCase):
         with self.assertRaises(mod.IndependenceError):
             mod.collect_contributors([commit("same"), commit("same")], 2)
 
-    def test_web_flow_service_committer(self):
+    def test_service_committer_is_still_compared_by_numeric_identity(self):
         record = commit("a")
         record["committer"]["user"] = user(99, "web-flow")
-        self.assertEqual(mod.collect_contributors([record], 1), {1})
+        self.assertEqual(mod.collect_contributors([record], 1), {1, 99})
+
+    def test_unresolved_committer_fails_closed(self):
+        record = commit("a")
+        record["committer"]["user"] = None
+        with self.assertRaises(mod.IndependenceError):
+            mod.collect_contributors([record], 1)
 
 if __name__ == "__main__":
     unittest.main()
