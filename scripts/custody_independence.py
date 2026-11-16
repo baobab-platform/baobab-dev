@@ -95,7 +95,7 @@ def collect_pr(token, number, expected_head, commit_oids=None):
     author, count = pull_metadata(token, number, expected_head)
     if commit_oids is not None:
         if (not isinstance(commit_oids, list) or len(commit_oids) != count
-                or not commit_oids or commit_oids[-1] != expected_head
+                or not commit_oids or expected_head not in commit_oids
                 or len(set(commit_oids)) != len(commit_oids)):
             raise IndependenceError("local commit range does not match GitHub PR commit count/head")
         commits = fetch_commit_records(token, commit_oids)
