@@ -8,6 +8,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import urllib.request
 
 from custody_independence import collect_pr, require_independent, uid, IndependenceError
@@ -52,7 +53,32 @@ def audit(token, number):
     reviews = fetch(f"{api}/pulls/{number}/reviews?per_page=100", token)
     if not isinstance(reviews, list) or len(reviews) >= 100:
         raise IndependenceError("complete review history required; pagination not exhausted")
-    author_id, contributors = collect_pr(token, number, head)
+    expected_head = os.environ.get("EXPECTED_HEAD_SHA")
+    if expected_head and expected_head != head:
+        raise IndependenceError("PR head differs from the triggering event SHA")
+    base_sha = (pull.get("base") or {}).get("sha")
+    expected_count = pull.get("commits")
+    if not isinstance(base_sha, str) or type(expected_count) is not int or expected_count <= 0:
+        raise IndependenceError("PR base SHA or commit count is unavailable")
+    subprocess.run([
+        "git", "fetch", "--no-tags", "origin",
+        f"refs/pull/{number}/head:refs/remotes/origin/pr-{number}",
+    ], check=True, capture_output=True, text=True)
+    subprocess.run(["git", "fetch", "--no-tags", "origin", base_sha],
+                   check=True, capture_output=True, text=True)
+    fetched_head = subprocess.run(
+        ["git", "rev-parse", f"refs/remotes/origin/pr-{number}"],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+    if fetched_head != head:
+        raise IndependenceError("fetched PR ref differs from GitHub head SHA")
+    revision_list = subprocess.run(
+        ["git", "rev-list", "--reverse", f"{base_sha}..{head}"],
+        check=True, capture_output=True, text=True,
+    ).stdout.splitlines()
+    if len(revision_list) != expected_count or not revision_list or revision_list[-1] != head:
+        raise IndependenceError("local full-history commit range differs from GitHub PR metadata")
+    author_id, contributors = collect_pr(token, number, head, revision_list)
     api_author_id = uid({"databaseId": (pull.get("user") or {}).get("id")})
     if author_id != api_author_id:
         raise IndependenceError("REST and GraphQL PR author identities disagree")
