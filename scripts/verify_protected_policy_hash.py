@@ -10,11 +10,14 @@ import json
 from pathlib import Path
 from evaluate_protected_risk_decision import (
     load_verified_decision, _finding_key, _timestamp, demand, REPOSITORY,
+    validate_execution_context,
 )
 
-def verify(decision_path, trusted_sha256, report, *, profile, architecture, now=None):
+def verify(decision_path, trusted_sha256, report, *, profile, architecture,
+           event, ref, base_ref="", now=None):
     now = now or dt.datetime.now(dt.timezone.utc)
     decision, actual_hash = load_verified_decision(Path(decision_path), trusted_sha256)
+    validate_execution_context(decision, event=event, ref=ref, base_ref=base_ref)
     demand(decision.get("schema_version") == 2 and decision.get("status") == "approved"
            and not decision.get("revoked_at"), "decision is not approved")
     demand(isinstance(decision.get("approval_id"), str) and bool(decision["approval_id"])
@@ -32,9 +35,20 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture, now=
     demand(decision.get("prepared_by") and decision.get("approved_by")
            and decision["prepared_by"].casefold() != decision["approved_by"].casefold(),
            "maker-checker separation required")
-    approved = {_finding_key(item) for item in decision.get("findings", [])}
-    demand(bool(approved) and len(approved) == len(decision.get("findings", [])),
-           "invalid or duplicated approved inventory")
+    findings = decision.get("findings")
+    demand(isinstance(findings, list) and len(findings) == 8,
+           "the complete eight-finding approval inventory is required")
+    approved = {_finding_key(item) for item in findings}
+    expected_cves = {
+        "CVE-2022-50240", "CVE-2025-40190", "CVE-2026-68103",
+        "CVE-2026-72198", "CVE-2026-74578", "CVE-2026-89805",
+        "CVE-2026-98376", "CVE-2026-98420",
+    }
+    demand(len(approved) == 8
+           and {item[0] for item in approved} == expected_cves
+           and all(item[1:] == ("linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu")
+                   for item in approved),
+           "decision differs from the exact approved Ubuntu package/CVE inventory")
     demand(report.get("SchemaVersion") == 2 and report.get("ArtifactType") == "container_image",
            "raw Trivy container image report required")
     demand(isinstance(report.get("Trivy"), dict)
@@ -54,7 +68,8 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture, now=
                                 "severity": finding.get("Severity"),
                                 "type": result.get("Type")})
             observed.add(key)
-    demand(bool(observed) and observed <= approved, "new or changed findings denied")
+    demand(bool(observed) and observed == approved,
+           "scan inventory differs from the complete approved finding set")
     return {"status": "development_risk_accepted_not_remediated",
             "policy_sha256": actual_hash, "findings": len(observed)}
 
@@ -65,10 +80,14 @@ def main():
     p.add_argument("--report", required=True)
     p.add_argument("--profile", required=True)
     p.add_argument("--architecture", required=True)
+    p.add_argument("--event", required=True)
+    p.add_argument("--ref", required=True)
+    p.add_argument("--base-ref", default="")
     args = p.parse_args()
     print(json.dumps(verify(args.decision, args.trusted_sha256,
                             json.loads(Path(args.report).read_text()),
-                            profile=args.profile, architecture=args.architecture),
+                            profile=args.profile, architecture=args.architecture,
+                            event=args.event, ref=args.ref, base_ref=args.base_ref),
                      sort_keys=True))
 
 if __name__ == "__main__":
