@@ -14,10 +14,11 @@ from evaluate_protected_risk_decision import (
 )
 
 def verify(decision_path, trusted_sha256, report, *, profile, architecture,
-           event, ref, base_ref="", now=None):
+           event, ref, base_ref="", head_repository="", now=None):
     now = now or dt.datetime.now(dt.timezone.utc)
     decision, actual_hash = load_verified_decision(Path(decision_path), trusted_sha256)
-    validate_execution_context(decision, event=event, ref=ref, base_ref=base_ref)
+    validate_execution_context(decision, event=event, ref=ref, base_ref=base_ref,
+                               head_repository=head_repository)
     demand(decision.get("schema_version") == 2 and decision.get("status") == "approved"
            and not decision.get("revoked_at"), "decision is not approved")
     demand(isinstance(decision.get("approval_id"), str) and bool(decision["approval_id"])
@@ -91,11 +92,13 @@ def main():
     p.add_argument("--event", required=True)
     p.add_argument("--ref", required=True)
     p.add_argument("--base-ref", default="")
+    p.add_argument("--head-repository", required=True)
     args = p.parse_args()
     print(json.dumps(verify(args.decision, args.trusted_sha256,
                             json.loads(Path(args.report).read_text()),
                             profile=args.profile, architecture=args.architecture,
-                            event=args.event, ref=args.ref, base_ref=args.base_ref),
+                            event=args.event, ref=args.ref, base_ref=args.base_ref,
+                            head_repository=args.head_repository),
                      sort_keys=True))
 
 if __name__ == "__main__":
