@@ -126,7 +126,7 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
     def test_development_scans_run_without_manual_environment_pause(self):
         foundation = (ROOT / ".github/workflows/foundation.yml").read_text()
         gate_match = re.search(
-            r"(?ms)^  dev10-container-risk:\\n(.*?)(?=^  [a-z0-9-]+:|\\Z)",
+            r"(?ms)^  dev10-container-risk:\n(.*?)(?=^  [a-z0-9-]+:|\Z)",
             foundation,
         )
         self.assertIsNotNone(gate_match)
