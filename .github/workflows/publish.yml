@@ -669,6 +669,18 @@ jobs:
             "${REPORT_DIR}/findings.json" \
             "${{ matrix.target }}" "${{ matrix.platform }}"
 
+          # Review-only evidence is generated before protected acceptance.
+          # It cannot authorize publishing, promotion or residual risk.
+          if (( scan_rc == 1 )); then
+            scanner_version=$(trivy --version | sed -n 's/^Version: //p' | head -1)
+            python3 scripts/prepare_dev10_risk_inventory.py \
+              --raw-trivy "${RUNNER_TEMP}/trivy-raw.json" \
+              --scanner-version "$scanner_version" \
+              --profile "${{ matrix.target }}" --architecture "${{ matrix.platform }}" \
+              --output "${REPORT_DIR}/risk-policy.review-only.json"
+            sha256sum "${REPORT_DIR}/risk-policy.review-only.json" \
+              > "${REPORT_DIR}/risk-policy.review-only.sha256"
+          fi
           if [[ "${{ matrix.target }}" == "final" ]]; then
             rm -rf "${SCAN_DIR}"
           fi
