@@ -22,6 +22,23 @@ jobs:
       dependency_review_enabled: false
       container_ignore_unfixed: false
 
+  pr-reviewer-independence:
+    name: PR reviewer independence audit
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Audit live PR reviewer contributor independence
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/audit_pr_reviewer_independence.py --pr-number "$PR_NUMBER"
+
   # Explicit replacement for Shared's temporary 'container-scan' exception.
   # Retain full Trivy coverage; only exact known CVEs can be risk accepted.
   dev10-container-risk:
@@ -36,12 +53,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Audit live PR reviewer contributor independence
-        if: github.event_name == 'pull_request'
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python3 scripts/audit_pr_reviewer_independence.py --pr-number "$PR_NUMBER"
       - name: Validate approved risk policy negative cases
         run: python3 -B -m unittest discover -s tests -p test_dev10_kernel_risk_gate.py -v
       - name: Build actual Foundation development container
