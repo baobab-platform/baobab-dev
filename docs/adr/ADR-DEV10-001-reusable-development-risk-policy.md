@@ -137,8 +137,9 @@ independent approval on its exact final head. The shared Foundation workflow
 continues to run its full profile on every event; no Foundation security,
 baseline, reproducibility, runtime or environment gate is disabled for this
 policy PR. The additional unfiltered Foundation image CVE scan runs when a PR
-changes container build inputs (`.devcontainer/`, `config/`, `scripts/` or the
-kernel inventory). A policy-only PR does not change the image and therefore
+changes container build inputs (`.devcontainer/`, `config/`, `scripts/`),
+the repository's shared scanner-policy manifest (`.baobab/repository.yaml`),
+or the kernel inventory. A policy-only PR does not change the image and therefore
 does not claim that an image scan passed; its decision JSON and proposal are
 instead validated against the pinned Draft 2020-12 schema, including negative
 fixtures. Any PR changing image inputs still runs the full image scan and must
