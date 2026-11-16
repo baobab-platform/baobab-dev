@@ -1,6 +1,6 @@
 # DEV-10 protected, artifact-bound security decisions
 
-Status: REUSABLE POLICY EVALUATOR IMPLEMENTED / NOT ACTIVATED (PR #74).
+Status: reusable policy schema and verifier implemented on PR #74; policy proposal pending independent review; NOT ACTIVE.
 This change issues no new risk acceptance and does not qualify PR #74.
 
 ## Decision model
@@ -78,39 +78,28 @@ The 12 November issue #54 amendment explicitly names **PR #62** for the eight HI
 
 PR #74's 16 November scans are evidence only. The new proposal is reusable across future eligible PRs targeting `main` and development-main push CI, with the exact eight findings, four profiles, two architectures and expiry **2026-11-26T00:00:00Z**. Tags, releases, workflow dispatch, schedules, deployments, other PR base branches, staging and production are denied. The proposal remains pending independent review and has no activation effect.
 
-## Current authorization remains unchanged
+## Current authorization and activation state
 
-The legacy DEV-10 kernel risk gate remains authoritative for Foundation and
-Publish until a protected-policy record and trusted hash exist and a separately
-reviewed integration replaces the legacy path.
+The 12 November issue #54 amendment explicitly names **PR #62** for the eight HIGH findings on `linux-libc-dev=7.0.0-43.43`. No approval naming PR #71 was found. Older #62/#71 discrepancy statements are superseded by the issue record and the current legacy gate, which denies PR/main residual-risk acceptance rather than authorising either PR number.
 
-- PR #74 is not added to the legacy PR allow-list.
-- The eight HIGH findings for linux-libc-dev 7.0.0-43.43 are not approved by
-  this evaluator implementation.
-- The 12 November issue #54 record names PR #62; the later executable gate
-  names PR #71. This custody discrepancy remains unresolved.
-- The 14 November PR #74 entry is assessment-only, not a risk acceptance.
-- No VEX not_affected claim, Trivy suppression, release waiver or promotion
-  authority is created here.
+PR #74's 16 November scans are inventory evidence only. The new proposal is reusable across future eligible PRs targeting `main` and development-main push CI, with the exact eight findings, four profiles, two architectures and expiry **2026-11-26T00:00:00Z**. Tags, releases, workflow dispatch, schedules, deployments, other PR base branches, staging and production are denied. The proposal remains `pending_independent_review` and has no activation effect.
 
-A policy record must not be created for the eight findings until the owner and
-independent security reviewer reconcile the approval scope and custody
-discrepancy in issue #54.
+The Foundation and Publish workflows now invoke the protected custody verifier and local policy verifier when the unfiltered scan finds HIGH/CRITICAL findings. Both pass GitHub event/ref/base-ref context; the local verifier rejects every event except a PR merge ref targeting `main` or a push to `refs/heads/main`. A missing decision file, missing trusted hash or missing approver configuration remains a hard failure. The existing protected environment remains in place. The policy file and hash are not yet provisioned, so the scans remain blocked on these findings.
+
+- PR #74 is not granted a special PR-number exception.
+- The eight HIGH findings are not yet accepted; the proposal is pending independent review.
+- The policy does not authorize release tags, GHCR publication/promotion, staging or production.
+- No VEX `not_affected` claim, Trivy suppression, remediation claim or release waiver is created.
+- The 14 November issue #54 PR #74 entry remains assessment-only; the new reusable decision requires its own merged independent approval.
 
 ## Activation prerequisites
 
-1. Reconcile issue #54 and the 12/14 November package-version decision custody.
-2. Confirm the independent security approver and protected review path.
-3. Create the policy record only after an attributable, bounded approval.
-4. Set the protected SHA-256 trust anchor through the designated custodian.
-5. Add trusted automation that evaluates candidate scan evidence from PR builds
-   without executing PR-controlled evaluator or policy code. The current
-   workflow is a protected, read-only manual qualification tool, not an
-   automatic PR gate.
-6. Test real Trivy/GHCR evidence and malicious PR policy edits, wrong child
-   digest, architecture drift, new CVEs, package/version/severity changes,
-   fixed-version signals, expiry, revocation and secret findings.
-7. Keep exact-digest release qualification and protected promotion independent.
+1. Keep the decision proposal at `pending_independent_review` until an authorized independent reviewer approves the exact scope and evidence.
+2. Verify the repository's branch ruleset, required code-owner review, stale-approval dismissal and latest-push approval controls; the available GitHub integration has not exposed sufficient administrative evidence to claim these settings are verified.
+3. Obtain a current independent approval on the exact merged decision PR head. The custody verifier must confirm the PR author/preparer, trusted reviewer, distinct numeric identities, changed decision path and merged-to-main status.
+4. Only after the final approved `foundation.json` is merged and custody verification passes, compute its exact lowercase SHA-256 and provision `DEV10_PROTECTED_DECISION_SHA256` through the separately controlled repository-variable administration path. Never hash the proposal.
+5. Rerun Foundation and all eight Publish profile/architecture scans. Confirm the policy applies only to PRs targeting main and pushes to main; verify tag, dispatch, schedule and wrong-base negative cases remain denied.
+6. Keep exact-digest release qualification, signatures, SBOM/provenance, digest continuity and protected promotion independent.
 
 ## Operating objective
 
