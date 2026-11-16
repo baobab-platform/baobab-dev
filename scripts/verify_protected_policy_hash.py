@@ -25,15 +25,23 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture,
            and decision["approval_evidence"].startswith("https://github.com/baobab-platform/baobab-dev/pull/"),
            "authenticated approval identity and custody link required")
     demand(decision.get("repository") == REPOSITORY
+           and decision.get("image_repository") == "ghcr.io/" + REPOSITORY
            and decision.get("environment") == "development",
-           "policy is not approved for this development repository")
-    demand(profile in decision.get("profiles", [])
-           and architecture in decision.get("architectures", []),
-           "profile or architecture outside protected policy")
+           "policy is not approved for this development repository/image")
+    demand(set(decision.get("profiles", [])) == {"final", "frontend", "frontend-e2e", "infra"}
+           and set(decision.get("architectures", [])) == {"linux/amd64", "linux/arm64"}
+           and profile in decision["profiles"] and architecture in decision["architectures"],
+           "profile or architecture outside the complete protected policy scope")
+    demand(decision.get("expires_at") == "2026-11-26T00:00:00Z"
+           and decision.get("finding_count") == 8,
+           "decision expiry or finding count differs from the approved governance record")
     demand(_timestamp(decision, "approved_at") <= now < _timestamp(decision, "expires_at"),
            "policy expired or not yet approved")
-    demand(decision.get("prepared_by") and decision.get("approved_by")
-           and decision["prepared_by"].casefold() != decision["approved_by"].casefold(),
+    prepared_by = decision.get("prepared_by")
+    approved_by = decision.get("approved_by")
+    demand(isinstance(prepared_by, str) and prepared_by.strip()
+           and isinstance(approved_by, str) and approved_by.strip()
+           and prepared_by.casefold() != approved_by.casefold(),
            "maker-checker separation required")
     findings = decision.get("findings")
     demand(isinstance(findings, list) and len(findings) == 8,
