@@ -1,0 +1,133 @@
+{
+  "schema_version": 2,
+  "status": "pending_independent_review",
+  "revoked_at": null,
+  "repository": "baobab-platform/baobab-dev",
+  "image_repository": "ghcr.io/baobab-platform/baobab-dev",
+  "environment": "development",
+  "profiles": [],
+  "architectures": [],
+  "approval_id": null,
+  "prepared_by": null,
+  "approved_by": null,
+  "approval_evidence": null,
+  "approved_at": null,
+  "expires_at": null,
+  "findings": [
+    {
+      "cve": "CVE-2022-50240",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2025-40190",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-68103",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-72198",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-74578",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-89805",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-98376",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-98420",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    }
+  ],
+  "proposal": {
+    "status": "proposal_only",
+    "requested_scope": {
+      "pull_requests": [74],
+      "events": ["pull_request"],
+      "refs": ["refs/pull/74/merge"],
+      "profiles": ["final", "frontend", "frontend-e2e", "infra"],
+      "architectures": ["linux/amd64", "linux/arm64"],
+      "environment": "development",
+      "excluded_contexts": [
+        "main",
+        "refs/tags/*",
+        "release publication",
+        "protected promotion",
+        "staging",
+        "production"
+      ]
+    },
+    "proposed_expires_at": "2026-11-26T00:00:00Z",
+    "expiry_basis": "Suggested review deadline only. This does not inherit or extend the separate PR #62 approval.",
+    "review_questions": [
+      "Confirm whether PR #74 is to receive a distinct development-only residual-risk acceptance.",
+      "Confirm the exact profiles and architectures; current retained Trivy evidence covers final/linux-amd64 only.",
+      "Confirm the proposed expiry or replace it with an explicit decision deadline.",
+      "Resolve the historical PR #62 versus PR #71 custody discrepancy in issue #54 before approval.",
+      "Confirm that no other package, CVE, severity, fixed-version signal, secret finding, event, ref, or release context is included."
+    ]
+  },
+  "evidence": {
+    "source": "GitHub Actions artifact 13962922393 from run 43257311010",
+    "artifact_file": "trivy-evidence/trivy-vulnerabilities.json",
+    "artifact_report_sha256": "7755fb395c57ae16894a838e58a8125f13f2727a6312353350d939e56dfad199",
+    "normalized_findings_file": "trivy-evidence/findings.json",
+    "normalized_findings_sha256": "235b13a805d8cb5b749d1d557c88052977e8458897d361338bbad167e2916d35",
+    "trivy_version": "0.73.0",
+    "trivy_schema_version": 2,
+    "observed_profile": "final",
+    "observed_architecture": "linux/amd64",
+    "source_commit": "6e531c042fd413d0075906398afe8900df6fe049",
+    "trivy_artifact_id": "sha256:f36c5ee415f7078099f7548ce1164c51ab347db40dc0dd981fa5ecba890ba1b0",
+    "ghcr_repo_digest": null,
+    "limitations": [
+      "The retained report is from PR #62, not PR #74.",
+      "The report has no Metadata.RepoDigests entry, so it cannot satisfy the current evaluator's exact GHCR child-digest identity check.",
+      "The retained evidence covers final/linux-amd64 only; it does not establish the inventory across all proposed profiles and architectures.",
+      "The artifact contains two additional HIGH golang.org/x/net findings in gh and cosign with fixed version 0.62.0. They are deliberately excluded from this decision and must be remediated, not risk-accepted under this Linux package decision.",
+      "A fixed-version signal is an unconditional denial in the current evaluator.",
+      "The scan evidence establishes scanner observations only; it is not an approval, applicability determination, VEX statement, or release authorization."
+    ]
+  },
+  "activation_requirements": [
+    "Replace this pending proposal only through an independently reviewed protected decision change after the owner confirms the proposed scope.",
+    "Populate preparer, approver, approval ID, merged approval PR URL, approval timestamp, and final expiry with authenticated values.",
+    "Confirm independent reviewer trust and contributor separation using complete live GitHub evidence.",
+    "Resolve issue #54's PR #62/#71 discrepancy and explicitly record the PR #74 decision.",
+    "Capture fresh exact-digest Trivy reports with RepoDigests for each approved image/profile/architecture combination and reconcile every observed finding.",
+    "Calculate SHA-256 only after the final approved bytes are merged; provision that exact hash through the separately controlled trust-anchor process.",
+    "Keep development qualification separate from release promotion and RC-to-GA authorization."
+  ]
+}
