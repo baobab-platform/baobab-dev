@@ -57,9 +57,9 @@ def collect_contributors(commits, count):
         for author in authors["nodes"]:
             found.add(uid((author or {}).get("user")))
         committer = (commit.get("committer") or {}).get("user")
-        # GitHub's service account is not a human contributor.
-        if (committer or {}).get("login") != "web-flow":
-            found.add(uid(committer))
+        # Include every resolvable committer identity. Eligibility is decided
+        # only by numeric IDs; unresolved identities fail closed.
+        found.add(uid(committer))
     return found
 
 def fetch_commit_records(token, oids):
