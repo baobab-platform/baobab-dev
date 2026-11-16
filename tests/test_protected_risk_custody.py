@@ -18,14 +18,14 @@ class CustodyTests(unittest.TestCase):
                          "approval_evidence": URL}
         self.pull = {"state": "closed", "merged_at": "2026-11-15T10:00:00Z",
                      "html_url": URL, "base": {"ref": "main"},
-                     "head": {"sha": SHA}, "user": {"login": "maker"}}
-        self.reviews = [{"user": {"login": "checker"}, "state": "APPROVED",
+                     "head": {"sha": SHA}, "user": {"login": "maker", "databaseId": 1}}
+        self.reviews = [{"user": {"login": "checker", "databaseId": 2}, "state": "APPROVED",
                          "submitted_at": "2026-11-15T09:00:00Z", "commit_id": SHA}]
         self.files = [{"filename": "security/decisions/decision.json", "status": "added"}]
 
     def check(self):
         return mod.verify(self.decision, self.pull, self.reviews, self.files,
-                          trusted_approvers=["checker"])
+                          trusted_approvers=["checker"], contributor_custody=(1, {1}, {2}))
 
     def test_valid_independent_review(self):
         self.check()
@@ -75,7 +75,7 @@ class CustodyTests(unittest.TestCase):
         self.files = [{"filename": "security/decisions/unrelated.json", "status": "added"}]
         with self.assertRaises(ValueError):
             mod.verify(self.decision, self.pull, self.reviews, self.files,
-                       trusted_approvers=["checker"],
+                       trusted_approvers=["checker"], contributor_custody=(1, {1}, {2}),
                        decision_path="security/decisions/development/foundation.json")
 
     def test_approval_exact_decision_path(self):
