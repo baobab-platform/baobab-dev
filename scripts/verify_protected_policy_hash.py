@@ -25,7 +25,7 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture,
     evidence = decision.get("approval_evidence")
     demand(isinstance(decision.get("approval_id"), str) and bool(decision["approval_id"].strip())
            and isinstance(evidence, str)
-           and re.fullmatch(r"https://github\\.com/baobab-platform/baobab-dev/pull/[1-9][0-9]*", evidence),
+           and re.fullmatch(r"https://github\.com/baobab-platform/baobab-dev/pull/[1-9][0-9]*", evidence),
            "authenticated approval identity and exact custody link required")
     demand(decision.get("repository") == REPOSITORY
            and decision.get("image_repository") == "ghcr.io/" + REPOSITORY
