@@ -6,7 +6,7 @@
 | **Date** | 2026-11-16 |
 | **Owner** | Baobab Platform security-policy owner |
 | **Repository** | `baobab-platform/baobab-dev` |
-| **Related records** | Issue #54; PRs #62, #71 and #74; `docs/security/protected-artifact-risk-decisions.md` |
+| **Related records** | Issue #54; PRs #62, #71, #74 and #76; `docs/security/protected-artifact-risk-decisions.md` |
 
 ## 1. Context
 
