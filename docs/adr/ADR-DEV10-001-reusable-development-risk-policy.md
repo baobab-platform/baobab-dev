@@ -6,7 +6,7 @@
 | **Date** | 2026-11-16 |
 | **Owner** | Baobab Platform security-policy owner |
 | **Repository** | `baobab-platform/baobab-dev` |
-| **Related records** | Issue #54; PRs #62, #71 and #74; `docs/security/protected-artifact-risk-decisions.md` |
+| **Related records** | Issue #54; PRs #62, #71, #74 and #76; `docs/security/protected-artifact-risk-decisions.md` |
 
 ## 1. Context
 
@@ -147,8 +147,15 @@ approval for every matching development PR. It also creates a strict,
 time-limited dependency on GitHub review history and numeric contributor
 enumeration; missing API identity data blocks the scan.
 
-A versioned multi-decision registry is deferred until a later increment. The
-current single-document trust anchor intentionally authorizes only this one
-decision. PR #74 is unusually large (383 commits and 92 changed files); future
-work should be split into smaller, independently reviewable increments
-without weakening these controls.
+The current promotion workflow also consumes the single
+`DEV10_PROTECTED_DECISION_SHA256` trust anchor for tag/target decision files.
+That one hash cannot authenticate a distinct development decision and one or
+more separate release decisions concurrently. No release decision file is
+currently active; release residual findings therefore remain blocking unless
+a separately approved release trust mechanism is implemented. A versioned
+multi-decision registry or separate release trust anchor is deferred to a
+later increment and must not be approximated by reusing development authority.
+
+PR #74 is unusually large (383 commits and 92 changed files); future work
+should be split into smaller, independently reviewable increments without
+weakening these controls.
