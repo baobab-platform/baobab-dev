@@ -125,6 +125,7 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
              event: str | None = None, ref: str | None = None,
              base_ref: str = "", head_repository: str | None = None,
              approval_id: str | None = None, approval_timestamp: str | None = None,
+             approved_by_id: int | None = None,
              now: dt.datetime | None = None) -> dict:
     """Qualify a scan; a clean scan needs no risk decision."""
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -214,7 +215,6 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
            "architecture is outside the approved risk scope")
 
     prepared_by_id = decision.get("prepared_by_id")
-    approved_by_id = decision.get("approved_by_id")
     evidence = decision.get("approval_evidence")
     if "execution_scope" in decision:
         demand(isinstance(approval_id, str) and approval_id.strip()
@@ -225,12 +225,18 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
         approval_id = decision.get("approval_id")
         demand(isinstance(approval_id, str) and approval_id.strip(), "approval identifier missing")
         approved_at = _timestamp(decision, "approved_at")
-    demand(type(prepared_by_id) is int and prepared_by_id > 0,
-           "numeric decision preparer identity missing")
-    demand(type(approved_by_id) is int and approved_by_id > 0,
-           "numeric independent approver identity missing")
-    demand(prepared_by_id != approved_by_id,
-           "maker-checker violation: preparer cannot approve the same decision")
+    if "execution_scope" in decision:
+        demand(type(prepared_by_id) is int and prepared_by_id > 0
+               and type(approved_by_id) is int and approved_by_id > 0
+               and prepared_by_id != approved_by_id,
+               "numeric maker-checker separation required")
+    else:
+        prepared_by = decision.get("prepared_by")
+        approved_by = decision.get("approved_by")
+        demand(isinstance(prepared_by, str) and prepared_by.strip()
+               and isinstance(approved_by, str) and approved_by.strip()
+               and prepared_by.casefold() != approved_by.casefold(),
+               "maker-checker separation required")
     demand(isinstance(evidence, str)
            and re.fullmatch(
                rf"https://github\.com/{re.escape(REPOSITORY)}/pull/[1-9][0-9]*",
@@ -287,6 +293,7 @@ def main() -> int:
     parser.add_argument("--head-repository", default="")
     parser.add_argument("--approval-id")
     parser.add_argument("--approved-at")
+    parser.add_argument("--approved-by-id", type=int)
     parser.add_argument("--expected-trivy-version", default=TRIVY_VERSION)
     parser.add_argument("--result-output", type=Path)
     args = parser.parse_args()
@@ -318,6 +325,7 @@ def main() -> int:
             event=args.event, ref=args.ref, base_ref=args.base_ref,
             head_repository=args.head_repository,
             approval_id=args.approval_id, approval_timestamp=args.approved_at,
+            approved_by_id=args.approved_by_id,
         )
         exit_code = 0
     except (DecisionDenied, OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
