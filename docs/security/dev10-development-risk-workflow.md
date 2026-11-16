@@ -16,4 +16,10 @@ The proposed policy is bounded to the exact eight HIGH Ubuntu findings for `linu
 
 The policy is **not active** while its status is `pending_independent_review`, the protected SHA-256 trust anchor is unset, or approval custody is unverified. It cannot authorize tags, releases, workflow dispatch, schedules, deployments, PRs targeting another branch, staging or production. Release qualification and promotion remain separate controls.
 
-The author prepares the decision; a separately trusted reviewer must approve the exact final merged head. The decision record, independent review, custody verifier, protected default-branch controls and exact policy hash must all agree before the trust anchor is provisioned.
+The decision preparer is bound by immutable numeric GitHub user ID to the decision-PR author. The custody verifier selects a current effective approval from the trusted reviewer allowlist only when that reviewer is not the PR author and has not authored, co-authored or committed any commit in the decision PR. It enumerates the complete commit history through GraphQL and fails closed on unresolved identities. Login and email are not identity keys. The GitHub review ID and submitted timestamp are derived from API evidence at runtime; they are not embedded in the bytes being approved.
+
+Risk validity is expiry-based; execution authorization is branch/event-based. The policy is usable only while unexpired **and** only for same-repository pull requests targeting `main` or pushes to `refs/heads/main`. A valid expiry never grants authority to another branch, tag, release or deployment, and a valid branch context never extends expiry.
+
+The `dev10-security-policy-read` environment must permit `main` and `refs/pull/*/merge` deployment refs, in addition to its required reviewers. GitHub matches environment branch rules against `GITHUB_REF`; a protected-main-only allowlist blocks pull-request merge refs. This admin configuration must be verified rather than inferred.
+
+The decision record, independent review, custody verifier, protected default-branch controls and exact policy hash must all agree before the trust anchor is provisioned.
