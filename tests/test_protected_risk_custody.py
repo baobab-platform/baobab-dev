@@ -41,9 +41,9 @@ class CustodyTests(unittest.TestCase):
         for state in ("COMMENTED", "CHANGES_REQUESTED", "DISMISSED"):
             with self.subTest(state=state):
                 self.reviews = [
-                    {"user": {"login": "checker"}, "state": "APPROVED",
+                    {"user": {"login": "checker", "databaseId": 2}, "state": "APPROVED",
                      "submitted_at": "2026-11-15T09:00:00Z", "commit_id": SHA},
-                    {"user": {"login": "checker"}, "state": state,
+                    {"user": {"login": "checker", "databaseId": 2}, "state": state,
                      "submitted_at": "2026-11-15T09:30:00Z", "commit_id": SHA},
                 ]
                 with self.assertRaises(ValueError):
@@ -51,9 +51,9 @@ class CustodyTests(unittest.TestCase):
 
     def test_later_current_head_approval_restores_authority(self):
         self.reviews = [
-            {"user": {"login": "checker"}, "state": "COMMENTED",
+            {"user": {"login": "checker", "databaseId": 2}, "state": "COMMENTED",
              "submitted_at": "2026-11-15T09:00:00Z", "commit_id": SHA},
-            {"user": {"login": "checker"}, "state": "APPROVED",
+            {"user": {"login": "checker", "databaseId": 2}, "state": "APPROVED",
              "submitted_at": "2026-11-15T09:30:00Z", "commit_id": SHA},
         ]
         self.check()
@@ -83,7 +83,8 @@ class CustodyTests(unittest.TestCase):
     def test_approval_exact_decision_path(self):
         mod.verify(self.decision, self.pull, self.reviews, self.files,
                    trusted_approvers=["checker"],
-                   decision_path="security/decisions/decision.json")
+                   decision_path="security/decisions/decision.json",
+                   contributor_custody=(1, {1}, {2}))
 
     def test_unrelated_pr_denied(self):
         self.files = [{"filename": "README.md", "status": "modified"}]
@@ -93,9 +94,9 @@ class CustodyTests(unittest.TestCase):
 
     def test_out_of_order_reviews_do_not_restore_stale_approval(self):
         self.reviews = [
-            {"user": {"login": "checker"}, "state": "CHANGES_REQUESTED",
+            {"user": {"login": "checker", "databaseId": 2}, "state": "CHANGES_REQUESTED",
              "submitted_at": "2026-11-15T10:00:00Z", "commit_id": SHA},
-            {"user": {"login": "checker"}, "state": "APPROVED",
+            {"user": {"login": "checker", "databaseId": 2}, "state": "APPROVED",
              "submitted_at": "2026-11-15T09:00:00Z", "commit_id": SHA},
         ]
         with self.assertRaises(ValueError):
