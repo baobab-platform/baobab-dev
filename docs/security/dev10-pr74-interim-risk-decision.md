@@ -8,6 +8,12 @@
 
 > This document records the evidence and unresolved authorization questions. It is not a risk acceptance, VEX statement, scanner suppression, merge approval, tag authorization, or release-promotion authorization. Do not use it as the protected policy JSON or provision its hash as a trust anchor.
 
+## Superseding governance update — 16 November 2026
+
+This earlier PR-specific draft is superseded as the preferred governance route. The platform owner has directed preparation of a reusable, PR-number-independent development policy with expiry **2026-11-26T00:00:00Z**, covering eligible pull requests targeting `main` and development-main push CI only. The policy is limited to the exact eight HIGH findings for `linux-libc-dev=7.0.0-43.43`, four profiles and two Linux architectures. It does not authorize tags, releases, manual dispatch, schedules, deployments, other PR base branches, staging or production.
+
+The 12 November issue #54 decision names PR #62; no PR #71 approval was located. PR #74's scans remain inventory evidence, not approval. The proposal is pending independent review; no active `foundation.json`, trust-anchor value, PR #74 risk acceptance, v1.5.3 tag permission or release qualification is created by this document.
+
 ## 1. Decision requested
 
 The decision owner is considering whether to permit the known `linux-libc-dev=7.0.0-43.43` findings to remain present in internal development images while PR #74 is merged and a v1.5.3 release candidate is qualified.
