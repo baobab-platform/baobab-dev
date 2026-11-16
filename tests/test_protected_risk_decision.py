@@ -283,7 +283,7 @@ class ProtectedDecisionTests(unittest.TestCase):
     def test_revocation_expiry_context_and_maker_checker_are_enforced(self):
         mutations = (
             ("status", "revoked"), ("revoked_at", "2026-11-14T12:00:00Z"),
-            ("approved_by", "engineering-maker"), ("approved_by", ""),
+            ("prepared_by_id", 2), ("prepared_by_id", 0),
             ("environment", "production"), ("expires_at", "2026-11-14T00:00:00Z"),
         )
         for field, value in mutations:
