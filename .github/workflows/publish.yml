@@ -633,6 +633,7 @@ jobs:
           POLICY_EVENT: ${{ github.event_name }}
           POLICY_REF: ${{ github.ref }}
           POLICY_BASE_REF: ${{ github.base_ref }}
+          POLICY_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -710,6 +711,7 @@ jobs:
               --report "${RUNNER_TEMP}/trivy-raw.json" \
               --profile "${{ matrix.target }}" --architecture "${{ matrix.platform }}" \
               --event "$POLICY_EVENT" --ref "$POLICY_REF" --base-ref "$POLICY_BASE_REF" \
+              --head-repository "$POLICY_HEAD_REPOSITORY" \
               > "${REPORT_DIR}/dev10-protected-risk-acceptance.json"
             echo "::warning::Authenticated development-only residual risk accepted; NOT remediated or release-authorized."
           fi
