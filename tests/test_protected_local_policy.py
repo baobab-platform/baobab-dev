@@ -29,7 +29,6 @@ class LocalPolicyTests(unittest.TestCase):
             "profiles": ["final", "frontend", "frontend-e2e", "infra"],
             "architectures": ["linux/amd64", "linux/arm64"],
             "prepared_by": "maker", "prepared_by_id": 1,
-            "approved_by": "checker", "approved_by_id": 2,
             "approval_evidence": "https://github.com/baobab-platform/baobab-dev/pull/123",
             "expires_at": "2026-11-26T00:00:00Z",
             "findings": copy.deepcopy(FINDINGS), "finding_count": 8,
@@ -57,7 +56,8 @@ class LocalPolicyTests(unittest.TestCase):
                           profile="final", architecture="linux/amd64",
                           event=event, ref=ref, base_ref=base_ref,
                           head_repository=head_repository, approval_id="github-review-123",
-                          approval_timestamp="2026-11-14T00:00:00Z", now=now)
+                          approval_timestamp="2026-11-14T00:00:00Z",
+                          approved_by_id=2, now=now)
 
     def test_exact_eight_finding_inventory_and_all_supported_profiles_architectures(self):
         for profile in self.policy["profiles"]:
@@ -109,7 +109,7 @@ class LocalPolicyTests(unittest.TestCase):
     def test_wrong_scope_or_maker_checker(self):
         for field, value in (("environment", "production"),
                              ("profiles", ["infra"]),
-                             ("approved_by_id", 1),
+                             ("prepared_by_id", 2),
                              ("status", "revoked")):
             policy = copy.deepcopy(self.policy)
             policy[field] = value
