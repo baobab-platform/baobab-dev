@@ -118,7 +118,6 @@ def main():
                 "trusted reviewer login resolution mismatch")
         approver_ids.add(uid({"databaseId": identity.get("id")}))
     verify(decision, pull, reviews, files,
-           trusted_approvers=[x.strip() for x in args.trusted_approvers.split(",") if x.strip()],
            decision_path=decision_path,
            contributor_custody=(author_id, contributors),
            trusted_approver_ids=approver_ids)
