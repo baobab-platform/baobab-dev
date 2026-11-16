@@ -33,7 +33,7 @@ class LocalPolicyTests(unittest.TestCase):
             "approval_evidence": "https://github.com/baobab-platform/baobab-dev/pull/123",
             "approved_at": "2026-11-14T00:00:00Z",
             "expires_at": "2026-11-26T00:00:00Z",
-            "findings": copy.deepcopy(FINDINGS),
+            "findings": copy.deepcopy(FINDINGS), "finding_count": 8,
         }
         self.report = {
             "SchemaVersion": 2, "ArtifactType": "container_image",
