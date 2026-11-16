@@ -151,7 +151,11 @@ Default-branch review protection, code-owner enforcement, latest-push approval,
 the security team's repository permission, environment branch rules and the
 trust-anchor administration path must be verified by an authorized
 administrator. Their configuration must not be inferred from CODEOWNERS or a
-successful workflow run.
+successful workflow run. The CODEOWNERS file assigns the protected decision
+and assessment paths to the established security owners (`@security`,
+`@sknabusiu`, `@sdnabusiu`) and platform-engineering owner
+(`@platform-engineering`). This is an ownership declaration only; it does
+not prove that branch protection enforces code-owner approval.
 
 ## 8. Consequences and deferred work
 
