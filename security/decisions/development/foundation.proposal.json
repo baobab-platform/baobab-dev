@@ -16,7 +16,6 @@
     "linux/arm64"
   ],
   "prepared_by": null,
-  "approved_by": null,
   "approval_evidence": null,
   "expires_at": "2026-11-26T00:00:00Z",
   "findings": [
@@ -84,6 +83,5 @@
     "push_ref": "refs/heads/main",
     "pull_request_head_repository": "baobab-platform/baobab-dev"
   },
-  "prepared_by_id": null,
-  "approved_by_id": null
+  "prepared_by_id": null
 }
