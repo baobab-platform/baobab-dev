@@ -15,7 +15,8 @@ from evaluate_protected_risk_decision import (
 )
 
 def verify(decision_path, trusted_sha256, report, *, profile, architecture,
-           event, ref, base_ref="", head_repository="", now=None):
+           event, ref, base_ref="", head_repository="", approval_id=None,
+           approval_timestamp=None, now=None):
     now = now or dt.datetime.now(dt.timezone.utc)
     decision, actual_hash = load_verified_decision(Path(decision_path), trusted_sha256)
     validate_execution_context(decision, event=event, ref=ref, base_ref=base_ref,
@@ -23,7 +24,8 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture,
     demand(decision.get("schema_version") == 2 and decision.get("status") == "approved"
            and decision.get("revoked_at") is None, "decision is not approved or has been revoked")
     evidence = decision.get("approval_evidence")
-    demand(isinstance(decision.get("approval_id"), str) and bool(decision["approval_id"].strip())
+    demand(isinstance(approval_id, str) and bool(approval_id.strip())
+           and isinstance(approval_timestamp, str) and bool(approval_timestamp.strip())
            and isinstance(evidence, str)
            and re.fullmatch(r"https://github\.com/baobab-platform/baobab-dev/pull/[1-9][0-9]*", evidence),
            "authenticated approval identity and exact custody link required")
@@ -42,7 +44,8 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture,
     demand(decision.get("expires_at") == "2026-11-26T00:00:00Z"
            and decision.get("finding_count") == 8,
            "decision expiry or finding count differs from the approved governance record")
-    demand(_timestamp(decision, "approved_at") <= now < _timestamp(decision, "expires_at"),
+    approved_at = _timestamp({"approved_at": approval_timestamp}, "approved_at")
+    demand(approved_at <= now < _timestamp(decision, "expires_at"),
            "policy expired or not yet approved")
     prepared_by_id = decision.get("prepared_by_id")
     approved_by_id = decision.get("approved_by_id")
@@ -99,12 +102,15 @@ def main():
     p.add_argument("--ref", required=True)
     p.add_argument("--base-ref", default="")
     p.add_argument("--head-repository", required=True)
+    p.add_argument("--approval-id", required=True)
+    p.add_argument("--approved-at", required=True)
     args = p.parse_args()
     print(json.dumps(verify(args.decision, args.trusted_sha256,
                             json.loads(Path(args.report).read_text()),
                             profile=args.profile, architecture=args.architecture,
                             event=args.event, ref=args.ref, base_ref=args.base_ref,
-                            head_repository=args.head_repository),
+                            head_repository=args.head_repository,
+                            approval_id=args.approval_id, approval_timestamp=args.approved_at),
                      sort_keys=True))
 
 if __name__ == "__main__":
