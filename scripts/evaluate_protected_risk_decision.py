@@ -266,6 +266,7 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
     return {
         "status": "accepted_residual_risk_not_remediated",
         "approval_id": approval_id,
+        "approved_by_id": approved_by_id,
         "approved_by": approved_by,
         "policy_sha256": policy_sha256,
         "expires_at": decision["expires_at"],
