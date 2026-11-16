@@ -28,6 +28,7 @@ class ProtectedDecisionTests(unittest.TestCase):
             "repository": policy.REPOSITORY, "image_repository": IMAGE,
             "environment": "development",
             "execution_scope": {"pull_request_base": "main",
+                                "pull_request_head_repository": policy.REPOSITORY,
                                 "push_ref": "refs/heads/main"},
             "profiles": ["final", "frontend", "frontend-e2e", "infra"],
             "architectures": ["linux/amd64", "linux/arm64"],
@@ -79,7 +80,7 @@ class ProtectedDecisionTests(unittest.TestCase):
                     architecture="linux/amd64", environment="development",
                     trusted_decision_sha256=trusted_hash,
                     event="pull_request", ref="refs/pull/123/merge",
-                    base_ref="main", now=NOW)
+                    base_ref="main", head_repository=policy.REPOSITORY, now=NOW)
         args.update(changes)
         return policy.evaluate(decision_bytes,
                                self.report if report is None else report, **args)
@@ -137,7 +138,8 @@ class ProtectedDecisionTests(unittest.TestCase):
                 image_repository=IMAGE, image_digest=DIGEST,
                 profile="final", architecture="linux/amd64",
                 environment="development", event="pull_request",
-                ref="refs/pull/123/merge", base_ref="main", now=NOW,
+                ref="refs/pull/123/merge", base_ref="main",
+                head_repository=policy.REPOSITORY, now=NOW,
             )
 
     def test_cli_denial_writes_evidence_and_reports_to_stderr(self):
@@ -156,6 +158,7 @@ class ProtectedDecisionTests(unittest.TestCase):
                 "--event", "pull_request",
                 "--ref", "refs/pull/123/merge",
                 "--base-ref", "main",
+                "--head-repository", policy.REPOSITORY,
                 "--result-output", str(result_path),
             ]
             stderr = io.StringIO()
@@ -229,13 +232,19 @@ class ProtectedDecisionTests(unittest.TestCase):
             ("pull_request", "refs/pull/123/merge", "release"),
             ("pull_request", "refs/pull/123/head", "main"),
             ("push", "refs/heads/release", ""),
+            ("pull_request", "refs/pull/123/merge", "main"),
         ):
             with self.subTest(event=event, ref=ref, base_ref=base_ref):
                 with self.assertRaises(policy.DecisionDenied):
                     self.evaluate(event=event, ref=ref, base_ref=base_ref)
 
+    def test_fork_pull_request_is_not_eligible_for_reusable_policy(self):
+        with self.assertRaises(policy.DecisionDenied):
+            self.evaluate(head_repository="attacker/baobab-dev")
+
     def test_push_to_main_is_allowed_by_reusable_development_policy(self):
-        result = self.evaluate(event="push", ref="refs/heads/main", base_ref="")
+        result = self.evaluate(event="push", ref="refs/heads/main", base_ref="",
+                               head_repository=policy.REPOSITORY)
         self.assertEqual(result["status"], "accepted_residual_risk_not_remediated")
     def test_duplicate_identical_scan_occurrences_are_deduplicated(self):
         report = copy.deepcopy(self.report)
