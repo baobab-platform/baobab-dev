@@ -29,18 +29,22 @@ def fetch(url, token):
         return json.load(response)
 
 
-def verify(decision, pull, reviews, files, *, trusted_approvers, decision_path=None,
+def verify(decision, pull, reviews, files, *, trusted_approver_ids, decision_path=None,
            contributor_custody=None):
     require(pull.get("merged_at") and pull.get("base", {}).get("ref") == "main",
             "approval PR must be merged into protected main")
     require(pull.get("state") == "closed", "approval PR must be closed and merged")
-    maker = decision.get("prepared_by", "").casefold()
-    checker = decision.get("approved_by", "").casefold()
-    require(maker and checker and maker != checker, "maker-checker separation missing")
-    require(pull.get("user", {}).get("login", "").casefold() == maker,
-            "decision preparer differs from approval PR author")
-    require(checker in {x.casefold() for x in trusted_approvers},
-            "reviewer is not in independently configured trusted approvers")
+    maker_id = decision.get("prepared_by_id")
+    checker_id = decision.get("approved_by_id")
+    require(type(maker_id) is int and maker_id > 0
+            and type(checker_id) is int and checker_id > 0
+            and maker_id != checker_id, "numeric maker-checker separation missing")
+    author_id = uid({"databaseId": (pull.get("user") or {}).get("id")})
+    require(author_id == maker_id,
+            "decision preparer numeric identity differs from approval PR author")
+    require(isinstance(trusted_approver_ids, (set, frozenset))
+            and checker_id in trusted_approver_ids,
+            "reviewer numeric identity is not in independently configured trusted approvers")
     require(decision.get("approval_evidence") ==
             pull.get("html_url"), "decision approval PR mismatch")
     require(any(f.get("filename") == decision_path
@@ -57,28 +61,32 @@ def verify(decision, pull, reviews, files, *, trusted_approvers, decision_path=N
     latest = {}
     for review in reviews:
         require(isinstance(review, dict), "malformed review evidence")
-        actor = (review.get("user") or {}).get("login", "").casefold()
+        actor_id = uid({"databaseId": (review.get("user") or {}).get("id")})
         state = review.get("state")
-        if not actor or state == "PENDING":
+        if state == "PENDING":
             continue
         require(state in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED", "DISMISSED"),
                 "unknown effective review state")
         require(bool(review.get("submitted_at")), "review timestamp missing")
-        previous = latest.get(actor)
+        previous = latest.get(actor_id)
         if previous is None or (review["submitted_at"], review.get("id", 0)) > (
                 previous["submitted_at"], previous.get("id", 0)):
-            latest[actor] = review
-    approved = latest.get(checker)
+            latest[actor_id] = review
+    approved = latest.get(checker_id)
     require(approved is not None and approved.get("state") == "APPROVED"
             and approved.get("commit_id") == head,
-            "no current independent approval on merged head")
+            "no current independent approval by the recorded numeric reviewer on merged head")
     # Strict numeric identity check is mandatory for live custody. Unit tests
     # can inject a fully enumerated contributor snapshot.
     require(contributor_custody is not None,
             "complete numeric contributor custody required")
-    author_id, contributor_ids, trusted_ids = contributor_custody
+    enumerated_author_id, contributor_ids = contributor_custody
+    require(enumerated_author_id == author_id,
+            "REST and GraphQL decision PR author identities disagree")
     reviewer_id = uid({"databaseId": (approved.get("user") or {}).get("id")})
-    require_independent(reviewer_id, trusted_ids, author_id, contributor_ids)
+    require(reviewer_id == checker_id,
+            "effective review identity differs from the recorded numeric approver")
+    require_independent(reviewer_id, trusted_approver_ids, author_id, contributor_ids)
 
 
 
@@ -112,9 +120,10 @@ def main():
     verify(decision, pull, reviews, files,
            trusted_approvers=[x.strip() for x in args.trusted_approvers.split(",") if x.strip()],
            decision_path=decision_path,
-           contributor_custody=(author_id, contributors, approver_ids))
+           contributor_custody=(author_id, contributors),
+           trusted_approver_ids=approver_ids)
     print(json.dumps({"status": "approval_custody_verified", "approval_pr": evidence,
-                      "reviewer": decision["approved_by"], "merged_head": pull["head"]["sha"]}))
+                      "reviewer_id": decision["approved_by_id"], "reviewer": decision["approved_by"], "merged_head": pull["head"]["sha"]}))
 
 
 if __name__ == "__main__":
