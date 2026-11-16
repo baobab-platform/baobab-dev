@@ -57,6 +57,15 @@ jobs:
           persist-credentials: false
       - name: Validate approved risk policy negative cases
         run: python3 -B -m unittest discover -s tests -p test_dev10_kernel_risk_gate.py -v
+      - name: Validate DEV-10 policy, review-transition and contributor custody
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest -v \
+            tests/test_protected_local_policy.py \
+            tests/test_protected_risk_custody.py \
+            tests/test_custody_independence.py \
+            tests/test_audit_pr_reviewer_independence.py \
+            tests/test_protected_risk_decision.py
       - name: Build actual Foundation development container
         run: |
           set -euo pipefail
