@@ -4,3 +4,8 @@
 /.baobab/ @baobab-platform/platform-engineering
 /Dockerfile @baobab-platform/platform-engineering @baobab-platform/security
 /SECURITY.md @baobab-platform/security
+
+# Protected DEV-10 decision material requires both security and platform review.
+/security/decisions/ @baobab-platform/security @baobab-platform/platform-engineering
+/docs/adr/ADR-DEV10-001-reusable-development-risk-policy.md @baobab-platform/security @baobab-platform/platform-engineering
+/docs/assessments/dev10-linux-libc-dev-risk-decision.md @baobab-platform/security @baobab-platform/platform-engineering
