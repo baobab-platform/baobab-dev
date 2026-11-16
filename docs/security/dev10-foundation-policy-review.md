@@ -90,3 +90,29 @@ The implementation now uses GraphQL PR commit enumeration and numeric identity c
 The environment's selected branch rules must include `main` and `refs/pull/*/merge`. The current GitHub admin state has not been verified as corrected. Branch protection, CODEOWNERS enforcement, trusted-reviewer variables and the SHA trust anchor remain separate admin prerequisites.
 
 The 16 November PR #74 review records 383 commits and 92 changed files. This is a high review burden; a versioned decision registry and smaller follow-up PRs are recommended for a later increment, but neither should weaken the current approval or release gates.
+
+
+## Separate decision PR status
+
+The separate reusable-policy decision PR is now open:
+https://github.com/baobab-platform/baobab-dev/pull/76
+
+It adds the schema, pending proposal, final decision candidate, ADR and
+decision-contract test. The PR author/preparer is `wekhason` (numeric GitHub
+ID `350241706`); the requested reviewers are `sknabusiu` (ID
+`356890520`) and `sdnabusiu` (ID `356900102`). The REST commit list shows
+the author/committer as `wekhason`; the merged-head custody verifier will
+re-enumerate all commit authors, co-authors and committers through GraphQL
+before accepting either review.
+
+Owner attestation is still pending. Repository metadata names `@wekhason` as
+the approver for a separate historical scanner exception, but that metadata
+does not by itself establish current owner authority or account control for
+this new policy. The decision PR explicitly records this unresolved point and
+must not be merged until the accountable owner provides an attributable
+concurrence comment.
+
+The exact SHA trust anchor remains unset; no active policy has been activated.
+The current single-hash design cannot simultaneously authenticate distinct
+development and release decision documents. Release residual findings remain
+blocking until a separately approved release trust mechanism exists.
