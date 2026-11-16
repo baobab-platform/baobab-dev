@@ -148,15 +148,19 @@ remains mandatory after this decision is merged and activated. Any administrator
 attributable and recorded with the administrator identity, exact commit,
 reason and checks bypassed. A broad or undocumented bypass is not acceptable.
 
-Default-branch review protection, code-owner enforcement, latest-push approval,
-the security team's repository permission, environment branch rules and the
-trust-anchor administration path must be verified by an authorized
-administrator. Their configuration must not be inferred from CODEOWNERS or a
-successful workflow run. The CODEOWNERS file assigns the protected decision
-and assessment paths to the established security owners (`@security`,
-`@sknabusiu`, `@sdnabusiu`) and platform-engineering owner
-(`@platform-engineering`). This is an ownership declaration only; it does
-not prove that branch protection enforces code-owner approval.
+The `CODEOWNERS` file now assigns the protected decision and assessment paths
+to the established security owners using their actual GitHub handles and team
+slugs: `@baobab-platform/security`, `@sknabusiu` and `@sdnabusiu`, together
+with `@baobab-platform/platform-engineering`. Explicit ownership entries cover
+`/security/decisions/`, `/docs/assessments/`, `/docs/security/` and this
+ADR at `/docs/adr/ADR-DEV10-001-reusable-development-risk-policy.md`.
+These CODEOWNERS declarations are not proof of enforcement: each listed owner
+must have repository write access, and an authorized administrator must verify
+that default-branch protection requires code-owner review, latest-push approval
+and the appropriate required checks. The administrator must also verify the
+security team's repository permission, environment branch rules, trusted-reviewer
+variables and the trust-anchor administration path. No such settings are
+inferred from CODEOWNERS or a successful workflow run.
 
 ## 8. Consequences and deferred work
 
