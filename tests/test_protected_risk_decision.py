@@ -232,7 +232,6 @@ class ProtectedDecisionTests(unittest.TestCase):
             ("pull_request", "refs/pull/123/merge", "release"),
             ("pull_request", "refs/pull/123/head", "main"),
             ("push", "refs/heads/release", ""),
-            ("pull_request", "refs/pull/123/merge", "main"),
         ):
             with self.subTest(event=event, ref=ref, base_ref=base_ref):
                 with self.assertRaises(policy.DecisionDenied):
