@@ -256,6 +256,7 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
            "new or changed vulnerability requires a separate security decision: "
            + ", ".join(sorted(item[0] for item in unapproved)))
 
+    approved_by = decision.get("approved_by")
     return {
         "status": "accepted_residual_risk_not_remediated",
         "approval_id": approval_id,
