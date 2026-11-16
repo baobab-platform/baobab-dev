@@ -114,12 +114,18 @@ mandatory on every scan. A future expiry does not authorize a tag, fork,
 different base branch or deployment; a permitted branch context does not
 extend the expiry. There is no silent renewal.
 
-The `dev10-security-policy-read` environment must require the configured
-human reviewers and permit the `main` branch plus the
-`refs/pull/*/merge` deployment-ref pattern. GitHub matches environment
-deployment branch rules against `GITHUB_REF`; a protected-main-only rule does
-not admit pull-request merge refs. Any temporary feature-branch rule is
-removed after PR #74 qualification. A blanket wildcard is prohibited.
+Development PR and main-push vulnerability scans do not use a
+manual-review environment gate. That gate delayed evidence collection but did
+not authenticate the risk decision. Scans therefore run immediately; residual
+findings still fail closed unless the active decision file, exact repository
+SHA-256 trust anchor, trusted reviewer identities and merged custody all
+verify. Removing the pause does not authorize the findings or weaken the
+evaluator.
+
+The separate release-promotion job retains its protected environment and
+human approval. Environment approval is an execution/access control, not a
+substitute for an independently approved, exact-digest release decision.
+A broad deployment-ref wildcard is prohibited.
 
 ## 6. Release separation
 
