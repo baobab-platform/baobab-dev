@@ -23,6 +23,11 @@ class ReviewerAuditTests(unittest.TestCase):
         self.assertEqual(result["status"], "not-independent")
         self.assertEqual(result["reason"], "commit author, co-author, or committer")
 
+    def test_login_rename_does_not_bypass_numeric_contributor_exclusion(self):
+        result = mod.classify_reviewer({"login": "new-login", "id": 3, "type": "User"}, 1, {3})
+        self.assertEqual(result["status"], "not-independent")
+        self.assertEqual(result["reason"], "commit author, co-author, or committer")
+
     def test_non_contributor_human_is_independent(self):
         result = mod.classify_reviewer({"login": "reviewer", "id": 2, "type": "User"}, 1, {3})
         self.assertEqual(result["status"], "independent")
