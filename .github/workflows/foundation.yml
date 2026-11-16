@@ -84,7 +84,7 @@ jobs:
           POLICY_EVENT: ${{ github.event_name }}
           POLICY_REF: ${{ github.ref }}
           POLICY_BASE_REF: ${{ github.base_ref }}
-          POLICY_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          POLICY_HEAD_REPOSITORY: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || (github.event_name == 'push' && github.repository) || '' }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
