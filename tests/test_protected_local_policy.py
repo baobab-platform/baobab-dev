@@ -69,7 +69,10 @@ class LocalPolicyTests(unittest.TestCase):
                     result = verify(path, hashlib.sha256(raw).hexdigest(), self.report,
                                     profile=profile, architecture=architecture,
                                     event="pull_request", ref="refs/pull/123/merge",
-                                    base_ref="main", head_repository="baobab-platform/baobab-dev", now=NOW)
+                                    base_ref="main", head_repository="baobab-platform/baobab-dev",
+                    approval_id="github-review-123",
+                    approval_timestamp="2026-11-14T00:00:00Z",
+                    approved_by_id=2, now=NOW)
                 self.assertEqual(result["findings"], 8)
 
     def test_untrusted_policy_hash(self):
