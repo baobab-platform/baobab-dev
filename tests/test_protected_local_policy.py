@@ -24,6 +24,7 @@ class LocalPolicyTests(unittest.TestCase):
             "image_repository": "ghcr.io/baobab-platform/baobab-dev",
             "environment": "development",
             "execution_scope": {"pull_request_base": "main",
+                                "pull_request_head_repository": "baobab-platform/baobab-dev",
                                 "push_ref": "refs/heads/main"},
             "profiles": ["final", "frontend", "frontend-e2e", "infra"],
             "architectures": ["linux/amd64", "linux/arm64"],
@@ -46,7 +47,8 @@ class LocalPolicyTests(unittest.TestCase):
         }
 
     def evaluate(self, *, policy=None, report=None, trusted_hash=None, now=NOW,
-                 event="pull_request", ref="refs/pull/123/merge", base_ref="main"):
+                 event="pull_request", ref="refs/pull/123/merge", base_ref="main",
+                          head_repository="baobab-platform/baobab-dev"):
         raw = json.dumps(self.policy if policy is None else policy, sort_keys=True).encode()
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "policy.json"
@@ -66,7 +68,7 @@ class LocalPolicyTests(unittest.TestCase):
                     result = verify(path, hashlib.sha256(raw).hexdigest(), self.report,
                                     profile=profile, architecture=architecture,
                                     event="pull_request", ref="refs/pull/123/merge",
-                                    base_ref="main", now=NOW)
+                                    base_ref="main", head_repository="baobab-platform/baobab-dev", now=NOW)
                 self.assertEqual(result["findings"], 8)
 
     def test_untrusted_policy_hash(self):
@@ -126,8 +128,13 @@ class LocalPolicyTests(unittest.TestCase):
             with self.subTest(event=event, ref=ref, base_ref=base_ref), self.assertRaises(ValueError):
                 self.evaluate(event=event, ref=ref, base_ref=base_ref)
 
+    def test_fork_pull_request_is_denied(self):
+        with self.assertRaises(ValueError):
+            self.evaluate(head_repository="attacker/baobab-dev")
+
     def test_main_push_is_allowed(self):
-        self.assertEqual(self.evaluate(event="push", ref="refs/heads/main", base_ref="")["findings"], 8)
+        self.assertEqual(self.evaluate(event="push", ref="refs/heads/main", base_ref="",
+                                    head_repository="baobab-platform/baobab-dev")["findings"], 8)
 
     def test_proposal_and_schema_remain_pending_and_exactly_bounded(self):
         schema = json.loads((ROOT / "security/decisions/development/foundation.schema.json").read_text())
@@ -135,7 +142,7 @@ class LocalPolicyTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["expires_at"]["const"], "2026-11-26T00:00:00Z")
         self.assertEqual(proposal["status"], "pending_independent_review")
         self.assertIsNone(proposal["approved_by"])
-        self.assertEqual(proposal["execution_scope"], {"pull_request_base": "main", "push_ref": "refs/heads/main"})
+        self.assertEqual(proposal["execution_scope"], {"pull_request_base": "main", "pull_request_head_repository": "baobab-platform/baobab-dev", "push_ref": "refs/heads/main"})
         self.assertEqual({item["cve"] for item in proposal["findings"]}, set(CVES))
         self.assertEqual(proposal["expires_at"], "2026-11-26T00:00:00Z")
 
