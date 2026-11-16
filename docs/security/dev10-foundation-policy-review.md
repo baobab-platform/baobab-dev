@@ -1,56 +1,69 @@
-# DEV-10 foundation policy proposal — independent review brief
+# DEV-10 Foundation / Publish policy proposal — independent review brief
 
-**Decision state: PENDING. This record is not an active exception and grants no CI, merge, tag, publication, or promotion authority.**
+**Decision state: PENDING INDEPENDENT REVIEW. This proposal is not an active exception and grants no CI, merge, tag, publication, or promotion authority.**
 
-Machine-readable proposal: [`security/decisions/foundation.json`](../../security/decisions/foundation.json)
+Machine-readable proposal: [`security/decisions/development/foundation.proposal.json`](../../security/decisions/development/foundation.proposal.json)
 
-## Evidence-backed finding inventory
+## Current PR #74 evidence — complete eight-image matrix
 
-The retained Actions artifact `13962922393` (run `43257311010`) contains a Trivy 0.73.0 report with eight HIGH findings for Ubuntu `linux-libc-dev=7.0.0-43.43`:
+Publish run [43829121908](https://github.com/baobab-platform/baobab-dev/actions/runs/43829121908), attempt 3, is a `pull_request` run for PR #74 at head `c161821441c0d7c054514abd78a40dc25e774479`. All eight build jobs completed their image build and Trivy scan. Every job reported the same eight HIGH findings against Ubuntu `linux-libc-dev=7.0.0-43.43`; all reported no Trivy fixed version. The review-only inventory preparation succeeded in every job, which also rejects secret findings and fixed-version signals.
 
-| CVE | Installed version | Severity | Trivy fixed version |
-|---|---|---|---|
-| CVE-2022-50240 | 7.0.0-43.43 | HIGH | Not reported |
-| CVE-2025-40190 | 7.0.0-43.43 | HIGH | Not reported |
-| CVE-2026-68103 | 7.0.0-43.43 | HIGH | Not reported |
-| CVE-2026-72198 | 7.0.0-43.43 | HIGH | Not reported |
-| CVE-2026-74578 | 7.0.0-43.43 | HIGH | Not reported |
-| CVE-2026-89805 | 7.0.0-43.43 | HIGH | Not reported |
-| CVE-2026-98376 | 7.0.0-43.43 | HIGH | Not reported |
-| CVE-2026-98420 | 7.0.0-43.43 | HIGH | Not reported |
+| Profile | Platform | Evidence artifact | Raw Trivy SHA-256 | Normalized findings SHA-256 |
+|---|---|---:|---|---|
+| final | linux/amd64 | [14211489933](https://github.com/baobab-platform/baobab-dev/actions/runs/43829121908/artifacts/14211489933) | `66757d603f61f4cf60368a5d0c8d3657ad86233339e40ba128e8577add6333cc` | `f17c1ad2708f8f2b4bd3067d814f97eb7341fdb4ad62408bc65f5309448c0b0f` |
+| final | linux/arm64 | [14211698892](https://github.com/baobab-platform/baobab-dev/actions/runs/43829121908/artifacts/14211698892) | `c2736382d0aed323c91358a2fc2ad343aec800058d55b59992acec3322e4731f` | `9366f2271f07ad4d4ec99f46e90ea77f4412fcf1d80cb90b5b46c4ee039d7f39` |
+| frontend | linux/amd64 | [14211368408](https://github.com/baobab-platform/baobab-dev/actions/runs/43829121908/artifacts/14211368408) | `45b7ed6b387b23d5eae532d160007635f0c2764c2a708043ed4578aee3bf2423` | `196d902ab390e44d36c55038eb719fc0f66d5079ca61ca8a5b29f3f966c8ad72` |
+| frontend | linux/arm64 | [14212082425](https://github.com/baobab-platform/baobab-dev/actions/runs/43829121908/artifacts/14212082425) | `c27b2cf36acdb1fc3d56c46de71851211b2c15d8d4ddcd9cd013076322b0cacb` | `13d2a60978e238846a870db257bbf6ca43472d9386bbdc85b0bb797c9f36f486` |
+| frontend-e2e | linux/amd64 | [14211789145](https://github.com/baobab-platform/baobab-dev/actions/runs/43829121908/artifacts/14211789145) | `5f46f70539c6eb5fb956c31433076467b8c17ae701bf8d0abc48a48acc919d94` | `2ab56ac211cb14e7c21193e59b47c36f604370f74798b95415044b2788527f4e` |
+| frontend-e2e | linux/arm64 | [14212885283](https://github.com/baobab-platform/baobab-dev/actions/runs/43829121908/artifacts/14212885283) | `fb5318a1f5ec6cef89229fc3a8314122b6d8f306a83e69028697273455b309ab` | `96066687790656fb5bf7dd5acca0432a20473e183f4bbd2bbb7b2f4b05535e41` |
+| infra | linux/amd64 | [14212093246](https://github.com/baobab-platform/baobab-dev/actions/runs/43829121908/artifacts/14212093246) | `e69dd4590c9018a4c02164ebbb86cc105ac6ae160e714d1a3cce88993e72d4c1` | `de71b4dee1e908613c65e43154673c28d96f88a1a3af6f0afedf1c64a650c980` |
+| infra | linux/arm64 | [14211443322](https://github.com/baobab-platform/baobab-dev/actions/runs/43829121908/artifacts/14211443322) | `67542a282d6b6d37f6f2aa251eeb6307c20108958151e04808d7df6d81d08c9c` | `4e4bf05629b5aeb515bb16feaa158a027fceb92864d839ef70c008415efd07bc` |
 
-The report also contains two HIGH `golang.org/x/net` findings in the separately downloaded `gh` and `cosign` binaries. Their installed versions are `v0.60.0` and `v0.61.0`, respectively, and Trivy reports fixed version `0.62.0` for both. They are intentionally excluded from this proposal. The current evaluator rejects a finding with a fixed-version signal; remediate these binaries and rescan rather than include them in a residual-risk exception.
+Each artifact includes the sanitized Trivy vulnerability report, normalized findings, review-only inventory and Trivy database freshness metadata. Trivy was `0.73.0`; vulnerability DB metadata was version 2 and Java DB metadata version 1. Both databases were downloaded during the individual jobs and their recorded update/expiry metadata passed the workflow freshness gate.
 
-## Evidence limitations
+Foundation run [43829123295](https://github.com/baobab-platform/baobab-dev/actions/runs/43829123295) independently reproduced the same eight findings in its locally built `final/linux/amd64` image. Its review-only artifact is [14210637706](https://github.com/baobab-platform/baobab-dev/actions/runs/43829123295/artifacts/14210637706).
 
-- The retained scan is from PR #62, source commit `6e531c042fd413d0075906398afe8900df6fe049`, not PR #74.
-- It covers only profile `final` on `linux/amd64`.
-- Its Trivy JSON has no `Metadata.RepoDigests` entry. The `ArtifactID` is not a substitute for the exact GHCR child-manifest digest required by the evaluator.
-- Consequently, this artifact supports the eight-finding inventory only. It does not qualify a PR #74 artifact or establish the proposed four-profile/two-architecture scope.
-- Report SHA-256: `7755fb395c57ae16894a838e58a8125f13f2727a6312353350d939e56dfad199`.
-- Normalized finding evidence SHA-256: `235b13a805d8cb5b749d1d557c88052977e8458897d361338bbad167e2916d35`.
+## Exact finding inventory
+
+| CVE | Package | Installed version | Severity | Trivy fixed version |
+|---|---|---|---|---|
+| CVE-2022-50240 | linux-libc-dev | 7.0.0-43.43 | HIGH | None reported |
+| CVE-2025-40190 | linux-libc-dev | 7.0.0-43.43 | HIGH | None reported |
+| CVE-2026-68103 | linux-libc-dev | 7.0.0-43.43 | HIGH | None reported |
+| CVE-2026-72198 | linux-libc-dev | 7.0.0-43.43 | HIGH | None reported |
+| CVE-2026-74578 | linux-libc-dev | 7.0.0-43.43 | HIGH | None reported |
+| CVE-2026-89805 | linux-libc-dev | 7.0.0-43.43 | HIGH | None reported |
+| CVE-2026-98376 | linux-libc-dev | 7.0.0-43.43 | HIGH | None reported |
+| CVE-2026-98420 | linux-libc-dev | 7.0.0-43.43 | HIGH | None reported |
+
+The eight normalized inventories contain the same unique finding identities. The package version is published in the Ubuntu 26.04 `resolute-updates` archive; see [Ubuntu package search](https://packages.ubuntu.com/search?arch=any&keywords=libc-dev). Ubuntu's own CVE records continue to mark the kernel source package vulnerable for examples including [CVE-2026-98376](https://ubuntu.com/security/CVE-2026-98376), [CVE-2026-74578](https://ubuntu.com/security/CVE-2026-74578), and [CVE-2026-68103](https://ubuntu.com/security/CVE-2026-68103). These records concern the kernel source package; they do not by themselves decide applicability to the headers-only binary package or its downstream users.
+
+## Why all eight jobs failed — and what did not fail
+
+The image builds, Trivy installation, database freshness checks, scans, normalized evidence generation and artifact uploads completed. Each job then failed closed because the active decision file `security/decisions/development/foundation.json` is absent and the protected `DEV10_PROTECTED_DECISION_SHA256` trust anchor is unset. The configured `DEV10_SECURITY_APPROVER_LOGINS` allowlist is not itself an approval.
+
+BuildKit also logged cache-export errors stating that the configured cache budget had been reached and the cache became read-only. These did not fail the image-build step: the builds proceeded to Trivy scans and retained evidence. This is a separate cache-performance issue, not the security-gate failure.
+
+The Publish gate must not be weakened, and the required compiler/UAPI headers must not be removed merely to silence this package finding. A package-level kernel advisory match is not proof of exploitability in the container, but neither is headers-only packaging proof of non-applicability. The independent per-CVE Ubuntu patch, shipped-header, downstream UAPI/ABI and host-kernel review remains necessary.
 
 ## Approval-scope reconciliation
 
-The available record does not establish an approval for PR #74:
+The available governance record does **not** authorize PR #74 to accept these findings:
 
-1. The 12 November issue #54 owner comment records a development-only approval for PR #62 and a 14-day renewal. It does not name PR #74.
-2. The risk register records the eight-finding `7.0.0-43.43` amendment as PR #62-only.
-3. The executable legacy gate later names PR #71 for the additional package/CVE set, but PR #71's own description concerns v1.5.1 RC exact-digest signature verification and does not document that risk acceptance.
-4. The 14 November issue #54 comments explicitly describe PR #74 as release-preparation review scope only, with no CVE exception or tag permission.
+1. Issue #54's 12 November owner amendment names PR #62 for the `7.0.0-43.43` eight-CVE treatment; it does not name PR #74.
+2. The risk register's PR #62 scope is distinct from the legacy executable gate's PR #71 constant. The issue/PR record does not resolve that #62/#71 custody discrepancy.
+3. Issue #54's 14 November entry explicitly places PR #74 in v1.5.2 release-preparation **review scope only**, with no CVE exception, tag permission or scanner bypass.
+4. PR #74's subsequent issue comment reiterates that it is an assessment request only.
 
-The #62/#71 custody discrepancy must be reconciled by the accountable owner and independent security reviewer. No approval is inferred from code, a PR description, or a chat identity.
+The new machine-readable file therefore remains `pending_independent_review`. Its proposed scope lists the four profiles and two architectures solely so the independent reviewer can assess the complete matrix. Approval fields and timestamps remain null. It does not create an active `foundation.json`, authorize PR #74, or make any CI job pass.
 
-## Scope and expiry submitted for decision
+## Required decision and activation sequence
 
-The JSON records a **proposal only** for PR #74's `pull_request` event and `refs/pull/74/merge`, development environment, four image profiles and two Linux architectures. It expressly excludes main, tags, release publication, protected promotion, staging and production.
+1. The accountable owner and independent security reviewer must reconcile the #62/#71 discrepancy and decide whether any PR #74 development-only residual-risk acceptance is justified. A decision to accept residual risk must not be represented as remediation or VEX `not_affected`.
+2. Complete the per-CVE applicability review, including Canonical's Ubuntu patch/backport state, shipped UAPI headers, downstream compilation/ABI impact and the separate host-kernel boundary. Prefer a supported vendor fix when available.
+3. If and only if a bounded development-only decision is explicitly approved, finalize the decision record with exact findings, profiles, architectures, preparer, independent approver, approval PR, approval timestamp and expiry.
+4. Merge the decision through the protected approval process. Verify the PR is merged into `main`, the preparer authored it, the current independent trusted reviewer approved the merged head, and numeric reviewer/contributor custody is independent.
+5. Only after those exact bytes are final and merged, calculate SHA-256 over the approved file and have the designated custodian provision that exact value as `DEV10_PROTECTED_DECISION_SHA256`. Any byte change requires renewed review and a new hash.
+6. Re-run Foundation and all eight Publish jobs on the resulting PR head. Residual-risk acceptance, if approved, remains development-only and does not authorize a release tag, GHCR publication, signing, promotion, staging or production. Those controls require their own exact-digest and protected approvals.
 
-The proposed expiry `2026-11-26T00:00:00Z` is a review deadline suggestion, not an inherited extension of PR #62's decision. Reviewers must affirm or replace both the scope and expiry. Root-level approved `profiles` and `architectures` remain empty until that decision is made.
-
-## Validation and activation boundary
-
-The eight finding objects pass the evaluator's finding-identity requirements: valid CVE identifier, package, installed version, HIGH severity, and Trivy result type `ubuntu`; identities are unique.
-
-The proposal intentionally remains `pending_independent_review`, with approval and activation fields null and no approved profiles or architectures. It is therefore **not expected to pass the active evaluator**. The active evaluator requires `status=approved`, authenticated approval custody, valid approval/expiry timestamps, non-empty approved scope, and exact policy bytes matching a separately provisioned SHA-256 trust anchor. The retained scan also fails the evaluator's exact GHCR digest binding requirement.
-
-After the owner and independent reviewer decide, engineering must obtain fresh exact-digest scan evidence, finalize the approved JSON, merge it through the protected decision process, calculate SHA-256 over those final bytes, and have the designated custodian provision that exact hash. Any subsequent byte change requires a new review and hash. Release authorization remains separate.
+Until this sequence is completed, Foundation and Publish are expected to remain **SECURITY DENIED** for these findings. That is the correct fail-closed outcome, not a CI defect to suppress.
