@@ -51,6 +51,10 @@ class CustodyIndependenceTests(unittest.TestCase):
         with self.assertRaises(mod.IndependenceError):
             mod.collect_contributors([bad], 1)
 
+    def test_duplicate_commit_records_rejected(self):
+        with self.assertRaises(mod.IndependenceError):
+            mod.collect_contributors([commit("same"), commit("same")], 2)
+
     def test_web_flow_service_committer(self):
         record = commit("a")
         record["committer"]["user"] = user(99, "web-flow")
