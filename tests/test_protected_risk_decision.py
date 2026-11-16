@@ -32,11 +32,9 @@ class ProtectedDecisionTests(unittest.TestCase):
                                 "push_ref": "refs/heads/main"},
             "profiles": ["final", "frontend", "frontend-e2e", "infra"],
             "architectures": ["linux/amd64", "linux/arm64"],
-            "approval_id": "DEV10-RISK-EXAMPLE",
             "prepared_by": "engineering-maker",
             "approved_by": "independent-security-checker",
             "approval_evidence": "https://github.com/baobab-platform/baobab-dev/pull/999",
-            "approved_at": "2026-11-14T00:00:00Z",
             "expires_at": "2026-11-26T00:00:00Z",
             "findings": [
                 {"cve": "CVE-2026-12345", "package": "linux-libc-dev",
@@ -80,7 +78,9 @@ class ProtectedDecisionTests(unittest.TestCase):
                     architecture="linux/amd64", environment="development",
                     trusted_decision_sha256=trusted_hash,
                     event="pull_request", ref="refs/pull/123/merge",
-                    base_ref="main", head_repository=policy.REPOSITORY, now=NOW)
+                    base_ref="main", head_repository=policy.REPOSITORY,
+                    approval_id="github-review-123",
+                    approval_timestamp="2026-11-14T00:00:00Z", now=NOW)
         args.update(changes)
         return policy.evaluate(decision_bytes,
                                self.report if report is None else report, **args)
