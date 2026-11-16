@@ -30,9 +30,7 @@ class LocalPolicyTests(unittest.TestCase):
             "architectures": ["linux/amd64", "linux/arm64"],
             "prepared_by": "maker", "prepared_by_id": 1,
             "approved_by": "checker", "approved_by_id": 2,
-            "approval_id": "DEV10-TEST",
             "approval_evidence": "https://github.com/baobab-platform/baobab-dev/pull/123",
-            "approved_at": "2026-11-14T00:00:00Z",
             "expires_at": "2026-11-26T00:00:00Z",
             "findings": copy.deepcopy(FINDINGS), "finding_count": 8,
         }
@@ -58,7 +56,8 @@ class LocalPolicyTests(unittest.TestCase):
                           self.report if report is None else report,
                           profile="final", architecture="linux/amd64",
                           event=event, ref=ref, base_ref=base_ref,
-                          head_repository=head_repository, now=now)
+                          head_repository=head_repository, approval_id="github-review-123",
+                          approval_timestamp="2026-11-14T00:00:00Z", now=now)
 
     def test_exact_eight_finding_inventory_and_all_supported_profiles_architectures(self):
         for profile in self.policy["profiles"]:
