@@ -148,19 +148,34 @@ remains mandatory after this decision is merged and activated. Any administrator
 attributable and recorded with the administrator identity, exact commit,
 reason and checks bypassed. A broad or undocumented bypass is not acceptable.
 
-The `CODEOWNERS` file now assigns the protected decision and assessment paths
-to the established security owners using their actual GitHub handles and team
-slugs: `@baobab-platform/security`, `@sknabusiu` and `@sdnabusiu`, together
-with `@baobab-platform/platform-engineering`. Explicit ownership entries cover
-`/security/decisions/`, `/docs/assessments/`, `/docs/security/` and this
-ADR at `/docs/adr/ADR-DEV10-001-reusable-development-risk-policy.md`.
-These CODEOWNERS declarations are not proof of enforcement: each listed owner
-must have repository write access, and an authorized administrator must verify
-that default-branch protection requires code-owner review, latest-push approval
-and the appropriate required checks. The administrator must also verify the
-security team's repository permission, environment branch rules, trusted-reviewer
-variables and the trust-anchor administration path. No such settings are
-inferred from CODEOWNERS or a successful workflow run.
+The repository does not currently have a GitHub Teams subscription, and
+GitHub rejected review requests for the `security` and
+`platform-engineering` team slugs because those teams are not recognized as
+repository collaborators. The CODEOWNERS file therefore uses individually
+requestable accounts only: `@bjnabs` for general/platform ownership and
+`@sknabusiu` plus `@sdnabusiu` for security-sensitive paths. Explicit
+ownership entries cover `/security/decisions/`, `/docs/assessments/`,
+`/docs/security/` and this ADR. Do not add unavailable team slugs as owners.
+
+CODEOWNERS is still advisory until branch protection enforces code-owner
+reviews. With the current subscription, the compensating procedure is:
+(1) request the named individual reviewers on every PR touching an owned path;
+(2) before merge, verify the latest effective review is APPROVED on the exact
+current head, and verify reviewer numeric identity is independent of the PR
+author and all commit contributors; (3) verify all required CI checks on that
+same head; (4) record the decision and evidence in the PR conversation; and
+(5) only then use the normal merge operation. The existing reviewer-independence
+audit and protected-decision custody verifier provide machine-verifiable
+evidence for the security-sensitive path. This process is not an equivalent
+technical prevention mechanism: a repository user with direct write/merge
+authority can bypass it while branch protection is unavailable. The limitation
+must remain visible in audit records, and unauthorized direct updates to
+`main` must be detected by the repository's push-triggered verification and
+reviewed immediately.
+
+No Enterprise-only feature is assumed. Individual reviewer requests, Actions,
+CODEOWNERS syntax, immutable commit IDs, exact-head review evidence and
+repository-local scripts are the available controls.
 
 ## 8. Consequences and deferred work
 
