@@ -88,11 +88,10 @@ class LocalPolicyTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValueError):
                 self.evaluate(report=report)
 
-    def test_partial_inventory_is_denied_not_silently_accepted(self):
+    def test_partial_remediation_may_remove_findings_but_never_add_findings(self):
         report = copy.deepcopy(self.report)
         report["Results"][0]["Vulnerabilities"].pop()
-        with self.assertRaises(ValueError):
-            self.evaluate(report=report)
+        self.assertEqual(self.evaluate(report=report)["findings"], 7)
 
     def test_missing_approval_identity_or_scan_provenance(self):
         policy = copy.deepcopy(self.policy)
