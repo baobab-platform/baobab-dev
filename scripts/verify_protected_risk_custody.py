@@ -56,6 +56,11 @@ def verify(decision, pull, reviews, files, *, trusted_approver_ids, decision_pat
             "merged approval PR head is unavailable")
     require(isinstance(reviews, list) and len(reviews) < 100,
             "complete approval review history required")
+    require(contributor_custody is not None,
+            "complete numeric contributor custody required")
+    enumerated_author_id, contributor_ids = contributor_custody
+    require(enumerated_author_id == author_id,
+            "REST and GraphQL decision PR author identities disagree")
     latest = {}
     for review in reviews:
         require(isinstance(review, dict), "malformed review evidence")
@@ -89,13 +94,8 @@ def verify(decision, pull, reviews, files, *, trusted_approver_ids, decision_pat
     require(bool(qualifying),
             "no trusted, independent approval at the merged decision PR head")
     _, _, reviewer_id, approved = max(qualifying, key=lambda item: (item[0], item[1]))
-    # Strict numeric identity check is mandatory for live custody. Unit tests
-    # can inject a fully enumerated contributor snapshot.
-    require(contributor_custody is not None,
-            "complete numeric contributor custody required")
-    enumerated_author_id, contributor_ids = contributor_custody
-    require(enumerated_author_id == author_id,
-            "REST and GraphQL decision PR author identities disagree")
+    # The reviewer identity is taken from the selected API review, not a login
+    # stored in the decision document.
     reviewer_id = uid({"databaseId": (approved.get("user") or {}).get("id")})
     require_independent(reviewer_id, trusted_approver_ids, author_id, contributor_ids)
     review_id = approved.get("id")
