@@ -11,6 +11,7 @@ import os
 import re
 import urllib.request
 from pathlib import Path
+from custody_independence import collect_pr, require_independent, uid
 
 
 def require(ok, message):
@@ -28,7 +29,7 @@ def fetch(url, token):
         return json.load(response)
 
 
-def verify(decision, pull, reviews, files, *, trusted_approvers, decision_path=None):
+def verify(decision, pull, reviews, files, *, trusted_approvers, decision_path=None,\n           contributor_custody=None):
     require(pull.get("merged_at") and pull.get("base", {}).get("ref") == "main",
             "approval PR must be merged into protected main")
     require(pull.get("state") == "closed", "approval PR must be closed and merged")
@@ -70,6 +71,14 @@ def verify(decision, pull, reviews, files, *, trusted_approvers, decision_path=N
     require(approved is not None and approved.get("state") == "APPROVED"
             and approved.get("commit_id") == head,
             "no current independent approval on merged head")
+    # Strict numeric identity check is mandatory for live custody. Unit tests
+    # can inject a fully enumerated contributor snapshot.
+    require(contributor_custody is not None,
+            "complete numeric contributor custody required")
+    author_id, contributor_ids, trusted_ids = contributor_custody
+    reviewer_id = uid((approved.get("user") or {}))
+    require_independent(reviewer_id, trusted_ids, author_id, contributor_ids)
+
 
 
 def main():
@@ -92,9 +101,16 @@ def main():
     files = fetch(base + "/files?per_page=100", token)
     require(len(reviews) < 100 and len(files) < 100,
             "pagination required: refuse incomplete approval evidence")
+    author_id, contributors = collect_pr(token, int(match.group(1)), pull["head"]["sha"])
+    approver_ids = set()
+    for login in [x.strip() for x in args.trusted_approvers.split(",") if x.strip()]:
+        identity = fetch("https://api.github.com/users/" + login, token)
+        require(identity.get("login", "").casefold() == login.casefold(),
+                "trusted reviewer login resolution mismatch")
+        approver_ids.add(uid({"databaseId": identity.get("id")}))
     verify(decision, pull, reviews, files,
            trusted_approvers=[x.strip() for x in args.trusted_approvers.split(",") if x.strip()],
-           decision_path=decision_path)
+           decision_path=decision_path,\n           contributor_custody=(author_id, contributors, approver_ids))
     print(json.dumps({"status": "approval_custody_verified", "approval_pr": evidence,
                       "reviewer": decision["approved_by"], "merged_head": pull["head"]["sha"]}))
 
