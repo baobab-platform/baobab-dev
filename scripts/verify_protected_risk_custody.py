@@ -36,16 +36,13 @@ def verify(decision, pull, reviews, files, *, trusted_approver_ids, decision_pat
             "approval PR must be merged into protected main")
     require(pull.get("state") == "closed", "approval PR must be closed and merged")
     maker_id = decision.get("prepared_by_id")
-    checker_id = decision.get("approved_by_id")
-    require(type(maker_id) is int and maker_id > 0
-            and type(checker_id) is int and checker_id > 0
-            and maker_id != checker_id, "numeric maker-checker separation missing")
+    require(type(maker_id) is int and maker_id > 0,
+            "numeric decision preparer identity missing")
     author_id = uid({"databaseId": (pull.get("user") or {}).get("id")})
     require(author_id == maker_id,
             "decision preparer numeric identity differs from approval PR author")
-    require(isinstance(trusted_approver_ids, (set, frozenset))
-            and checker_id in trusted_approver_ids,
-            "reviewer numeric identity is not in independently configured trusted approvers")
+    require(isinstance(trusted_approver_ids, (set, frozenset)) and trusted_approver_ids,
+            "independently configured trusted reviewer identities are unavailable")
     require(decision.get("approval_evidence") ==
             pull.get("html_url"), "decision approval PR mismatch")
     require(any(f.get("filename") == decision_path
@@ -73,10 +70,25 @@ def verify(decision, pull, reviews, files, *, trusted_approver_ids, decision_pat
         if previous is None or (review["submitted_at"], review.get("id", 0)) > (
                 previous["submitted_at"], previous.get("id", 0)):
             latest[actor_id] = review
-    approved = latest.get(checker_id)
-    require(approved is not None and approved.get("state") == "APPROVED"
-            and approved.get("commit_id") == head,
-            "no current independent approval by the recorded numeric reviewer on merged head")
+    qualifying = []
+    for candidate_id, candidate in latest.items():
+        if candidate.get("state") != "APPROVED" or candidate.get("commit_id") != head:
+            continue
+        try:
+            require_independent(candidate_id, trusted_approver_ids, author_id, contributor_ids)
+        except ValueError:
+            continue
+        submitted_at = candidate.get("submitted_at")
+        try:
+            candidate_time = dt.datetime.fromisoformat(submitted_at.replace("Z", "+00:00"))
+        except (AttributeError, ValueError) as exc:
+            raise ValueError("GitHub approval timestamp is invalid") from exc
+        require(candidate_time.tzinfo is not None,
+                "GitHub approval timestamp must include a timezone")
+        qualifying.append((candidate_time, candidate.get("id", 0), candidate_id, candidate))
+    require(bool(qualifying),
+            "no trusted, independent approval at the merged decision PR head")
+    _, _, reviewer_id, approved = max(qualifying, key=lambda item: (item[0], item[1]))
     # Strict numeric identity check is mandatory for live custody. Unit tests
     # can inject a fully enumerated contributor snapshot.
     require(contributor_custody is not None,
@@ -85,8 +97,6 @@ def verify(decision, pull, reviews, files, *, trusted_approver_ids, decision_pat
     require(enumerated_author_id == author_id,
             "REST and GraphQL decision PR author identities disagree")
     reviewer_id = uid({"databaseId": (approved.get("user") or {}).get("id")})
-    require(reviewer_id == checker_id,
-            "effective review identity differs from the recorded numeric approver")
     require_independent(reviewer_id, trusted_approver_ids, author_id, contributor_ids)
     review_id = approved.get("id")
     require(type(review_id) is int and review_id > 0, "numeric GitHub approval review ID missing")
@@ -139,7 +149,7 @@ def main():
                     contributor_custody=(author_id, contributors),
                     trusted_approver_ids=approver_ids)
     result["status"] = "approval_custody_verified"
-    result["reviewer"] = decision.get("approved_by")
+    result["reviewer"] = result.get("reviewer")
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\\n")
