@@ -65,7 +65,7 @@ def collect_contributors(commits, count):
 def fetch_commit_records(token, oids):
     """Fetch every commit's full author/co-author and committer identity in bounded batches."""
     records = []
-    batch_size = 40
+    batch_size = 20
     for offset in range(0, len(oids), batch_size):
         batch = oids[offset:offset + batch_size]
         declarations = ["$owner:String!", "$repo:String!"]
@@ -76,7 +76,7 @@ def fetch_commit_records(token, oids):
             variables[f"oid{index}"] = oid
             fields.append(
                 f"c{index}: object(expression: $oid{index}) {{ ... on Commit {{ "
-                "oid authors(first:100){totalCount nodes{user{databaseId login}}} "
+                "oid authors(first:10){totalCount nodes{user{databaseId login}}} "
                 "committer{user{databaseId login}} } }"
             )
         query = (
@@ -108,7 +108,7 @@ def collect_pr(token, number, expected_head, commit_oids=None):
              repository(owner:$owner,name:$repo){pullRequest(number:$number){
              headRefOid author{... on User{databaseId login}}
              commits(first:100,after:$cursor){totalCount pageInfo{hasNextPage endCursor}
-             nodes{commit{oid authors(first:100){totalCount nodes{user{databaseId login}}}
+             nodes{commit{oid authors(first:10){totalCount nodes{user{databaseId login}}}
              committer{user{databaseId login}}}}}}}}"""
             variables = {"owner":"baobab-platform","repo":"baobab-dev",
                          "number":number,"cursor":cursor}
