@@ -7,6 +7,7 @@ the responsibility of evaluate_protected_risk_decision.py.
 import argparse
 import datetime as dt
 import json
+import re
 from pathlib import Path
 from evaluate_protected_risk_decision import (
     load_verified_decision, _finding_key, _timestamp, demand, REPOSITORY,
@@ -20,18 +21,23 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture,
     validate_execution_context(decision, event=event, ref=ref, base_ref=base_ref,
                                head_repository=head_repository)
     demand(decision.get("schema_version") == 2 and decision.get("status") == "approved"
-           and not decision.get("revoked_at"), "decision is not approved")
-    demand(isinstance(decision.get("approval_id"), str) and bool(decision["approval_id"])
-           and isinstance(decision.get("approval_evidence"), str)
-           and decision["approval_evidence"].startswith("https://github.com/baobab-platform/baobab-dev/pull/"),
-           "authenticated approval identity and custody link required")
+           and decision.get("revoked_at") is None, "decision is not approved or has been revoked")
+    evidence = decision.get("approval_evidence")
+    demand(isinstance(decision.get("approval_id"), str) and bool(decision["approval_id"].strip())
+           and isinstance(evidence, str)
+           and re.fullmatch(r"https://github\\.com/baobab-platform/baobab-dev/pull/[1-9][0-9]*", evidence),
+           "authenticated approval identity and exact custody link required")
     demand(decision.get("repository") == REPOSITORY
            and decision.get("image_repository") == "ghcr.io/" + REPOSITORY
            and decision.get("environment") == "development",
            "policy is not approved for this development repository/image")
-    demand(set(decision.get("profiles", [])) == {"final", "frontend", "frontend-e2e", "infra"}
-           and set(decision.get("architectures", [])) == {"linux/amd64", "linux/arm64"}
-           and profile in decision["profiles"] and architecture in decision["architectures"],
+    profiles = decision.get("profiles")
+    architectures = decision.get("architectures")
+    demand(isinstance(profiles, list)
+           and set(profiles) == {"final", "frontend", "frontend-e2e", "infra"}
+           and isinstance(architectures, list)
+           and set(architectures) == {"linux/amd64", "linux/arm64"}
+           and profile in profiles and architecture in architectures,
            "profile or architecture outside the complete protected policy scope")
     demand(decision.get("expires_at") == "2026-11-26T00:00:00Z"
            and decision.get("finding_count") == 8,
