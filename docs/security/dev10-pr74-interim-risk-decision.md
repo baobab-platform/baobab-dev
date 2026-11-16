@@ -1,6 +1,6 @@
-# DEV-10 interim development-risk decision — PR #74 / v1.5.3 RC
+# Historical DEV-10 interim risk decision draft — superseded 16 November 2026
 
-**Status: DRAFT — NOT APPROVED; NOT ACTIVE IN CI**  
+**Status: SUPERSEDED DRAFT — NOT APPROVED; NOT ACTIVE**  
 **Repository:** `baobab-platform/baobab-dev`  
 **Candidate under consideration:** PR #74; proposed tag `v1.5.3-rc.1`  
 **Decision class:** narrowly scoped internal-development residual-risk acceptance  
@@ -10,13 +10,33 @@
 
 ## Superseding governance update — 16 November 2026
 
-This earlier PR-specific draft is superseded as the preferred governance route. The platform owner has directed preparation of a reusable, PR-number-independent development policy with expiry **2026-11-26T00:00:00Z**, covering eligible pull requests targeting `main` and development-main push CI only. The policy is limited to the exact eight HIGH findings for `linux-libc-dev=7.0.0-43.43`, four profiles and two Linux architectures. It does not authorize tags, releases, manual dispatch, schedules, deployments, other PR base branches, staging or production.
+This earlier PR-specific draft is superseded. The owner directed a reusable,
+PR-number-independent development policy with expiry **2026-11-26T00:00:00Z**,
+covering same-repository pull requests targeting `main` and development-main
+push CI only. The exact eight HIGH findings, four profiles and two Linux
+architectures are the only inventory in scope. Tags, releases, manual dispatch,
+schedules, deployments, other PR base branches, staging and production remain
+excluded.
 
-The 12 November issue #54 decision names PR #62; no PR #71 approval was located. PR #74's scans remain inventory evidence, not approval. The proposal is pending independent review; no active `foundation.json`, trust-anchor value, PR #74 risk acceptance, v1.5.3 tag permission or release qualification is created by this document.
+@sknabusiu approved finalisation of the reusable policy on 16 November at
+12:35 UTC, subject to a separate decision PR, exact-head independent approval,
+owner concurrence, passing bootstrap checks and numeric contributor
+independence. @sdnabusiu supported finalisation at 12:44 UTC but said PR #74
+was not ready to merge until the engineering and governance conditions pass.
+Neither review is the final risk approval. The 12 November issue #54 amendment
+names PR #62, not #71; the earlier #71 statement in #54 is superseded. PR #74
+scans remain inventory evidence only. No active `foundation.json`, trust-anchor
+value, PR #74 risk acceptance, v1.5.3 tag permission or release qualification
+is created by this document.
+
+Sections 1–7 below are retained as historical context for the earlier
+PR-specific proposal. They are not the governing policy or a source of
+authorization. The reusable-policy ADR and protected-artifact decision
+documentation define the current implementation.
 
 ## 1. Decision requested
 
-The decision owner is considering whether to permit the known `linux-libc-dev=7.0.0-43.43` findings to remain present in internal development images while PR #74 is merged and a v1.5.3 release candidate is qualified.
+The historical decision owner considered whether to permit the known `linux-libc-dev=7.0.0-43.43` findings in a PR #74 / v1.5.3-specific context. That scope was superseded by the reusable development-only policy described above.
 
 That would be a **new scope decision**. Existing records do not authorize PR #74 or v1.5.3:
 
@@ -64,11 +84,11 @@ The following must be decided explicitly by the owner and independently approved
 | Environment | `development` only |
 | Package and version | `linux-libc-dev=7.0.0-43.43` only |
 | Finding set | Exactly the eight CVEs in §2 |
-| PR scope | **Unresolved.** Explicitly decide whether PR #74 is included; current record excludes it. |
-| Tag scope | **Unresolved.** Explicitly decide whether `v1.5.3-rc.1` and subsequent RCs are included; current record only names v1.5.0 refs. |
+| PR scope | Reusable same-repository PRs targeting `main`; PR #74 is evidence/implementation only, not a PR-number exception. |
+| Tag scope | Excluded. No release tag or RC is authorized by this policy. |
 | Profiles | Candidate scope may include `final`, `frontend`, `frontend-e2e`, `infra`; approve each explicitly. |
 | Architectures | Candidate scope may include `linux/amd64`, `linux/arm64`; approve each explicitly. |
-| Expiry | Must be a newly agreed UTC timestamp. The earlier 2026-11-26 expiry cannot be assumed to cover a new PR/tag scope. |
+| Expiry | `2026-11-26T00:00:00Z` — retained by explicit owner instruction for the reusable development policy. |
 | Production / application deployment | Prohibited |
 | GA promotion | Not authorized by this record |
 
@@ -91,23 +111,35 @@ No Trivy ignore, VEX `not_affected` assertion, legacy allow-list edit or release
 
 ## 5. Approval custody required by the implementation
 
-The actual evaluator requires a schema-version-2 JSON decision with these fields:
+The current schema-version-2 decision contains:
 
-- `schema_version: 2`
-- `status: "approved"` and `revoked_at: null`
-- `repository`, `image_repository`, `environment`
-- non-empty, supported `profiles` and `architectures`
-- non-empty `approval_id`
-- distinct non-empty `prepared_by` and `approved_by`
-- `approval_evidence` linking to the merged protected decision PR
-- timezone-aware `approved_at` and `expires_at`, with approval currently valid
-- non-empty `findings`, each containing `cve`, `package`, `version`, `severity`, and `type`
+- `schema_version: 2`, `status: "approved"`, and `revoked_at: null`
+- exact repository, image repository and development environment
+- exact execution scope, profiles and architectures
+- `prepared_by` as display metadata and `prepared_by_id` as the preparer's
+  immutable numeric GitHub user ID
+- `approval_evidence` linking to the merged decision PR
+- UTC `expires_at`
+- the exact non-empty finding inventory and `finding_count`
 
-The finding identity is the tuple (CVE, package, installed version, severity, Trivy result type). Severity is restricted to HIGH or CRITICAL. Duplicate finding identities are rejected. The evaluator also verifies the exact policy bytes against the separately provisioned lowercase SHA-256 trust anchor.
+The decision does not store `approval_id`, `approved_at`, `approved_by` or
+`approved_by_id`. The custody verifier resolves the latest effective
+`APPROVED` review on the merged head, checks its reviewer numeric ID against
+the trusted allowlist and complete PR contributor set, and emits the GitHub
+review ID, reviewer ID and timezone-aware `submitted_at` timestamp at runtime.
+This binds the approval to the exact file bytes without a self-referential
+timestamp.
 
-The custody verifier additionally requires the decision PR to be merged into `main`, authored by the preparer, changed the selected decision file, and contain a current independent approval on its merged head by an independently provisioned trusted reviewer.
+The finding identity is the tuple (CVE, package, installed version, severity,
+Trivy result type). Severity is restricted to HIGH or CRITICAL. Duplicate
+finding identities are rejected. The evaluator verifies the exact policy bytes
+against the separately provisioned lowercase SHA-256 trust anchor.
 
-**Do not populate approval fields with placeholders or fabricated identities.** Until the owner scope and independent approval exist, this file remains a proposal and must not be converted to `status: "approved"`.
+**Do not populate approval metadata with placeholders or fabricated
+identities.** The decision PR must be approved on its exact final head and
+merged to `main`; only then can custody be verified and the exact file bytes
+hashed. The hash remains unprovisioned until the separate administrative
+activation step.
 
 ## 6. Decision attestations — pending
 
