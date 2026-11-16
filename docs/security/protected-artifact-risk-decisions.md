@@ -46,11 +46,13 @@ only by the designated security-policy custodian after verifying the protected
 decision record and independent approval. An approved_by string or evidence
 URL is not, by itself, authentication.
 
-The policy file must live on the protected default branch under
-security/decisions/. CODEOWNERS assigns that path, the evaluator, its tests and
-the security-decision documentation to @baobab-platform/security. The
-approval_evidence field must point to the merged pull request that introduced
-the exact decision file. The custody verifier selects the latest effective
+The policy file must live on the default branch under
+security/decisions/. CODEOWNERS assigns the protected decision and security
+documentation paths to the individually requestable accounts @sknabusiu and
+@sdnabusiu; general/platform ownership is assigned to @bjnabs. The repository
+does not currently have a GitHub Teams subscription, so unavailable team
+slugs are not listed as owners. The approval_evidence field must point to the
+merged pull request that introduced the exact decision file. The custody verifier selects the latest effective
 APPROVED review on that merged head whose immutable numeric GitHub user ID is
 trusted and is neither the PR author nor an author, co-author or committer of
 any commit in the PR. It enumerates the complete PR commit history through
@@ -61,32 +63,36 @@ they are never used for identity comparison. The review ID and submitted_at
 timestamp are emitted from GitHub API evidence at runtime, avoiding a
 self-referential approval timestamp in the bytes being approved.
 
-CODEOWNERS only requests the correct reviewer by default. A review
-request to @baobab-platform/security for PR #74 was rejected by GitHub with
-HTTP 422 because that team is not currently a collaborator on this repository.
-Consequently, the security-team CODEOWNERS assignment is not yet verified as
-enforceable. Before activation, grant the security team repository write access
-(or designate an authorized security reviewer who already has write access)
-and verify that GitHub accepts the review request.
+CODEOWNERS is advisory until branch protection enforces it. GitHub
+rejected the unavailable `security` and `platform-engineering` team slugs,
+so the repository uses individually requestable owners instead. The current
+compensating process is:
 
-The default-branch ruleset must also require pull-request reviews and code-owner
-approval, dismiss stale approvals after new commits, and require approval of the
-latest reviewable push by someone other than its author. I could not inspect
-the repository's branch-protection settings through the available GitHub
-integration, so these settings remain an activation prerequisite rather than a
-verified fact. The preparer and selected reviewer must be different numeric
-GitHub principals. The trust-anchor update must be a separately controlled
-administrative operation.
+1. Request @sknabusiu and @sdnabusiu on every PR that changes the protected
+   decision, security assessment or security-policy documentation paths.
+2. Before merge, verify the latest effective review is APPROVED on the exact
+   current PR head, and verify the reviewer numeric ID is independent of the
+   PR author and every commit author, co-author and committer.
+3. Verify all required CI checks on that same head and record the review and
+   check evidence in the PR conversation.
+4. Merge only after the checks and independent review are confirmed. After
+   merge, run the custody verifier against the merged decision PR before
+   provisioning the exact-byte trust anchor.
 
-The `dev10-security-policy-read` environment's selected deployment branch
-rules must match both main-branch pushes and pull-request merge refs:
-`main` and `refs/pull/*/merge`. GitHub matches these rules against
-`GITHUB_REF`; the pull-request pattern is required for `pull_request`
-workflows. Keep any temporary feature-branch allowance only while PR #74 is
-being qualified, then remove it. Do not use a blanket `*` allowance. The
-current admin state still requires verification and correction by a repository
-administrator.
+The current subscription does not provide enforceable default-branch
+protection. This manual process is auditable but cannot technically prevent a
+sufficiently privileged user from bypassing it. Do not describe CODEOWNERS or
+a green workflow as a branch-protection substitute. The preparer and selected
+reviewer must remain different numeric GitHub principals. Trust-anchor
+provisioning remains a separate, attributable custodian operation.
 
+Development PR/main image scans run without a manual-review environment pause
+so that vulnerability evidence is collected immediately. This does not
+authorize residual findings: the active decision, exact SHA-256, trusted
+reviewer identity and merged custody must all verify, or the evaluator fails
+closed. The release-promotion job retains its separate protected environment
+and human approval. Environment approval is not a substitute for an
+independently approved release decision.
 A per-candidate GitHub environment approval is intentionally not used: it
 would turn routine artifact qualification into a repeated human gate. Human
 approval belongs to the risk-policy decision, not every subsequent matching PR.
@@ -108,7 +114,7 @@ the final policy approval and was not an instruction to unblock CI.
 @sdnabusiu supported finalisation at 12:44 UTC but stated PR #74 was not ready
 to merge until the outstanding engineering and governance conditions pass.
 
-The separate decision PR #76 is open with the final candidate record and contract test. @sknabusiu and @sdnabusiu have been requested to review. Owner attestation remains pending; the PR must not be merged until the accountable owner records attributable concurrence.
+The separate decision PR #76 contains the final candidate record and contract test. Owner concurrence is recorded by @bjnabs in PR comment #6924572973. @sknabusiu and @sdnabusiu have been requested to review the latest CODEOWNERS/ADR revision. The earlier formal approval predates those edits and is not treated as current-head approval; a fresh independent approval is still required.
 
 The proposed policy is reusable across same-repository pull requests targeting
 `main` and pushes to `refs/heads/main`, with exactly the eight HIGH findings,
@@ -134,10 +140,10 @@ promotion.
 ## Activation prerequisites
 
 1. Create the separate decision PR with the final `foundation.json` and this exact schema. Record owner concurrence and the #62/#71 reconciliation in the PR. Obtain a current trusted independent approval on its exact head; the decision PR must pass its required checks. Any admin bypass must be explicitly attributable and recorded with reason, commit and bypassed checks.
-2. Verify the repository's branch ruleset, required code-owner review, stale-approval dismissal and latest-push approval controls; the available GitHub integration has not exposed sufficient administrative evidence to claim these settings are verified.
+2. Follow the documented individual-review/manual-merge protocol because enforceable branch protection is unavailable on the current subscription. Verify current-head approval, numeric contributor independence and all CI checks; record the evidence in the PR. This is a compensating process, not technical prevention of privileged bypass.
 3. Verify the decision PR is merged to `main`; the custody verifier must confirm the PR author/preparer numeric ID, a current trusted independent reviewer, complete commit-author/co-author/committer enumeration, changed decision path and exact merged-head approval.
 4. Only after the final approved `foundation.json` is merged and custody verification passes, compute its exact lowercase SHA-256 and provision `DEV10_PROTECTED_DECISION_SHA256` through the separately controlled repository-variable administration path. Never hash the proposal.
-5. Rerun Foundation, locked onboarding and all eight Publish profile/architecture scans. Confirm the environment permits `main` and `refs/pull/*/merge`, while the evaluator still denies tags, dispatch, schedules, forks and wrong-base PRs.
+5. Rerun Foundation, locked onboarding and all eight Publish profile/architecture scans. Development scans run without a manual environment pause; the evaluator still denies tags, dispatch, schedules, forks and wrong-base PRs. Keep the separate release-promotion environment protected.
 6. Keep exact-digest release qualification, signatures, SBOM/provenance, digest continuity and protected promotion independent.
 
 ## Operating objective
