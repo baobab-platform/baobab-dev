@@ -28,7 +28,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - id: detect
-        name: Detect changed container build inputs
+        name: Detect changed container or scan-policy inputs
         env:
           EVENT_NAME: "${{ github.event_name }}"
           BASE_SHA: "${{ github.event.pull_request.base.sha }}"
@@ -45,7 +45,7 @@ jobs:
           while IFS= read -r path; do
             [[ -n "$path" ]] || continue
             case "$path" in
-              .devcontainer/*|config/*|scripts/*|docs/assessments/dev10-kernel-cves.tsv)
+              .devcontainer/*|config/*|scripts/*|.baobab/repository.yaml|docs/assessments/dev10-kernel-cves.tsv)
                 container_changed=true
                 ;;
             esac
