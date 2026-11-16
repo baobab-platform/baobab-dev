@@ -108,6 +108,8 @@ the final policy approval and was not an instruction to unblock CI.
 @sdnabusiu supported finalisation at 12:44 UTC but stated PR #74 was not ready
 to merge until the outstanding engineering and governance conditions pass.
 
+The separate decision PR #76 is open with the final candidate record and contract test. @sknabusiu and @sdnabusiu have been requested to review. Owner attestation remains pending; the PR must not be merged until the accountable owner records attributable concurrence.
+
 The proposed policy is reusable across same-repository pull requests targeting
 `main` and pushes to `refs/heads/main`, with exactly the eight HIGH findings,
 four profiles, two architectures and expiry **2026-11-26T00:00:00Z**. Fork
