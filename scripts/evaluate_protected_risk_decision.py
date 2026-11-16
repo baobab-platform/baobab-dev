@@ -17,7 +17,7 @@ SEVERITIES = frozenset(("HIGH", "CRITICAL"))
 REPOSITORY = "baobab-platform/baobab-dev"
 IMAGE_REPOSITORY = f"ghcr.io/{REPOSITORY}"
 TRIVY_VERSION = "0.73.0"
-EXECUTION_SCOPE = {"pull_request_base": "main", "push_ref": "refs/heads/main"}
+EXECUTION_SCOPE = {"pull_request_base": "main", "pull_request_head_repository": REPOSITORY, "push_ref": "refs/heads/main"}
 
 
 class DecisionDenied(ValueError):
@@ -25,17 +25,20 @@ class DecisionDenied(ValueError):
 
 
 def validate_execution_context(decision: dict, *, event: str, ref: str,
-                               base_ref: str = "") -> None:
+                               base_ref: str = "", head_repository: str = "") -> None:
     """Restrict exceptions to PRs targeting main and pushes to main."""
     demand(decision.get("execution_scope") == EXECUTION_SCOPE,
            "risk decision execution scope is missing or broader than development main")
     if event == "pull_request":
         demand(base_ref == "main", "risk decision applies only to pull requests targeting main")
+        demand(head_repository == REPOSITORY,
+               "fork pull requests are outside the reusable development-risk scope")
         demand(re.fullmatch(r"refs/pull/[1-9][0-9]*/merge", ref) is not None,
                "pull request merge ref is invalid")
         return
     if event == "push":
-        demand(ref == "refs/heads/main" and not base_ref,
+        demand(ref == "refs/heads/main" and not base_ref
+               and head_repository == REPOSITORY,
                "risk decision applies only to pushes to development main")
         return
     raise DecisionDenied(
@@ -120,7 +123,7 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
              trusted_decision_sha256: str | None = None,
              report_sha256: str | None = None,
              event: str | None = None, ref: str | None = None,
-             base_ref: str = "",
+             base_ref: str = "", head_repository: str | None = None,
              now: dt.datetime | None = None) -> dict:
     """Qualify a scan; a clean scan needs no risk decision."""
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -187,7 +190,8 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
     if "execution_scope" in decision:
         demand(isinstance(event, str) and isinstance(ref, str),
                "GitHub event/ref context is required for residual-risk acceptance")
-        validate_execution_context(decision, event=event, ref=ref, base_ref=base_ref)
+        validate_execution_context(decision, event=event, ref=ref, base_ref=base_ref,
+                                   head_repository=head_repository or "")
     demand(decision.get("schema_version") == 2, "unsupported risk decision schema")
     demand(decision.get("status") == "approved", "risk decision is not approved or has been revoked")
     demand(decision.get("revoked_at") in (None, ""), "risk decision has been revoked")
@@ -270,6 +274,7 @@ def main() -> int:
     parser.add_argument("--event", default="")
     parser.add_argument("--ref", default="")
     parser.add_argument("--base-ref", default="")
+    parser.add_argument("--head-repository", default="")
     parser.add_argument("--expected-trivy-version", default=TRIVY_VERSION)
     parser.add_argument("--result-output", type=Path)
     args = parser.parse_args()
@@ -299,6 +304,7 @@ def main() -> int:
             trusted_decision_sha256=args.trusted_decision_sha256,
             report_sha256=hashlib.sha256(raw_report).hexdigest(),
             event=args.event, ref=args.ref, base_ref=args.base_ref,
+            head_repository=args.head_repository,
         )
         exit_code = 0
     except (DecisionDenied, OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
