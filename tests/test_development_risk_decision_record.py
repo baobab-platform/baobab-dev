@@ -1,5 +1,8 @@
 """Contract tests for the reusable DEV-10 development-risk decision record."""
 import json
+import shutil
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -24,6 +27,7 @@ class DevelopmentRiskDecisionRecordTests(unittest.TestCase):
     def test_schema_and_proposal_are_v2_and_proposal_is_inactive(self):
         self.assertEqual(self.schema["properties"]["schema_version"]["const"], 2)
         self.assertEqual(self.proposal["schema_version"], 2)
+        self.assertEqual(self.proposal["record_type"], "proposed_approved_form")
         self.assertEqual(self.proposal["status"], "pending_independent_review")
         self.assertIsNone(self.proposal["prepared_by"])
         self.assertIsNone(self.proposal["prepared_by_id"])
@@ -46,6 +50,7 @@ class DevelopmentRiskDecisionRecordTests(unittest.TestCase):
         decision = json.loads(DECISION_PATH.read_text())
         self.assertEqual(set(decision), set(self.schema["properties"]))
         self.assertEqual(decision["schema_version"], 2)
+        self.assertEqual(decision["record_type"], "proposed_approved_form")
         self.assertEqual(decision["status"], "approved")
         self.assertIsNone(decision["revoked_at"])
         self.assertEqual(decision["repository"], "baobab-platform/baobab-dev")
@@ -82,6 +87,58 @@ class DevelopmentRiskDecisionRecordTests(unittest.TestCase):
         self.assertIn("#71", decision["notes"])
         self.assertIn("#74", decision["notes"])
         self.assertNotRegex(decision["notes"].lower(), r"authoriz(?:e|es|ed) (?:release|production)")
+
+
+
+@unittest.skipUnless(shutil.which("check-jsonschema"), "check-jsonschema is installed in the policy CI job")
+class Draft202012SchemaValidationTests(unittest.TestCase):
+    def validate(self, document):
+        with tempfile.TemporaryDirectory() as directory:
+            candidate = Path(directory) / "candidate.json"
+            candidate.write_text(json.dumps(document))
+            return subprocess.run(
+                [
+                    "check-jsonschema",
+                    "--schemafile",
+                    str(SCHEMA_PATH),
+                    str(candidate),
+                ],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+    def test_both_committed_records_validate_against_the_schema(self):
+        for path in (PROPOSAL_PATH, DECISION_PATH):
+            with self.subTest(path=path.name):
+                result = subprocess.run(
+                    [
+                        "check-jsonschema",
+                        "--schemafile",
+                        str(SCHEMA_PATH),
+                        str(path),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_schema_rejects_extra_properties_invalid_date_and_identity_scope_or_count(self):
+        original = json.loads(DECISION_PATH.read_text())
+        mutations = {
+            "extra property": lambda item: item.update({"unexpected": True}),
+            "invalid date": lambda item: item.update({"revoked_at": "not-a-date"}),
+            "invalid numeric identity": lambda item: item.update({"prepared_by_id": 0}),
+            "widened execution scope": lambda item: item["execution_scope"].update({"pull_request_base": "release"}),
+            "finding count mismatch": lambda item: item.update({"finding_count": 7}),
+        }
+        for label, mutate in mutations.items():
+            with self.subTest(label=label):
+                candidate = json.loads(json.dumps(original))
+                mutate(candidate)
+                result = self.validate(candidate)
+                self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
 
 
 if __name__ == "__main__":
