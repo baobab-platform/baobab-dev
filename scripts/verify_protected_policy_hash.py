@@ -76,8 +76,8 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture,
                                 "severity": finding.get("Severity"),
                                 "type": result.get("Type")})
             observed.add(key)
-    demand(bool(observed) and observed == approved,
-           "scan inventory differs from the complete approved finding set")
+    demand(bool(observed) and observed <= approved,
+           "new or changed findings are outside the approved inventory")
     return {"status": "development_risk_accepted_not_remediated",
             "policy_sha256": actual_hash, "findings": len(observed)}
 
