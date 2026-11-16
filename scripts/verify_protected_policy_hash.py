@@ -16,7 +16,7 @@ from evaluate_protected_risk_decision import (
 
 def verify(decision_path, trusted_sha256, report, *, profile, architecture,
            event, ref, base_ref="", head_repository="", approval_id=None,
-           approval_timestamp=None, now=None):
+           approval_timestamp=None, approved_by_id=None, now=None):
     now = now or dt.datetime.now(dt.timezone.utc)
     decision, actual_hash = load_verified_decision(Path(decision_path), trusted_sha256)
     validate_execution_context(decision, event=event, ref=ref, base_ref=base_ref,
@@ -48,7 +48,6 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture,
     demand(approved_at <= now < _timestamp(decision, "expires_at"),
            "policy expired or not yet approved")
     prepared_by_id = decision.get("prepared_by_id")
-    approved_by_id = decision.get("approved_by_id")
     demand(type(prepared_by_id) is int and prepared_by_id > 0
            and type(approved_by_id) is int and approved_by_id > 0
            and prepared_by_id != approved_by_id,
@@ -106,13 +105,15 @@ def main():
     p.add_argument("--head-repository", required=True)
     p.add_argument("--approval-id", required=True)
     p.add_argument("--approved-at", required=True)
+    p.add_argument("--approved-by-id", required=True, type=int)
     args = p.parse_args()
     print(json.dumps(verify(args.decision, args.trusted_sha256,
                             json.loads(Path(args.report).read_text()),
                             profile=args.profile, architecture=args.architecture,
                             event=args.event, ref=args.ref, base_ref=args.base_ref,
                             head_repository=args.head_repository,
-                            approval_id=args.approval_id, approval_timestamp=args.approved_at),
+                            approval_id=args.approval_id, approval_timestamp=args.approved_at,
+                            approved_by_id=args.approved_by_id),
                      sort_keys=True))
 
 if __name__ == "__main__":
