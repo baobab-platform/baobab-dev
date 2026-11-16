@@ -42,10 +42,13 @@ changes, or the kernel inventory changes. A policy-only decision PR does not alt
 those image inputs, so the DEV-10 image rebuild is not applicable; its risk
 gate negative tests still run and the dedicated policy workflow validates the
 proposal and decision against the pinned Draft 2020-12 schema. No image scan
-pass is claimed for that path. The shared Foundation container scan remains
-part of the full profile under its separately governed `container-scan`
-implementation exception, which PR #65 aligned to the 2026-11-26 sunset.
-That exception is not the reusable DEV-10 decision and cannot authorize
-release. Any PR changing image inputs must run the unfiltered DEV-10 scan, and
+pass is claimed for that path. The shared Foundation container job remains in the full profile and
+builds/validates the image and SBOM, but its Trivy install/scan steps are
+skipped under the separately governed `container-scan` implementation
+exception, which PR #65 aligned to the 2026-11-26 sunset. This is not an
+image-scan pass. That exception is not the reusable DEV-10 decision and
+cannot authorize release. No image CVE scan is claimed for a policy-only PR;
+current-head PR #74 requalification and all eight Publish scans remain
+required before policy activation/release. Any PR changing image inputs must run the unfiltered DEV-10 scan, and
 the eight Publish profile/architecture scans remain mandatory for release
 qualification.
