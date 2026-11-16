@@ -123,6 +123,20 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("needs: [promote, sanity-check, ga-reuse]", run["release"])
         self.assertIn("needs.promote.result == 'success'", run["release"])
 
+    def test_development_scans_run_without_manual_environment_pause(self):
+        foundation = (ROOT / ".github/workflows/foundation.yml").read_text()
+        gate_match = re.search(
+            r"(?ms)^  dev10-container-risk:\\n(.*?)(?=^  [a-z0-9-]+:|\\Z)",
+            foundation,
+        )
+        self.assertIsNotNone(gate_match)
+        self.assertNotIn("environment:", gate_match.group(1))
+        build = active_yaml(jobs()["build"])
+        self.assertNotIn("dev10-security-policy-read", build)
+        promote = active_yaml(jobs()["promote"])
+        self.assertIn("name: dev10-release-promotion", promote)
+        self.assertIn("environment:", promote)
+
     def test_release_promotion_never_reuses_development_risk_authority(self):
         promote = active_yaml(jobs()["promote"])
         self.assertNotIn("DEV10_PROTECTED_DECISION_SHA256", promote)
