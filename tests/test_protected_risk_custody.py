@@ -21,7 +21,7 @@ class CustodyTests(unittest.TestCase):
         self.pull = {"state": "closed", "merged_at": "2026-11-15T10:00:00Z",
                      "html_url": URL, "base": {"ref": "main"},
                      "head": {"sha": SHA}, "user": {"login": "maker", "id": 1}}
-        self.reviews = [{"user": {"login": "checker", "id": 2}, "state": "APPROVED",
+        self.reviews = [{"id": 1, "user": {"login": "checker", "id": 2}, "state": "APPROVED",
                          "submitted_at": "2026-11-15T09:00:00Z", "commit_id": SHA}]
         self.files = [{"filename": "security/decisions/decision.json", "status": "added"}]
 
@@ -39,6 +39,21 @@ class CustodyTests(unittest.TestCase):
         self.reviews[0]["user"]["login"] = "renamed-checker"
         self.check()
 
+    def test_preparer_login_is_not_used_for_identity(self):
+        self.decision["prepared_by"] = "renamed-maker"
+        self.pull["user"]["login"] = "renamed-maker"
+        self.check()
+
+    def test_approver_who_contributed_cannot_approve(self):
+        with self.assertRaises(ValueError):
+            mod.verify(self.decision, self.pull, self.reviews, self.files,
+                       trusted_approver_ids={2}, contributor_custody=(1, {1, 2}))
+
+    def test_unresolved_reviewer_identity_fails_closed(self):
+        self.reviews[0]["user"]["id"] = None
+        with self.assertRaises(ValueError):
+            self.check()
+
     def test_only_trusted_numeric_reviewer_qualifies(self):
         with self.assertRaises(ValueError):
             mod.verify(self.decision, self.pull, self.reviews, self.files,
@@ -53,9 +68,9 @@ class CustodyTests(unittest.TestCase):
         for state in ("COMMENTED", "CHANGES_REQUESTED", "DISMISSED"):
             with self.subTest(state=state):
                 self.reviews = [
-                    {"user": {"login": "checker", "id": 2}, "state": "APPROVED",
+                    {"id": 1, "user": {"login": "checker", "id": 2}, "state": "APPROVED",
                      "submitted_at": "2026-11-15T09:00:00Z", "commit_id": SHA},
-                    {"user": {"login": "checker", "id": 2}, "state": state,
+                    {"id": 2, "user": {"login": "checker", "id": 2}, "state": state,
                      "submitted_at": "2026-11-15T09:30:00Z", "commit_id": SHA},
                 ]
                 with self.assertRaises(ValueError):
@@ -63,9 +78,9 @@ class CustodyTests(unittest.TestCase):
 
     def test_later_current_head_approval_restores_authority(self):
         self.reviews = [
-            {"user": {"login": "checker", "id": 2}, "state": "COMMENTED",
+            {"id": 1, "user": {"login": "checker", "id": 2}, "state": "COMMENTED",
              "submitted_at": "2026-11-15T09:00:00Z", "commit_id": SHA},
-            {"user": {"login": "checker", "id": 2}, "state": "APPROVED",
+            {"id": 2, "user": {"login": "checker", "id": 2}, "state": "APPROVED",
              "submitted_at": "2026-11-15T09:30:00Z", "commit_id": SHA},
         ]
         self.check()
@@ -108,9 +123,9 @@ class CustodyTests(unittest.TestCase):
 
     def test_out_of_order_reviews_do_not_restore_stale_approval(self):
         self.reviews = [
-            {"user": {"login": "checker", "id": 2}, "state": "CHANGES_REQUESTED",
+            {"id": 2, "user": {"login": "checker", "id": 2}, "state": "CHANGES_REQUESTED",
              "submitted_at": "2026-11-15T10:00:00Z", "commit_id": SHA},
-            {"user": {"login": "checker", "id": 2}, "state": "APPROVED",
+            {"id": 1, "user": {"login": "checker", "id": 2}, "state": "APPROVED",
              "submitted_at": "2026-11-15T09:00:00Z", "commit_id": SHA},
         ]
         with self.assertRaises(ValueError):
