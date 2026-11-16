@@ -27,6 +27,8 @@ class ProtectedDecisionTests(unittest.TestCase):
             "schema_version": 2, "status": "approved",
             "repository": policy.REPOSITORY, "image_repository": IMAGE,
             "environment": "development",
+            "execution_scope": {"pull_request_base": "main",
+                                "push_ref": "refs/heads/main"},
             "profiles": ["final", "frontend", "frontend-e2e", "infra"],
             "architectures": ["linux/amd64", "linux/arm64"],
             "approval_id": "DEV10-RISK-EXAMPLE",
@@ -75,7 +77,9 @@ class ProtectedDecisionTests(unittest.TestCase):
             trusted_hash = hashlib.sha256(decision_bytes).hexdigest()
         args = dict(image_repository=IMAGE, image_digest=DIGEST, profile="final",
                     architecture="linux/amd64", environment="development",
-                    trusted_decision_sha256=trusted_hash, now=NOW)
+                    trusted_decision_sha256=trusted_hash,
+                    event="pull_request", ref="refs/pull/123/merge",
+                    base_ref="main", now=NOW)
         args.update(changes)
         return policy.evaluate(decision_bytes,
                                self.report if report is None else report, **args)
@@ -132,7 +136,8 @@ class ProtectedDecisionTests(unittest.TestCase):
                 self.decision, self.report,
                 image_repository=IMAGE, image_digest=DIGEST,
                 profile="final", architecture="linux/amd64",
-                environment="development", now=NOW,
+                environment="development", event="pull_request",
+                ref="refs/pull/123/merge", base_ref="main", now=NOW,
             )
 
     def test_cli_denial_writes_evidence_and_reports_to_stderr(self):
@@ -148,6 +153,9 @@ class ProtectedDecisionTests(unittest.TestCase):
                 "--profile", "final",
                 "--architecture", "linux/amd64",
                 "--environment", "development",
+                "--event", "pull_request",
+                "--ref", "refs/pull/123/merge",
+                "--base-ref", "main",
                 "--result-output", str(result_path),
             ]
             stderr = io.StringIO()
@@ -212,6 +220,23 @@ class ProtectedDecisionTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(policy.DecisionDenied):
                 self.evaluate(report=report)
 
+    def test_execution_context_rejects_tags_dispatch_schedules_and_wrong_pr_base(self):
+        for event, ref, base_ref in (
+            ("push", "refs/tags/v1.5.2-rc.1", ""),
+            ("workflow_dispatch", "refs/heads/main", ""),
+            ("schedule", "refs/heads/main", ""),
+            ("deployment", "refs/heads/main", ""),
+            ("pull_request", "refs/pull/123/merge", "release"),
+            ("pull_request", "refs/pull/123/head", "main"),
+            ("push", "refs/heads/release", ""),
+        ):
+            with self.subTest(event=event, ref=ref, base_ref=base_ref):
+                with self.assertRaises(policy.DecisionDenied):
+                    self.evaluate(event=event, ref=ref, base_ref=base_ref)
+
+    def test_push_to_main_is_allowed_by_reusable_development_policy(self):
+        result = self.evaluate(event="push", ref="refs/heads/main", base_ref="")
+        self.assertEqual(result["status"], "accepted_residual_risk_not_remediated")
     def test_duplicate_identical_scan_occurrences_are_deduplicated(self):
         report = copy.deepcopy(self.report)
         report["Results"].append(copy.deepcopy(report["Results"][0]))
