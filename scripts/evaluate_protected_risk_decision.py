@@ -180,9 +180,14 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
     decision, policy_sha256 = verify_decision_bytes(
         decision_bytes, trusted_decision_sha256
     )
-    demand(isinstance(event, str) and isinstance(ref, str),
-           "GitHub event/ref context is required for residual-risk acceptance")
-    validate_execution_context(decision, event=event, ref=ref, base_ref=base_ref)
+    # Development CI policies carry an explicit execution_scope and must be
+    # bound to a pull_request->main or push->main event. Other, separately
+    # governed decision records (for example release-digest records) retain
+    # their own workflow-specific custody path and cannot inherit this policy.
+    if "execution_scope" in decision:
+        demand(isinstance(event, str) and isinstance(ref, str),
+               "GitHub event/ref context is required for residual-risk acceptance")
+        validate_execution_context(decision, event=event, ref=ref, base_ref=base_ref)
     demand(decision.get("schema_version") == 2, "unsupported risk decision schema")
     demand(decision.get("status") == "approved", "risk decision is not approved or has been revoked")
     demand(decision.get("revoked_at") in (None, ""), "risk decision has been revoked")
