@@ -90,12 +90,6 @@ jobs:
       container_ignore_unfixed: false
 
 
-    uses: baobab-platform/shared/.github/workflows/foundation-repository-gates.yml@31de2bc3dcd56128c019c640dc7e12c10ae9ca69
-    with:
-      foundation_ref: "31de2bc3dcd56128c019c640dc7e12c10ae9ca69"
-      dependency_review_enabled: false
-      container_ignore_unfixed: false
-
   # Explicit replacement for Shared's temporary 'container-scan' exception.
   # Retain full Trivy coverage; only exact known CVEs can be risk accepted.
   dev10-container-risk:
