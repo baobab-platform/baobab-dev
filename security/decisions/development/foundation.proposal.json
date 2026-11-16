@@ -1,0 +1,87 @@
+{
+  "schema_version": 2,
+  "status": "pending_independent_review",
+  "revoked_at": null,
+  "repository": "baobab-platform/baobab-dev",
+  "image_repository": "ghcr.io/baobab-platform/baobab-dev",
+  "environment": "development",
+  "profiles": [
+    "final",
+    "frontend",
+    "frontend-e2e",
+    "infra"
+  ],
+  "architectures": [
+    "linux/amd64",
+    "linux/arm64"
+  ],
+  "prepared_by": null,
+  "approval_evidence": null,
+  "expires_at": "2026-11-26T00:00:00Z",
+  "findings": [
+    {
+      "cve": "CVE-2022-50240",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2025-40190",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-68103",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-72198",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-74578",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-89805",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-98376",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-98420",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    }
+  ],
+  "finding_count": 8,
+  "notes": "PROPOSAL ONLY; NOT AN APPROVED EXCEPTION. This is intended to be reusable across eligible current and future same-repository pull requests targeting main, and development-main push CI, until 2026-11-26T00:00:00Z. Fork pull requests are excluded. It is not PR-number-bound and is not available to tags, release publication/promotion, workflow_dispatch, schedules, deployments, other PR base branches, staging or production. Evidence is from PR #74 Publish run 43829121908 at source head c161821441c0d7c054514abd78a40dc25e774479 and Foundation run 43829123295. All four profiles and both architectures reported the same eight HIGH findings against linux-libc-dev=7.0.0-43.43; Trivy 0.73.0 reported no fixed versions and no secret findings. Artifact IDs, raw-report hashes, normalized-finding hashes and Trivy DB freshness metadata are recorded in docs/security/dev10-foundation-policy-review.md. Issue #54 explicitly records PR #74 as assessment-only; this proposal seeks a new reusable decision for the exact observed inventory, not retroactive PR #74 approval. The 12 November owner-authorised eight-CVE amendment named PR #62; no PR #71 authority was located. Independent approval, merged approval custody, final approved bytes and the separately provisioned SHA-256 trust anchor remain absent. Do not activate until the approved decision is merged and verified.",
+  "execution_scope": {
+    "pull_request_base": "main",
+    "push_ref": "refs/heads/main",
+    "pull_request_head_repository": "baobab-platform/baobab-dev"
+  },
+  "prepared_by_id": null
+}
