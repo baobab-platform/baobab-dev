@@ -133,16 +133,17 @@ not rebuild.
 ## 7. Bootstrap and governance
 
 The separate decision PR must pass its required checks and receive an
-independent approval on its exact final head. Before activation, its Foundation
-workflow uses the shared `contract` profile only when the PR changes the
-policy record and governance/test files without changing container build
-inputs. This bootstrap path still runs classification, baseline,
-reproducibility, runtime and environment contracts, plus the dedicated
-Draft 2020-12 policy validator; it does not claim that an image scan passed.
-The unfiltered container scan is required whenever container build inputs
-change and remains mandatory in the subsequent PR #74 Foundation/Publish
-qualification. This avoids circularly requiring an inactive decision to
-approve the scan that would authorize that same decision. Any administrator bypass must be
+independent approval on its exact final head. The shared Foundation workflow
+continues to run its full profile on every event; no Foundation security,
+baseline, reproducibility, runtime or environment gate is disabled for this
+policy PR. The additional unfiltered Foundation image CVE scan runs when a PR
+changes container build inputs (`.devcontainer/`, `config/`, `scripts/` or the
+kernel inventory). A policy-only PR does not change the image and therefore
+does not claim that an image scan passed; its decision JSON and proposal are
+instead validated against the pinned Draft 2020-12 schema, including negative
+fixtures. Any PR changing image inputs still runs the full image scan and must
+satisfy the active exact risk policy. PR #74's Foundation/Publish qualification
+remains mandatory after this decision is merged and activated. Any administrator bypass must be
 attributable and recorded with the administrator identity, exact commit,
 reason and checks bypassed. A broad or undocumented bypass is not acceptable.
 
