@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Prepare a review-only exact Trivy risk inventory. Never grants approval."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from evaluate_protected_risk_decision import _finding_key, demand, TRIVY_VERSION
 
-def extract(report):
+def extract(report, *, scanner_version):
     demand(report.get("SchemaVersion") == 2 and report.get("ArtifactType") == "container_image",
            "requires raw Trivy container image report")
-    demand(isinstance(report.get("Trivy"), dict)
-           and report["Trivy"].get("Version") == TRIVY_VERSION,
-           "unqualified scanner version")
+    # Standard Trivy JSON does not embed the CLI version. CI verifies the
+    # pinned scanner binary independently and supplies its observed version.
+    demand(scanner_version == TRIVY_VERSION, "unqualified scanner version")
     results = report.get("Results")
     demand(isinstance(results, list) and results, "missing scan results")
     found = {}
@@ -33,10 +34,21 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--raw-trivy", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--profile", required=True)
+    parser.add_argument("--architecture", required=True)
+    parser.add_argument("--scanner-version", required=True)
     args = parser.parse_args()
-    report = json.loads(args.raw_trivy.read_text())
-    inventory = extract(report)
-    draft = {"status": "pending_independent_review",
+    raw = args.raw_trivy.read_bytes()
+    report = json.loads(raw)
+    inventory = extract(report, scanner_version=args.scanner_version)
+    draft = {"schema_version": 2, "status": "pending_independent_review",
+             "repository": "baobab-platform/baobab-dev",
+             "image_repository": "ghcr.io/baobab-platform/baobab-dev",
+             "environment": "development",
+             "profiles": [args.profile], "architectures": [args.architecture],
+             "raw_report_sha256": hashlib.sha256(raw).hexdigest(),
+             "approval_id": None, "prepared_by": None, "approved_by": None,
+             "approval_evidence": None, "approved_at": None, "expires_at": None,
              "scanner": TRIVY_VERSION, "findings": inventory,
              "finding_count": len(inventory),
              "warning": "REVIEW ONLY. No exception or approval is granted."}
