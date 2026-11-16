@@ -8,7 +8,7 @@ class IndependenceError(ValueError):
 
 PR_QUERY = """query($owner:String!,$repo:String!,$number:Int!){
  repository(owner:$owner,name:$repo){pullRequest(number:$number){
- headRefOid author{... on User{databaseId login}} commits(first:1){totalCount}
+ headRefOid author{... on User{databaseId}} commits(first:1){totalCount}
  }}}"""
 
 def uid(node):
@@ -52,7 +52,10 @@ def collect_contributors(commits, count):
             raise IndependenceError("duplicate commit in contributor enumeration")
         seen_oids.add(commit["oid"])
         authors = commit.get("authors")
-        if not isinstance(authors, dict) or authors.get("totalCount") != len(authors.get("nodes", [])) or not authors["nodes"]:
+        if (not isinstance(authors, dict)
+                or type(authors.get("totalCount")) is not int
+                or authors.get("totalCount") != len(authors.get("nodes", []))
+                or not authors["nodes"]):
             raise IndependenceError("incomplete author/coauthor enumeration")
         for author in authors["nodes"]:
             found.add(uid((author or {}).get("user")))
@@ -76,8 +79,8 @@ def fetch_commit_records(token, oids):
             variables[f"oid{index}"] = oid
             fields.append(
                 f"c{index}: object(expression: $oid{index}) {{ ... on Commit {{ "
-                "oid authors(first:10){totalCount nodes{user{databaseId login}}} "
-                "committer{user{databaseId login}} } }"
+                "oid authors(first:100){totalCount nodes{user{databaseId}}} "
+                "committer{user{databaseId}} } }"
             )
         query = (
             "query(" + ",".join(declarations) + "){repository(owner:$owner,name:$repo){"
@@ -96,6 +99,9 @@ def collect_pr(token, number, expected_head, commit_oids=None):
     if commit_oids is not None:
         if (not isinstance(commit_oids, list) or len(commit_oids) != count
                 or not commit_oids or expected_head not in commit_oids
+                or any(not isinstance(oid, str) or len(oid) != 40
+                       or any(char not in "0123456789abcdef" for char in oid)
+                       for oid in commit_oids)
                 or len(set(commit_oids)) != len(commit_oids)):
             raise IndependenceError("local commit range does not match GitHub PR commit count/head")
         commits = fetch_commit_records(token, commit_oids)
@@ -108,8 +114,8 @@ def collect_pr(token, number, expected_head, commit_oids=None):
              repository(owner:$owner,name:$repo){pullRequest(number:$number){
              headRefOid author{... on User{databaseId login}}
              commits(first:100,after:$cursor){totalCount pageInfo{hasNextPage endCursor}
-             nodes{commit{oid authors(first:10){totalCount nodes{user{databaseId login}}}
-             committer{user{databaseId login}}}}}}}}"""
+             nodes{commit{oid authors(first:100){totalCount nodes{user{databaseId}}}
+             committer{user{databaseId}}}}}}}}"""
             variables = {"owner":"baobab-platform","repo":"baobab-dev",
                          "number":number,"cursor":cursor}
             data = graphql(token, query, variables)
