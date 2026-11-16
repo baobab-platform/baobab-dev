@@ -124,6 +124,7 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
              report_sha256: str | None = None,
              event: str | None = None, ref: str | None = None,
              base_ref: str = "", head_repository: str | None = None,
+             approval_id: str | None = None, approval_timestamp: str | None = None,
              now: dt.datetime | None = None) -> dict:
     """Qualify a scan; a clean scan needs no risk decision."""
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -212,11 +213,18 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
     demand(architecture in approved_architectures,
            "architecture is outside the approved risk scope")
 
-    approval_id = decision.get("approval_id")
     prepared_by_id = decision.get("prepared_by_id")
     approved_by_id = decision.get("approved_by_id")
     evidence = decision.get("approval_evidence")
-    demand(isinstance(approval_id, str) and approval_id.strip(), "approval identifier missing")
+    if "execution_scope" in decision:
+        demand(isinstance(approval_id, str) and approval_id.strip()
+               and isinstance(approval_timestamp, str) and approval_timestamp.strip(),
+               "verified GitHub approval ID and timestamp are required")
+        approved_at = _timestamp({"approved_at": approval_timestamp}, "approved_at")
+    else:
+        approval_id = decision.get("approval_id")
+        demand(isinstance(approval_id, str) and approval_id.strip(), "approval identifier missing")
+        approved_at = _timestamp(decision, "approved_at")
     demand(type(prepared_by_id) is int and prepared_by_id > 0,
            "numeric decision preparer identity missing")
     demand(type(approved_by_id) is int and approved_by_id > 0,
@@ -230,7 +238,6 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
            ) is not None,
            "approval evidence must link to the merged protected decision pull request")
 
-    approved_at = _timestamp(decision, "approved_at")
     expires_at = _timestamp(decision, "expires_at")
     demand(approved_at <= now < expires_at and approved_at < expires_at,
            "risk decision is not currently valid")
@@ -277,6 +284,8 @@ def main() -> int:
     parser.add_argument("--ref", default="")
     parser.add_argument("--base-ref", default="")
     parser.add_argument("--head-repository", default="")
+    parser.add_argument("--approval-id")
+    parser.add_argument("--approved-at")
     parser.add_argument("--expected-trivy-version", default=TRIVY_VERSION)
     parser.add_argument("--result-output", type=Path)
     args = parser.parse_args()
@@ -307,6 +316,7 @@ def main() -> int:
             report_sha256=hashlib.sha256(raw_report).hexdigest(),
             event=args.event, ref=args.ref, base_ref=args.base_ref,
             head_repository=args.head_repository,
+            approval_id=args.approval_id, approval_timestamp=args.approved_at,
         )
         exit_code = 0
     except (DecisionDenied, OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
