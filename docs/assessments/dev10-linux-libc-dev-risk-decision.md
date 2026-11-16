@@ -257,3 +257,44 @@ Verified GitHub pull-request state: **#48, #50, #57 and #58 are all merged**. Th
 **Exact new scope:** Ubuntu package `linux-libc-dev`, installed version **`7.0.0-43.43`**, and **only** these eight Trivy-observed HIGH advisories: `CVE-2022-50240`, `CVE-2025-40190`, `CVE-2026-68103`, `CVE-2026-72198`, `CVE-2026-74578`, `CVE-2026-89805`, `CVE-2026-98376`, `CVE-2026-98420`. Evidence: Foundation run 43271916377 and image scan artifact 13962922393. The original `7.0.0-42.42` / 295-CVE SHA-1-pinned inventory remains independently valid and unchanged. The new eight-CVE set is explicitly enumerated and must be complete for that package version; mixed package versions, new CVEs, changed severities, a fixed-version signal, other packages, secrets, unapproved PRs, targets, architectures, deployment contexts or dates are denied.
 
 **Unchanged limits:** PR #62 only (other PRs merged and retired), development-main, exact v1.5.0-rc.N/v1.5.0 development-container distribution, four profiles × two architectures, expiry **2026-11-26 00:00 UTC**. CI still produces complete scanner evidence and flags the accepted findings as **not remediated**. This amendment must not be interpreted as permission to waive Go executable findings or any new vulnerabilities. The decision should be reviewed when an Ubuntu fixed package becomes available.
+
+
+## 16 November 2026 — Ubuntu package and CVE status revalidation for 7.0.0-43.43
+
+This dated update supersedes the older statement in section 1 item 5 that
+7.0.0-43.43 was only in the proposed PPA. The official Ubuntu package search
+now lists **linux-libc-dev 7.0.0-43.43 in resolute-updates** (with
+7.0.0-42.42 in the security pocket). The 7.0.0-43.43 package is therefore the
+published update currently under review, not merely a proposed package.
+
+The eight exact Ubuntu CVE tracker records were rechecked on 16 November.
+Each still reports the source package `linux` as **Vulnerable** for Ubuntu
+26.04 LTS Resolute; none reports a fixed Resolute version:
+
+| CVE | Ubuntu tracker last updated | Resolute source status |
+| --- | --- | --- |
+| [CVE-2022-50240](https://ubuntu.com/security/CVE-2022-50240) | 12 Nov 2026 | Vulnerable |
+| [CVE-2025-40190](https://ubuntu.com/security/CVE-2025-40190) | 12 Nov 2026 | Vulnerable |
+| [CVE-2026-68103](https://ubuntu.com/security/CVE-2026-68103) | 13 Nov 2026 | Vulnerable |
+| [CVE-2026-72198](https://ubuntu.com/security/CVE-2026-72198) | 13 Nov 2026 | Vulnerable |
+| [CVE-2026-74578](https://ubuntu.com/security/CVE-2026-74578) | 13 Nov 2026 | Vulnerable |
+| [CVE-2026-89805](https://ubuntu.com/security/CVE-2026-89805) | 14 Nov 2026 | Vulnerable |
+| [CVE-2026-98376](https://ubuntu.com/security/CVE-2026-98376) | 14 Nov 2026 | Vulnerable |
+| [CVE-2026-98420](https://ubuntu.com/security/CVE-2026-98420) | 10 Nov 2026 | Vulnerable |
+
+The [official Ubuntu package search](https://packages.ubuntu.com/search?arch=amd64&keywords=linux-libc-dev)
+lists 7.0.0-43.43 under `resolute-updates`. This is consistent with the
+observed Trivy reports for the development image: no `FixedVersion` was
+reported for these eight findings. The Ubuntu tracker status is for the
+**kernel source package**; it does not by itself prove exploitability of the
+headers-only `linux-libc-dev` binary or reverse the prior UAPI/header-path
+analysis. It does, however, establish that Ubuntu has not marked the eight
+kernel source issues fixed for Resolute as of this recheck.
+
+**Decision impact:** no package/CVE expansion is justified. Keep the existing
+exact eight-finding development-only inventory and the already authorised
+expiry **2026-11-26T00:00:00Z**. Do not renew automatically. Recheck the
+Ubuntu tracker, official updates pocket, Trivy database and actual installed
+package before any post-expiry run; if a supported fixed package or Trivy
+`FixedVersion` signal appears, remediate and let the gate deny the old
+decision rather than extending it.
