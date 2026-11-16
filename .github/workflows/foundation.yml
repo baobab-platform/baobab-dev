@@ -81,6 +81,9 @@ jobs:
           PR_NUMBER: "${{ github.event.pull_request.number || 0 }}"
           TRUSTED_POLICY_SHA: ${{ vars.DEV10_PROTECTED_DECISION_SHA256 }}
           TRUSTED_APPROVERS: ${{ vars.DEV10_SECURITY_APPROVER_LOGINS }}
+          POLICY_EVENT: ${{ github.event_name }}
+          POLICY_REF: ${{ github.ref }}
+          POLICY_BASE_REF: ${{ github.base_ref }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -122,7 +125,7 @@ jobs:
             # Foundation's locally built image is not an immutable GHCR child
             # digest. Do not counterfeit digest identity to invoke the remote
             # evaluator. Instead authenticate the protected decision and its
-            # independent approval custody before legacy inventory validation.
+            # independent approval custody before local scan acceptance.
             decision_file="security/decisions/development/foundation.json"
             [[ -f "$decision_file" && -n "$TRUSTED_POLICY_SHA" && -n "$TRUSTED_APPROVERS" ]] || {
               echo "::error::Authenticated development risk policy is not provisioned"; exit 2;
@@ -133,6 +136,7 @@ jobs:
               --decision "$decision_file" --trusted-sha256 "$TRUSTED_POLICY_SHA" \
               --report "${RUNNER_TEMP}/foundation-trivy-raw.json" \
               --profile final --architecture linux/amd64 \
+              --event "$POLICY_EVENT" --ref "$POLICY_REF" --base-ref "$POLICY_BASE_REF" \
               > "${REPORT_DIR}/dev10-protected-risk-acceptance.json"
           fi
       - name: Retain sanitized vulnerability and risk evidence
