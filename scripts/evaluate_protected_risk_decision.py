@@ -216,27 +216,14 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
 
     prepared_by_id = decision.get("prepared_by_id")
     evidence = decision.get("approval_evidence")
-    if "execution_scope" in decision:
-        demand(isinstance(approval_id, str) and approval_id.strip()
-               and isinstance(approval_timestamp, str) and approval_timestamp.strip(),
-               "verified GitHub approval ID and timestamp are required")
-        approved_at = _timestamp({"approved_at": approval_timestamp}, "approved_at")
-    else:
-        approval_id = decision.get("approval_id")
-        demand(isinstance(approval_id, str) and approval_id.strip(), "approval identifier missing")
-        approved_at = _timestamp(decision, "approved_at")
-    if "execution_scope" in decision:
-        demand(type(prepared_by_id) is int and prepared_by_id > 0
-               and type(approved_by_id) is int and approved_by_id > 0
-               and prepared_by_id != approved_by_id,
-               "numeric maker-checker separation required")
-    else:
-        prepared_by = decision.get("prepared_by")
-        approved_by = decision.get("approved_by")
-        demand(isinstance(prepared_by, str) and prepared_by.strip()
-               and isinstance(approved_by, str) and approved_by.strip()
-               and prepared_by.casefold() != approved_by.casefold(),
-               "maker-checker separation required")
+    demand(isinstance(approval_id, str) and approval_id.strip()
+           and isinstance(approval_timestamp, str) and approval_timestamp.strip(),
+           "verified GitHub approval ID and timestamp are required")
+    approved_at = _timestamp({"approved_at": approval_timestamp}, "approved_at")
+    demand(type(prepared_by_id) is int and prepared_by_id > 0
+           and type(approved_by_id) is int and approved_by_id > 0
+           and prepared_by_id != approved_by_id,
+           "numeric maker-checker separation required")
     demand(isinstance(evidence, str)
            and re.fullmatch(
                rf"https://github\.com/{re.escape(REPOSITORY)}/pull/[1-9][0-9]*",
@@ -262,12 +249,10 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
            "new or changed vulnerability requires a separate security decision: "
            + ", ".join(sorted(item[0] for item in unapproved)))
 
-    approved_by = decision.get("approved_by")
     return {
         "status": "accepted_residual_risk_not_remediated",
         "approval_id": approval_id,
         "approved_by_id": approved_by_id,
-        "approved_by": approved_by,
         "policy_sha256": policy_sha256,
         "expires_at": decision["expires_at"],
         "approved_findings": len(approved),
