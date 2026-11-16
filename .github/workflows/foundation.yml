@@ -83,6 +83,18 @@ jobs:
           python3 scripts/summarize-trivy-vulnerabilities.py \
             "${RUNNER_TEMP}/foundation-trivy-raw.json" \
             "${REPORT_DIR}/findings.json" final linux/amd64
+          # Produce non-authorizing review evidence before any approval gate.
+          # Never upload the raw scan, which can contain secret-match material.
+          if (( scan_rc == 1 )); then
+            scanner_version=$(trivy --version | sed -n 's/^Version: //p' | head -1)
+            python3 scripts/prepare_dev10_risk_inventory.py \
+              --raw-trivy "${RUNNER_TEMP}/foundation-trivy-raw.json" \
+              --scanner-version "$scanner_version" \
+              --profile final --architecture linux/amd64 \
+              --output "${REPORT_DIR}/foundation.review-only.json"
+            sha256sum "${REPORT_DIR}/foundation.review-only.json" \
+              > "${REPORT_DIR}/foundation.review-only.sha256"
+          fi
           if (( scan_rc != 0 )); then
             if (( scan_rc != 1 )); then
               echo "::error::Trivy tool failure is not an accepted CVE risk."
