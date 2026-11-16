@@ -44,12 +44,12 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture,
            "decision expiry or finding count differs from the approved governance record")
     demand(_timestamp(decision, "approved_at") <= now < _timestamp(decision, "expires_at"),
            "policy expired or not yet approved")
-    prepared_by = decision.get("prepared_by")
-    approved_by = decision.get("approved_by")
-    demand(isinstance(prepared_by, str) and prepared_by.strip()
-           and isinstance(approved_by, str) and approved_by.strip()
-           and prepared_by.casefold() != approved_by.casefold(),
-           "maker-checker separation required")
+    prepared_by_id = decision.get("prepared_by_id")
+    approved_by_id = decision.get("approved_by_id")
+    demand(type(prepared_by_id) is int and prepared_by_id > 0
+           and type(approved_by_id) is int and approved_by_id > 0
+           and prepared_by_id != approved_by_id,
+           "numeric maker-checker separation required")
     findings = decision.get("findings")
     demand(isinstance(findings, list) and len(findings) == 8,
            "the complete eight-finding approval inventory is required")
