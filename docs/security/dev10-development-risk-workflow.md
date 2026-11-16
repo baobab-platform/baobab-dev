@@ -23,3 +23,10 @@ Risk validity is expiry-based; execution authorization is branch/event-based. Th
 The `dev10-security-policy-read` environment must permit `main` and `refs/pull/*/merge` deployment refs, in addition to its required reviewers. GitHub matches environment branch rules against `GITHUB_REF`; a protected-main-only allowlist blocks pull-request merge refs. This admin configuration must be verified rather than inferred.
 
 The decision record, independent review, custody verifier, protected default-branch controls and exact policy hash must all agree before the trust anchor is provisioned.
+
+
+The final decision candidate is in the separate PR
+https://github.com/baobab-platform/baobab-dev/pull/76. It is not active while
+that PR is open. Owner attestation and independent exact-head approval are
+still required; merge and exact-byte trust-anchor provisioning remain separate
+activation steps.
