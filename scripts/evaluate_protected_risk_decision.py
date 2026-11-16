@@ -17,10 +17,30 @@ SEVERITIES = frozenset(("HIGH", "CRITICAL"))
 REPOSITORY = "baobab-platform/baobab-dev"
 IMAGE_REPOSITORY = f"ghcr.io/{REPOSITORY}"
 TRIVY_VERSION = "0.73.0"
+EXECUTION_SCOPE = {"pull_request_base": "main", "push_ref": "refs/heads/main"}
 
 
 class DecisionDenied(ValueError):
     """The scan or policy does not satisfy the protected risk contract."""
+
+
+def validate_execution_context(decision: dict, *, event: str, ref: str,
+                               base_ref: str = "") -> None:
+    """Restrict exceptions to PRs targeting main and pushes to main."""
+    demand(decision.get("execution_scope") == EXECUTION_SCOPE,
+           "risk decision execution scope is missing or broader than development main")
+    if event == "pull_request":
+        demand(base_ref == "main", "risk decision applies only to pull requests targeting main")
+        demand(re.fullmatch(r"refs/pull/[1-9][0-9]*/merge", ref) is not None,
+               "pull request merge ref is invalid")
+        return
+    if event == "push":
+        demand(ref == "refs/heads/main" and not base_ref,
+               "risk decision applies only to pushes to development main")
+        return
+    raise DecisionDenied(
+        "risk decision is unavailable to tags, releases, dispatch, schedules or deployments"
+    )
 
 
 def demand(condition: bool, reason: str) -> None:
@@ -99,6 +119,8 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
              environment: str, expected_trivy_version: str = TRIVY_VERSION,
              trusted_decision_sha256: str | None = None,
              report_sha256: str | None = None,
+             event: str | None = None, ref: str | None = None,
+             base_ref: str = "",
              now: dt.datetime | None = None) -> dict:
     """Qualify a scan; a clean scan needs no risk decision."""
     now = now or dt.datetime.now(dt.timezone.utc)
@@ -158,6 +180,9 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
     decision, policy_sha256 = verify_decision_bytes(
         decision_bytes, trusted_decision_sha256
     )
+    demand(isinstance(event, str) and isinstance(ref, str),
+           "GitHub event/ref context is required for residual-risk acceptance")
+    validate_execution_context(decision, event=event, ref=ref, base_ref=base_ref)
     demand(decision.get("schema_version") == 2, "unsupported risk decision schema")
     demand(decision.get("status") == "approved", "risk decision is not approved or has been revoked")
     demand(decision.get("revoked_at") in (None, ""), "risk decision has been revoked")
@@ -237,6 +262,9 @@ def main() -> int:
     parser.add_argument("--profile", required=True)
     parser.add_argument("--architecture", required=True)
     parser.add_argument("--environment", required=True)
+    parser.add_argument("--event", default="")
+    parser.add_argument("--ref", default="")
+    parser.add_argument("--base-ref", default="")
     parser.add_argument("--expected-trivy-version", default=TRIVY_VERSION)
     parser.add_argument("--result-output", type=Path)
     args = parser.parse_args()
@@ -265,6 +293,7 @@ def main() -> int:
             expected_trivy_version=args.expected_trivy_version,
             trusted_decision_sha256=args.trusted_decision_sha256,
             report_sha256=hashlib.sha256(raw_report).hexdigest(),
+            event=args.event, ref=args.ref, base_ref=args.base_ref,
         )
         exit_code = 0
     except (DecisionDenied, OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
