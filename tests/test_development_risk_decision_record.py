@@ -1,6 +1,5 @@
 """Contract tests for the reusable DEV-10 development-risk decision record."""
 import json
-import re
 import unittest
 from pathlib import Path
 
