@@ -72,6 +72,12 @@ A per-candidate GitHub environment approval is intentionally not used: it
 would turn routine artifact qualification into a repeated human gate. Human
 approval belongs to the risk-policy decision, not every subsequent matching PR.
 
+## Current authorization and reconciliation — supersedes the earlier discrepancy note
+
+The 12 November issue #54 amendment explicitly names **PR #62** for the eight HIGH findings on `linux-libc-dev=7.0.0-43.43`. No approval naming PR #71 was found. The older #62/#71 discrepancy statement below is retained as historical context but is superseded by the issue record and the current legacy gate, which denies PR/main residual-risk acceptance rather than authorising either PR number.
+
+PR #74's 16 November scans are evidence only. The new proposal is reusable across future eligible PRs targeting `main` and development-main push CI, with the exact eight findings, four profiles, two architectures and expiry **2026-11-26T00:00:00Z**. Tags, releases, workflow dispatch, schedules, deployments, other PR base branches, staging and production are denied. The proposal remains pending independent review and has no activation effect.
+
 ## Current authorization remains unchanged
 
 The legacy DEV-10 kernel risk gate remains authoritative for Foundation and
