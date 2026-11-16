@@ -6,6 +6,7 @@ This verifies recorded reviewer approval and merged custody, not branch ruleset
 configuration; ruleset and CODEOWNERS enforcement require separate admin audit.
 """
 import argparse
+import datetime as dt
 import json
 import os
 import re
@@ -87,7 +88,22 @@ def verify(decision, pull, reviews, files, *, trusted_approver_ids, decision_pat
     require(reviewer_id == checker_id,
             "effective review identity differs from the recorded numeric approver")
     require_independent(reviewer_id, trusted_approver_ids, author_id, contributor_ids)
-
+    review_id = approved.get("id")
+    require(type(review_id) is int and review_id > 0, "numeric GitHub approval review ID missing")
+    submitted_at = approved.get("submitted_at")
+    require(isinstance(submitted_at, str), "GitHub approval timestamp missing")
+    try:
+        approval_time = dt.datetime.fromisoformat(submitted_at.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError("GitHub approval timestamp is invalid") from exc
+    require(approval_time.tzinfo is not None, "GitHub approval timestamp must include a timezone")
+    return {
+        "approval_id": f"github-review-{review_id}",
+        "approved_at": approval_time.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "approved_by_id": reviewer_id,
+        "approval_pr": decision.get("approval_evidence"),
+        "approval_pr_head": head,
+    }
 
 
 def main():
@@ -95,6 +111,7 @@ def main():
     p.add_argument("--decision", type=Path, required=True)
     p.add_argument("--trusted-approvers", required=True,
                    help="comma-separated independently provisioned GitHub logins")
+    p.add_argument("--output", type=Path)
     args = p.parse_args()
     token = os.environ["GITHUB_TOKEN"]
     decision = json.loads(args.decision.read_text())
@@ -117,12 +134,16 @@ def main():
         require(identity.get("login", "").casefold() == login.casefold(),
                 "trusted reviewer login resolution mismatch")
         approver_ids.add(uid({"databaseId": identity.get("id")}))
-    verify(decision, pull, reviews, files,
-           decision_path=decision_path,
-           contributor_custody=(author_id, contributors),
-           trusted_approver_ids=approver_ids)
-    print(json.dumps({"status": "approval_custody_verified", "approval_pr": evidence,
-                      "reviewer_id": decision["approved_by_id"], "reviewer": decision["approved_by"], "merged_head": pull["head"]["sha"]}))
+    result = verify(decision, pull, reviews, files,
+                    decision_path=decision_path,
+                    contributor_custody=(author_id, contributors),
+                    trusted_approver_ids=approver_ids)
+    result["status"] = "approval_custody_verified"
+    result["reviewer"] = decision.get("approved_by")
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\\n")
+    print(json.dumps(result, sort_keys=True))
 
 
 if __name__ == "__main__":
