@@ -51,7 +51,7 @@ The Publish gate must not be weakened, and the required compiler/UAPI headers mu
 The available governance record does **not** authorize PR #74 to accept these findings:
 
 1. Issue #54's 12 November owner amendment names PR #62 for the `7.0.0-43.43` eight-CVE treatment; it does not name PR #74.
-2. The risk register's PR #62 scope is distinct from the legacy executable gate's PR #71 constant. The issue/PR record does not resolve that #62/#71 custody discrepancy.
+2. @sknabusiu's 16 November independent review confirms the eight findings belong to #62, not #71, and marks the earlier #71 statement in #54 superseded. The older v1.5.0–v1.5.1 acceptance is not transferable.
 3. Issue #54's 14 November entry explicitly places PR #74 in v1.5.2 release-preparation **review scope only**, with no CVE exception, tag permission or scanner bypass.
 4. PR #74's subsequent issue comment reiterates that it is an assessment request only.
 
@@ -61,7 +61,7 @@ The new machine-readable file therefore remains `pending_independent_review`. It
 
 1. The accountable owner and independent security reviewer must reconcile the #62/#71 discrepancy and decide whether any PR #74 development-only residual-risk acceptance is justified. A decision to accept residual risk must not be represented as remediation or VEX `not_affected`.
 2. Complete the per-CVE applicability review, including Canonical's Ubuntu patch/backport state, shipped UAPI headers, downstream compilation/ABI impact and the separate host-kernel boundary. Prefer a supported vendor fix when available.
-3. If and only if a bounded development-only decision is explicitly approved, finalize the decision record with exact findings, profiles, architectures, preparer, independent approver, approval PR, approval timestamp and expiry.
+3. If and only if the separate decision PR is approved, finalize the record with exact findings, profiles, architectures, preparer's numeric GitHub ID, decision PR URL and expiry. The effective reviewer's numeric ID, GitHub review ID and submitted timestamp are derived from the current API review at runtime.
 4. Merge the decision through the protected approval process. Verify the PR is merged into `main`, the preparer authored it, the current independent trusted reviewer approved the merged head, and numeric reviewer/contributor custody is independent.
 5. Only after those exact bytes are final and merged, calculate SHA-256 over the approved file and have the designated custodian provision that exact value as `DEV10_PROTECTED_DECISION_SHA256`. Any byte change requires renewed review and a new hash.
 6. Re-run Foundation and all eight Publish jobs on the resulting PR head. Residual-risk acceptance, if approved, remains development-only and does not authorize a release tag, GHCR publication, signing, promotion, staging or production. Those controls require their own exact-digest and protected approvals.
@@ -77,3 +77,16 @@ The 12 November issue #54 amendment explicitly names **PR #62** for the eight HI
 The PR #74 scans provide new inventory evidence, not an approval. The proposal seeks a **reusable, PR-number-independent development policy** for the exact eight observed findings, all four profiles and both Linux architectures. It is limited to same-repository pull requests whose base is `main` and push CI on `refs/heads/main`; it is not available to tags, releases, workflow dispatch, schedules, deployments, fork PRs, other PR base branches, staging or production. It expires at `2026-11-26T00:00:00Z`. Any new/changed finding, package/version/severity, fixed-version signal, secret, missing scan inventory or scanner error remains blocking.
 
 The policy remains `pending_independent_review`. The PR #74 evidence runs were produced at source head `c161821441c0d7c054514abd78a40dc25e774479`; they are not claimed to be scans of the later documentation-only head. The exact bytes of an approved `foundation.json` must be reviewed and merged through the protected decision path before the trust anchor is provisioned. No SHA is to be derived from this proposal.
+
+
+## 16 November independent reviewer disposition and outstanding conditions
+
+@sknabusiu's review at 12:35 UTC approved **finalisation only**, not the final policy decision or CI unblocking. It accepted the exact eight HIGH findings, same-repository PRs targeting `main`, pushes to `refs/heads/main`, all four profiles, both architectures and expiry `2026-11-26T00:00:00Z`. It requires a separate decision PR, approval on its exact final head, recorded owner concurrence, decision-PR bootstrap checks and numeric contributor independence.
+
+@sdnabusiu's review at 12:44 UTC supports finalisation but says PR #74 is not ready to merge. The review requires complete author/co-author/committer exclusion by immutable numeric GitHub ID, current-head approval, fail-closed identity resolution, correction of Docker health checks and regression tests run in Foundation, locked onboarding and Publish. The reviewer also calls for the environment allowlist to include `refs/pull/*/merge`, independent release-gate verification, and an explicit distinction between expiry-based risk validity and branch-based execution authorization.
+
+The implementation now uses GraphQL PR commit enumeration and numeric identity comparison. The local-policy test helper propagates `head_repository`; four Docker health checks use exec-form commands. The final CI result remains pending and must be checked on the final head before merge.
+
+The environment's selected branch rules must include `main` and `refs/pull/*/merge`. The current GitHub admin state has not been verified as corrected. Branch protection, CODEOWNERS enforcement, trusted-reviewer variables and the SHA trust anchor remain separate admin prerequisites.
+
+The 16 November PR #74 review records 383 commits and 92 changed files. This is a high review burden; a versioned decision registry and smaller follow-up PRs are recommended for a later increment, but neither should weaken the current approval or release gates.
