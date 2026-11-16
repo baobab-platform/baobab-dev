@@ -2191,9 +2191,17 @@ jobs:
               [[ -n "$TRUSTED_POLICY_SHA" && -n "$TRUSTED_APPROVERS" ]] || {
                 echo "::error::Protected risk trust anchor and reviewer configuration required"; exit 2;
               }
+              custody_result="${RUNNER_TEMP}/release-risk-custody-$target.json"
               python3 scripts/verify_protected_risk_custody.py \
-                --decision "$decision_file" --trusted-approvers "$TRUSTED_APPROVERS"
-              decision_args=(--decision "$decision_file" --trusted-decision-sha256 "$TRUSTED_POLICY_SHA")
+                --decision "$decision_file" --trusted-approvers "$TRUSTED_APPROVERS" \
+                --output "$custody_result"
+              approval_id=$(jq -er '.approval_id' "$custody_result")
+              approved_at=$(jq -er '.approved_at' "$custody_result")
+              approved_by_id=$(jq -er '.approved_by_id' "$custody_result")
+              decision_args=(--decision "$decision_file"
+                --trusted-decision-sha256 "$TRUSTED_POLICY_SHA"
+                --approval-id "$approval_id" --approved-at "$approved_at"
+                --approved-by-id "$approved_by_id")
             fi
             # This evaluator only permits development-scoped policy decisions;
             # no staging/production authority is implied by promotion.
