@@ -20,7 +20,7 @@
   "approved_by": null,
   "approval_evidence": null,
   "approved_at": null,
-  "expires_at": null,
+  "expires_at": "2026-11-26T00:00:00Z",
   "findings": [
     {
       "cve": "CVE-2022-50240",
@@ -80,5 +80,9 @@
     }
   ],
   "finding_count": 8,
-  "notes": "PROPOSAL ONLY; NOT AN APPROVED EXCEPTION. Prepared from PR #74 Publish run 43829121908 at head c161821441c0d7c054514abd78a40dc25e774479 and Foundation run 43829123295. All four profiles and both architectures produced the same eight HIGH findings against linux-libc-dev=7.0.0-43.43; Trivy 0.73.0 reported no fixed versions and no secret findings. Per-job artifact IDs, raw-report hashes, normalized-finding hashes and Trivy DB freshness metadata are recorded in docs/security/dev10-foundation-policy-review.md. PR #74 remains assessment-only under issue #54; this proposal does not grant PR, main, tag, release, publication, promotion, staging or production authority. Independent owner/security review, approval custody, final policy bytes and separately provisioned SHA-256 trust anchor are all absent. Do not copy this proposal to foundation.json, activate a hash, or treat CI as accepted until a separately authorized decision is merged and verified."
+  "notes": "PROPOSAL ONLY; NOT AN APPROVED EXCEPTION. This is intended to be reusable across eligible current and future pull requests targeting main, and development-main push CI, until 2026-11-26T00:00:00Z. It is not PR-number-bound and is not available to tags, release publication/promotion, workflow_dispatch, schedules, deployments, other PR base branches, staging or production. Evidence is from PR #74 Publish run 43829121908 at source head c161821441c0d7c054514abd78a40dc25e774479 and Foundation run 43829123295. All four profiles and both architectures reported the same eight HIGH findings against linux-libc-dev=7.0.0-43.43; Trivy 0.73.0 reported no fixed versions and no secret findings. Artifact IDs, raw-report hashes, normalized-finding hashes and Trivy DB freshness metadata are recorded in docs/security/dev10-foundation-policy-review.md. Issue #54 explicitly records PR #74 as assessment-only; this proposal seeks a new reusable decision for the exact observed inventory, not retroactive PR #74 approval. The 12 November owner-authorised eight-CVE amendment named PR #62; no PR #71 authority was located. Independent approval, merged approval custody, final approved bytes and the separately provisioned SHA-256 trust anchor remain absent. Do not activate until the approved decision is merged and verified.",
+  "execution_scope": {
+    "pull_request_base": "main",
+    "push_ref": "refs/heads/main"
+  }
 }
