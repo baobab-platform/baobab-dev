@@ -89,6 +89,8 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture,
     demand(bool(observed) and observed <= approved,
            "new or changed findings are outside the approved inventory")
     return {"status": "development_risk_accepted_not_remediated",
+            "approval_id": approval_id, "approved_at": approval_timestamp,
+            "approved_by_id": approved_by_id,
             "policy_sha256": actual_hash, "findings": len(observed)}
 
 def main():
