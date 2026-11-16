@@ -132,7 +132,7 @@ class ProtectedDecisionTests(unittest.TestCase):
         self.assertEqual(result["status"], "clean_no_exception_required")
 
     def test_non_execution_scope_decision_still_requires_numeric_review_metadata(self):
-        decision = self.decision()
+        decision = copy.deepcopy(self.decision)
         decision.pop("execution_scope")
         with self.assertRaises(policy.DecisionError):
             self.evaluate(decision, approved_by_id=None)
