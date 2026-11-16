@@ -78,7 +78,6 @@ jobs:
       - name: Scan unfiltered image and enforce scoped risk decision
         id: risk-scan
         env:
-          PR_NUMBER: "${{ github.event.pull_request.number || 0 }}"
           TRUSTED_POLICY_SHA: ${{ vars.DEV10_PROTECTED_DECISION_SHA256 }}
           TRUSTED_APPROVERS: ${{ vars.DEV10_SECURITY_APPROVER_LOGINS }}
           POLICY_EVENT: ${{ github.event_name }}
