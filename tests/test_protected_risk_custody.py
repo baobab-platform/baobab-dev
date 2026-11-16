@@ -17,7 +17,6 @@ SHA = "a" * 40
 class CustodyTests(unittest.TestCase):
     def setUp(self):
         self.decision = {"prepared_by": "maker", "prepared_by_id": 1,
-                         "approved_by": "checker", "approved_by_id": 2,
                          "approval_evidence": URL}
         self.pull = {"state": "closed", "merged_at": "2026-11-15T10:00:00Z",
                      "html_url": URL, "base": {"ref": "main"},
@@ -37,14 +36,13 @@ class CustodyTests(unittest.TestCase):
         self.assertEqual(result["approved_by_id"], 2)
 
     def test_numeric_identity_not_login_controls_approval(self):
-        self.decision["approved_by"] = "renamed-checker"
         self.reviews[0]["user"]["login"] = "renamed-checker"
         self.check()
 
-    def test_recorded_approver_id_must_match_review_id(self):
-        self.decision["approved_by_id"] = 3
+    def test_only_trusted_numeric_reviewer_qualifies(self):
         with self.assertRaises(ValueError):
-            self.check()
+            mod.verify(self.decision, self.pull, self.reviews, self.files,
+                       trusted_approver_ids={3}, contributor_custody=(1, {1}))
 
     def test_stale_review_denied(self):
         self.reviews[0]["commit_id"] = "b" * 40
@@ -73,14 +71,16 @@ class CustodyTests(unittest.TestCase):
         self.check()
 
     def test_untrusted_reviewer_denied(self):
-        self.decision["approved_by_id"] = 3
+        self.reviews[0]["user"]["id"] = 1
         with self.assertRaises(ValueError):
-            self.check()
+            mod.verify(self.decision, self.pull, self.reviews, self.files,
+                       trusted_approver_ids={1}, contributor_custody=(1, {1}))
 
     def test_self_approval_denied(self):
-        self.decision["approved_by_id"] = 1
+        self.reviews[0]["user"]["id"] = 1
         with self.assertRaises(ValueError):
-            self.check()
+            mod.verify(self.decision, self.pull, self.reviews, self.files,
+                       trusted_approver_ids={1}, contributor_custody=(1, {1}))
 
     def test_unmerged_decision_denied(self):
         self.pull["merged_at"] = None
