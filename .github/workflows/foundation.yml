@@ -15,7 +15,81 @@ permissions:
   security-events: write
 
 jobs:
+  # The policy decision PR is a contract-only change: its dedicated workflow
+  # validates the complete decision schema and inventory. Keep the full
+  # Foundation profile for every PR that also changes product/build inputs.
+  scope:
+    runs-on: ubuntu-26.04
+    outputs:
+      profile: ${{ steps.detect.outputs.profile }}
+      container_scan: ${{ steps.detect.outputs.container_scan }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: detect
+        name: Classify Foundation checks from the actual changed paths
+        env:
+          EVENT_NAME: "${{ github.event_name }}"
+          BASE_SHA: "${{ github.event.pull_request.base.sha }}"
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" != "pull_request" ]]; then
+            echo "profile=full" >> "$GITHUB_OUTPUT"
+            echo "container_scan=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          changed="$(git diff --name-only "$BASE_SHA" "$GITHUB_SHA")"
+          policy_only=true
+          policy_record_changed=false
+          container_changed=false
+          while IFS= read -r path; do
+            [[ -n "$path" ]] || continue
+            case "$path" in
+              .github/workflows/foundation.yml|.github/workflows/dev10-policy-decision.yml|.github/workflows/dev10-onboarding.yml|docs/adr/ADR-DEV10-001-reusable-development-risk-policy.md|docs/security/dev10-development-risk-workflow.md|docs/security/dev10-foundation-policy-review.md|docs/security/dev10-pr74-interim-risk-decision.md|docs/security/protected-artifact-risk-decisions.md|security/decisions/development/*|tests/test_development_risk_decision_record.py|tests/fixtures/pnpm-workspace/*)
+                ;;
+              *)
+                policy_only=false
+                ;;
+            esac
+            case "$path" in
+              security/decisions/development/*|docs/adr/ADR-DEV10-001-reusable-development-risk-policy.md|tests/test_development_risk_decision_record.py)
+                policy_record_changed=true
+                ;;
+            esac
+            case "$path" in
+              .devcontainer/*|config/*|scripts/*|docs/assessments/dev10-kernel-cves.tsv)
+                container_changed=true
+                ;;
+            esac
+          done <<< "$changed"
+
+          if [[ "$policy_only" == "true" && "$policy_record_changed" == "true" ]]; then
+            echo "profile=contract" >> "$GITHUB_OUTPUT"
+            echo "::notice::Policy-only PR: contract Foundation profile plus dedicated decision-schema validation."
+          else
+            echo "profile=full" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "$container_changed" == "true" ]]; then
+            echo "container_scan=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "container_scan=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No container build inputs changed; the image scan is not applicable to this PR."
+          fi
+
   foundation:
+    needs: scope
+    uses: baobab-platform/shared/.github/workflows/foundation-repository-gates.yml@31de2bc3dcd56128c019c640dc7e12c10ae9ca69
+    with:
+      foundation_ref: "31de2bc3dcd56128c019c640dc7e12c10ae9ca69"
+      profile: ${{ needs.scope.outputs.profile }}
+      dependency_review_enabled: false
+      container_ignore_unfixed: false
+
+
     uses: baobab-platform/shared/.github/workflows/foundation-repository-gates.yml@31de2bc3dcd56128c019c640dc7e12c10ae9ca69
     with:
       foundation_ref: "31de2bc3dcd56128c019c640dc7e12c10ae9ca69"
@@ -25,6 +99,7 @@ jobs:
   # Explicit replacement for Shared's temporary 'container-scan' exception.
   # Retain full Trivy coverage; only exact known CVEs can be risk accepted.
   dev10-container-risk:
+    needs: scope
     name: DEV-10 / Foundation container CVE gate
     runs-on: ubuntu-26.04
     timeout-minutes: 60
@@ -37,6 +112,7 @@ jobs:
       - name: Validate approved risk policy negative cases
         run: python3 -B -m unittest discover -s tests -p test_dev10_kernel_risk_gate.py -v
       - name: Build actual Foundation development container
+        if: needs.scope.outputs.container_scan == 'true'
         run: |
           set -euo pipefail
           docker build --file .devcontainer/docker/Dockerfile \
@@ -44,6 +120,7 @@ jobs:
             --build-arg "REVISION=${GITHUB_SHA}" \
             --tag "foundation-scan:${GITHUB_SHA}" .
       - name: Install checksum-verified Trivy
+        if: needs.scope.outputs.container_scan == 'true'
         env:
           TRIVY_VERSION: "0.73.0"
           TRIVY_SHA256: "2edd39da482bb4e9831962487b68f68e3928ec3137794757f54d00383d79547b"
@@ -55,6 +132,7 @@ jobs:
           tar -xzf "$asset" trivy
           sudo install -m 0755 trivy /usr/local/bin/trivy
       - name: Scan unfiltered image and enforce scoped risk decision
+        if: needs.scope.outputs.container_scan == 'true'
         id: risk-scan
         env:
           PR_NUMBER: "${{ github.event.pull_request.number || 0 }}"
@@ -92,7 +170,7 @@ jobs:
               --output "${REPORT_DIR}/dev10-executive-risk-acceptance.json"
           fi
       - name: Retain sanitized vulnerability and risk evidence
-        if: always()
+        if: always() && needs.scope.outputs.container_scan == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dev10-foundation-container-risk-${{ github.sha }}
