@@ -131,6 +131,14 @@ class ProtectedDecisionTests(unittest.TestCase):
         result = self.evaluate(decision=None, report=self.report_for(DIGEST, "amd64"))
         self.assertEqual(result["status"], "clean_no_exception_required")
 
+    def test_non_execution_scope_decision_still_requires_numeric_review_metadata(self):
+        decision = self.decision()
+        decision.pop("execution_scope")
+        with self.assertRaises(policy.DecisionError):
+            self.evaluate(decision, approved_by_id=None)
+        result = self.evaluate(decision, approved_by_id=2)
+        self.assertEqual(result["approved_by_id"], 2)
+
     def test_direct_evaluation_without_verified_policy_hash_is_denied(self):
         with self.assertRaises(policy.DecisionDenied):
             policy.evaluate(
