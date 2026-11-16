@@ -37,7 +37,8 @@ The shared Foundation reusable workflow remains on its **full profile** for
 all PRs; baseline, reproducibility, runtime, environment and security gates are
 not disabled for the decision PR. The additional unfiltered DEV-10 image scan
 runs when container build inputs change (`.devcontainer/`, `config/`,
-`scripts/` or the kernel inventory). A policy-only decision PR does not alter
+`scripts/`), the shared scanner-policy manifest (`.baobab/repository.yaml`)
+changes, or the kernel inventory changes. A policy-only decision PR does not alter
 those image inputs, so the DEV-10 image rebuild is not applicable; its risk
 gate negative tests still run and the dedicated policy workflow validates the
 proposal and decision against the pinned Draft 2020-12 schema. No image scan
