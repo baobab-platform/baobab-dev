@@ -32,9 +32,14 @@ class ReleaseEligibilityTests(unittest.TestCase):
     def test_current_head_review_transitions(self):
         head = "a" * 40
         pr = {"head": {"sha": head}}
+        next_review_id = 0
         def review(state, sha=head):
-            return {"user": {"login": "security-reviewer"}, "state": state,
-                    "commit_id": sha, "submitted_at": "2026-11-15T12:00:00Z"}
+            nonlocal next_review_id
+            next_review_id += 1
+            return {"id": next_review_id,
+                    "user": {"login": "security-reviewer", "id": 200},
+                    "state": state, "commit_id": sha,
+                    "submitted_at": "2026-11-15T12:00:00Z"}
         mod.verify_current_approval(pr, [review("APPROVED")], "author")
         for sequence in (
             [review("APPROVED", "b" * 40)],
@@ -48,13 +53,22 @@ class ReleaseEligibilityTests(unittest.TestCase):
             mod.verify_current_approval(pr, [review("APPROVED")], "security-reviewer")
         with self.assertRaises(mod.ReleaseEligibilityError):
             mod.verify_current_approval(pr, [review("APPROVED")] * 100, "author")
+        missing_id = review("APPROVED")
+        del missing_id["id"]
+        with self.assertRaises(mod.ReleaseEligibilityError):
+            mod.verify_current_approval(pr, [missing_id], "author")
+        with self.assertRaises(mod.ReleaseEligibilityError):
+            mod.verify_current_approval(pr, [review("APPROVED")], "author",
+                                        trusted_approvers=["different-reviewer"])
     def test_out_of_order_reviews_do_not_restore_stale_approval(self):
         head = "a" * 40
         pr = {"head": {"sha": head}}
-        approval = {"user": {"login": "checker"}, "state": "APPROVED",
-                    "commit_id": head, "submitted_at": "2026-11-15T09:00:00Z"}
-        superseding = {"user": {"login": "checker"}, "state": "COMMENTED",
-                       "commit_id": head, "submitted_at": "2026-11-15T10:00:00Z"}
+        approval = {"id": 1, "user": {"login": "checker", "id": 201},
+                    "state": "APPROVED", "commit_id": head,
+                    "submitted_at": "2026-11-15T09:00:00Z"}
+        superseding = {"id": 2, "user": {"login": "checker", "id": 201},
+                       "state": "COMMENTED", "commit_id": head,
+                       "submitted_at": "2026-11-15T10:00:00Z"}
         with self.assertRaises(mod.ReleaseEligibilityError):
             mod.verify_current_approval(pr, [superseding, approval], "maker")
 

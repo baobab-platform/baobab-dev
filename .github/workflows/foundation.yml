@@ -33,6 +33,12 @@ jobs:
       contents: read
       pull-requests: read
     steps:
+      - name: Audit live PR reviewer contributor independence
+        if: github.event_name == 'pull_request'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/audit_pr_reviewer_independence.py --pr-number "$PR_NUMBER"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false

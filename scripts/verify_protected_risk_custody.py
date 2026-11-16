@@ -29,7 +29,8 @@ def fetch(url, token):
         return json.load(response)
 
 
-def verify(decision, pull, reviews, files, *, trusted_approvers, decision_path=None,\n           contributor_custody=None):
+def verify(decision, pull, reviews, files, *, trusted_approvers, decision_path=None,
+           contributor_custody=None):
     require(pull.get("merged_at") and pull.get("base", {}).get("ref") == "main",
             "approval PR must be merged into protected main")
     require(pull.get("state") == "closed", "approval PR must be closed and merged")
@@ -110,7 +111,8 @@ def main():
         approver_ids.add(uid({"databaseId": identity.get("id")}))
     verify(decision, pull, reviews, files,
            trusted_approvers=[x.strip() for x in args.trusted_approvers.split(",") if x.strip()],
-           decision_path=decision_path,\n           contributor_custody=(author_id, contributors, approver_ids))
+           decision_path=decision_path,
+           contributor_custody=(author_id, contributors, approver_ids))
     print(json.dumps({"status": "approval_custody_verified", "approval_pr": evidence,
                       "reviewer": decision["approved_by"], "merged_head": pull["head"]["sha"]}))
 

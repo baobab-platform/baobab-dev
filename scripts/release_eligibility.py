@@ -60,34 +60,51 @@ def manifest(ref):
     raw = run("git", "show", f"{ref}:config/versions.yaml")
     return json.loads(run("yq", "eval", "-o=json", ".", "-", input=raw))
 
-def verify_current_approval(pr, reviews, author):
-    """Require a live independent approval on the exact merged PR head."""
+def verify_current_approval(pr, reviews, author, trusted_approvers=None):
+    """Return current-head approvals after resolving each reviewer's latest state."""
     if not isinstance(reviews, list) or len(reviews) >= 100:
         raise ReleaseEligibilityError("incomplete or invalid review history")
     head = (pr.get("head") or {}).get("sha")
     if not isinstance(head, str) or not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ReleaseEligibilityError("merged PR head is unavailable")
+    trusted = None
+    if trusted_approvers is not None:
+        trusted = {str(login).casefold() for login in trusted_approvers if str(login).strip()}
+        if not trusted:
+            raise ReleaseEligibilityError("no trusted maintenance approvers are configured")
     latest = {}
     for review in reviews:
         if not isinstance(review, dict):
             raise ReleaseEligibilityError("malformed review evidence")
+        review_id = review.get("id")
+        if type(review_id) is not int or review_id <= 0:
+            raise ReleaseEligibilityError("numeric GitHub review ID is missing")
         actor = (review.get("user") or {}).get("login")
         state = review.get("state")
-        if not actor or actor.casefold() == str(author).casefold() or state == "PENDING":
+        if state == "PENDING":
             continue
+        if not actor:
+            raise ReleaseEligibilityError("review actor is missing")
         if state not in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED", "DISMISSED"):
             raise ReleaseEligibilityError("unrecognized review state")
-        if not review.get("submitted_at"):
+        submitted_at = review.get("submitted_at")
+        if not isinstance(submitted_at, str) or not submitted_at:
             raise ReleaseEligibilityError("submitted review timestamp missing")
+        if actor.casefold() == str(author).casefold():
+            continue
         key = actor.casefold()
         previous = latest.get(key)
-        if previous is None or (review["submitted_at"], review.get("id", 0)) > (
-                previous["submitted_at"], previous.get("id", 0)):
+        if previous is None or (submitted_at, review_id) > (
+                previous["submitted_at"], previous["id"]):
             latest[key] = review
-    if not any(review["state"] == "APPROVED" and review.get("commit_id") == head
-               for review in latest.values()):
-        raise ReleaseEligibilityError("no current independent approval on merged head")
-
+    approvals = [
+        review for review in latest.values()
+        if review["state"] == "APPROVED" and review.get("commit_id") == head
+        and (trusted is None or review["user"]["login"].casefold() in trusted)
+    ]
+    if not approvals:
+        raise ReleaseEligibilityError("no current trusted independent approval on merged head")
+    return approvals
 
 def maintenance(family, previous):
     if not EXCEPTION.is_file():
@@ -109,14 +126,20 @@ def maintenance(family, previous):
                or p in ("scripts/dev10_kernel_risk_gate.py", ".github/workflows/security.yml")
                for p in changed):
         raise ReleaseEligibilityError("maintenance release has no qualifying security/packaging change")
-    # Verify a merged, independently approved PR. A PR number alone is not
-    # evidence of review; reject missing/unavailable API evidence.
+
     import os
-    if not os.environ.get("GH_TOKEN"):
+    token = os.environ.get("GH_TOKEN")
+    if not token:
         raise ReleaseEligibilityError("maintenance exception requires GitHub review evidence")
     repo = os.environ.get("GITHUB_REPOSITORY", "")
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repo):
-        raise ReleaseEligibilityError("invalid GitHub repository identity")
+    if repo != "baobab-platform/baobab-dev":
+        raise ReleaseEligibilityError("maintenance custody verifier requires the canonical repository")
+    trusted_logins = [
+        value.strip() for value in os.environ.get("DEV10_SECURITY_APPROVER_LOGINS", "").split(",")
+        if value.strip()
+    ]
+    if not trusted_logins or len({value.casefold() for value in trusted_logins}) != len(trusted_logins):
+        raise ReleaseEligibilityError("trusted maintenance approver allow-list is missing or duplicated")
     try:
         pr = json.loads(run("gh", "api", f"repos/{repo}/pulls/{decision['review_pr']}"))
         reviews = json.loads(run("gh", "api", f"repos/{repo}/pulls/{decision['review_pr']}/reviews?per_page=100"))
@@ -124,11 +147,51 @@ def maintenance(family, previous):
         raise ReleaseEligibilityError("cannot verify independent maintenance approval") from exc
     author = (pr.get("user") or {}).get("login")
     merged_sha = pr.get("merge_commit_sha")
-    if not pr.get("merged") or not isinstance(merged_sha, str):
-        raise ReleaseEligibilityError("maintenance exception PR is not merged")
+    if (not pr.get("merged") or not isinstance(merged_sha, str)
+            or pr.get("state") != "closed" or (pr.get("base") or {}).get("ref") != "main"):
+        raise ReleaseEligibilityError("maintenance exception PR must be merged into main")
     run("git", "merge-base", "--is-ancestor", merged_sha, "HEAD")
-    verify_current_approval(pr, reviews, author)
-    return True
+    approvals = verify_current_approval(pr, reviews, author, trusted_logins)
+    try:
+        from custody_independence import collect_pr, require_independent, uid
+    except ModuleNotFoundError as exc:
+        if exc.name != "custody_independence":
+            raise
+        import importlib.util
+        module_path = Path(__file__).resolve().with_name("custody_independence.py")
+        spec = importlib.util.spec_from_file_location("dev10_custody_independence", module_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        collect_pr, require_independent, uid = module.collect_pr, module.require_independent, module.uid
+    head = (pr.get("head") or {}).get("sha")
+    author_id, contributors = collect_pr(token, decision["review_pr"], head)
+    api_author_id = uid({"databaseId": (pr.get("user") or {}).get("id")})
+    if author_id != api_author_id:
+        raise ReleaseEligibilityError("numeric PR author identity differs between GitHub APIs")
+    trusted_ids = {}
+    for login in trusted_logins:
+        try:
+            identity = json.loads(run("gh", "api", f"users/{login}"))
+        except (ValueError, ReleaseEligibilityError) as exc:
+            raise ReleaseEligibilityError("cannot resolve trusted maintenance reviewer identity") from exc
+        if not isinstance(identity, dict) or identity.get("login", "").casefold() != login.casefold():
+            raise ReleaseEligibilityError("trusted maintenance reviewer login resolution mismatch")
+        reviewer_id = uid({"databaseId": identity.get("id")})
+        if reviewer_id in trusted_ids.values():
+            raise ReleaseEligibilityError("trusted maintenance reviewers resolve to duplicate numeric identities")
+        trusted_ids[login.casefold()] = reviewer_id
+    for approval in approvals:
+        reviewer = approval.get("user") or {}
+        login = reviewer.get("login", "").casefold()
+        reviewer_id = uid({"databaseId": reviewer.get("id")})
+        if trusted_ids.get(login) != reviewer_id:
+            continue
+        try:
+            require_independent(reviewer_id, set(trusted_ids.values()), author_id, contributors)
+        except ValueError:
+            continue
+        return True
+    raise ReleaseEligibilityError("no trusted current-head maintenance approver is independent of PR contributors")
 
 def main():
     parser = argparse.ArgumentParser()

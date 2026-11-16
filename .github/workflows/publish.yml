@@ -227,6 +227,7 @@ jobs:
         if: steps.release-context.outputs.is_release == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEV10_SECURITY_APPROVER_LOGINS: ${{ vars.DEV10_SECURITY_APPROVER_LOGINS }}
         run: |
           set -euo pipefail
           git fetch --no-tags origin '+refs/tags/v*:refs/tags/v*'

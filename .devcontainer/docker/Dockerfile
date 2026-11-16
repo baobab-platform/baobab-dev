@@ -924,7 +924,7 @@ HEALTHCHECK \
     --start-period=15s \
     --retries=3 \
     # The runtime command is sleep infinity, so health is process liveness.
-    CMD ["CMD-SHELL", "kill -0 1"]
+    CMD kill -0 1
 
 CMD ["sleep", "infinity"]
 
@@ -1022,7 +1022,7 @@ HEALTHCHECK \
     # Build-time baobab-verify already validates the complete toolchain.
     # The runtime command is sleep infinity, so health is process liveness;
     # rerunning dozens of tool/version probes every minute wastes CPU.
-    CMD ["CMD-SHELL", "kill -0 1"]
+    CMD kill -0 1
 
 CMD ["sleep", "infinity"]
 # -----------------------------------------------------------------------------
@@ -1626,7 +1626,7 @@ HEALTHCHECK \
     # Build-time baobab-verify already validates the complete toolchain.
     # The runtime command is sleep infinity, so health is process liveness;
     # rerunning dozens of tool/version probes every minute wastes CPU.
-    CMD ["CMD-SHELL", "kill -0 1"]
+    CMD kill -0 1
 
 CMD ["sleep", "infinity"]
 
@@ -1883,6 +1883,6 @@ HEALTHCHECK \
     # Build-time baobab-verify already validates the complete toolchain.
     # The runtime command is sleep infinity, so health is process liveness;
     # rerunning dozens of tool/version probes every minute wastes CPU.
-    CMD ["CMD-SHELL", "kill -0 1"]
+    CMD kill -0 1
 
 CMD ["sleep", "infinity"]
