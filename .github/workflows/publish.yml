@@ -401,7 +401,6 @@ jobs:
     # This runs 4 targets × 2 platforms on every PR/push — an accepted,
     # disclosed cost of validating every stage continuously rather than
     # only at publish time.
-    environment: dev10-security-policy-read
     strategy:
       fail-fast: false
       matrix:
