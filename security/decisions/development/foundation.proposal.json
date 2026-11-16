@@ -85,5 +85,7 @@
     "pull_request_base": "main",
     "push_ref": "refs/heads/main",
     "pull_request_head_repository": "baobab-platform/baobab-dev"
-  }
+  },
+  "prepared_by_id": null,
+  "approved_by_id": null
 }
