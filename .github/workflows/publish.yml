@@ -704,14 +704,19 @@ jobs:
             [[ -f "$decision_file" && -n "$TRUSTED_POLICY_SHA" && -n "$TRUSTED_APPROVERS" ]] || {
               echo "::error::Protected development policy/hash/reviewer custody unavailable"; exit 2;
             }
+            custody_result="${RUNNER_TEMP}/dev10-protected-policy-custody.json"
             python3 scripts/verify_protected_risk_custody.py \
-              --decision "$decision_file" --trusted-approvers "$TRUSTED_APPROVERS"
+              --decision "$decision_file" --trusted-approvers "$TRUSTED_APPROVERS" \
+              --output "$custody_result"
+            approval_id=$(jq -er '.approval_id' "$custody_result")
+            approved_at=$(jq -er '.approved_at' "$custody_result")
             python3 scripts/verify_protected_policy_hash.py \
               --decision "$decision_file" --trusted-sha256 "$TRUSTED_POLICY_SHA" \
               --report "${RUNNER_TEMP}/trivy-raw.json" \
               --profile "${{ matrix.target }}" --architecture "${{ matrix.platform }}" \
               --event "$POLICY_EVENT" --ref "$POLICY_REF" --base-ref "$POLICY_BASE_REF" \
               --head-repository "$POLICY_HEAD_REPOSITORY" \
+              --approval-id "$approval_id" --approved-at "$approved_at" \
               > "${REPORT_DIR}/dev10-protected-risk-acceptance.json"
             echo "::warning::Authenticated development-only residual risk accepted; NOT remediated or release-authorized."
           fi
