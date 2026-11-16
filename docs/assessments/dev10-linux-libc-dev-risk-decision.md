@@ -298,3 +298,21 @@ Ubuntu tracker, official updates pocket, Trivy database and actual installed
 package before any post-expiry run; if a supported fixed package or Trivy
 `FixedVersion` signal appears, remediate and let the gate deny the old
 decision rather than extending it.
+
+
+## 16 November 2026 — separate Shared Foundation exception history correction
+
+The 12 November section above correctly states that the 7.0.0-43.43
+amendment did not itself renew the Shared Foundation implementation
+exception. A separate subsequent change did: merged PR
+[#65](https://github.com/baobab-platform/baobab-dev/pull/65), commit
+[fd82c2a](https://github.com/baobab-platform/baobab-dev/commit/fd82c2a705189826cfd7ced72eff2a642989fb03),
+aligned the `.baobab/repository.yaml` `container-scan` exception with the
+approved **2026-11-26** DEV-10 risk sunset. The current main-branch manifest
+therefore declares that separate exception through 26 November 2026.
+
+This exception remains an implementation accommodation for the shared
+Foundation scanner only. It is not the reusable development decision in
+PR #76, does not authenticate or activate that decision, and does not replace
+the unfiltered DEV-10 Foundation/Publish verifier. The two expiry records must
+continue to be reviewed independently.
