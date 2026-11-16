@@ -31,7 +31,10 @@ class CustodyTests(unittest.TestCase):
                           trusted_approver_ids={2}, contributor_custody=(1, {1}))
 
     def test_valid_independent_review(self):
-        self.check()
+        result = self.check()
+        self.assertEqual(result["approval_id"], "github-review-1")
+        self.assertEqual(result["approved_at"], "2026-11-15T09:00:00Z")
+        self.assertEqual(result["approved_by_id"], 2)
 
     def test_numeric_identity_not_login_controls_approval(self):
         self.decision["approved_by"] = "renamed-checker"
