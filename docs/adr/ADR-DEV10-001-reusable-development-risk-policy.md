@@ -111,12 +111,12 @@ mandatory on every scan. A future expiry does not authorize a tag, fork,
 different base branch or deployment; a permitted branch context does not
 extend the expiry. There is no silent renewal.
 
-The `dev10-security-policy-read` environment must require the configured
-human reviewers and permit the `main` branch plus the
-`refs/pull/*/merge` deployment-ref pattern. GitHub matches environment
-deployment branch rules against `GITHUB_REF`; a protected-main-only rule does
-not admit pull-request merge refs. Any temporary feature-branch rule is
-removed after PR #74 qualification. A blanket wildcard is prohibited.
+Development PR/main image scans do not use a manual-review environment
+pause. They run immediately to collect evidence. Residual findings still fail
+closed unless the active decision, exact SHA-256 trust anchor, trusted reviewer
+identity and merged custody verify. The separate release-promotion job retains
+its protected environment and human approval. Environment approval is not a
+substitute for an independently approved release decision.
 
 ## 6. Release separation
 
@@ -134,11 +134,19 @@ independent approval on its exact final head. Any administrator bypass must be
 attributable and recorded with the administrator identity, exact commit,
 reason and checks bypassed. A broad or undocumented bypass is not acceptable.
 
-Default-branch review protection, code-owner enforcement, latest-push approval,
-the security team's repository permission, environment branch rules and the
-trust-anchor administration path must be verified by an authorized
-administrator. Their configuration must not be inferred from CODEOWNERS or a
-successful workflow run.
+The repository does not currently have a GitHub Teams subscription or
+enforceable default-branch protection. Use the individually requestable
+accounts @sknabusiu and @sdnabusiu for security-sensitive CODEOWNERS paths and
+@bjnabs for general/platform ownership; do not list unavailable team slugs.
+The compensating process is to request those reviewers, verify the latest
+effective APPROVED review on the exact current head, verify numeric reviewer
+independence from the PR author and every commit author/co-author/committer,
+verify all CI checks on that head, record the evidence in the PR, and then
+merge. This is auditable but cannot technically prevent a sufficiently
+privileged user from bypassing the process. Do not claim CODEOWNERS or a green
+workflow is equivalent to branch protection. The post-merge custody verifier
+and exact-byte trust anchor remain mandatory, so an unapproved change to the
+decision bytes cannot become active merely by being merged.
 
 ## 8. Consequences and deferred work
 
@@ -147,14 +155,14 @@ approval for every matching development PR. It also creates a strict,
 time-limited dependency on GitHub review history and numeric contributor
 enumeration; missing API identity data blocks the scan.
 
-The current promotion workflow also consumes the single
-`DEV10_PROTECTED_DECISION_SHA256` trust anchor for tag/target decision files.
-That one hash cannot authenticate a distinct development decision and one or
-more separate release decisions concurrently. No release decision file is
-currently active; release residual findings therefore remain blocking unless
-a separately approved release trust mechanism is implemented. A versioned
-multi-decision registry or separate release trust anchor is deferred to a
-later increment and must not be approximated by reusing development authority.
+The release-promotion workflow no longer consumes
+`DEV10_PROTECTED_DECISION_SHA256` or the development custody verifier.
+Development risk acceptance cannot authorize release tags or promotion. The
+current release scan path has no release-decision waiver inputs; any residual
+HIGH/CRITICAL finding remains blocking until a separate release-specific
+schema, custody verifier and independently provisioned trust anchor are
+implemented. The separate release trust mechanism is deferred and must not be
+approximated by reusing development authority.
 
 PR #74 is unusually large (383 commits and 92 changed files); future work
 should be split into smaller, independently reviewable increments without
