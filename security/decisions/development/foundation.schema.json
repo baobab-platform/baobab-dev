@@ -14,13 +14,11 @@
     "execution_scope",
     "profiles",
     "architectures",
-    "approval_id",
     "prepared_by",
     "prepared_by_id",
     "approved_by",
     "approved_by_id",
     "approval_evidence",
-    "approved_at",
     "expires_at",
     "findings",
     "finding_count",
@@ -99,13 +97,6 @@
         ]
       }
     },
-    "approval_id": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "minLength": 1
-    },
     "prepared_by": {
       "type": [
         "string",
@@ -127,13 +118,6 @@
       ],
       "format": "uri",
       "pattern": "^https://github\\.com/baobab-platform/baobab-dev/pull/[1-9][0-9]*$"
-    },
-    "approved_at": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "format": "date-time"
     },
     "expires_at": {
       "const": "2026-11-26T00:00:00Z"
@@ -217,10 +201,6 @@
       },
       "then": {
         "properties": {
-          "approval_id": {
-            "type": "string",
-            "minLength": 1
-          },
           "prepared_by": {
             "type": "string",
             "minLength": 1
@@ -232,10 +212,6 @@
           "approval_evidence": {
             "type": "string",
             "format": "uri"
-          },
-          "approved_at": {
-            "type": "string",
-            "format": "date-time"
           },
           "prepared_by_id": {
             "type": "integer",
@@ -261,9 +237,6 @@
       },
       "then": {
         "properties": {
-          "approval_id": {
-            "type": "null"
-          },
           "prepared_by": {
             "type": "null"
           },
@@ -271,9 +244,6 @@
             "type": "null"
           },
           "approval_evidence": {
-            "type": "null"
-          },
-          "approved_at": {
             "type": "null"
           },
           "prepared_by_id": {
