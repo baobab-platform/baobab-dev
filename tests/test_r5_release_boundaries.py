@@ -123,6 +123,18 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("needs: [promote, sanity-check, ga-reuse]", run["release"])
         self.assertIn("needs.promote.result == 'success'", run["release"])
 
+    def test_release_promotion_never_reuses_development_risk_authority(self):
+        promote = active_yaml(jobs()["promote"])
+        self.assertNotIn("DEV10_PROTECTED_DECISION_SHA256", promote)
+        self.assertNotIn("DEV10_SECURITY_APPROVER_LOGINS", promote)
+        self.assertNotIn("verify_protected_risk_custody.py", promote)
+        self.assertNotIn('decision_file="security/decisions/$RELEASE_TAG', promote)
+        self.assertIn("Development risk acceptance is never release authority", promote)
+        self.assertIn("any residual HIGH or", promote)
+        evaluator = (ROOT / "scripts/verify_digest_security_decision.py").read_text()
+        self.assertIn("legacy free-text release decisions are not authenticated", evaluator)
+        self.assertIn("protected custody required", evaluator)
+
     def test_slsa_v1_predicate_serialization_and_legacy_scope(self):
         source = WORKFLOW.read_text()
         # Cosign's slsaprovenance1 typed writer drops unknown protobuf
