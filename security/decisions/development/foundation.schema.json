@@ -16,8 +16,6 @@
     "architectures",
     "prepared_by",
     "prepared_by_id",
-    "approved_by",
-    "approved_by_id",
     "approval_evidence",
     "expires_at",
     "findings",
@@ -104,13 +102,6 @@
       ],
       "minLength": 1
     },
-    "approved_by": {
-      "type": [
-        "string",
-        "null"
-      ],
-      "minLength": 1
-    },
     "approval_evidence": {
       "type": [
         "string",
@@ -178,13 +169,6 @@
         "null"
       ],
       "minimum": 1
-    },
-    "approved_by_id": {
-      "type": [
-        "integer",
-        "null"
-      ],
-      "minimum": 1
     }
   },
   "allOf": [
@@ -205,19 +189,11 @@
             "type": "string",
             "minLength": 1
           },
-          "approved_by": {
-            "type": "string",
-            "minLength": 1
-          },
           "approval_evidence": {
             "type": "string",
             "format": "uri"
           },
           "prepared_by_id": {
-            "type": "integer",
-            "minimum": 1
-          },
-          "approved_by_id": {
             "type": "integer",
             "minimum": 1
           }
@@ -240,16 +216,10 @@
           "prepared_by": {
             "type": "null"
           },
-          "approved_by": {
-            "type": "null"
-          },
           "approval_evidence": {
             "type": "null"
           },
           "prepared_by_id": {
-            "type": "null"
-          },
-          "approved_by_id": {
             "type": "null"
           }
         }
