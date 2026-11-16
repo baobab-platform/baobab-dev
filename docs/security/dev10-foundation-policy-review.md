@@ -67,3 +67,13 @@ The new machine-readable file therefore remains `pending_independent_review`. It
 6. Re-run Foundation and all eight Publish jobs on the resulting PR head. Residual-risk acceptance, if approved, remains development-only and does not authorize a release tag, GHCR publication, signing, promotion, staging or production. Those controls require their own exact-digest and protected approvals.
 
 Until this sequence is completed, Foundation and Publish are expected to remain **SECURITY DENIED** for these findings. That is the correct fail-closed outcome, not a CI defect to suppress.
+
+
+
+## 16 November 2026 — reusable development policy proposal and execution boundary
+
+The 12 November issue #54 amendment explicitly names **PR #62** for the eight HIGH findings against Ubuntu 26.04 `linux-libc-dev=7.0.0-43.43`, with expiry **2026-11-26 00:00 UTC**. No approval naming PR #71 was found in the issue #54 decision comments or PR #71's described scope. The older assessment text that called PR #71 the executable approval scope is superseded: the current legacy gate denies all PR/main residual-risk acceptance and does not grant PR-number-based authority.
+
+The PR #74 scans provide new inventory evidence, not an approval. The proposal seeks a **reusable, PR-number-independent development policy** for the exact eight observed findings, all four profiles and both Linux architectures. It is limited to pull requests whose base is `main` and push CI on `refs/heads/main`; it is not available to tags, releases, workflow dispatch, schedules, deployments, other PR base branches, staging or production. It expires at `2026-11-26T00:00:00Z`. Any new/changed finding, package/version/severity, fixed-version signal, secret, missing scan inventory or scanner error remains blocking.
+
+The policy remains `pending_independent_review`. The PR #74 evidence runs were produced at source head `c161821441c0d7c054514abd78a40dc25e774479`; they are not claimed to be scans of the later documentation-only head. The exact bytes of an approved `foundation.json` must be reviewed and merged through the protected decision path before the trust anchor is provisioned. No SHA is to be derived from this proposal.
