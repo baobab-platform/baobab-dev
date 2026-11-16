@@ -16,7 +16,9 @@
     "architectures",
     "approval_id",
     "prepared_by",
+    "prepared_by_id",
     "approved_by",
+    "approved_by_id",
     "approval_evidence",
     "approved_at",
     "expires_at",
@@ -185,6 +187,20 @@
     "notes": {
       "type": "string",
       "minLength": 1
+    },
+    "prepared_by_id": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "approved_by_id": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
     }
   },
   "allOf": [
@@ -220,6 +236,14 @@
           "approved_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "prepared_by_id": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "approved_by_id": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       }
@@ -250,6 +274,12 @@
             "type": "null"
           },
           "approved_at": {
+            "type": "null"
+          },
+          "prepared_by_id": {
+            "type": "null"
+          },
+          "approved_by_id": {
             "type": "null"
           }
         }
