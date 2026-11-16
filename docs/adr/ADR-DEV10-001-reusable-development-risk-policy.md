@@ -99,9 +99,12 @@ after the decision PR is merged and custody verification succeeds. The
 proposal file is never hashed as an authority.
 
 The policy remains inactive while the active file, exact hash, trusted
-reviewer configuration or custody evidence is missing. The decision PR may
-contain the proposed final record, but it has no enforcement effect before
-merge and trust-anchor provisioning.
+reviewer configuration or custody evidence is missing. The decision PR carries
+`record_type: proposed_approved_form` to distinguish the candidate record from
+an effective decision. Its `status: approved` expresses the intended decision
+state only; no operator or workflow may treat that field alone as proof of
+approval or activation. Effectiveness requires the merged file, current
+independent review, verified custody and exact-byte trust-anchor provisioning.
 
 ## 5. Expiry and execution are separate controls
 
@@ -130,7 +133,16 @@ not rebuild.
 ## 7. Bootstrap and governance
 
 The separate decision PR must pass its required checks and receive an
-independent approval on its exact final head. Any administrator bypass must be
+independent approval on its exact final head. Before activation, its Foundation
+workflow uses the shared `contract` profile only when the PR changes the
+policy record and governance/test files without changing container build
+inputs. This bootstrap path still runs classification, baseline,
+reproducibility, runtime and environment contracts, plus the dedicated
+Draft 2020-12 policy validator; it does not claim that an image scan passed.
+The unfiltered container scan is required whenever container build inputs
+change and remains mandatory in the subsequent PR #74 Foundation/Publish
+qualification. This avoids circularly requiring an inactive decision to
+approve the scan that would authorize that same decision. Any administrator bypass must be
 attributable and recorded with the administrator identity, exact commit,
 reason and checks bypassed. A broad or undocumented bypass is not acceptable.
 
