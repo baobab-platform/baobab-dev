@@ -157,7 +157,7 @@ jobs:
               > "${REPORT_DIR}/dev10-protected-risk-acceptance.json"
           fi
       - name: Retain sanitized vulnerability and risk evidence
-        if: always()
+        if: always() && (steps.risk-scan.outcome == 'success' || steps.risk-scan.outcome == 'failure')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dev10-foundation-container-risk-${{ github.sha }}
