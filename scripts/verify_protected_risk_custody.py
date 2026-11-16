@@ -111,6 +111,7 @@ def verify(decision, pull, reviews, files, *, trusted_approver_ids, decision_pat
         "approval_id": f"github-review-{review_id}",
         "approved_at": approval_time.astimezone(dt.timezone.utc).isoformat().replace("+00:00", "Z"),
         "approved_by_id": reviewer_id,
+        "reviewer": (approved.get("user") or {}).get("login"),
         "approval_pr": decision.get("approval_evidence"),
         "approval_pr_head": head,
     }
@@ -149,7 +150,6 @@ def main():
                     contributor_custody=(author_id, contributors),
                     trusted_approver_ids=approver_ids)
     result["status"] = "approval_custody_verified"
-    result["reviewer"] = result.get("reviewer")
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + chr(10))
