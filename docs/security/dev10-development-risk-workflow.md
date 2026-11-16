@@ -20,13 +20,24 @@ The decision preparer is bound by immutable numeric GitHub user ID to the decisi
 
 Risk validity is expiry-based; execution authorization is branch/event-based. The policy is usable only while unexpired **and** only for same-repository pull requests targeting `main` or pushes to `refs/heads/main`. A valid expiry never grants authority to another branch, tag, release or deployment, and a valid branch context never extends expiry.
 
-The `dev10-security-policy-read` environment must permit `main` and `refs/pull/*/merge` deployment refs, in addition to its required reviewers. GitHub matches environment branch rules against `GITHUB_REF`; a protected-main-only allowlist blocks pull-request merge refs. This admin configuration must be verified rather than inferred.
+Development PR/main image scans do not use a manual-review environment pause.
+They run immediately to collect evidence. Residual findings still fail closed
+unless the active decision, exact SHA-256 trust anchor, trusted reviewer
+identity and merged custody verify. The separate release-promotion job retains
+its protected environment and human approval.
 
-The decision record, independent review, custody verifier, protected default-branch controls and exact policy hash must all agree before the trust anchor is provisioned.
+Because enforceable default-branch protection is unavailable on the current
+subscription, use the documented individual-review/manual-merge process:
+request @sknabusiu and @sdnabusiu on security-sensitive changes, verify a
+current-head independent approval and all CI checks, and record the evidence
+before merging. This is auditable but cannot technically prevent a privileged
+bypass. The decision record, independent review, custody verifier and exact
+policy hash must all agree before the trust anchor is provisioned.
 
 
 The final decision candidate is in the separate PR
 https://github.com/baobab-platform/baobab-dev/pull/76. It is not active while
-that PR is open. Owner attestation and independent exact-head approval are
-still required; merge and exact-byte trust-anchor provisioning remain separate
-activation steps.
+that PR is open. Owner concurrence is recorded in PR comment #6924572973. A fresh independent
+exact-head approval is still required after the latest CODEOWNERS/ADR edits;
+merge and exact-byte trust-anchor provisioning remain separate activation
+steps.
