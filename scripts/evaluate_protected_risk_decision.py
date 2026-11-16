@@ -213,13 +213,15 @@ def evaluate(decision_bytes: bytes | None, report: dict, *, image_repository: st
            "architecture is outside the approved risk scope")
 
     approval_id = decision.get("approval_id")
-    prepared_by = decision.get("prepared_by")
-    approved_by = decision.get("approved_by")
+    prepared_by_id = decision.get("prepared_by_id")
+    approved_by_id = decision.get("approved_by_id")
     evidence = decision.get("approval_evidence")
     demand(isinstance(approval_id, str) and approval_id.strip(), "approval identifier missing")
-    demand(isinstance(prepared_by, str) and prepared_by.strip(), "decision preparer identity missing")
-    demand(isinstance(approved_by, str) and approved_by.strip(), "independent approver identity missing")
-    demand(prepared_by.casefold() != approved_by.casefold(),
+    demand(type(prepared_by_id) is int and prepared_by_id > 0,
+           "numeric decision preparer identity missing")
+    demand(type(approved_by_id) is int and approved_by_id > 0,
+           "numeric independent approver identity missing")
+    demand(prepared_by_id != approved_by_id,
            "maker-checker violation: preparer cannot approve the same decision")
     demand(isinstance(evidence, str)
            and re.fullmatch(
