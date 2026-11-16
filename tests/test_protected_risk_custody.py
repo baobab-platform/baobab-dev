@@ -16,21 +16,32 @@ SHA = "a" * 40
 
 class CustodyTests(unittest.TestCase):
     def setUp(self):
-        self.decision = {"prepared_by": "maker", "approved_by": "checker",
+        self.decision = {"prepared_by": "maker", "prepared_by_id": 1,
+                         "approved_by": "checker", "approved_by_id": 2,
                          "approval_evidence": URL}
         self.pull = {"state": "closed", "merged_at": "2026-11-15T10:00:00Z",
                      "html_url": URL, "base": {"ref": "main"},
-                     "head": {"sha": SHA}, "user": {"login": "maker", "databaseId": 1}}
+                     "head": {"sha": SHA}, "user": {"login": "maker", "id": 1}}
         self.reviews = [{"user": {"login": "checker", "id": 2}, "state": "APPROVED",
                          "submitted_at": "2026-11-15T09:00:00Z", "commit_id": SHA}]
         self.files = [{"filename": "security/decisions/decision.json", "status": "added"}]
 
     def check(self):
         return mod.verify(self.decision, self.pull, self.reviews, self.files,
-                          trusted_approvers=["checker"], contributor_custody=(1, {1}, {2}))
+                          trusted_approver_ids={2}, contributor_custody=(1, {1}))
 
     def test_valid_independent_review(self):
         self.check()
+
+    def test_numeric_identity_not_login_controls_approval(self):
+        self.decision["approved_by"] = "renamed-checker"
+        self.reviews[0]["user"]["login"] = "renamed-checker"
+        self.check()
+
+    def test_recorded_approver_id_must_match_review_id(self):
+        self.decision["approved_by_id"] = 3
+        with self.assertRaises(ValueError):
+            self.check()
 
     def test_stale_review_denied(self):
         self.reviews[0]["commit_id"] = "b" * 40
@@ -59,12 +70,12 @@ class CustodyTests(unittest.TestCase):
         self.check()
 
     def test_untrusted_reviewer_denied(self):
-        self.decision["approved_by"] = "intruder"
+        self.decision["approved_by_id"] = 3
         with self.assertRaises(ValueError):
             self.check()
 
     def test_self_approval_denied(self):
-        self.decision["approved_by"] = "maker"
+        self.decision["approved_by_id"] = 1
         with self.assertRaises(ValueError):
             self.check()
 
@@ -77,14 +88,14 @@ class CustodyTests(unittest.TestCase):
         self.files = [{"filename": "security/decisions/unrelated.json", "status": "added"}]
         with self.assertRaises(ValueError):
             mod.verify(self.decision, self.pull, self.reviews, self.files,
-                       trusted_approvers=["checker"], contributor_custody=(1, {1}, {2}),
+                       trusted_approver_ids={2}, contributor_custody=(1, {1}),
                        decision_path="security/decisions/development/foundation.json")
 
     def test_approval_exact_decision_path(self):
         mod.verify(self.decision, self.pull, self.reviews, self.files,
-                   trusted_approvers=["checker"],
+                   trusted_approver_ids={2},
                    decision_path="security/decisions/decision.json",
-                   contributor_custody=(1, {1}, {2}))
+                   contributor_custody=(1, {1}))
 
     def test_unrelated_pr_denied(self):
         self.files = [{"filename": "README.md", "status": "modified"}]
