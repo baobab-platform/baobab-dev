@@ -56,7 +56,8 @@ class LocalPolicyTests(unittest.TestCase):
             return verify(path, trusted_hash or hashlib.sha256(raw).hexdigest(),
                           self.report if report is None else report,
                           profile="final", architecture="linux/amd64",
-                          event=event, ref=ref, base_ref=base_ref, now=now)
+                          event=event, ref=ref, base_ref=base_ref,
+                          head_repository=head_repository, now=now)
 
     def test_exact_eight_finding_inventory_and_all_supported_profiles_architectures(self):
         for profile in self.policy["profiles"]:
