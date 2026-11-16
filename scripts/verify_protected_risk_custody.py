@@ -152,7 +152,7 @@ def main():
     result["reviewer"] = result.get("reviewer")
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\\n")
+        args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + chr(10))
     print(json.dumps(result, sort_keys=True))
 
 
