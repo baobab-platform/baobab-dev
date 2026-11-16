@@ -76,7 +76,7 @@ def verify(decision, pull, reviews, files, *, trusted_approvers, decision_path=N
     require(contributor_custody is not None,
             "complete numeric contributor custody required")
     author_id, contributor_ids, trusted_ids = contributor_custody
-    reviewer_id = uid((approved.get("user") or {}))
+    reviewer_id = uid({"databaseId": (approved.get("user") or {}).get("id")})
     require_independent(reviewer_id, trusted_ids, author_id, contributor_ids)
 
 
