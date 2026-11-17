@@ -314,13 +314,18 @@ class MergedCustodyTests(unittest.TestCase):
 
 
 class ImageScanScopeTests(unittest.TestCase):
-    def test_custodian_script_is_not_misclassified_as_an_image_build_input(self):
+    def test_custodian_scripts_are_not_misclassified_as_image_build_inputs(self):
         workflow = (ROOT / ".github/workflows/foundation.yml").read_text()
+        publish = (ROOT / ".github/workflows/publish.yml").read_text()
         dockerfile = (ROOT / ".devcontainer/docker/Dockerfile").read_text()
-        exclusion = workflow.index("scripts/provision_protected_risk_policy.py)")
-        broad_scripts_match = workflow.index("scripts/*|.baobab/repository.yaml")
-        self.assertLess(exclusion, broad_scripts_match)
-        self.assertNotIn("scripts/provision_protected_risk_policy.py", dockerfile)
+        for path in (
+            "scripts/provision_protected_risk_policy.py",
+            "scripts/custody_independence.py",
+        ):
+            self.assertLess(workflow.index(path + ")"),
+                            workflow.index("scripts/*|.baobab/repository.yaml"))
+            self.assertIn('!'+path, publish)
+            self.assertNotIn(path, dockerfile)
         self.assertIn("scripts/bootstrap.sh", dockerfile)
         self.assertIn("scripts/verify.sh", dockerfile)
 
