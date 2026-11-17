@@ -52,12 +52,21 @@ def attest(
 
     approved = {}
     for item in reviews:
-        if not isinstance(item, dict) or item.get("state") != "approved":
-            continue
+        if not isinstance(item, dict):
+            raise EvidenceError("malformed deployment review record")
+        state = item.get("state")
+        if state not in ("approved", "rejected"):
+            raise EvidenceError("deployment review has an unknown state")
         environments = item.get("environments")
-        if not isinstance(environments, list) or not any(
-            isinstance(e, dict) and e.get("name") == ENVIRONMENT for e in environments
+        if not isinstance(environments, list) or any(
+            not isinstance(environment, dict)
+            or not isinstance(environment.get("name"), str)
+            for environment in environments
         ):
+            raise EvidenceError("deployment review has malformed environment evidence")
+        if not any(environment.get("name") == ENVIRONMENT for environment in environments):
+            continue
+        if state != "approved":
             continue
         reviewer = item.get("user")
         if not isinstance(reviewer, dict):
