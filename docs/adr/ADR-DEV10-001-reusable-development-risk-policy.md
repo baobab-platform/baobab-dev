@@ -102,8 +102,8 @@ requires the exact decision-PR head SHA as a dispatch input and the
 environment-scoped `DEV10_POLICY_PROVISIONER_TOKEN` secret.
 
 The provisioner uses a fine-grained token restricted to this repository with
-`Variables: read/write`, `Contents: read`, `Pull requests: read` and
-`Metadata: read`. It does not use a broad classic PAT. The token is never
+`Variables: read/write`, `Contents: read`, `Pull requests: read`, `Issues: read`
+and `Metadata: read`. It does not use a broad classic PAT. The token is never
 printed or written to an artifact. The configured
 `DEV10_SECURITY_APPROVER_LOGINS` variable resolves trusted reviewer logins to
 immutable numeric GitHub IDs.
@@ -128,9 +128,10 @@ timestamp. The proposal file is never hashed as an authority.
 
 The provisioner also verifies owner concurrence on this exact decision PR
 from the accountable owner's immutable numeric GitHub ID (49340314), rather
-than trusting the PR description. The receipt records the owner comment ID.
-The preparer login is display metadata; the numeric preparer ID is the identity
-key, so account renames do not break custody verification.
+than trusting the PR description. The comment must be created and last edited
+before merge; the receipt records its ID and timestamp. The preparer login is
+display metadata; the numeric preparer ID is the identity key, so account
+renames do not break custody verification.
 The policy remains inactive while the active file, exact hash, trusted
 reviewer configuration, provisioning credential or custody evidence is
 missing. The decision PR carries `record_type: proposed_approved_form` to
