@@ -105,6 +105,22 @@ class ApprovalTests(unittest.TestCase):
         evidence = self.verify([unrelated, self.approval[0]])
         self.assertEqual(evidence["approval"]["reviewer_id"], 9001)
 
+    def test_all_independent_numeric_reviewers_are_preserved(self):
+        second = {
+            **self.approval[0],
+            "user": {"login": "another-reviewer", "id": 9002, "type": "User"},
+        }
+        evidence = self.verify([second, self.approval[0]])
+        self.assertEqual(evidence["eligible_approvals"], [
+            {"reviewer_id": 9001, "reviewer_logins": ["security-reviewer"]},
+            {"reviewer_id": 9002, "reviewer_logins": ["another-reviewer"]},
+        ])
+        self.assertEqual(evidence["approval"], evidence["eligible_approvals"][0])
+
+    def test_duplicate_review_records_do_not_duplicate_identity(self):
+        evidence = self.verify([self.approval[0], self.approval[0]])
+        self.assertEqual(len(evidence["eligible_approvals"]), 1)
+
     def test_missing_or_invalid_reviewer_identity_fails_closed(self):
         invalid_users = (
             {"login": "security-reviewer", "type": "User"},
