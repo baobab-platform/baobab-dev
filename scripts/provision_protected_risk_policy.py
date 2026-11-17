@@ -25,6 +25,7 @@ from custody_independence import collect_pr, require_independent, uid
 REPOSITORY = "baobab-platform/baobab-dev"
 DECISION_PATH = "security/decisions/development/foundation.json"
 VARIABLE_NAME = "DEV10_PROTECTED_DECISION_SHA256"
+OWNER_USER_ID = 49340314  # @bjnabs; accountable owner recorded in ADR-DEV10-001
 API_ROOT = "https://api.github.com"
 API_VERSION = "2022-11-28"
 EXPECTED_EXPIRY = "2026-11-26T00:00:00Z"
@@ -195,6 +196,24 @@ def resolve_trusted_reviewers(token, logins):
     return identities
 
 
+def verify_owner_concurrence(comments):
+    """Require attributable owner concurrence on this exact decision PR."""
+    require(isinstance(comments, list), "decision PR issue-comment history is unavailable")
+    for comment in comments:
+        if not isinstance(comment, dict):
+            continue
+        user = comment.get("user") or {}
+        body = comment.get("body")
+        if (user.get("id") == OWNER_USER_ID and isinstance(body, str)
+                and "owner concurrence is hereby recorded" in body.casefold()
+                and "new reusable policy" in body.casefold()):
+            comment_id = comment.get("id")
+            require(type(comment_id) is int and comment_id > 0,
+                    "owner concurrence comment ID is missing")
+            return {"owner_id": OWNER_USER_ID, "owner_comment_id": comment_id}
+    raise ProvisioningError("attributable owner concurrence is missing from the decision PR")
+
+
 def select_independent_approval(reviews, *, head, trusted_reviewers, author_id, contributors):
     """Select a trusted reviewer whose latest effective approval is on this exact head."""
     require(isinstance(reviews, list), "review history must be a complete list")
@@ -264,9 +283,8 @@ def verify_merged_custody(token, decision, decision_pr, expected_head_sha, trust
     author_id = author.get("id")
     require(type(author_id) is int and author_id == decision["prepared_by_id"],
             "decision PR author numeric identity differs from the recorded preparer")
-    require(isinstance(author.get("login"), str)
-            and author["login"].casefold() == decision["prepared_by"].casefold(),
-            "decision PR author login differs from the recorded preparer")
+    # The immutable numeric user ID is authoritative. prepared_by is
+    # display metadata and may legitimately change if the account is renamed.
 
     files = paginated(token, base + "/files")
     require(any(item.get("filename") == DECISION_PATH
@@ -299,6 +317,10 @@ def verify_merged_custody(token, decision, decision_pr, expected_head_sha, trust
             and ((comparison.get("merge_base_commit") or {}).get("sha") == merge_sha),
             "decision PR merge commit is not an ancestor of current main")
 
+    comments = paginated(
+        token, f"/repos/{REPOSITORY}/issues/{decision_pr}/comments"
+    )
+    owner_concurrence = verify_owner_concurrence(comments)
     reviews = paginated(token, base + "/reviews")
     author_id_graphql, contributors = collect_pr(token, decision_pr, head)
     require(author_id_graphql == author_id,
@@ -309,6 +331,7 @@ def verify_merged_custody(token, decision, decision_pr, expected_head_sha, trust
     )
     return {
         **approval,
+        **owner_concurrence,
         "decision_pr": decision_pr,
         "decision_pr_head": head,
         "merge_commit_sha": merge_sha,
