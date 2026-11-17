@@ -320,6 +320,47 @@ class OwnerConcurrenceTests(unittest.TestCase):
                 )
 
 
+class TrustedReviewerResolutionTests(unittest.TestCase):
+    def resolve(self, users, logins=None):
+        names = logins or ["reviewer-one"]
+        with patch.object(
+            provisioner, "api_request",
+            side_effect=[(200, user) for user in users],
+        ):
+            return provisioner.resolve_trusted_reviewers("token", names)
+
+    def test_accepts_only_typed_user_with_positive_numeric_id(self):
+        self.assertEqual(
+            self.resolve([{"login": "Reviewer-One", "id": 701, "type": "User"}]),
+            {701: "Reviewer-One"},
+        )
+
+    def test_rejects_bot_app_missing_or_unknown_account_type(self):
+        invalid = (
+            {"login": "reviewer-one", "id": 701, "type": "Bot"},
+            {"login": "reviewer-one", "id": 701, "type": "App"},
+            {"login": "reviewer-one", "id": 701},
+            {"login": "reviewer-one", "id": 701, "type": "Unknown"},
+        )
+        for user in invalid:
+            with self.subTest(user=user), self.assertRaisesRegex(
+                provisioner.ProvisioningError, "typed GitHub User"
+            ):
+                self.resolve([user])
+
+    def test_rejects_duplicate_numeric_ids_for_distinct_configured_logins(self):
+        with self.assertRaisesRegex(
+            provisioner.ProvisioningError, "collide on numeric GitHub ID"
+        ):
+            self.resolve(
+                [
+                    {"login": "reviewer-one", "id": 701, "type": "User"},
+                    {"login": "reviewer-two", "id": 701, "type": "User"},
+                ],
+                logins=["reviewer-one", "reviewer-two"],
+            )
+
+
 class IndependentApprovalTests(unittest.TestCase):
     @staticmethod
     def review(review_id, state, submitted_at, commit_id=HEAD, reviewer_id=356890520):
@@ -328,7 +369,7 @@ class IndependentApprovalTests(unittest.TestCase):
             "state": state,
             "submitted_at": submitted_at,
             "commit_id": commit_id,
-            "user": {"id": reviewer_id, "login": "sknabusiu"},
+            "user": {"id": reviewer_id, "login": "sknabusiu", "type": "User"},
         }
 
     def select(self, reviews, contributors=None, trusted=None):
@@ -349,6 +390,26 @@ class IndependentApprovalTests(unittest.TestCase):
         self.assertEqual(result["approved_by_id"], 356890520)
         self.assertEqual(result["reviewer"], "sknabusiu")
         self.assertEqual(result["approved_at"], "2026-11-17T01:29:41Z")
+
+    def test_bot_approval_never_qualifies_even_when_numeric_id_is_allowlisted(self):
+        bot = self.review(10, "APPROVED", "2026-11-17T01:00:00Z")
+        bot["user"] = {"id": 356890520, "login": "sknabusiu[bot]", "type": "Bot"}
+        with self.assertRaisesRegex(
+            provisioner.ProvisioningError, "no current-head APPROVED review"
+        ):
+            self.select([bot])
+
+    def test_missing_unknown_or_app_review_type_fails_closed(self):
+        for account_type in (None, "App", "Unknown"):
+            review = self.review(10, "APPROVED", "2026-11-17T01:00:00Z")
+            if account_type is None:
+                review["user"].pop("type")
+            else:
+                review["user"]["type"] = account_type
+            with self.subTest(account_type=account_type), self.assertRaisesRegex(
+                provisioner.ProvisioningError, "typed GitHub User"
+            ):
+                self.select([review])
 
     def test_later_comment_changes_requested_or_dismissal_invalidates_approval(self):
         for state in ("COMMENTED", "CHANGES_REQUESTED", "DISMISSED"):
@@ -413,7 +474,7 @@ class MergedCustodyTests(unittest.TestCase):
             "state": "APPROVED",
             "submitted_at": "2026-11-17T01:29:41Z",
             "commit_id": HEAD,
-            "user": {"id": 356890520, "login": "sknabusiu"},
+            "user": {"id": 356890520, "login": "sknabusiu", "type": "User"},
         }]
 
     def api_sequence(self, main_content=None, reviews=None, comments=None):
