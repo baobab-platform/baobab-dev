@@ -9,7 +9,7 @@ on:
       - ".github/workflows/provision-dev10-risk-policy.yml"
       - "scripts/provision_protected_risk_policy.py"
       - "scripts/custody_independence.py"
-      - "tests/test_provision_protected_risk_policy.py"
+      - "tests/test_provision_protected_risk_policy.py"\n      - "tests/test_custody_independence.py"
 permissions:
   contents: read
 jobs:
@@ -33,4 +33,4 @@ jobs:
           set -euo pipefail
           python3 -B -m unittest -v \
             tests/test_development_risk_decision_record.py \
-            tests/test_provision_protected_risk_policy.py
+            tests/test_provision_protected_risk_policy.py \\\n            tests/test_custody_independence.py
