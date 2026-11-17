@@ -241,7 +241,9 @@ class CompleteHistoryTests(unittest.TestCase):
         ):
             response = MagicMock()
             response.read.return_value = json.dumps({
-                "sha": "d" * 40, "committer": actor,
+                "sha": "d" * 40,
+                "commit": {"committer": {"name": "GitHub", "email": "noreply@github.com", "date": "2026-11-17T01:29:58Z"}},
+                "committer": actor,
             }).encode("utf-8")
             opener = MagicMock()
             opener.__enter__.return_value = response
