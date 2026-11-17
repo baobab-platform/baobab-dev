@@ -86,8 +86,8 @@ class LocalPolicyTests(unittest.TestCase):
     def test_publish_pr_build_scan_uses_reusable_policy(self):
         workflow = (ROOT / ".github/workflows/publish.yml").read_text()
         self.assertIn("scripts/verify_protected_policy_hash.py", workflow)
-        build_start = workflow.index("name: Build & Security Scan")
-        exact_start = workflow.index("name: Release candidate exact-digest scan")
+        build_start = workflow.index('name: "Build & Security Scan')
+        exact_start = workflow.index('name: "Release candidate exact-digest scan')
         self.assertNotIn("scripts/dev10_kernel_risk_gate.py", workflow[build_start:exact_start])
 
     def test_untrusted_policy_hash(self):
