@@ -122,5 +122,23 @@ class ApprovalTests(unittest.TestCase):
         })
 
 
+class WorkflowWiringTests(unittest.TestCase):
+    def test_release_workflow_passes_original_and_triggering_numeric_actor_ids(self):
+        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/publish.yml").read_text()
+        self.assertIn("ORIGINAL_ACTOR_ID: ${{ github.actor_id }}", workflow)
+        self.assertIn("TRIGGERING_ACTOR_LOGIN: ${{ github.triggering_actor }}", workflow)
+        self.assertIn('TRIGGERING_ACTOR_ID="$(gh api "users/$TRIGGERING_ACTOR_LOGIN" --jq .id)"', workflow)
+        self.assertIn('--actor-id "$ORIGINAL_ACTOR_ID"', workflow)
+        self.assertIn('--triggering-actor-id "$TRIGGERING_ACTOR_ID"', workflow)
+        self.assertNotIn('--actor "$GITHUB_ACTOR" --tag "$RELEASE_TAG"', workflow)
+
+    def test_approval_capture_remains_inside_protected_release_environment(self):
+        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/publish.yml").read_text()
+        release_job = workflow.split("name: Capture independent deployment approval evidence", 1)[0]
+        self.assertIn("name: dev10-release-promotion", release_job)
+        self.assertIn("verify_release_environment.py", release_job)
+        self.assertIn("deployment-branch-policies", release_job)
+
+
 if __name__ == "__main__":
     unittest.main()
