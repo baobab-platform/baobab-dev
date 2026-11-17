@@ -6,6 +6,10 @@ on:
       - "docs/adr/ADR-DEV10-001-reusable-development-risk-policy.md"
       - "tests/test_development_risk_decision_record.py"
       - ".github/workflows/dev10-policy-decision.yml"
+      - ".github/workflows/provision-dev10-risk-policy.yml"
+      - "scripts/provision_protected_risk_policy.py"
+      - "scripts/custody_independence.py"
+      - "tests/test_provision_protected_risk_policy.py"
 permissions:
   contents: read
 jobs:
@@ -25,4 +29,8 @@ jobs:
           security/decisions/development/foundation.json
           security/decisions/development/foundation.proposal.json
       - name: Validate exact inventory and negative schema fixtures
-        run: python3 -B -m unittest -v tests/test_development_risk_decision_record.py
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest -v \
+            tests/test_development_risk_decision_record.py \
+            tests/test_provision_protected_risk_policy.py
