@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": [
     "schema_version",
+    "record_type",
     "status",
     "revoked_at",
     "repository",
@@ -25,6 +26,9 @@
   "properties": {
     "schema_version": {
       "const": 2
+    },
+    "record_type": {
+      "const": "proposed_approved_form"
     },
     "status": {
       "enum": [
