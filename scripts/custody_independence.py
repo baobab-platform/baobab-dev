@@ -37,6 +37,17 @@ def _numeric_user_id(actor, label):
     return user_id
 
 
+def _pull_request_author_user_id(actor):
+    """Resolve only a concrete GitHub User returned by PullRequest.author (Actor)."""
+    _require(isinstance(actor, dict), "decision PR author identity is missing")
+    _require(actor.get("__typename") == "User",
+             "decision PR author is not a concrete GitHub User")
+    user_id = actor.get("databaseId")
+    _require(type(user_id) is int and user_id > 0,
+             "decision PR author has no immutable numeric GitHub user ID")
+    return user_id
+
+
 def _safe_detail(value, limit=240):
     """Return bounded single-line diagnostics with credentials and controls removed."""
     if not isinstance(value, str):
@@ -196,7 +207,10 @@ def collect_pr(token, pr_number, expected_head):
       repository(owner: $owner, name: $name) {
         pullRequest(number: $number) {
           headRefOid
-          author { user { databaseId } }
+          author {
+            __typename
+            ... on User { databaseId }
+          }
           commits(first: 100, after: $after) {
             totalCount
             pageInfo { hasNextPage endCursor }
@@ -236,7 +250,7 @@ def collect_pr(token, pr_number, expected_head):
         _require(pull.get("headRefOid") == expected_head,
                  "decision PR head changed during complete custody enumeration")
         current_author = pull.get("author")
-        current_author_id = _numeric_user_id(current_author, "decision PR author")
+        current_author_id = _pull_request_author_user_id(current_author)
         if author_id is None:
             author_id = current_author_id
         _require(author_id == current_author_id,
