@@ -198,7 +198,7 @@ class CompleteHistoryTests(unittest.TestCase):
             with self.subTest(actor=actor), patch.object(
                 custody, "open_github", return_value=opener
             ), self.assertRaisesRegex(custody.CustodyError, expected):
-                custody._rest_commit_committer_user_id("token", "d" * 40)
+                custody._rest_commit_committer_user_id("token", "d" * 40, {"name": "GitHub", "email": "noreply@github.com", "date": "2026-11-17T01:29:58Z"})
 
     def test_rest_http_error_reports_status_and_request_id_without_body(self):
         from email.message import Message
