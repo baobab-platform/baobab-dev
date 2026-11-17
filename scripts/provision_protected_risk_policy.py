@@ -14,13 +14,12 @@ import hashlib
 import json
 import os
 import re
-import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from custody_independence import collect_pr, require_independent, uid
+from custody_independence import collect_pr, require_independent
 
 REPOSITORY = "baobab-platform/baobab-dev"
 DECISION_PATH = "security/decisions/development/foundation.json"
@@ -307,7 +306,7 @@ def verify_merged_custody(token, decision, decision_pr, expected_head_sha, trust
                 for item in files),
             "decision PR did not add or modify the protected decision file")
 
-    # The approved PR bytes must still be the exact bytes present on main.
+    # The approved PR bytes must match both the merge commit and current main.
     approved_bytes = contents_bytes(token, DECISION_PATH, head)
     merge_bytes = contents_bytes(token, DECISION_PATH, merge_sha)
     main_bytes = contents_bytes(token, DECISION_PATH, "main")
