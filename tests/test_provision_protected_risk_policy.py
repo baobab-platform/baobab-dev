@@ -157,9 +157,8 @@ class IndependentApprovalTests(unittest.TestCase):
         ])
         self.assertEqual(result["approval_id"], "github-review-11")
         self.assertEqual(result["approved_by_id"], 356890520)
-        self.assertEqual(result["owner_id"], 49340314)
-        self.assertEqual(result["owner_comment_id"], 6924572973)
-        self.assertEqual(result["owner_concurrence_at"], "2026-11-16T14:00:00Z")
+        self.assertEqual(result["reviewer"], "sknabusiu")
+        self.assertEqual(result["approved_at"], "2026-11-17T01:29:41Z")
 
     def test_later_comment_changes_requested_or_dismissal_invalidates_approval(self):
         for state in ("COMMENTED", "CHANGES_REQUESTED", "DISMISSED"):
