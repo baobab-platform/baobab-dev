@@ -158,16 +158,19 @@ class CompleteHistoryTests(unittest.TestCase):
         for item in nodes:
             commit_object = item.get("commit") if isinstance(item, dict) else None
             actor = commit_object.get("committer") if isinstance(commit_object, dict) else None
-            if (isinstance(actor, dict) and actor.get("user") is None
-                    and actor.get("name") == "GitHub"
+            if (isinstance(actor, dict) and actor.get("name") == "GitHub"
                     and actor.get("email") == "noreply@github.com"):
                 candidates.append((commit_object.get("oid"), actor))
-        self.assertTrue(candidates, "PR #76 history no longer contains the expected unlinked GitHub service committer")
+        self.assertTrue(candidates, "PR #76 history no longer contains a GitHub service committer fixture")
         oid, actor = candidates[0]
         self.assertEqual(len(oid), 40)
-        self.assertGreater(custody._rest_commit_committer_user_id(
+        rest_user_id = custody._rest_commit_committer_user_id(
             os.environ["GH_TOKEN"], oid, actor
-        ), 0)
+        )
+        self.assertGreater(rest_user_id, 0)
+        graphql_user = actor.get("user")
+        if isinstance(graphql_user, dict):
+            self.assertEqual(rest_user_id, graphql_user.get("databaseId"))
 
     def test_rest_fallback_resolves_exact_sha_with_metadata_corroboration(self):
         oid = "d" * 40
