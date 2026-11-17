@@ -4,6 +4,7 @@ The GraphQL history is paginated to exhaustion. Missing identities, changing
 heads/counts, duplicate commits, incomplete author connections, or API errors
 are fatal: an incomplete history must never be treated as independent.
 """
+import datetime as dt
 import json
 import re
 import unicodedata
@@ -35,6 +36,20 @@ def _numeric_user_id(actor, label):
     _require(type(user_id) is int and user_id > 0,
              f"{label} has no immutable numeric GitHub user ID")
     return user_id
+
+
+def _same_timestamp(left, right):
+    """Compare ISO-8601 timestamps as instants, not timezone spellings."""
+    if not isinstance(left, str) or not isinstance(right, str):
+        return False
+    try:
+        left_value = dt.datetime.fromisoformat(left.replace("Z", "+00:00"))
+        right_value = dt.datetime.fromisoformat(right.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if left_value.tzinfo is None or right_value.tzinfo is None:
+        return False
+    return left_value.astimezone(dt.timezone.utc) == right_value.astimezone(dt.timezone.utc)
 
 
 def _rest_commit_committer_user_id(token, oid, graphql_committer):
@@ -73,7 +88,11 @@ def _rest_commit_committer_user_id(token, oid, graphql_committer):
              "REST commit response has no raw committer metadata")
     mismatched_fields = [
         key for key, value in expected.items()
-        if raw_committer.get(key) != value
+        if (
+            not _same_timestamp(raw_committer.get(key), value)
+            if key == "date"
+            else raw_committer.get(key) != value
+        )
     ]
     _require(not mismatched_fields,
              "REST and GraphQL committer metadata disagree for the exact commit "
