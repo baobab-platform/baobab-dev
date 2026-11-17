@@ -4,7 +4,6 @@ The GraphQL history is paginated to exhaustion. Missing identities, changing
 heads/counts, duplicate commits, incomplete author connections, or API errors
 are fatal: an incomplete history must never be treated as independent.
 """
-import datetime as dt
 import json
 import re
 import unicodedata
