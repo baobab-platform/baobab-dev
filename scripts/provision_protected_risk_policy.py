@@ -309,9 +309,10 @@ def verify_merged_custody(token, decision, decision_pr, expected_head_sha, trust
 
     # The approved PR bytes must still be the exact bytes present on main.
     approved_bytes = contents_bytes(token, DECISION_PATH, head)
+    merge_bytes = contents_bytes(token, DECISION_PATH, merge_sha)
     main_bytes = contents_bytes(token, DECISION_PATH, "main")
-    require(approved_bytes == main_bytes,
-            "merged main decision bytes differ from the independently approved PR head")
+    require(approved_bytes == merge_bytes == main_bytes,
+            "approved PR-head, merge-commit and current-main decision bytes differ")
     try:
         current_decision = json.loads(main_bytes)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
