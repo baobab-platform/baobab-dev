@@ -93,6 +93,7 @@ on:
       - "scripts/**"
       - "!scripts/provision_protected_risk_policy.py"
       - "!scripts/custody_independence.py"
+      - "!scripts/github_api_transport.py"
 
   pull_request:
     branches:
@@ -105,6 +106,7 @@ on:
       - "scripts/**"
       - "!scripts/provision_protected_risk_policy.py"
       - "!scripts/custody_independence.py"
+      - "!scripts/github_api_transport.py"
 
   # Manual validation is main-only. Rebuilding an arbitrary tag in the
   # privileged dispatch context is forbidden; publishing requires a tag push.

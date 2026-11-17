@@ -5,8 +5,12 @@ heads/counts, duplicate commits, incomplete author connections, or API errors
 are fatal: an incomplete history must never be treated as independent.
 """
 import json
+import re
+import unicodedata
 import urllib.error
 import urllib.request
+
+from github_api_transport import open_github, read_bounded
 
 API_URL = "https://api.github.com/graphql"
 API_VERSION = "2022-11-28"
@@ -33,6 +37,116 @@ def _numeric_user_id(actor, label):
     return user_id
 
 
+def _safe_detail(value, limit=240):
+    """Return bounded single-line diagnostics with credentials and controls removed."""
+    if not isinstance(value, str):
+        return ""
+    value = "".join(
+        " " if unicodedata.category(char)[0] == "C" else char
+        for char in value
+    )
+    value = re.sub(
+        r"(?i)\b(?:bearer|basic|token)\s+[A-Za-z0-9._~+/=-]{8,}",
+        "[REDACTED]", value,
+    )
+    value = re.sub(
+        r"""(?i)(["']?(?:token|authorization|password|secret|api[_-]?key)["']?\s*[:=]\s*)["']?[^\s,;"' }]+["']?""",
+        r"\1[REDACTED]", value,
+    )
+    value = re.sub(
+        r"(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}",
+        "[REDACTED_GITHUB_TOKEN]", value,
+    )
+    value = re.sub(r"://[^/\s:@]+:[^/\s@]+@", "://[REDACTED]@", value)
+    value = re.sub(
+        r"\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*",
+        "[REDACTED_JWT]", value,
+    )
+    return " ".join(value.split()).lstrip(":%")[:limit]
+
+_SAFE_GITHUB_MESSAGES = {
+    "resource not accessible by integration": "Resource not accessible by integration",
+    "bad credentials": "Bad credentials",
+    "requires authentication": "Requires authentication",
+    "not found": "Not Found",
+    "validation failed": "Validation Failed",
+    "api rate limit exceeded": "API rate limit exceeded",
+    "secondary rate limit": "Secondary rate limit",
+    "problems parsing json": "Problems parsing JSON",
+    "unprocessable entity": "Unprocessable Entity",
+    "forbidden": "Forbidden",
+    "unauthorized": "Unauthorized",
+    "internal server error": "Internal Server Error",
+}
+_SAFE_GITHUB_ERROR_TYPES = {
+    "FORBIDDEN", "NOT_FOUND", "RATE_LIMITED", "INVALID",
+    "UNAUTHORIZED", "BAD_USER_INPUT", "THROTTLED",
+    "SERVICE_UNAVAILABLE", "INTERNAL",
+}
+
+
+def _safe_github_message(value):
+    if not isinstance(value, str):
+        return "unrecognized GitHub error"
+    return _SAFE_GITHUB_MESSAGES.get(value.strip().casefold(), "unrecognized GitHub error")
+
+
+def _graphql_error_summary(errors):
+    if not isinstance(errors, list) or not errors:
+        return "GraphQL response contained an invalid errors field"
+    details = []
+    for error in errors[:5]:
+        if not isinstance(error, dict):
+            details.append("malformed error entry")
+            continue
+        message = _safe_github_message(error.get("message"))
+        raw_type = error.get("type")
+        error_type = (
+            raw_type if isinstance(raw_type, str)
+            and raw_type in _SAFE_GITHUB_ERROR_TYPES else ""
+        )
+        path = error.get("path")
+        path_parts = []
+        if isinstance(path, list):
+            for item in path[:8]:
+                if type(item) is int and item >= 0:
+                    path_parts.append(str(item))
+                elif (isinstance(item, str)
+                      and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", item)
+                      and not re.search(r"(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}", item)):
+                    path_parts.append(item)
+        safe_path = ".".join(path_parts)[:240]
+        parts = [message]
+        if error_type:
+            parts.append(f"type={error_type}")
+        if safe_path:
+            parts.append(f"path={safe_path}")
+        details.append(" (".join((parts[0], ", ".join(parts[1:]) + ")")) if len(parts) > 1 else message)
+    return "; ".join(details)
+
+
+def _http_error_summary(exc):
+    """Extract only GitHub's bounded message fields; never expose raw response data."""
+    try:
+        raw = exc.read(1_048_577)
+        if len(raw) > 1_048_576:
+            return f"GitHub GraphQL HTTP {exc.code}: error response exceeded the 1 MiB safety limit"
+        payload = json.loads(raw)
+    except (OSError, ValueError, json.JSONDecodeError):
+        payload = None
+    message = _safe_detail(payload.get("message")) if isinstance(payload, dict) else ""
+    errors = payload.get("errors") if isinstance(payload, dict) else None
+    if isinstance(errors, list):
+        messages = [
+            _safe_github_message(item.get("message")) for item in errors[:5]
+            if isinstance(item, dict) and item.get("message")
+        ]
+        if messages:
+            message = "; ".join(([message] if message else []) + messages)[:600]
+    suffix = f": {message}" if message else ""
+    return f"GitHub GraphQL HTTP {exc.code}{suffix}"
+
+
 def _graphql(token, query, variables):
     body = json.dumps({"query": query, "variables": variables}).encode("utf-8")
     request = urllib.request.Request(
@@ -48,13 +162,23 @@ def _graphql(token, query, variables):
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            payload = json.loads(response.read())
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError,
-            json.JSONDecodeError) as exc:
-        raise CustodyError("GitHub GraphQL custody request failed") from exc
-    _require(isinstance(payload, dict) and not payload.get("errors"),
-             "GitHub GraphQL returned errors or malformed data")
+        with open_github(request, timeout=30) as response:
+            payload = json.loads(read_bounded(response))
+    except urllib.error.HTTPError as exc:
+        raise CustodyError(_http_error_summary(exc)) from exc
+    except json.JSONDecodeError as exc:
+        raise CustodyError("GitHub GraphQL returned invalid JSON") from exc
+    except ValueError as exc:
+        raise CustodyError(_safe_detail(str(exc), 180)) from exc
+    except urllib.error.URLError as exc:
+        raise CustodyError("GitHub GraphQL transport failed") from exc
+    except TimeoutError as exc:
+        raise CustodyError("GitHub GraphQL custody request timed out") from exc
+    except UnicodeDecodeError as exc:
+        raise CustodyError("GitHub GraphQL returned invalid JSON") from exc
+    _require(isinstance(payload, dict), "GitHub GraphQL returned a malformed response")
+    if "errors" in payload:
+        raise CustodyError(_graphql_error_summary(payload["errors"]))
     data = payload.get("data")
     _require(isinstance(data, dict), "GitHub GraphQL response has no data")
     return data
