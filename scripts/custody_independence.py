@@ -37,6 +37,52 @@ def _numeric_user_id(actor, label):
     return user_id
 
 
+def _rest_commit_committer_user_id(token, oid, graphql_committer):
+    """Resolve an unlinked GraphQL committer only through its exact REST commit."""
+    _require(isinstance(graphql_committer, dict),
+             "unlinked commit committer metadata is missing")
+    expected = {
+        key: graphql_committer.get(key) for key in ("name", "email", "date")
+    }
+    _require(all(isinstance(value, str) and value for value in expected.values()),
+             "unlinked commit committer metadata is incomplete")
+
+    request = urllib.request.Request(
+        f"https://api.github.com/repos/baobab-platform/baobab-dev/commits/{oid}",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": API_VERSION,
+            "User-Agent": "baobab-dev-dev10-custody-verifier",
+        },
+    )
+    try:
+        with open_github(request, timeout=30) as response:
+            payload = json.loads(read_bounded(response))
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError,
+            ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CustodyError(
+            "REST commit identity corroboration failed; refusing unresolved committer"
+        ) from exc
+
+    _require(isinstance(payload, dict) and payload.get("sha") == oid,
+             "REST commit identity response does not match the exact commit SHA")
+    raw_commit = payload.get("commit")
+    raw_committer = raw_commit.get("committer") if isinstance(raw_commit, dict) else None
+    _require(isinstance(raw_committer, dict)
+             and all(raw_committer.get(key) == value for key, value in expected.items()),
+             "REST and GraphQL committer metadata disagree for the exact commit")
+    committer = payload.get("committer")
+    _require(isinstance(committer, dict) and committer.get("type") == "User",
+             "REST commit committer is not a linked GitHub User")
+    user_id = committer.get("id")
+    login = committer.get("login")
+    _require(type(user_id) is int and user_id > 0
+             and isinstance(login, str) and login,
+             "REST commit committer has no immutable numeric GitHub user identity")
+    return user_id
+
+
 def _pull_request_author_user_id(actor):
     """Resolve only a concrete GitHub User returned by PullRequest.author (Actor)."""
     _require(isinstance(actor, dict), "decision PR author identity is missing")
@@ -218,7 +264,7 @@ def collect_pr(token, pr_number, expected_head):
               commit {
                 oid
                 author { user { databaseId } }
-                committer { user { databaseId } }
+                committer { name email date user { databaseId login } }
                 authors(first: 100) {
                   totalCount
                   pageInfo { hasNextPage }
@@ -279,7 +325,16 @@ def collect_pr(token, pr_number, expected_head):
             seen_commits.add(oid)
 
             contributors.add(_numeric_user_id(commit.get("author"), "commit author"))
-            contributors.add(_numeric_user_id(commit.get("committer"), "commit committer"))
+            committer = commit.get("committer")
+            committer_user = committer.get("user") if isinstance(committer, dict) else None
+            if isinstance(committer_user, dict):
+                contributors.add(_numeric_user_id(committer, "commit committer"))
+            else:
+                # GitHub's GraphQL GitActor.user can be null for service-authored
+                # commits even when REST resolves the exact commit committer to a
+                # numeric User. Reconcile only against the same immutable commit
+                # SHA and exact GitActor name/email/date tuple; all mismatches fail.
+                contributors.add(_rest_commit_committer_user_id(token, oid, committer))
 
             authors = commit.get("authors")
             _require(isinstance(authors, dict), "commit author/co-author connection is missing")
