@@ -38,30 +38,11 @@ def _numeric_user_id(actor, label):
     return user_id
 
 
-def _same_timestamp(left, right):
-    """Compare ISO-8601 timestamps as instants, not timezone spellings."""
-    if not isinstance(left, str) or not isinstance(right, str):
-        return False
-    try:
-        left_value = dt.datetime.fromisoformat(left.replace("Z", "+00:00"))
-        right_value = dt.datetime.fromisoformat(right.replace("Z", "+00:00"))
-    except ValueError:
-        return False
-    if left_value.tzinfo is None or right_value.tzinfo is None:
-        return False
-    return left_value.astimezone(dt.timezone.utc) == right_value.astimezone(dt.timezone.utc)
-
-
-def _rest_commit_committer_user_id(token, oid, graphql_committer):
-    """Resolve an unlinked GraphQL committer only through its exact REST commit."""
-    _require(isinstance(graphql_committer, dict),
-             "unlinked commit committer metadata is missing")
-    expected = {
-        key: graphql_committer.get(key) for key in ("name", "email", "date")
-    }
-    _require(all(isinstance(value, str) and value for value in expected.values()),
-             "committer is not linked to a GitHub user and metadata is incomplete for REST reconciliation")
-
+def _rest_commit_committer_user_id(token, oid):
+    """Resolve an unlinked GraphQL committer through the exact REST commit SHA."""
+    _require(isinstance(oid, str) and len(oid) == 40
+             and all(char in "0123456789abcdef" for char in oid),
+             "REST committer resolution received an invalid commit SHA")
     request = urllib.request.Request(
         f"https://api.github.com/repos/baobab-platform/baobab-dev/commits/{oid}",
         headers={
@@ -74,37 +55,33 @@ def _rest_commit_committer_user_id(token, oid, graphql_committer):
     try:
         with open_github(request, timeout=30) as response:
             payload = json.loads(read_bounded(response))
-    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError,
-            ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise CustodyError(
-            "REST commit identity corroboration failed; refusing unresolved committer"
-        ) from exc
+    except urllib.error.HTTPError as exc:
+        request_id = ""
+        if exc.headers is not None:
+            candidate = exc.headers.get("x-github-request-id", "")
+            if isinstance(candidate, str) and re.fullmatch(r"[A-Za-z0-9-]{1,80}", candidate):
+                request_id = candidate
+        detail = f" (GitHub request ID {request_id})" if request_id else ""
+        raise CustodyError(f"REST committer lookup failed with HTTP {exc.code}{detail}") from exc
+    except urllib.error.URLError as exc:
+        reason = _safe_detail(str(getattr(exc, "reason", "")), 120)
+        suffix = f": {reason}" if reason else ""
+        raise CustodyError(f"REST committer lookup transport failure{suffix}") from exc
+    except TimeoutError as exc:
+        raise CustodyError("REST committer lookup timed out") from exc
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CustodyError("REST committer lookup returned invalid JSON") from exc
+    except ValueError as exc:
+        raise CustodyError(f"REST committer lookup response rejected: {_safe_detail(str(exc), 120)}") from exc
 
     _require(isinstance(payload, dict) and payload.get("sha") == oid,
-             "REST commit identity response does not match the exact commit SHA")
-    raw_commit = payload.get("commit")
-    raw_committer = raw_commit.get("committer") if isinstance(raw_commit, dict) else None
-    _require(isinstance(raw_committer, dict),
-             "REST commit response has no raw committer metadata")
-    mismatched_fields = [
-        key for key, value in expected.items()
-        if (
-            not _same_timestamp(raw_committer.get(key), value)
-            if key == "date"
-            else raw_committer.get(key) != value
-        )
-    ]
-    _require(not mismatched_fields,
-             "REST and GraphQL committer metadata disagree for the exact commit "
-             f"(fields: {', '.join(mismatched_fields)})")
+             "REST committer lookup returned a different commit SHA")
     committer = payload.get("committer")
     _require(isinstance(committer, dict) and committer.get("type") == "User",
-             "REST commit committer is not a linked GitHub User")
+             "REST exact-SHA committer is not a linked GitHub User")
     user_id = committer.get("id")
-    login = committer.get("login")
-    _require(type(user_id) is int and user_id > 0
-             and isinstance(login, str) and login,
-             "REST commit committer has no immutable numeric GitHub user identity")
+    _require(type(user_id) is int and user_id > 0,
+             "REST exact-SHA committer has no immutable numeric GitHub user ID")
     return user_id
 
 
