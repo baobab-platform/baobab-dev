@@ -73,7 +73,7 @@ def check(root: Path, workflow: str):
         "tests/test_release_artifact_contract.py",
         "tests/test_immutable_rc_recovery.py",
         "if-no-files-found: error",
-        'gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=completed&per_page=100"',
+        'gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=completed&per_page=100"',
         "scripts/select_qualified_rc_run.py",
         "verify_rc_ga_workflow.py",
     ):
