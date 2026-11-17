@@ -95,6 +95,16 @@ class ApprovalTests(unittest.TestCase):
             with self.subTest(user=user), self.assertRaises(mod.EvidenceError):
                 self.verify([entry])
 
+    def test_malformed_review_and_environment_evidence_fail_closed(self):
+        for entries in (
+            [None],
+            [{"state": "unknown", "environments": []}],
+            [{"state": "approved", "environments": "dev10-release-promotion"}],
+            [{"state": "approved", "environments": [None]}],
+        ):
+            with self.subTest(entries=entries), self.assertRaises(mod.EvidenceError):
+                self.verify(entries)
+
     def test_actor_identity_inputs_must_be_positive_numeric_ids(self):
         for field in ("actor_id", "triggering_actor_id"):
             with self.subTest(field=field), self.assertRaises(mod.EvidenceError):
