@@ -299,6 +299,34 @@ class CompleteHistoryTests(unittest.TestCase):
             with self.assertRaisesRegex(custody.CustodyError, "REST lookup unavailable"):
                 custody.collect_pr("token", 76, HEAD)
 
+    def test_rest_fallback_invalid_json_is_sanitized(self):
+        response = MagicMock()
+        response.read.return_value = b"not-json-secret"
+        opener = MagicMock()
+        opener.__enter__.return_value = response
+        with patch.object(custody, "open_github", return_value=opener):
+            with self.assertRaisesRegex(custody.CustodyError, "invalid JSON") as caught:
+                custody._rest_commit_committer_user_id(
+                    "token", "d" * 40,
+                    {"name": "GitHub", "email": "noreply@github.com",
+                     "date": "2026-11-17T01:29:58Z"},
+                )
+        self.assertNotIn("not-json-secret", str(caught.exception))
+
+    def test_rest_fallback_transport_and_timeout_fail_closed(self):
+        graphql_committer = {
+            "name": "GitHub", "email": "noreply@github.com",
+            "date": "2026-11-17T01:29:58Z",
+        }
+        with patch.object(
+            custody, "open_github", side_effect=urllib.error.URLError("temporary DNS failure")
+        ):
+            with self.assertRaisesRegex(custody.CustodyError, "transport failure"):
+                custody._rest_commit_committer_user_id("token", "d" * 40, graphql_committer)
+        with patch.object(custody, "open_github", side_effect=TimeoutError()):
+            with self.assertRaisesRegex(custody.CustodyError, "timed out"):
+                custody._rest_commit_committer_user_id("token", "d" * 40, graphql_committer)
+
     def test_rejects_incomplete_commit_count(self):
         with patch.object(custody, "_graphql", return_value=page(
             [commit("b" * 40)], total=2
