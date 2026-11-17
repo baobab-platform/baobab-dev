@@ -196,7 +196,7 @@ def collect_pr(token, pr_number, expected_head):
       repository(owner: $owner, name: $name) {
         pullRequest(number: $number) {
           headRefOid
-          author { databaseId }
+          author { user { databaseId } }
           commits(first: 100, after: $after) {
             totalCount
             pageInfo { hasNextPage endCursor }
@@ -235,10 +235,8 @@ def collect_pr(token, pr_number, expected_head):
         _require(isinstance(pull, dict), "decision PR was not found in GraphQL custody query")
         _require(pull.get("headRefOid") == expected_head,
                  "decision PR head changed during complete custody enumeration")
-        current_author = pull.get("author") or {}
-        current_author_id = current_author.get("databaseId")
-        _require(type(current_author_id) is int and current_author_id > 0,
-                 "decision PR author has no immutable numeric GitHub user ID")
+        current_author = pull.get("author")
+        current_author_id = _numeric_user_id(current_author, "decision PR author")
         if author_id is None:
             author_id = current_author_id
         _require(author_id == current_author_id,
