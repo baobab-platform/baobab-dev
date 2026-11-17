@@ -1,7 +1,7 @@
 # DEV-10 protected, artifact-bound security decisions
 
-Status: reusable policy implementation is under review on PR #74; @sknabusiu approved finalisation subject to a separate decision PR; final policy approval and activation are still pending.
-This change issues no new risk acceptance and does not qualify PR #74.
+Status: reusable policy candidate is under review on PR #76; authenticated exact-byte provisioning is implemented on that PR branch. The policy remains inactive on main until PR #76 is merged and the provisioning workflow succeeds.
+This change does not qualify PR #74 or grant release authority.
 
 ## Decision model
 
@@ -41,10 +41,29 @@ matched credential material.
 ## Approval custody
 
 The policy SHA-256 is a trust anchor, not a hash supplied by the candidate PR.
-The DEV10_PROTECTED_DECISION_SHA256 repository variable must be maintained
-only by the designated security-policy custodian after verifying the protected
-decision record and independent approval. An approved_by string or evidence
-URL is not, by itself, authentication.
+The `DEV10_PROTECTED_DECISION_SHA256` repository Actions variable is
+written only by the manual `Provision DEV-10 development risk policy`
+workflow. The workflow runs from `main` behind the existing
+`dev10-security-policy-read` environment approval and requires an explicit
+expected decision-PR head SHA. An `approved` status, `prepared_by` string or
+evidence URL is not, by itself, authentication.
+
+The provisioner verifies the merged PR, exact head, author/preparer numeric
+identity, changed decision path, latest effective exact-head APPROVED review,
+trusted reviewer numeric ID, complete commit author/co-author/committer
+independence, attributable owner concurrence from numeric owner ID 49340314
+(created and last edited before merge), merge ancestry and byte-for-byte
+equality between the approved PR-head file and current main. It hashes the
+exact current main bytes only after those checks. The variable is create-only
+and idempotent: the same hash is accepted, but a different existing hash is
+never overwritten.
+
+The workflow uses an environment-scoped fine-grained token named
+`DEV10_POLICY_PROVISIONER_TOKEN` with repository permissions limited to
+Variables read/write, Contents read, Pull requests read, Issues read and Metadata read.
+The token is not a workflow artifact or log output. The run records a
+non-secret provisioning receipt with the decision PR/head/merge commit, exact
+SHA-256 and reviewer evidence.
 
 The policy file must live on the default branch under
 security/decisions/. CODEOWNERS assigns the protected decision and security
@@ -114,7 +133,7 @@ the final policy approval and was not an instruction to unblock CI.
 @sdnabusiu supported finalisation at 12:44 UTC but stated PR #74 was not ready
 to merge until the outstanding engineering and governance conditions pass.
 
-The separate decision PR #76 contains the final candidate record and contract test. Owner concurrence is recorded by @bjnabs in PR comment #6924572973. @sknabusiu and @sdnabusiu have been requested to review the latest CODEOWNERS/ADR revision. The earlier formal approval predates those edits and is not treated as current-head approval; a fresh independent approval is still required.
+The separate decision PR #76 contains the candidate decision record, schema and provisioning contract. Owner concurrence is recorded by @bjnabs in PR comment #6924572973. The latest formal approval on the pre-provisioning head was by @sknabusiu (numeric ID 356890520); because this implementation adds commits to the decision PR, that approval is not treated as current-head approval. A fresh independent approval is requested after CI passes on the provisioning revision.
 
 The proposed policy is reusable across same-repository pull requests targeting
 `main` and pushes to `refs/heads/main`, with exactly the eight HIGH findings,
@@ -142,9 +161,10 @@ promotion.
 1. Create the separate decision PR with the final `foundation.json` and this exact schema. Record owner concurrence and the #62/#71 reconciliation in the PR. Obtain a current trusted independent approval on its exact head; the decision PR must pass its required checks. Any admin bypass must be explicitly attributable and recorded with reason, commit and bypassed checks.
 2. Follow the documented individual-review/manual-merge protocol because enforceable branch protection is unavailable on the current subscription. Verify current-head approval, numeric contributor independence and all CI checks; record the evidence in the PR. This is a compensating process, not technical prevention of privileged bypass.
 3. Verify the decision PR is merged to `main`; the custody verifier must confirm the PR author/preparer numeric ID, a current trusted independent reviewer, complete commit-author/co-author/committer enumeration, changed decision path and exact merged-head approval.
-4. Only after the final approved `foundation.json` is merged and custody verification passes, compute its exact lowercase SHA-256 and provision `DEV10_PROTECTED_DECISION_SHA256` through the separately controlled repository-variable administration path. Never hash the proposal.
-5. Rerun Foundation, locked onboarding and all eight Publish profile/architecture scans. Development scans run without a manual environment pause; the evaluator still denies tags, dispatch, schedules, forks and wrong-base PRs. Keep the separate release-promotion environment protected.
-6. Keep exact-digest release qualification, signatures, SBOM/provenance, digest continuity and protected promotion independent.
+4. Configure the environment-scoped `DEV10_POLICY_PROVISIONER_TOKEN` fine-grained token with Variables read/write, Contents read, Pull requests read, Issues read and Metadata read. Keep it in the existing `dev10-security-policy-read` environment, which supplies the human deployment approval. Never use a broad classic PAT or expose the token to PR workflows.
+5. After merge, dispatch `Provision DEV-10 development risk policy` from `main`, supplying the exact approved PR head SHA. The workflow independently verifies merged custody and exact file bytes, computes the lowercase SHA-256, creates the repository variable only if absent, and records a non-secret receipt. It refuses a different pre-existing hash. Never hash the proposal.
+6. Rerun Foundation, locked onboarding and all eight Publish profile/architecture scans. Development scans run without a manual environment pause; the evaluator still denies tags, dispatch, schedules, forks and wrong-base PRs. Keep the separate release-promotion environment protected.
+7. Keep exact-digest release qualification, signatures, SBOM/provenance, digest continuity and protected promotion independent.
 
 ## Operating objective
 
