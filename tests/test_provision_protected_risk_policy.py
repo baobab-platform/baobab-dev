@@ -314,6 +314,18 @@ class MergedCustodyTests(unittest.TestCase):
         self.assertEqual(result["approved_by_id"], 356890520)
 
 
+class ImageScanScopeTests(unittest.TestCase):
+    def test_custodian_script_is_not_misclassified_as_an_image_build_input(self):
+        workflow = (ROOT / ".github/workflows/foundation.yml").read_text()
+        dockerfile = (ROOT / ".devcontainer/docker/Dockerfile").read_text()
+        exclusion = workflow.index("scripts/provision_protected_risk_policy.py)")
+        broad_scripts_match = workflow.index("scripts/*|.baobab/repository.yaml")
+        self.assertLess(exclusion, broad_scripts_match)
+        self.assertNotIn("scripts/provision_protected_risk_policy.py", dockerfile)
+        self.assertIn("scripts/bootstrap.sh", dockerfile)
+        self.assertIn("scripts/verify.sh", dockerfile)
+
+
 class RepositoryVariableTests(unittest.TestCase):
     HASH = "a" * 64
 
