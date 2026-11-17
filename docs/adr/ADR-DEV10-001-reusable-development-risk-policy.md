@@ -84,15 +84,14 @@ identity comparison keys. A GitHub service account is not silently excluded:
 if its numeric identity appears as a committer, it is included in the
 contributor set. If GraphQL returns a null `GitActor.user` for a committer,
 the verifier may reconcile that one identity against the REST commit endpoint
-for the exact same immutable commit SHA. It must require the REST response SHA
-to equal the requested commit SHA and the REST committer to have type `User`
-with a positive immutable numeric ID. Name, email and timestamp are Git-object
-presentation metadata, not identity keys; comparing their serialized forms
-across REST and GraphQL adds false-negative failure modes without strengthening
-the exact-object check. A missing REST identity, wrong SHA, non-User actor,
-malformed response or API error remains fatal. This is exact-object identity
-resolution, not a login/email-based identity match or a service-account
-exclusion.
+for the exact same immutable commit SHA. It must require exact equality of the
+GraphQL and REST committer name and email, and equality of the timestamp as a
+timezone-aware instant, together with a REST response SHA equal to the requested
+SHA and a REST committer of type `User` with a positive immutable numeric ID
+and login. A missing REST identity, wrong SHA, metadata mismatch, non-User
+actor, malformed response or API error remains fatal. This is evidence
+reconciliation across two representations of the same commit, not a
+login/email-based identity match or a service-account exclusion.
 
 The actual GitHub review ID, reviewer numeric ID and `submitted_at` timestamp
 are derived from the effective review at runtime. They are not embedded in the
