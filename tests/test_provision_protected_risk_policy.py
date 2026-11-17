@@ -139,6 +139,90 @@ class IndependentApprovalTests(unittest.TestCase):
                 self.select([review])
 
 
+class MergedCustodyTests(unittest.TestCase):
+    def setUp(self):
+        self.raw = provisioner.json.dumps(DECISION, separators=(",", ":")).encode()
+        self.encoded = provisioner.base64.b64encode(self.raw).decode()
+        self.merge_sha = "b" * 40
+        self.pull = {
+            "state": "closed",
+            "merged": True,
+            "merged_at": "2026-11-17T02:00:00Z",
+            "base": {"ref": "main", "repo": {"full_name": provisioner.REPOSITORY}},
+            "head": {"sha": HEAD, "repo": {"full_name": provisioner.REPOSITORY}},
+            "merge_commit_sha": self.merge_sha,
+            "user": {"id": AUTHOR, "login": "wekhason"},
+        }
+        self.files = [{"filename": provisioner.DECISION_PATH, "status": "added"}]
+        self.content = {"type": "file", "encoding": "base64", "content": self.encoded}
+        self.comparison = {
+            "status": "ahead",
+            "merge_base_commit": {"sha": self.merge_sha},
+        }
+        self.reviews = [{
+            "id": 99,
+            "state": "APPROVED",
+            "submitted_at": "2026-11-17T01:29:41Z",
+            "commit_id": HEAD,
+            "user": {"id": 356890520, "login": "sknabusiu"},
+        }]
+
+    def api_sequence(self, main_content=None, reviews=None):
+        return [
+            (200, self.pull),
+            (200, self.files),
+            (200, self.content),
+            (200, self.content if main_content is None else main_content),
+            (200, self.comparison),
+            (200, self.reviews if reviews is None else reviews),
+        ]
+
+    def verify(self, api_sequence=None, contributors=None, expected_head=HEAD):
+        with patch.object(provisioner, "api_request", side_effect=api_sequence or self.api_sequence()), \
+             patch.object(provisioner, "collect_pr", return_value=(
+                 AUTHOR, set() if contributors is None else contributors
+             )):
+            return provisioner.verify_merged_custody(
+                "token", DECISION, 76, expected_head, TRUSTED
+            )
+
+    def test_verifies_merged_head_review_contributors_and_merge_ancestry(self):
+        result = self.verify()
+        self.assertEqual(result["decision_pr_head"], HEAD)
+        self.assertEqual(result["merge_commit_sha"], self.merge_sha)
+        self.assertEqual(result["approval_id"], "github-review-99")
+        self.assertEqual(result["approved_by_id"], 356890520)
+
+    def test_rejects_unmerged_pr_and_wrong_approved_head(self):
+        unmerged = dict(self.pull, merged=False)
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "must be merged"):
+            self.verify(api_sequence=[(200, unmerged)])
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "expected head"):
+            self.verify(expected_head="c" * 40)
+
+    def test_rejects_main_bytes_different_from_reviewed_pr_bytes(self):
+        changed = {
+            "type": "file", "encoding": "base64",
+            "content": provisioner.base64.b64encode(self.raw + b" ").decode(),
+        }
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "bytes differ"):
+            self.verify(api_sequence=self.api_sequence(main_content=changed))
+
+    def test_rejects_nonancestor_merge_commit(self):
+        comparison = {"status": "ahead", "merge_base_commit": {"sha": "c" * 40}}
+        sequence = self.api_sequence()
+        sequence[4] = (200, comparison)
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "not an ancestor"):
+            self.verify(api_sequence=sequence)
+
+    def test_rejects_stale_approval_or_reviewer_contributor(self):
+        stale_reviews = [dict(self.reviews[0], commit_id="c" * 40)]
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "no current-head"):
+            self.verify(api_sequence=self.api_sequence(reviews=stale_reviews))
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "no current-head"):
+            self.verify(contributors={356890520})
+
+
 class RepositoryVariableTests(unittest.TestCase):
     HASH = "a" * 64
 
