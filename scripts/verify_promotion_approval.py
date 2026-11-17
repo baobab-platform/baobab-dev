@@ -80,10 +80,7 @@ def attest(
         login = _login(reviewer.get("login"), "deployment reviewer login")
         if reviewer_id in (actor_id, triggering_actor_id):
             continue
-        previous = approved.get(reviewer_id)
-        if previous is not None and previous != login:
-            raise EvidenceError("one numeric reviewer ID resolved to conflicting login values")
-        approved[reviewer_id] = login
+        approved.setdefault(reviewer_id, set()).add(login)
 
     if not approved:
         raise EvidenceError(
@@ -98,7 +95,10 @@ def attest(
         "tag": tag,
         "initiator": {"id": actor_id, "login": actor},
         "triggering_actor": {"id": triggering_actor_id, "login": triggering_actor},
-        "approval": {"reviewer_id": reviewer_id, "reviewer": approved[reviewer_id]},
+        "approval": {
+            "reviewer_id": reviewer_id,
+            "reviewer_logins": sorted(approved[reviewer_id], key=str.casefold),
+        },
     }
 
 
