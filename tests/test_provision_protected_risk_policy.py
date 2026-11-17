@@ -318,12 +318,12 @@ class ImageScanScopeTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/foundation.yml").read_text()
         publish = (ROOT / ".github/workflows/publish.yml").read_text()
         dockerfile = (ROOT / ".devcontainer/docker/Dockerfile").read_text()
+        broad_scripts_match = workflow.index("scripts/*|.baobab/repository.yaml")
         for path in (
             "scripts/provision_protected_risk_policy.py",
             "scripts/custody_independence.py",
         ):
-            self.assertLess(workflow.index(path + ")"),
-                            workflow.index("scripts/*|.baobab/repository.yaml"))
+            self.assertLess(workflow.index(path), broad_scripts_match)
             self.assertIn('!'+path, publish)
             self.assertNotIn(path, dockerfile)
         self.assertIn("scripts/bootstrap.sh", dockerfile)
