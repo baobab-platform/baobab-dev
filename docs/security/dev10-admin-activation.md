@@ -1,59 +1,74 @@
 # DEV-10 security policy administration — activation checklist
 
-This document describes required GitHub **administrative** settings. Committing this
-file or CODEOWNERS does not apply a ruleset or set GitHub variables. Do not
-mark security-policy custody active until an authorized repository administrator
-has verified these settings through the GitHub administration API/UI.
+This document describes required GitHub administrative settings. Committing this
+file or CODEOWNERS does not apply a ruleset, create a variable, or configure an
+environment. Do not mark security-policy custody active until an authorized
+repository administrator has verified the settings through GitHub.
 
-## Repository ruleset (main, active; no bypass for security policy authors)
+## Repository-level Actions variables
 
-- Require pull requests for changes to main, with required code-owner review.
-- Require at least one approval from an independent reviewer; dismiss stale
-  approvals and require approval of the most recent reviewable push by a person
-  other than the pusher. Restrict force pushes and deletion.
-- Protect security/decisions/**, scripts/evaluate_protected_risk_decision.py,
-  scripts/verify_protected_risk_custody.py, their tests, .github/CODEOWNERS,
-  .github/workflows/dev10-protected-risk-qualification.yml and this document
-  through @baobab-platform/security CODEOWNERS review.
-- Confirm all four already-authorized security reviewers are eligible for
-  repository code-owner review. The team must have repository write access.
-- Review any administrator/bypass exemptions and document why they cannot
-  silently self-approve security decisions.
+The reusable Foundation and Publish scan jobs read these non-secret values
+through the `vars` context without referencing an environment. This is
+intentional: routine PR qualification must not pause for a manual environment
+approval.
 
-## Trusted environment variables
+- `DEV10_SECURITY_APPROVER_LOGINS`: comma-separated GitHub logins of the
+  independently authorized reviewers. This is a repository-level variable,
+  not an environment variable. The provisioning and scan workflows resolve
+  these logins to immutable numeric GitHub user IDs at runtime.
+- `DEV10_PROTECTED_DECISION_SHA256`: the lowercase 64-hex SHA-256 of the exact
+  approved, merged policy JSON bytes. This is a repository-level variable
+  created and read back by `scripts/provision_protected_risk_policy.py`
+  through the repository Actions Variables API. Do not manually set or
+  overwrite it. The provisioner refuses to replace a different existing hash.
 
-Create GitHub Actions environment `dev10-security-policy-read` for **read-only**
-qualification. Restrict deployment branches to protected main. No per-candidate
-review approval is required: approval happens when a security policy is changed.
+These values are not credentials. They do not independently authorize a scan;
+the evaluator still verifies the exact decision, trusted reviewer custody,
+numeric maker-checker separation, event/ref/repository scope, finding inventory
+and expiry. Their administrator access and change history must be reviewed.
 
-Set these environment-level variables **through an authorized admin**, not in
-a PR, workflow_dispatch input or untrusted source file:
+## Protected environments
 
-- `DEV10_SECURITY_APPROVER_LOGINS`: comma-separated GitHub logins of the four
-  independently authorized reviewers, exactly as provisioned. Never invent
-  identities or derive this list from the PR author's input.
-- `DEV10_PROTECTED_DECISION_SHA256`: lowercase 64-hex SHA-256 of the exact
-  independently reviewed, merged policy JSON bytes. This is a single-policy
-  anchor; it must be rotated by the custodian for a new decision and cannot
-  represent multiple simultaneous decisions. Multi-decision custody requires
-  an authenticated manifest or signed policy registry before activation.
+- `dev10-security-policy-read`: human approval gate for the manual
+  `Provision DEV-10 development risk policy` workflow's authorization job.
+  Restrict it to `main` and require the designated human reviewer. This job
+  receives no provisioning credential and does not run for routine PR scans.
+- `dev10-security-policy-provision`: holds the fine-grained
+  `DEV10_POLICY_PROVISIONER_TOKEN` secret. Restrict it to `main` and expose
+  the token only to the provisioning job after the read/authorization job
+  succeeds. Keep its permissions limited to Variables read/write, Contents
+  read, Pull requests read, Issues read and Metadata read.
 
-An environment variable is **not automatically immutable** or immune to an
-administrator changing it. Its administrator access, change audit and
-environment restrictions must be separately verified. GitHub variables do not
-substitute for the independent PR approval record.
+The Foundation and Publish scan jobs must not reference either environment.
+They use only the repository-level non-secret variables and read-only
+`GITHUB_TOKEN`; this avoids per-PR human approval and prevents the
+provisioning credential from reaching candidate workflows.
+
+## Repository review controls
+
+- Require current-head independent review for changes to the protected
+  decision, custody verifier, evaluator, workflow and their tests.
+- Use the individually requestable security reviewers
+  `@sknabusiu` and `@sdnabusiu`; do not add unavailable team slugs.
+- Review direct pushes, administrator bypasses and changes to repository
+  variables. CODEOWNERS is advisory unless branch protection enforces it.
+- Preserve read-only token permissions in PR workflows and never pass the
+  provisioning token to PR, build, scan or release jobs.
 
 ## Required activation proof
 
-1. Record ruleset ID, active enforcement, code-owner review enforcement,
-   team permissions, environment ID and variable names (never secret values).
-2. Verify the four reviewers against live GitHub identities and permissions.
+1. Record the repository variable names, environment IDs, rules and required
+   reviewers; never record secret values.
+2. Verify the trusted reviewer accounts against live GitHub identities.
 3. Verify the decision PR is merged and independently approved on its final
    head; reconcile issue #54 before any eight-CVE acceptance.
-4. Verify the protected policy file hash against the trusted environment value.
-5. Run real GHCR child-digest Trivy qualification for each intended profile
+4. Verify the exact merged policy bytes against the repository-level SHA-256
+   variable and the provisioning receipt.
+5. Run actual GHCR child-digest Trivy qualification for each intended profile
    and architecture, plus negative tests. Preserve sanitized evidence.
-6. Only after independent verification, replace Foundation and Publish legacy
-   allow-list checks. No silent fallback or weakening of release promotion.
+6. Keep release qualification and promotion separate from development risk
+   acceptance. No development decision authorizes tags, publication, signing,
+   promotion, staging or production.
 
-Current status: **CONFIGURATION CONTRACT COMMITTED; ADMIN SETTINGS NOT VERIFIED**.
+Current status: **CONFIGURATION CONTRACT COMMITTED; ADMIN SETTINGS MUST BE
+VERIFIED IN GITHUB.**
