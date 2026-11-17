@@ -45,7 +45,7 @@ def _rest_commit_committer_user_id(token, oid, graphql_committer):
         key: graphql_committer.get(key) for key in ("name", "email", "date")
     }
     _require(all(isinstance(value, str) and value for value in expected.values()),
-             "unlinked commit committer metadata is incomplete")
+             "committer is not linked to a GitHub user and metadata is incomplete for REST reconciliation")
 
     request = urllib.request.Request(
         f"https://api.github.com/repos/baobab-platform/baobab-dev/commits/{oid}",
@@ -334,7 +334,13 @@ def collect_pr(token, pr_number, expected_head):
                 # commits even when REST resolves the exact commit committer to a
                 # numeric User. Reconcile only against the same immutable commit
                 # SHA and exact GitActor name/email/date tuple; all mismatches fail.
-                contributors.add(_rest_commit_committer_user_id(token, oid, committer))
+                committer_metadata = (
+                    {key: committer.get(key) for key in ("name", "email", "date")}
+                    if isinstance(committer, dict) else committer
+                )
+                contributors.add(
+                    _rest_commit_committer_user_id(token, oid, committer_metadata)
+                )
 
             authors = commit.get("authors")
             _require(isinstance(authors, dict), "commit author/co-author connection is missing")
