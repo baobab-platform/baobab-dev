@@ -31,7 +31,7 @@ class ApprovalTests(unittest.TestCase):
     def test_independent_human_approval_records_immutable_ids(self):
         evidence = self.verify(self.approval)
         self.assertEqual(evidence["approval"], {
-            "reviewer": "security-reviewer", "reviewer_id": 9001,
+            "reviewer_logins": ["security-reviewer"], "reviewer_id": 9001,
         })
         self.assertEqual(evidence["initiator"], {"id": 1001, "login": "initiator"})
         self.assertEqual(evidence["triggering_actor"], {"id": 1002, "login": "rerunner"})
@@ -110,13 +110,16 @@ class ApprovalTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(mod.EvidenceError):
                 self.verify(self.approval, **{field: True})
 
-    def test_conflicting_logins_for_same_numeric_reviewer_fail_closed(self):
-        second = {
+    def test_login_rename_is_display_metadata_for_the_same_numeric_reviewer(self):
+        renamed = {
             **self.approval[0],
-            "user": {"login": "different-login", "id": 9001, "type": "User"},
+            "user": {"login": "renamed-reviewer", "id": 9001, "type": "User"},
         }
-        with self.assertRaisesRegex(mod.EvidenceError, "conflicting login"):
-            self.verify([self.approval[0], second])
+        evidence = self.verify([self.approval[0], renamed])
+        self.assertEqual(evidence["approval"], {
+            "reviewer_id": 9001,
+            "reviewer_logins": ["renamed-reviewer", "security-reviewer"],
+        })
 
 
 if __name__ == "__main__":
