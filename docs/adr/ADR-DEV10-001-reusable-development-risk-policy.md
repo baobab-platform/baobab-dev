@@ -125,6 +125,12 @@ overwrites it. The workflow records a non-secret receipt containing the hash,
 decision PR/head/merge commit, reviewer numeric ID, review ID and approval
 timestamp. The proposal file is never hashed as an authority.
 
+
+The provisioner also verifies owner concurrence on this exact decision PR
+from the accountable owner's immutable numeric GitHub ID (49340314), rather
+than trusting the PR description. The receipt records the owner comment ID.
+The preparer login is display metadata; the numeric preparer ID is the identity
+key, so account renames do not break custody verification.
 The policy remains inactive while the active file, exact hash, trusted
 reviewer configuration, provisioning credential or custody evidence is
 missing. The decision PR carries `record_type: proposed_approved_form` to
