@@ -261,14 +261,14 @@ def _graphql(token, query, variables):
         raise CustodyError(_http_error_summary(exc)) from exc
     except json.JSONDecodeError as exc:
         raise CustodyError("GitHub GraphQL returned invalid JSON") from exc
+    except UnicodeDecodeError as exc:
+        raise CustodyError("GitHub GraphQL returned invalid JSON") from exc
     except ValueError as exc:
         raise CustodyError(_safe_detail(str(exc), 180)) from exc
     except urllib.error.URLError as exc:
         raise CustodyError("GitHub GraphQL transport failed") from exc
     except TimeoutError as exc:
         raise CustodyError("GitHub GraphQL custody request timed out") from exc
-    except UnicodeDecodeError as exc:
-        raise CustodyError("GitHub GraphQL returned invalid JSON") from exc
     _require(isinstance(payload, dict), "GitHub GraphQL returned a malformed response")
     if "errors" in payload:
         raise CustodyError(_graphql_error_summary(payload["errors"]))
