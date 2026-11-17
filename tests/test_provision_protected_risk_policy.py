@@ -100,6 +100,21 @@ class OwnerConcurrenceTests(unittest.TestCase):
             },
         )
 
+    def test_rejects_owner_concurrence_created_or_edited_after_merge(self):
+        for updated_at in ("2026-11-18T00:00:00Z", "2026-11-16T13:00:00Z"):
+            comments = [{
+                "id": 6924572973,
+                "user": {"id": 49340314},
+                "body": "new reusable policy; owner concurrence is hereby recorded",
+                "created_at": "2026-11-16T14:00:00Z",
+                "updated_at": updated_at,
+            }]
+            with self.subTest(updated_at=updated_at), self.assertRaises(provisioner.ProvisioningError):
+                provisioner.verify_owner_concurrence(
+                    comments, merged_at="2026-11-17T02:00:00Z"
+                )
+
+
     def test_rejects_other_author_or_nonconcurrence_comment(self):
         cases = (
             [{"id": 1, "user": {"id": 350241706},
@@ -253,6 +268,15 @@ class MergedCustodyTests(unittest.TestCase):
         }
         with self.assertRaisesRegex(provisioner.ProvisioningError, "bytes differ"):
             self.verify(api_sequence=self.api_sequence(main_content=changed))
+
+    def test_contents_decoder_accepts_API_base64_line_wrapping(self):
+        wrapped = self.encoded[:20] + "\n" + self.encoded[20:]
+        payload = {"type": "file", "encoding": "base64", "content": wrapped}
+        with patch.object(provisioner, "api_request", return_value=(200, payload)):
+            self.assertEqual(
+                provisioner.contents_bytes("token", provisioner.DECISION_PATH, HEAD),
+                self.raw,
+            )
 
     def test_rejects_nonancestor_merge_commit(self):
         comparison = {"status": "ahead", "merge_base_commit": {"sha": "c" * 40}}
