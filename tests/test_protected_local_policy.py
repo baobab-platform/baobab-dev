@@ -83,6 +83,13 @@ class LocalPolicyTests(unittest.TestCase):
         self.assertIn("needs: scope", workflow)
         self.assertIn("needs.scope.outputs.container_scan == 'true'", workflow)
 
+    def test_foundation_scope_uses_synthetic_merge_first_parent(self):
+        workflow = (ROOT / ".github/workflows/foundation.yml").read_text()
+        scope = workflow.split("name: Detect changed container or scan-policy inputs", 1)[1].split("  foundation:", 1)[0]
+        self.assertIn('git rev-parse --verify "${GITHUB_SHA}^2"', scope)
+        self.assertIn('git diff --name-only "${GITHUB_SHA}^1" "$GITHUB_SHA"', scope)
+        self.assertNotIn('git diff --name-only "$BASE_SHA" "$GITHUB_SHA"', scope)
+
     def test_publish_pr_build_scan_uses_reusable_policy(self):
         workflow = (ROOT / ".github/workflows/publish.yml").read_text()
         self.assertIn("scripts/verify_protected_policy_hash.py", workflow)
