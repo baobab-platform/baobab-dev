@@ -4,6 +4,7 @@ The GraphQL history is paginated to exhaustion. Missing identities, changing
 heads/counts, duplicate commits, incomplete author connections, or API errors
 are fatal: an incomplete history must never be treated as independent.
 """
+import datetime as dt
 import json
 import re
 import unicodedata
@@ -34,6 +35,87 @@ def _numeric_user_id(actor, label):
     user_id = user.get("databaseId")
     _require(type(user_id) is int and user_id > 0,
              f"{label} has no immutable numeric GitHub user ID")
+    return user_id
+
+
+def _same_timestamp(left, right):
+    """Compare timezone-aware ISO-8601 timestamps as the same instant."""
+    if not isinstance(left, str) or not isinstance(right, str):
+        return False
+    try:
+        left_value = dt.datetime.fromisoformat(left.replace("Z", "+00:00"))
+        right_value = dt.datetime.fromisoformat(right.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if left_value.tzinfo is None or right_value.tzinfo is None:
+        return False
+    return left_value.astimezone(dt.timezone.utc) == right_value.astimezone(dt.timezone.utc)
+
+
+def _rest_commit_committer_user_id(token, oid, graphql_committer):
+    """Resolve an unlinked GraphQL committer through its exact REST commit SHA."""
+    _require(isinstance(oid, str) and len(oid) == 40
+             and all(char in "0123456789abcdef" for char in oid),
+             "REST committer resolution received an invalid commit SHA")
+    _require(isinstance(graphql_committer, dict),
+             "unlinked GraphQL committer metadata is missing")
+    expected = {key: graphql_committer.get(key) for key in ("name", "email", "date")}
+    _require(all(isinstance(value, str) and value for value in expected.values()),
+             "commit committer is not linked to a GitHub user and metadata is incomplete for REST reconciliation")
+    request = urllib.request.Request(
+        f"https://api.github.com/repos/baobab-platform/baobab-dev/commits/{oid}",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": API_VERSION,
+            "User-Agent": "baobab-dev-dev10-custody-verifier",
+        },
+    )
+    try:
+        with open_github(request, timeout=30) as response:
+            payload = json.loads(read_bounded(response))
+    except urllib.error.HTTPError as exc:
+        request_id = ""
+        if exc.headers is not None:
+            candidate = exc.headers.get("x-github-request-id", "")
+            if isinstance(candidate, str) and re.fullmatch(r"[A-Za-z0-9-]{1,80}", candidate):
+                request_id = candidate
+        detail = f" (GitHub request ID {request_id})" if request_id else ""
+        raise CustodyError(f"REST committer lookup failed with HTTP {exc.code}{detail}") from exc
+    except urllib.error.URLError as exc:
+        reason = _safe_detail(str(getattr(exc, "reason", "")), 120)
+        suffix = f": {reason}" if reason else ""
+        raise CustodyError(f"REST committer lookup transport failure{suffix}") from exc
+    except TimeoutError as exc:
+        raise CustodyError("REST committer lookup timed out") from exc
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise CustodyError("REST committer lookup returned invalid JSON") from exc
+    except ValueError as exc:
+        raise CustodyError(f"REST committer lookup response rejected: {_safe_detail(str(exc), 120)}") from exc
+
+    _require(isinstance(payload, dict) and payload.get("sha") == oid,
+             "REST committer lookup returned a different commit SHA")
+    raw_commit = payload.get("commit")
+    raw_committer = raw_commit.get("committer") if isinstance(raw_commit, dict) else None
+    _require(isinstance(raw_committer, dict),
+             "REST commit response has no raw committer metadata")
+    mismatched_fields = [
+        key for key, value in expected.items()
+        if (not _same_timestamp(raw_committer.get(key), value)
+            if key == "date" else raw_committer.get(key) != value)
+    ]
+    fields = ", ".join(mismatched_fields)
+    _require(not mismatched_fields,
+             "REST and GraphQL committer metadata disagree for the exact commit "
+             f"(fields: {fields})")
+    committer = payload.get("committer")
+    _require(isinstance(committer, dict) and committer.get("type") == "User",
+             "REST exact-SHA committer is not a linked GitHub User")
+    user_id = committer.get("id")
+    login = committer.get("login")
+    _require(type(user_id) is int and user_id > 0
+             and isinstance(login, str) and login,
+             "REST exact-SHA committer has no immutable numeric GitHub user identity")
     return user_id
 
 
@@ -218,7 +300,7 @@ def collect_pr(token, pr_number, expected_head):
               commit {
                 oid
                 author { user { databaseId } }
-                committer { user { databaseId } }
+                committer { name email date user { databaseId login } }
                 authors(first: 100) {
                   totalCount
                   pageInfo { hasNextPage }
@@ -279,7 +361,16 @@ def collect_pr(token, pr_number, expected_head):
             seen_commits.add(oid)
 
             contributors.add(_numeric_user_id(commit.get("author"), "commit author"))
-            contributors.add(_numeric_user_id(commit.get("committer"), "commit committer"))
+            committer = commit.get("committer")
+            committer_user = committer.get("user") if isinstance(committer, dict) else None
+            if isinstance(committer_user, dict):
+                contributors.add(_numeric_user_id(committer, "commit committer"))
+            else:
+                # GitActor.user may be null for GitHub web-flow commits. Resolve
+                # only the exact immutable commit SHA through REST and require a
+                # concrete User with a positive numeric ID; do not compare mutable
+                # presentation metadata across API representations.
+                contributors.add(_rest_commit_committer_user_id(token, oid, committer))
 
             authors = commit.get("authors")
             _require(isinstance(authors, dict), "commit author/co-author connection is missing")
