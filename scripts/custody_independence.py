@@ -69,9 +69,15 @@ def _rest_commit_committer_user_id(token, oid, graphql_committer):
              "REST commit identity response does not match the exact commit SHA")
     raw_commit = payload.get("commit")
     raw_committer = raw_commit.get("committer") if isinstance(raw_commit, dict) else None
-    _require(isinstance(raw_committer, dict)
-             and all(raw_committer.get(key) == value for key, value in expected.items()),
-             "REST and GraphQL committer metadata disagree for the exact commit")
+    _require(isinstance(raw_committer, dict),
+             "REST commit response has no raw committer metadata")
+    mismatched_fields = [
+        key for key, value in expected.items()
+        if raw_committer.get(key) != value
+    ]
+    _require(not mismatched_fields,
+             "REST and GraphQL committer metadata disagree for the exact commit "
+             f"(fields: {', '.join(mismatched_fields)})")
     committer = payload.get("committer")
     _require(isinstance(committer, dict) and committer.get("type") == "User",
              "REST commit committer is not a linked GitHub User")
