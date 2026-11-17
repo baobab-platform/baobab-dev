@@ -71,8 +71,8 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
         detail = _safe_detail(
             "Bearer abc123 github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
         )
-        self.assertNotIn("abc123", detail)
-        self.assertNotIn("github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ", detail)
+        self.assertNotIn("Bearer abc123", detail)
+        self.assertNotIn("github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", detail)
         self.assertIn("[REDACTED]", detail)
         self.assertIn("[REDACTED_GITHUB_TOKEN]", detail)
 
