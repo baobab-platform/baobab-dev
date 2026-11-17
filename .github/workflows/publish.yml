@@ -30,7 +30,7 @@
 # SECURITY SCAN TRIGGER POLICY (shift-left):
 #   The Trivy gate ("Build local single-manifest image for scanning"
 #   through "Scan built container with Trivy") is DELIBERATELY NOT
-#   tag-gated — it runs on every PR, `main` push, and tag push, so a bad
+#   tag-gated — it runs on every image-affecting PR, `main` push, and tag push, so a bad
 #   dependency or base-image bump is caught before merge, not at release
 #   time. Added cost is minimal: it reuses the `type=gha` build cache and
 #   the cached vulnerability DB. It still re-runs at tag time too, as
@@ -91,7 +91,8 @@ on:
       - ".devcontainer/**"
       - "config/**"
       - "scripts/**"
-      - ".github/workflows/publish.yml"
+      - "!scripts/provision_protected_risk_policy.py"
+      - "!scripts/custody_independence.py"
 
   pull_request:
     branches:
@@ -102,7 +103,8 @@ on:
       - ".devcontainer/**"
       - "config/**"
       - "scripts/**"
-      - ".github/workflows/publish.yml"
+      - "!scripts/provision_protected_risk_policy.py"
+      - "!scripts/custody_independence.py"
 
   # Manual validation is main-only. Rebuilding an arbitrary tag in the
   # privileged dispatch context is forbidden; publishing requires a tag push.

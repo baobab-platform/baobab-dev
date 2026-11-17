@@ -50,6 +50,8 @@ jobs:
               set -euo pipefail
               mkdir -p "$HOME"
               cp -R tests/fixtures/pnpm-workspace /tmp/dev10-workspace
+              mv /tmp/dev10-workspace/package.json.fixture /tmp/dev10-workspace/package.json
+              mv /tmp/dev10-workspace/frontend/package.json.fixture /tmp/dev10-workspace/frontend/package.json
               cp -R config /tmp/dev10-workspace/config
               export WORKSPACE_DIR=/tmp/dev10-workspace
               cd "$WORKSPACE_DIR"

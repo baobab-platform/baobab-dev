@@ -1,6 +1,10 @@
-* @baobab-platform/platform-engineering
-/.github/ @baobab-platform/platform-engineering @baobab-platform/security
-/.devcontainer/ @baobab-platform/platform-engineering
-/.baobab/ @baobab-platform/platform-engineering
-/Dockerfile @baobab-platform/platform-engineering @baobab-platform/security
-/SECURITY.md @baobab-platform/security
+* @bjnabs
+/.github/ @bjnabs @sknabusiu @sdnabusiu
+/.devcontainer/ @bjnabs
+/.baobab/ @bjnabs
+/Dockerfile @bjnabs @sknabusiu @sdnabusiu
+/SECURITY.md @sknabusiu @sdnabusiu
+/security/decisions/ @sknabusiu @sdnabusiu
+/docs/assessments/ @sknabusiu @sdnabusiu
+/docs/security/ @sknabusiu @sdnabusiu
+/docs/adr/ADR-DEV10-001-reusable-development-risk-policy.md @sknabusiu @sdnabusiu
