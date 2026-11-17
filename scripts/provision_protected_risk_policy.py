@@ -196,22 +196,36 @@ def resolve_trusted_reviewers(token, logins):
     return identities
 
 
-def verify_owner_concurrence(comments):
-    """Require attributable owner concurrence on this exact decision PR."""
+def verify_owner_concurrence(comments, *, merged_at):
+    """Require attributable owner concurrence posted and last edited before merge."""
     require(isinstance(comments, list), "decision PR issue-comment history is unavailable")
+    merge_time = parse_utc(merged_at, "decision PR merge timestamp")
+    qualifying = []
     for comment in comments:
         if not isinstance(comment, dict):
             continue
         user = comment.get("user") or {}
         body = comment.get("body")
-        if (user.get("id") == OWNER_USER_ID and isinstance(body, str)
-                and "owner concurrence is hereby recorded" in body.casefold()
-                and "new reusable policy" in body.casefold()):
-            comment_id = comment.get("id")
-            require(type(comment_id) is int and comment_id > 0,
-                    "owner concurrence comment ID is missing")
-            return {"owner_id": OWNER_USER_ID, "owner_comment_id": comment_id}
-    raise ProvisioningError("attributable owner concurrence is missing from the decision PR")
+        if (user.get("id") != OWNER_USER_ID or not isinstance(body, str)
+                or "owner concurrence is hereby recorded" not in body.casefold()
+                or "new reusable policy" not in body.casefold()):
+            continue
+        comment_id = comment.get("id")
+        require(type(comment_id) is int and comment_id > 0,
+                "owner concurrence comment ID is missing")
+        created = parse_utc(comment.get("created_at"), "owner concurrence created_at")
+        updated = parse_utc(comment.get("updated_at"), "owner concurrence updated_at")
+        require(created <= updated <= merge_time,
+                "owner concurrence must be created and last edited before the decision PR merge")
+        qualifying.append((updated, comment_id, created))
+    require(bool(qualifying),
+            "attributable pre-merge owner concurrence is missing from the decision PR")
+    updated, comment_id, created = max(qualifying, key=lambda item: (item[0], item[1]))
+    return {
+        "owner_id": OWNER_USER_ID,
+        "owner_comment_id": comment_id,
+        "owner_concurrence_at": created.isoformat().replace("+00:00", "Z"),
+    }
 
 
 def select_independent_approval(reviews, *, head, trusted_reviewers, author_id, contributors):
@@ -320,7 +334,7 @@ def verify_merged_custody(token, decision, decision_pr, expected_head_sha, trust
     comments = paginated(
         token, f"/repos/{REPOSITORY}/issues/{decision_pr}/comments"
     )
-    owner_concurrence = verify_owner_concurrence(comments)
+    owner_concurrence = verify_owner_concurrence(comments, merged_at=pull["merged_at"])
     reviews = paginated(token, base + "/reviews")
     author_id_graphql, contributors = collect_pr(token, decision_pr, head)
     require(author_id_graphql == author_id,
