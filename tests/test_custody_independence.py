@@ -119,6 +119,56 @@ class CompleteHistoryTests(unittest.TestCase):
         self.assertGreater(author_id, 0)
         self.assertTrue(contributors)
 
+    @unittest.skipUnless(
+        os.environ.get("GH_TOKEN"),
+        "live exact-SHA service-committer validation requires GH_TOKEN",
+    )
+    def test_live_exact_sha_reconciles_service_committer_from_decision_history(self):
+        data = custody._graphql(
+            os.environ["GH_TOKEN"],
+            """
+            query($owner: String!, $name: String!, $number: Int!) {
+              repository(owner: $owner, name: $name) {
+                pullRequest(number: $number) {
+                  commits(first: 100) {
+                    totalCount
+                    pageInfo { hasNextPage }
+                    nodes {
+                      commit {
+                        oid
+                        committer { name email date user { databaseId login } }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """,
+            {"owner": "baobab-platform", "name": "baobab-dev", "number": 76},
+        )
+        repository = data.get("repository")
+        pull = repository.get("pullRequest") if isinstance(repository, dict) else None
+        commits = pull.get("commits") if isinstance(pull, dict) else None
+        self.assertIsInstance(commits, dict)
+        nodes = commits.get("nodes")
+        self.assertIsInstance(nodes, list)
+        self.assertEqual(commits.get("totalCount"), len(nodes))
+        self.assertFalse(commits.get("pageInfo", {}).get("hasNextPage"))
+        candidates = []
+        for item in nodes:
+            commit_object = item.get("commit") if isinstance(item, dict) else None
+            actor = commit_object.get("committer") if isinstance(commit_object, dict) else None
+            if (isinstance(actor, dict) and actor.get("user") is None
+                    and actor.get("name") == "GitHub"
+                    and actor.get("email") == "noreply@github.com"):
+                candidates.append((commit_object.get("oid"), actor))
+        self.assertTrue(candidates, "PR #76 history no longer contains the expected unlinked GitHub service committer")
+        oid, actor = candidates[0]
+        self.assertEqual(len(oid), 40)
+        self.assertGreater(custody._rest_commit_committer_user_id(
+            os.environ["GH_TOKEN"], oid, actor
+        ), 0)
+
     def test_rest_fallback_resolves_exact_sha_with_metadata_corroboration(self):
         oid = "d" * 40
         payload = {
