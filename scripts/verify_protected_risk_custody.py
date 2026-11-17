@@ -12,7 +12,14 @@ import os
 import re
 import urllib.request
 from pathlib import Path
-from custody_independence import collect_pr, require_independent, uid
+from custody_independence import collect_pr, require_independent
+
+
+def uid(node):
+    value = (node or {}).get("databaseId")
+    if type(value) is not int or value <= 0:
+        raise ValueError("unresolved numeric GitHub user identity")
+    return value
 
 
 def require(ok, message):
