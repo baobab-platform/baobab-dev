@@ -13,6 +13,7 @@ on:
       - "scripts/custody_independence.py"
 permissions:
   contents: read
+  pull-requests: read
 jobs:
   decision-contract:
     runs-on: ubuntu-26.04
@@ -36,3 +37,12 @@ jobs:
             tests/test_development_risk_decision_record.py \
             tests/test_provision_protected_risk_policy.py \
             tests/test_custody_independence.py
+      - name: Validate custody GraphQL query against GitHub's live schema and response
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEV10_GRAPHQL_INTEGRATION_PR_NUMBER: ${{ github.event.pull_request.number }}
+          DEV10_GRAPHQL_INTEGRATION_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest -v tests/test_custody_independence.py

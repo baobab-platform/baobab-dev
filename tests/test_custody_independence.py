@@ -1,4 +1,5 @@
 """Regression tests for complete DEV-10 GitHub commit-custody enumeration."""
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -32,7 +33,7 @@ def page(nodes, *, has_next=False, cursor=None, total=None):
         "repository": {
             "pullRequest": {
                 "headRefOid": HEAD,
-                "author": {"databaseId": 1},
+                "author": {"__typename": "User", "databaseId": 1},
                 "commits": {
                     "totalCount": len(nodes) if total is None else total,
                     "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
@@ -57,6 +58,64 @@ class CompleteHistoryTests(unittest.TestCase):
         self.assertEqual(contributors, {10, 11, 12, 13, 14})
         self.assertEqual(graphql.call_count, 2)
         self.assertEqual(graphql.call_args_list[1].args[2]["after"], "cursor-1")
+
+    def test_queries_pull_request_author_with_user_inline_fragment(self):
+        with patch.object(custody, "_graphql", return_value=page([commit("b" * 40)])) as graphql:
+            custody.collect_pr("token", 76, HEAD)
+        query = graphql.call_args.args[1]
+        self.assertIn("author {", query)
+        self.assertIn("__typename", query)
+        self.assertIn("... on User { databaseId }", query)
+        pr_author_selection = query.split(
+            "pullRequest(number: $number) {", 1
+        )[1].split("commits(", 1)[0]
+        self.assertNotIn("user { databaseId }", pr_author_selection)
+        self.assertNotIn("author { databaseId }", pr_author_selection)
+
+    def test_rejects_null_pull_request_author(self):
+        response = page([commit("b" * 40)])
+        response["repository"]["pullRequest"]["author"] = None
+        with patch.object(custody, "_graphql", return_value=response):
+            with self.assertRaisesRegex(custody.CustodyError, "identity is missing"):
+                custody.collect_pr("token", 76, HEAD)
+
+    def test_rejects_non_user_pull_request_author_actors(self):
+        for typename in ("Bot", "Organization", "Mannequin", "EnterpriseUserAccount"):
+            response = page([commit("b" * 40)])
+            response["repository"]["pullRequest"]["author"] = {
+                "__typename": typename, "databaseId": 1,
+            }
+            with self.subTest(typename=typename), patch.object(
+                custody, "_graphql", return_value=response
+            ), self.assertRaisesRegex(custody.CustodyError, "not a concrete GitHub User"):
+                custody.collect_pr("token", 76, HEAD)
+
+    def test_rejects_missing_or_invalid_pull_request_author_numeric_id(self):
+        for user_id in (None, 0, -1, True, "1", 1.0):
+            response = page([commit("b" * 40)])
+            response["repository"]["pullRequest"]["author"] = {
+                "__typename": "User", "databaseId": user_id,
+            }
+            with self.subTest(user_id=user_id), patch.object(
+                custody, "_graphql", return_value=response
+            ), self.assertRaisesRegex(custody.CustodyError, "immutable numeric GitHub user ID"):
+                custody.collect_pr("token", 76, HEAD)
+
+    @unittest.skipUnless(
+        all(os.environ.get(name) for name in (
+            "GH_TOKEN", "DEV10_GRAPHQL_INTEGRATION_PR_NUMBER",
+            "DEV10_GRAPHQL_INTEGRATION_EXPECTED_HEAD",
+        )),
+        "live GitHub GraphQL validation is enabled only by the DEV-10 PR workflow",
+    )
+    def test_live_github_graphql_schema_and_author_response(self):
+        author_id, contributors = custody.collect_pr(
+            os.environ["GH_TOKEN"],
+            int(os.environ["DEV10_GRAPHQL_INTEGRATION_PR_NUMBER"]),
+            os.environ["DEV10_GRAPHQL_INTEGRATION_EXPECTED_HEAD"],
+        )
+        self.assertGreater(author_id, 0)
+        self.assertTrue(contributors)
 
     def test_rejects_incomplete_commit_count(self):
         with patch.object(custody, "_graphql", return_value=page(
