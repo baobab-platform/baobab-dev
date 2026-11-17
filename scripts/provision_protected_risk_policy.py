@@ -173,7 +173,8 @@ def contents_bytes(token, path, ref):
     require(payload.get("encoding") == "base64" and isinstance(payload.get("content"), str),
             f"{path} is not available as base64 repository content at {ref}")
     try:
-        return base64.b64decode(payload["content"], validate=True)
+        encoded = re.sub(r"\\s+", "", payload["content"])
+        return base64.b64decode(encoded, validate=True)
     except (ValueError, base64.binascii.Error) as exc:
         raise ProvisioningError(f"{path} has invalid GitHub content encoding") from exc
 
@@ -311,8 +312,6 @@ def verify_merged_custody(token, decision, decision_pr, expected_head_sha, trust
     main_bytes = contents_bytes(token, DECISION_PATH, "main")
     require(approved_bytes == main_bytes,
             "merged main decision bytes differ from the independently approved PR head")
-    require(hashlib.sha256(approved_bytes).hexdigest() == hashlib.sha256(main_bytes).hexdigest(),
-            "decision byte continuity check failed")
     try:
         current_decision = json.loads(main_bytes)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
