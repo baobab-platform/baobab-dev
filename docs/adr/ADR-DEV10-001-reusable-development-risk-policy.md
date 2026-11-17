@@ -181,8 +181,9 @@ policy PR. The additional unfiltered Foundation image CVE scan runs when a PR
 changes container build inputs (`.devcontainer/`, `config/`, the scripts
 explicitly consumed by the Dockerfile), the repository's shared scanner-policy
 manifest (`.baobab/repository.yaml`), or the kernel inventory. The
-custodian-only `scripts/provision_protected_risk_policy.py` is not copied or
-executed by the image and is explicitly excluded from the image-scan trigger;
+custodian-only `scripts/provision_protected_risk_policy.py` and
+`scripts/custody_independence.py` are not copied or executed by the image and
+are explicitly excluded from the image-scan triggers;
 its provisioning contract is tested by the policy workflow. A policy-only PR
 does not claim an image scan passed; decision JSON and proposal records are
 validated against the pinned Draft 2020-12 schema, including negative
