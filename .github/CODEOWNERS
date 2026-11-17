@@ -1,15 +1,23 @@
-* @baobab-platform/platform-engineering
-/.github/ @baobab-platform/platform-engineering @baobab-platform/security
-/.devcontainer/ @baobab-platform/platform-engineering
-/.baobab/ @baobab-platform/platform-engineering
-/Dockerfile @baobab-platform/platform-engineering @baobab-platform/security
-/SECURITY.md @baobab-platform/security
-/security/decisions/ @baobab-platform/security
-/docs/security/ @baobab-platform/security
-/scripts/evaluate_protected_risk_decision.py @baobab-platform/security
-/tests/test_protected_risk_decision.py @baobab-platform/security
-
-# DEV-10 protected policy trust boundary
-/scripts/verify_protected_risk_custody.py @baobab-platform/security
-/tests/test_protected_risk_custody.py @baobab-platform/security
-/.github/workflows/dev10-protected-risk-qualification.yml @baobab-platform/security
+* @bjnabs
+/.github/ @bjnabs @sknabusiu @sdnabusiu
+/.devcontainer/ @bjnabs
+/.baobab/ @bjnabs
+/Dockerfile @bjnabs @sknabusiu @sdnabusiu
+/SECURITY.md @sknabusiu @sdnabusiu
+/security/decisions/ @sknabusiu @sdnabusiu
+/docs/assessments/ @sknabusiu @sdnabusiu
+/docs/security/ @sknabusiu @sdnabusiu
+/docs/adr/ADR-DEV10-001-reusable-development-risk-policy.md @sknabusiu @sdnabusiu
+/scripts/custody_independence.py @sknabusiu @sdnabusiu
+/scripts/provision_protected_risk_policy.py @sknabusiu @sdnabusiu
+/scripts/evaluate_protected_risk_decision.py @sknabusiu @sdnabusiu
+/scripts/prepare_dev10_risk_inventory.py @sknabusiu @sdnabusiu
+/scripts/verify_protected_risk_custody.py @sknabusiu @sdnabusiu
+/scripts/verify_protected_policy_hash.py @sknabusiu @sdnabusiu
+/scripts/audit_pr_reviewer_independence.py @sknabusiu @sdnabusiu
+/tests/test_custody_independence.py @sknabusiu @sdnabusiu
+/tests/test_provision_protected_risk_policy.py @sknabusiu @sdnabusiu
+/tests/test_protected_local_policy.py @sknabusiu @sdnabusiu
+/tests/test_protected_risk_custody.py @sknabusiu @sdnabusiu
+/tests/test_protected_risk_decision.py @sknabusiu @sdnabusiu
+/tests/test_audit_pr_reviewer_independence.py @sknabusiu @sdnabusiu
