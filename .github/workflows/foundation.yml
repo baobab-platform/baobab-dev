@@ -31,7 +31,6 @@ jobs:
         name: Detect changed container or scan-policy inputs
         env:
           EVENT_NAME: "${{ github.event_name }}"
-          BASE_SHA: "${{ github.event.pull_request.base.sha }}"
         shell: bash
         run: |
           set -euo pipefail
@@ -40,7 +39,14 @@ jobs:
             exit 0
           fi
 
-          changed="$(git diff --name-only "$BASE_SHA" "$GITHUB_SHA")"
+          # For pull_request events GITHUB_SHA is the synthetic merge commit.
+          # Its first parent is the actual base used for this run; the event's
+          # pull_request.base.sha can be stale after main advances.
+          git rev-parse --verify "${GITHUB_SHA}^2" >/dev/null || {
+            echo "::error::pull_request event did not resolve to a synthetic merge commit."
+            exit 2
+          }
+          changed="$(git diff --name-only "${GITHUB_SHA}^1" "$GITHUB_SHA")"
           container_changed=false
           while IFS= read -r path; do
             [[ -n "$path" ]] || continue
