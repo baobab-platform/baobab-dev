@@ -428,6 +428,8 @@ def main():
             "merge_commit_sha": custody["merge_commit_sha"],
             "approval_id": custody["approval_id"],
             "approved_by_id": custody["approved_by_id"],
+            "owner_id": custody["owner_id"],
+            "owner_comment_id": custody["owner_comment_id"],
             "reviewer": custody["reviewer"],
             "approved_at": custody["approved_at"],
             "expires_at": decision["expires_at"],
