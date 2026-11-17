@@ -173,7 +173,7 @@ def contents_bytes(token, path, ref):
     require(payload.get("encoding") == "base64" and isinstance(payload.get("content"), str),
             f"{path} is not available as base64 repository content at {ref}")
     try:
-        encoded = re.sub(r"\\s+", "", payload["content"])
+        encoded = re.sub(r"\s+", "", payload["content"])
         return base64.b64decode(encoded, validate=True)
     except (ValueError, base64.binascii.Error) as exc:
         raise ProvisioningError(f"{path} has invalid GitHub content encoding") from exc
