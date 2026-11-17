@@ -444,6 +444,7 @@ def main():
             "approved_by_id": custody["approved_by_id"],
             "owner_id": custody["owner_id"],
             "owner_comment_id": custody["owner_comment_id"],
+            "owner_concurrence_at": custody["owner_concurrence_at"],
             "reviewer": custody["reviewer"],
             "approved_at": custody["approved_at"],
             "expires_at": decision["expires_at"],
