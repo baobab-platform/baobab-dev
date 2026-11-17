@@ -1,9 +1,11 @@
 """Regression tests for complete DEV-10 GitHub commit-custody enumeration."""
+import json
 import os
 import sys
 import unittest
+import urllib.error
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -117,44 +119,66 @@ class CompleteHistoryTests(unittest.TestCase):
         self.assertGreater(author_id, 0)
         self.assertTrue(contributors)
 
-    @unittest.skipUnless(
-        all(os.environ.get(name) for name in (
-            "GH_TOKEN", "DEV10_REST_RECONCILIATION_COMMIT_SHA",
-        )),
-        "live exact-SHA REST committer reconciliation is enabled only by the DEV-10 PR workflow",
-    )
-    def test_live_exact_sha_rest_reconciles_observed_web_flow_committer(self):
-        oid = os.environ["DEV10_REST_RECONCILIATION_COMMIT_SHA"]
-        data = custody._graphql(
-            os.environ["GH_TOKEN"],
-            """
-            query($owner: String!, $name: String!, $oid: GitObjectID!) {
-              repository(owner: $owner, name: $name) {
-                object(oid: $oid) {
-                  ... on Commit {
-                    oid
-                    committer { name email date user { databaseId login } }
-                  }
-                }
-              }
-            }
-            """,
-            {"owner": "baobab-platform", "name": "baobab-dev", "oid": oid},
+    def test_rest_fallback_resolves_exact_sha_without_metadata_comparison(self):
+        oid = "d" * 40
+        payload = {
+            "sha": oid,
+            "commit": {"committer": {"name": "GitHub", "email": "noreply@github.com"}},
+            "committer": {"type": "User", "id": 19864447, "login": "web-flow"},
+        }
+        response = MagicMock()
+        response.read.return_value = json.dumps(payload).encode("utf-8")
+        opener = MagicMock()
+        opener.__enter__.return_value = response
+        with patch.object(custody, "open_github", return_value=opener) as open_github:
+            user_id = custody._rest_commit_committer_user_id("token", oid)
+        self.assertEqual(user_id, 19864447)
+        request = open_github.call_args.args[0]
+        self.assertEqual(request.full_url, f"https://api.github.com/repos/baobab-platform/baobab-dev/commits/{oid}")
+
+    def test_rest_fallback_rejects_a_different_commit_sha(self):
+        response = MagicMock()
+        response.read.return_value = json.dumps({
+            "sha": "e" * 40,
+            "committer": {"type": "User", "id": 19864447},
+        }).encode("utf-8")
+        opener = MagicMock()
+        opener.__enter__.return_value = response
+        with patch.object(custody, "open_github", return_value=opener):
+            with self.assertRaisesRegex(custody.CustodyError, "different commit SHA"):
+                custody._rest_commit_committer_user_id("token", "d" * 40)
+
+    def test_rest_fallback_rejects_non_user_and_invalid_numeric_ids(self):
+        for actor, expected in (
+            ({"type": "Bot", "id": 19864447}, "not a linked GitHub User"),
+            ({"type": "User", "id": True}, "no immutable numeric"),
+            ({"type": "User", "id": 0}, "no immutable numeric"),
+        ):
+            response = MagicMock()
+            response.read.return_value = json.dumps({
+                "sha": "d" * 40, "committer": actor,
+            }).encode("utf-8")
+            opener = MagicMock()
+            opener.__enter__.return_value = response
+            with self.subTest(actor=actor), patch.object(
+                custody, "open_github", return_value=opener
+            ), self.assertRaisesRegex(custody.CustodyError, expected):
+                custody._rest_commit_committer_user_id("token", "d" * 40)
+
+    def test_rest_http_error_reports_status_and_request_id_without_body(self):
+        from email.message import Message
+        headers = Message()
+        headers["x-github-request-id"] = "ABC123-DEF456"
+        error = urllib.error.HTTPError(
+            "https://api.github.com/repos/baobab-platform/baobab-dev/commits/" + "d" * 40,
+            403, "Forbidden", headers, None,
         )
-        repository = data.get("repository")
-        commit_object = repository.get("object") if isinstance(repository, dict) else None
-        self.assertIsInstance(commit_object, dict)
-        self.assertEqual(commit_object.get("oid"), oid)
-        committer = commit_object.get("committer")
-        self.assertIsInstance(committer, dict)
-        self.assertIsNone(committer.get("user"))
-        self.assertEqual(
-            custody._rest_commit_committer_user_id(
-                os.environ["GH_TOKEN"], oid,
-                {key: committer.get(key) for key in ("name", "email", "date")},
-            ),
-            19864447,
-        )
+        with patch.object(custody, "open_github", side_effect=error):
+            with self.assertRaisesRegex(
+                custody.CustodyError, "HTTP 403.*ABC123-DEF456"
+            ) as caught:
+                custody._rest_commit_committer_user_id("token", "d" * 40)
+        self.assertNotIn("Forbidden", str(caught.exception))
 
     def test_rejects_incomplete_commit_count(self):
         with patch.object(custody, "_graphql", return_value=page(
