@@ -355,17 +355,11 @@ def collect_pr(token, pr_number, expected_head):
             if isinstance(committer_user, dict):
                 contributors.add(_numeric_user_id(committer, "commit committer"))
             else:
-                # GitHub's GraphQL GitActor.user can be null for service-authored
-                # commits even when REST resolves the exact commit committer to a
-                # numeric User. Reconcile only against the same immutable commit
-                # SHA and exact GitActor name/email/date tuple; all mismatches fail.
-                committer_metadata = (
-                    {key: committer.get(key) for key in ("name", "email", "date")}
-                    if isinstance(committer, dict) else committer
-                )
-                contributors.add(
-                    _rest_commit_committer_user_id(token, oid, committer_metadata)
-                )
+                # GitActor.user may be null for GitHub web-flow commits. Resolve
+                # only the exact immutable commit SHA through REST and require a
+                # concrete User with a positive numeric ID; do not compare mutable
+                # presentation metadata across API representations.
+                contributors.add(_rest_commit_committer_user_id(token, oid))
 
             authors = commit.get("authors")
             _require(isinstance(authors, dict), "commit author/co-author connection is missing")
