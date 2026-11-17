@@ -1,0 +1,98 @@
+name: Provision DEV-10 development risk policy
+
+on:
+  workflow_dispatch:
+    inputs:
+      expected_decision_pr_head:
+        description: Exact 40-character PR head SHA that received independent approval
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dev10-protected-risk-policy-provisioning
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    name: Obtain existing human provisioning approval
+    if: github.repository == 'baobab-platform/baobab-dev' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    environment: dev10-security-policy-read
+    permissions:
+      contents: read
+    steps:
+      - name: Confirm the protected environment approval gate passed
+        run: echo "Existing human approval gate passed; continue to the isolated provisioning environment."
+
+  provision:
+    name: Verify merged custody and provision exact policy hash
+    needs: authorize
+    if: github.repository == 'baobab-platform/baobab-dev' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    environment: dev10-security-policy-provision
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the default branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Run provisioning regression tests
+        run: python3 -B -m unittest -v tests/test_provision_protected_risk_policy.py
+
+      - name: Verify decision custody and provision exact-byte SHA-256
+        id: provision
+        env:
+          GH_TOKEN: ${{ secrets.DEV10_POLICY_PROVISIONER_TOKEN }}
+          DEV10_SECURITY_APPROVER_LOGINS: ${{ vars.DEV10_SECURITY_APPROVER_LOGINS }}
+          EXPECTED_DECISION_PR_HEAD: ${{ inputs.expected_decision_pr_head }}
+        run: |
+          set -euo pipefail
+          [[ -n "$GH_TOKEN" ]] || {
+            echo "::error::Environment secret DEV10_POLICY_PROVISIONER_TOKEN is not configured in dev10-security-policy-provision."
+            exit 2
+          }
+          python3 scripts/provision_protected_risk_policy.py \
+            --expected-head-sha "$EXPECTED_DECISION_PR_HEAD" \
+            | tee "$RUNNER_TEMP/dev10-policy-provisioning.json"
+
+      - name: Record non-secret provisioning receipt
+        if: success()
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/dev10-policy-provisioning.json" <<'PY'
+          import json
+          import os
+          import pathlib
+          import sys
+
+          receipt = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          summary = pathlib.Path(os.environ["GITHUB_STEP_SUMMARY"])
+          summary.write_text(
+              "## DEV-10 development policy provisioning\n\n"
+              f"- Status: {receipt['status']}\n"
+              f"- Decision PR: #{receipt['decision_pr']} "
+              f"(https://github.com/{receipt['repository']}/pull/{receipt['decision_pr']})\n"
+              f"- Approved PR head: {receipt['decision_pr_head']}\n"
+              f"- Merge commit: {receipt['merge_commit_sha']}\n"
+              f"- Policy SHA-256: {receipt['policy_sha256']}\n"
+              f"- Independent reviewer: @{receipt['reviewer']} "
+              f"(numeric ID {receipt['approved_by_id']})\n"
+              f"- GitHub review: {receipt['approval_id']}\n"
+              f"- Accountable owner ID: {receipt['owner_id']}\n"
+              f"- Owner concurrence comment: {receipt['owner_comment_id']}\n"
+              f"- Owner concurrence timestamp: {receipt['owner_concurrence_at']}\n"
+              f"- Approval timestamp: {receipt['approved_at']}\n"
+              f"- Expiry: {receipt['expires_at']}\n\n"
+              "This grants development-only residual-risk acceptance for the "
+              "exact recorded policy bytes. It grants no release, tag, "
+              "publication, signing, promotion, staging or production authority.\n"
+          )
+          PY
