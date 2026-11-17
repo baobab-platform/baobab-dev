@@ -264,7 +264,7 @@ class CompleteHistoryTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 custody.CustodyError, "HTTP 403.*ABC123-DEF456"
             ) as caught:
-                custody._rest_commit_committer_user_id("token", "d" * 40)
+                custody._rest_commit_committer_user_id("token", "d" * 40, {"name": "GitHub", "email": "noreply@github.com", "date": "2026-11-17T01:29:58Z"})
         self.assertNotIn("Forbidden", str(caught.exception))
 
     def test_rejects_incomplete_commit_count(self):
