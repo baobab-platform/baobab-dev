@@ -259,36 +259,60 @@ Verified GitHub pull-request state: **#48, #50, #57 and #58 are all merged**. Th
 **Unchanged limits:** PR #62 only (other PRs merged and retired), development-main, exact v1.5.0-rc.N/v1.5.0 development-container distribution, four profiles × two architectures, expiry **2026-11-26 00:00 UTC**. CI still produces complete scanner evidence and flags the accepted findings as **not remediated**. This amendment must not be interpreted as permission to waive Go executable findings or any new vulnerabilities. The decision should be reviewed when an Ubuntu fixed package becomes available.
 
 
-## 14 November 2026 — PR #74 assessment-only scope and risk-custody reconciliation
+## 16 November 2026 — Ubuntu package and CVE status revalidation for 7.0.0-43.43
 
-[Issue #54's 14 November tracking entry](https://github.com/baobab-platform/baobab-dev/issues/54) explicitly adds PR #74 to the v1.5.2 release-preparation **review scope only**. It does not grant a new CVE/package exception, release-tag permission, scanner bypass or protected-promotion waiver. PR #74 must continue to receive the ordinary Foundation and Publish security gates.
+This dated update supersedes the older statement in section 1 item 5 that
+7.0.0-43.43 was only in the proposed PPA. The official Ubuntu package search
+now lists **linux-libc-dev 7.0.0-43.43 in resolute-updates** (with
+7.0.0-42.42 in the security pocket). The 7.0.0-43.43 package is therefore the
+published update currently under review, not merely a proposed package.
 
-The current PR #74 Foundation evidence reports eight HIGH Trivy findings against `linux-libc-dev=7.0.0-43.43`: CVE-2022-50240, CVE-2025-40190, CVE-2026-68103, CVE-2026-72198, CVE-2026-74578, CVE-2026-89805, CVE-2026-98376 and CVE-2026-98420. The retained raw Trivy report lists no fixed versions for these observations. The executable `scripts/dev10_kernel_risk_gate.py` deliberately restricts this additional package/CVE set to **PR #71**; it does not admit PR #74. This denial is the expected security boundary, not a test failure to be made green by adding PR #74 to an allow-list.
+The eight exact Ubuntu CVE tracker records were rechecked on 16 November.
+Each still reports the source package `linux` as **Vulnerable** for Ubuntu
+26.04 LTS Resolute; none reports a fixed Resolute version:
 
-**Approval-custody discrepancy requiring owner reconciliation:** the visible 12 November issue #54 decision record for package 7.0.0-43.43 names **PR #62 only**, whereas the current executable gate's additional-version constants name **PR #71 only**. PR #71's published description concerns the verifier's v1.5.1 RC tag-family fix and does not itself record the new package/CVE approval. The code comment states an owner-authorised 12 November amendment, but the retrieved issue/PR record does not contain the corresponding exact PR #71 authority. Do not infer or fabricate that approval. Reconcile the authoritative owner instruction and update the issue, decision record and executable policy together before relying on the PR #71 exception.
+| CVE | Ubuntu tracker last updated | Resolute source status |
+| --- | --- | --- |
+| [CVE-2022-50240](https://ubuntu.com/security/CVE-2022-50240) | 12 Nov 2026 | Vulnerable |
+| [CVE-2025-40190](https://ubuntu.com/security/CVE-2025-40190) | 12 Nov 2026 | Vulnerable |
+| [CVE-2026-68103](https://ubuntu.com/security/CVE-2026-68103) | 13 Nov 2026 | Vulnerable |
+| [CVE-2026-72198](https://ubuntu.com/security/CVE-2026-72198) | 13 Nov 2026 | Vulnerable |
+| [CVE-2026-74578](https://ubuntu.com/security/CVE-2026-74578) | 13 Nov 2026 | Vulnerable |
+| [CVE-2026-89805](https://ubuntu.com/security/CVE-2026-89805) | 14 Nov 2026 | Vulnerable |
+| [CVE-2026-98376](https://ubuntu.com/security/CVE-2026-98376) | 14 Nov 2026 | Vulnerable |
+| [CVE-2026-98420](https://ubuntu.com/security/CVE-2026-98420) | 10 Nov 2026 | Vulnerable |
 
-The existing PR #74 tracking comment remains explicit: assessment request only, no extension. No PR #74 risk-gate change was made in this work. The eight-CVE package inventory, image digest, vendor fixed-version status and any independent applicability/VEX review remain separate evidence requirements.
+The [official Ubuntu package search](https://packages.ubuntu.com/search?arch=amd64&keywords=linux-libc-dev)
+lists 7.0.0-43.43 under `resolute-updates`. This is consistent with the
+observed Trivy reports for the development image: no `FixedVersion` was
+reported for these eight findings. The Ubuntu tracker status is for the
+**kernel source package**; it does not by itself prove exploitability of the
+headers-only `linux-libc-dev` binary or reverse the prior UAPI/header-path
+analysis. It does, however, establish that Ubuntu has not marked the eight
+kernel source issues fixed for Resolute as of this recheck.
 
-## 16 November 2026 — PR #74 complete Foundation/Publish scan evidence
-
-**Fresh observation:** Publish run [43829121908](https://github.com/baobab-platform/baobab-dev/actions/runs/43829121908), attempt 3, ran against PR #74 head `c161821441c0d7c054514abd78a40dc25e774479`. All eight profile/architecture builds completed and all eight unfiltered Trivy 0.73.0 scans reported the same eight HIGH findings against `linux-libc-dev=7.0.0-43.43`. No Trivy fixed version was reported. The review-only evidence preparation succeeded for every image, with no secret findings. Foundation run [43829123295](https://github.com/baobab-platform/baobab-dev/actions/runs/43829123295) independently reproduced the same inventory for `final/linux/amd64`.
-
-The eight Publish artifact IDs and normalized findings SHA-256 values are recorded in [the PR #74 independent review brief](../security/dev10-foundation-policy-review.md). Each artifact also retains the sanitized Trivy vulnerability report, raw-report SHA-256, normalized inventory and Trivy database freshness metadata. All jobs used Trivy 0.73.0 and passed the vulnerability/Java database freshness validation.
-
-**Failure classification:** all eight Publish jobs failed after scanning at the protected risk-policy check because `security/decisions/development/foundation.json` is not present and `DEV10_PROTECTED_DECISION_SHA256` is unset. The Foundation gate failed for the same reason after uploading its review-only evidence. The BuildKit cache exporter separately reported its budget limit and switched to read-only; the image build step nevertheless completed, so this was not the cause of the eight job failures.
-
-**Package archive correction:** the Ubuntu package index now lists `linux-libc-dev 7.0.0-43.43` in the Ubuntu 26.04 `resolute-updates` pocket ([Ubuntu package search](https://packages.ubuntu.com/search?arch=any&keywords=libc-dev)). This supersedes the earlier observation that this version was only in a proposed pocket. It does **not** mean these eight CVEs have been fixed: Trivy reports no fixed version, and Canonical's current CVE pages still mark the Ubuntu 26.04 kernel source package vulnerable for at least CVE-2026-68103, CVE-2026-74578 and CVE-2026-98376 ([68103](https://ubuntu.com/security/CVE-2026-68103), [74578](https://ubuntu.com/security/CVE-2026-74578), [98376](https://ubuntu.com/security/CVE-2026-98376)). Source-package status remains distinct from the binary-header applicability decision.
-
-**Authority remains unchanged:** issue #54's 14 November record explicitly places PR #74 in assessment/review scope only. The 12 November eight-CVE amendment is not a PR #74 exception; the PR #62 versus executable PR #71 custody discrepancy also remains unresolved. The new `foundation.proposal.json` records the observed eight findings and all four profiles/two architectures with `pending_independent_review` status and null approval fields. It is not the active `foundation.json`, is not an approval, and must not be used to provision the protected SHA.
-
-Do not remove `build-essential` or the required UAPI headers, add blanket Trivy ignores, or change the blocking exit code. A PR #74-specific, independently reviewed and attributable development-risk decision or a supported vendor remediation is required before these gates can pass. Release publication, signing and promotion remain separately gated.
+**Decision impact:** no package/CVE expansion is justified. Keep the existing
+exact eight-finding development-only inventory and the already authorised
+expiry **2026-11-26T00:00:00Z**. Do not renew automatically. Recheck the
+Ubuntu tracker, official updates pocket, Trivy database and actual installed
+package before any post-expiry run; if a supported fixed package or Trivy
+`FixedVersion` signal appears, remediate and let the gate deny the old
+decision rather than extending it.
 
 
+## 16 November 2026 — separate Shared Foundation exception history correction
 
-## 16 November 2026 — owner-directed reusable policy reconciliation
+The 12 November section above correctly states that the 7.0.0-43.43
+amendment did not itself renew the Shared Foundation implementation
+exception. A separate subsequent change did: merged PR
+[#65](https://github.com/baobab-platform/baobab-dev/pull/65), commit
+[fd82c2a](https://github.com/baobab-platform/baobab-dev/commit/fd82c2a705189826cfd7ced72eff2a642989fb03),
+aligned the `.baobab/repository.yaml` `container-scan` exception with the
+approved **2026-11-26** DEV-10 risk sunset. The current main-branch manifest
+therefore declares that separate exception through 26 November 2026.
 
-The 12 November issue #54 owner decision for the eight HIGH findings on `linux-libc-dev=7.0.0-43.43` explicitly names **PR #62**, not PR #71. The historical executable-scope discrepancy is therefore resolved in favour of the recorded issue decision. No independent owner approval for PR #71 was found; older text above suggesting PR #71 is the approved scope is retained as history only and is superseded by this reconciliation. The current legacy executable path denies PR and main residual-risk acceptance; it no longer authorises either PR number.
-
-The new PR #74 evidence is inventory evidence only. It does not itself extend the #62 approval or grant PR #74 release authority. The platform owner has now directed preparation of a **new reusable, PR-number-independent policy** expiring `2026-11-26T00:00:00Z`. Its proposed execution context is restricted to `same-repository `pull_request` events whose base is `main`, plus `push` events to `refs/heads/main`. Tags, release workflows, manual dispatch, schedules, deployments, fork PRs, other PR base branches, staging and production are explicitly denied. The exact package/version/eight-CVE inventory, four profiles and two Linux architectures remain fixed; any new or changed finding, fixed-version signal, secret or scanner failure blocks.
-
-The proposal remains pending independent security review. The protected environment and independent reviewer controls remain mandatory. `DEV10_PROTECTED_DECISION_SHA256` must be provisioned only after an approved `foundation.json` is merged and the custody verifier confirms independent approval on the merged head. The PR #74 evidence runs used source head `c161821441c0d7c054514abd78a40dc25e774479`; no claim is made that they scanned the later documentation-only head. This is a development-toolchain residual-risk proposal, not a VEX not-affected assertion, remediation, release approval, GHCR publication/promotion permission, or production authorisation.
+This exception remains an implementation accommodation for the shared
+Foundation scanner only. It is not the reusable development decision in
+PR #76, does not authenticate or activate that decision, and does not replace
+the unfiltered DEV-10 Foundation/Publish verifier. The two expiry records must
+continue to be reviewed independently.
