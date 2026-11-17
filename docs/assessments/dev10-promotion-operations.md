@@ -17,7 +17,7 @@ a rerun initiated by the original approver or a different self-reviewing actor
 from being mistaken for independent approval. Login values are retained only
 as display metadata; identity comparison uses numeric IDs.
 
-The minimal JSON evidence records reviewer ID/login, original actor ID/login,
+The minimal JSON evidence records the reviewer numeric ID and all observed login aliases, original actor ID/login,
 triggering actor ID/login, run ID, current attempt, tag and environment.
 GitHub's deployment-approvals response does not provide a trustworthy
 `submitted_at` field, so the evidence deliberately does not invent one. The
