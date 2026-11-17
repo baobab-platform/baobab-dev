@@ -111,7 +111,9 @@ def _graphql_error_summary(errors):
             for item in path[:8]:
                 if type(item) is int and item >= 0:
                     path_parts.append(str(item))
-                elif isinstance(item, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", item):
+                elif (isinstance(item, str)
+                      and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", item)
+                      and not re.search(r"(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}", item)):
                     path_parts.append(item)
         safe_path = ".".join(path_parts)[:240]
         parts = [message]
@@ -164,13 +166,15 @@ def _graphql(token, query, variables):
             payload = json.loads(read_bounded(response))
     except urllib.error.HTTPError as exc:
         raise CustodyError(_http_error_summary(exc)) from exc
+    except json.JSONDecodeError as exc:
+        raise CustodyError("GitHub GraphQL returned invalid JSON") from exc
     except ValueError as exc:
         raise CustodyError(_safe_detail(str(exc), 180)) from exc
     except urllib.error.URLError as exc:
         raise CustodyError("GitHub GraphQL transport failed") from exc
     except TimeoutError as exc:
         raise CustodyError("GitHub GraphQL custody request timed out") from exc
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+    except UnicodeDecodeError as exc:
         raise CustodyError("GitHub GraphQL returned invalid JSON") from exc
     _require(isinstance(payload, dict), "GitHub GraphQL returned a malformed response")
     if "errors" in payload:
