@@ -58,6 +58,31 @@ class RESTCommitterReconciliationTests(unittest.TestCase):
             with self.assertRaisesRegex(CustodyError, "metadata disagree"):
                 _rest_commit_committer_user_id("token", self.OID, altered)
 
+    def test_accepts_equivalent_timezone_spellings_for_exact_timestamp(self):
+        from custody_independence import _rest_commit_committer_user_id
+        graphql_actor = dict(self.ACTOR, date="2026-11-17T03:29:58+02:00")
+        response = provisioner.json.dumps(self.payload()).encode()
+        with patch("github_api_transport._OPENER.open") as urlopen:
+            urlopen.return_value.__enter__.return_value.read.return_value = response
+            self.assertEqual(
+                _rest_commit_committer_user_id("token", self.OID, graphql_actor),
+                19864447,
+            )
+
+    def test_rejects_different_or_timezone_naive_committer_timestamps(self):
+        from custody_independence import CustodyError, _rest_commit_committer_user_id
+        for timestamp in (
+            "2026-11-17T01:29:59Z",
+            "2026-11-17T01:29:58",
+        ):
+            with self.subTest(timestamp=timestamp):
+                actor = dict(self.ACTOR, date=timestamp)
+                response = provisioner.json.dumps(self.payload()).encode()
+                with patch("github_api_transport._OPENER.open") as urlopen:
+                    urlopen.return_value.__enter__.return_value.read.return_value = response
+                    with self.assertRaisesRegex(CustodyError, "metadata disagree"):
+                        _rest_commit_committer_user_id("token", self.OID, actor)
+
     def test_rejects_wrong_commit_sha_and_unlinked_rest_actor(self):
         from custody_independence import CustodyError, _rest_commit_committer_user_id
         for payload, expected in (
