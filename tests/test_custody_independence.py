@@ -117,6 +117,45 @@ class CompleteHistoryTests(unittest.TestCase):
         self.assertGreater(author_id, 0)
         self.assertTrue(contributors)
 
+    @unittest.skipUnless(
+        all(os.environ.get(name) for name in (
+            "GH_TOKEN", "DEV10_REST_RECONCILIATION_COMMIT_SHA",
+        )),
+        "live exact-SHA REST committer reconciliation is enabled only by the DEV-10 PR workflow",
+    )
+    def test_live_exact_sha_rest_reconciles_observed_web_flow_committer(self):
+        oid = os.environ["DEV10_REST_RECONCILIATION_COMMIT_SHA"]
+        data = custody._graphql(
+            os.environ["GH_TOKEN"],
+            """
+            query($owner: String!, $name: String!, $oid: GitObjectID!) {
+              repository(owner: $owner, name: $name) {
+                object(oid: $oid) {
+                  ... on Commit {
+                    oid
+                    committer { name email date user { databaseId login } }
+                  }
+                }
+              }
+            }
+            """,
+            {"owner": "baobab-platform", "name": "baobab-dev", "oid": oid},
+        )
+        repository = data.get("repository")
+        commit_object = repository.get("object") if isinstance(repository, dict) else None
+        self.assertIsInstance(commit_object, dict)
+        self.assertEqual(commit_object.get("oid"), oid)
+        committer = commit_object.get("committer")
+        self.assertIsInstance(committer, dict)
+        self.assertIsNone(committer.get("user"))
+        self.assertEqual(
+            custody._rest_commit_committer_user_id(
+                os.environ["GH_TOKEN"], oid,
+                {key: committer.get(key) for key in ("name", "email", "date")},
+            ),
+            19864447,
+        )
+
     def test_rejects_incomplete_commit_count(self):
         with patch.object(custody, "_graphql", return_value=page(
             [commit("b" * 40)], total=2
