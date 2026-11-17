@@ -91,6 +91,8 @@ on:
       - ".devcontainer/**"
       - "config/**"
       - "scripts/**"
+      - "!scripts/provision_protected_risk_policy.py"
+      - "!scripts/custody_independence.py"
       - ".github/workflows/publish.yml"
 
   pull_request:
@@ -102,6 +104,8 @@ on:
       - ".devcontainer/**"
       - "config/**"
       - "scripts/**"
+      - "!scripts/provision_protected_risk_policy.py"
+      - "!scripts/custody_independence.py"
       - ".github/workflows/publish.yml"
 
   # Manual validation is main-only. Rebuilding an arbitrary tag in the
