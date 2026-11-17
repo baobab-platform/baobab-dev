@@ -77,6 +77,7 @@ jobs:
               f"- GitHub review: {receipt['approval_id']}\n"
               f"- Accountable owner ID: {receipt['owner_id']}\n"
               f"- Owner concurrence comment: {receipt['owner_comment_id']}\n"
+              f"- Owner concurrence timestamp: {receipt['owner_concurrence_at']}\n"
               f"- Approval timestamp: {receipt['approved_at']}\n"
               f"- Expiry: {receipt['expires_at']}\n\n"
               "This grants development-only residual-risk acceptance for the "
