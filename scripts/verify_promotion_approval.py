@@ -66,8 +66,12 @@ def attest(
             raise EvidenceError("deployment review has malformed environment evidence")
         if not any(environment.get("name") == ENVIRONMENT for environment in environments):
             continue
-        if state != "approved":
-            continue
+        # A rejected protected-environment deployment review cannot be
+        # overridden by an earlier approval in this unordered API response.
+        # The endpoint has no trustworthy attempt-bound timestamps to prove
+        # that a later approval superseded a rejection.
+        if state == "rejected":
+            raise EvidenceError("protected deployment review includes a rejection")
         reviewer = item.get("user")
         if not isinstance(reviewer, dict):
             raise EvidenceError("approved deployment review has no reviewer identity")
