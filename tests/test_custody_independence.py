@@ -119,11 +119,11 @@ class CompleteHistoryTests(unittest.TestCase):
         self.assertGreater(author_id, 0)
         self.assertTrue(contributors)
 
-    def test_rest_fallback_resolves_exact_sha_without_metadata_comparison(self):
+    def test_rest_fallback_resolves_exact_sha_with_metadata_corroboration(self):
         oid = "d" * 40
         payload = {
             "sha": oid,
-            "commit": {"committer": {"name": "GitHub", "email": "noreply@github.com"}},
+            "commit": {"committer": {"name": "GitHub", "email": "noreply@github.com", "date": "2026-11-17T01:29:58Z"}},
             "committer": {"type": "User", "id": 19864447, "login": "web-flow"},
         }
         response = MagicMock()
@@ -131,7 +131,7 @@ class CompleteHistoryTests(unittest.TestCase):
         opener = MagicMock()
         opener.__enter__.return_value = response
         with patch.object(custody, "open_github", return_value=opener) as open_github:
-            user_id = custody._rest_commit_committer_user_id("token", oid)
+            user_id = custody._rest_commit_committer_user_id("token", oid, {"name": "GitHub", "email": "noreply@github.com", "date": "2026-11-17T01:29:58Z"})
         self.assertEqual(user_id, 19864447)
         request = open_github.call_args.args[0]
         self.assertEqual(request.full_url, f"https://api.github.com/repos/baobab-platform/baobab-dev/commits/{oid}")
@@ -146,7 +146,42 @@ class CompleteHistoryTests(unittest.TestCase):
         opener.__enter__.return_value = response
         with patch.object(custody, "open_github", return_value=opener):
             with self.assertRaisesRegex(custody.CustodyError, "different commit SHA"):
-                custody._rest_commit_committer_user_id("token", "d" * 40)
+                custody._rest_commit_committer_user_id("token", "d" * 40, {"name": "GitHub", "email": "noreply@github.com", "date": "2026-11-17T01:29:58Z"})
+
+    def test_rest_fallback_rejects_name_email_and_timestamp_mismatches(self):
+        oid = "d" * 40
+        raw = {"name": "GitHub", "email": "noreply@github.com", "date": "2026-11-17T01:29:58Z"}
+        for key, value in (("name", "Other"), ("email", "other@example.invalid"),
+                           ("date", "2026-11-17T01:29:59Z"), ("date", "2026-11-17T01:29:58")):
+            response = MagicMock()
+            response.read.return_value = json.dumps({
+                "sha": oid, "commit": {"committer": raw},
+                "committer": {"type": "User", "id": 19864447, "login": "web-flow"},
+            }).encode("utf-8")
+            expected = dict(raw)
+            expected[key] = value
+            opener = MagicMock()
+            opener.__enter__.return_value = response
+            with self.subTest(field=key, value=value), patch.object(
+                custody, "open_github", return_value=opener
+            ), self.assertRaisesRegex(custody.CustodyError, "metadata disagree"):
+                custody._rest_commit_committer_user_id("token", oid, expected)
+
+    def test_rest_fallback_accepts_equivalent_timezone_spellings(self):
+        oid = "d" * 40
+        response = MagicMock()
+        response.read.return_value = json.dumps({
+            "sha": oid,
+            "commit": {"committer": {"name": "GitHub", "email": "noreply@github.com",
+                                      "date": "2026-11-17T01:29:58Z"}},
+            "committer": {"type": "User", "id": 19864447, "login": "web-flow"},
+        }).encode("utf-8")
+        opener = MagicMock()
+        opener.__enter__.return_value = response
+        with patch.object(custody, "open_github", return_value=opener):
+            self.assertEqual(custody._rest_commit_committer_user_id(
+                "token", oid, {"name": "GitHub", "email": "noreply@github.com",
+                               "date": "2026-11-17T03:29:58+02:00"}), 19864447)
 
     def test_rest_fallback_rejects_non_user_and_invalid_numeric_ids(self):
         for actor, expected in (
