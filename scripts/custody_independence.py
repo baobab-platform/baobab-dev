@@ -277,12 +277,126 @@ def _graphql(token, query, variables):
     return data
 
 
-def collect_pr(token, pr_number, expected_head):
+def _pull_request_metadata(token, pr_number, expected_head):
+    """Read current PR identity and server-reported commit count without paging history."""
+    query = """
+    query($owner: String!, $name: String!, $number: Int!) {
+      repository(owner: $owner, name: $name) {
+        pullRequest(number: $number) {
+          headRefOid
+          author { __typename ... on User { databaseId } }
+          commits(first: 1) { totalCount }
+        }
+      }
+    }
+    """
+    data = _graphql(token, query, {
+        "owner": "baobab-platform", "name": "baobab-dev", "number": pr_number,
+    })
+    repository = data.get("repository")
+    pull = repository.get("pullRequest") if isinstance(repository, dict) else None
+    _require(isinstance(pull, dict), "decision PR was not found in GraphQL metadata query")
+    _require(pull.get("headRefOid") == expected_head,
+             "decision PR head changed during custody enumeration")
+    author_id = _pull_request_author_user_id(pull.get("author"))
+    commits = pull.get("commits")
+    count = commits.get("totalCount") if isinstance(commits, dict) else None
+    _require(type(count) is int and count > 0, "decision PR has no complete commit count")
+    return author_id, count
+
+
+def _fetch_commit_records(token, commit_oids):
+    """Resolve exact locally enumerated Git OIDs in bounded GraphQL object batches."""
+    records = []
+    batch_size = 20
+    for offset in range(0, len(commit_oids), batch_size):
+        batch = commit_oids[offset:offset + batch_size]
+        declarations = ["$owner: String!", "$name: String!"]
+        variables = {"owner": "baobab-platform", "name": "baobab-dev"}
+        fields = []
+        for index, oid in enumerate(batch):
+            declarations.append(f"$oid{index}: String!")
+            variables[f"oid{index}"] = oid
+            fields.append(
+                f"c{index}: object(expression: $oid{index}) {{ ... on Commit {{ "
+                "oid author { user { databaseId } } "
+                "committer { name email date user { databaseId login } } "
+                "authors(first: 100) { totalCount pageInfo { hasNextPage } "
+                "nodes { user { databaseId } } } } }"
+            )
+        query = (
+            "query(" + ", ".join(declarations) + ") { "
+            "repository(owner: $owner, name: $name) { "
+            + " ".join(fields) + " } }"
+        )
+        data = _graphql(token, query, variables)
+        repository = data.get("repository")
+        _require(isinstance(repository, dict),
+                 "GitHub commit-object response has no repository")
+        for index, expected_oid in enumerate(batch):
+            record = repository.get(f"c{index}")
+            _require(isinstance(record, dict) and record.get("oid") == expected_oid,
+                     "GitHub did not resolve every requested commit object by exact SHA")
+            records.append(record)
+    return records
+
+
+def _add_commit_contributors(token, commit, contributors, seen_commits):
+    _require(isinstance(commit, dict), "decision PR contains a malformed commit")
+    oid = commit.get("oid")
+    _require(isinstance(oid, str) and len(oid) == 40
+             and all(c in "0123456789abcdef" for c in oid),
+             "decision PR commit has an invalid object ID")
+    _require(oid not in seen_commits, "decision PR commit history contains a duplicate")
+    seen_commits.add(oid)
+    contributors.add(_numeric_user_id(commit.get("author"), "commit author"))
+    committer = commit.get("committer")
+    committer_user = committer.get("user") if isinstance(committer, dict) else None
+    if isinstance(committer_user, dict):
+        contributors.add(_numeric_user_id(committer, "commit committer"))
+    else:
+        contributors.add(_rest_commit_committer_user_id(token, oid, committer))
+    authors = commit.get("authors")
+    _require(isinstance(authors, dict), "commit author/co-author connection is missing")
+    author_nodes = authors.get("nodes")
+    author_count = authors.get("totalCount")
+    author_page = authors.get("pageInfo")
+    _require(isinstance(author_nodes, list) and type(author_count) is int
+             and isinstance(author_page, dict),
+             "commit author/co-author connection is malformed")
+    _require(not author_page.get("hasNextPage") and len(author_nodes) == author_count,
+             "commit author/co-author history is incomplete")
+    _require(author_count > 0, "commit has no resolvable author identity")
+    for actor in author_nodes:
+        contributors.add(_numeric_user_id(actor, "commit author/co-author"))
+
+def collect_pr(token, pr_number, expected_head, commit_oids=None):
     """Return (PR author numeric ID, all commit author/co-author/committer IDs)."""
     _require(type(pr_number) is int and pr_number > 0, "invalid decision PR number")
     _require(isinstance(expected_head, str) and len(expected_head) == 40
              and all(c in "0123456789abcdef" for c in expected_head),
              "invalid expected decision PR head")
+    if commit_oids is not None:
+        author_id, expected_count = _pull_request_metadata(token, pr_number, expected_head)
+        _require(isinstance(commit_oids, list) and len(commit_oids) == expected_count
+                 and bool(commit_oids) and expected_head in commit_oids
+                 and all(isinstance(oid, str) and len(oid) == 40
+                         and all(char in "0123456789abcdef" for char in oid)
+                         for oid in commit_oids)
+                 and len(set(commit_oids)) == len(commit_oids),
+                 "local commit range does not match GitHub PR commit count/head")
+        commits = _fetch_commit_records(token, commit_oids)
+        seen_commits = set()
+        contributors = set()
+        for commit in commits:
+            _add_commit_contributors(token, commit, contributors, seen_commits)
+        _require(len(seen_commits) == expected_count,
+                 f"decision PR commit history is incomplete ({len(seen_commits)}/{expected_count})")
+        final_author, final_count = _pull_request_metadata(token, pr_number, expected_head)
+        _require(final_author == author_id and final_count == expected_count,
+                 "decision PR identity or commit count changed during enumeration")
+        return author_id, contributors
+
 
     query = """
     query($owner: String!, $name: String!, $number: Int!, $after: String) {
@@ -352,46 +466,14 @@ def collect_pr(token, pr_number, expected_head):
                  "decision PR commit page is malformed")
         for item in nodes:
             commit = item.get("commit") if isinstance(item, dict) else None
-            _require(isinstance(commit, dict), "decision PR contains a malformed commit")
-            oid = commit.get("oid")
-            _require(isinstance(oid, str) and len(oid) == 40
-                     and all(c in "0123456789abcdef" for c in oid),
-                     "decision PR commit has an invalid object ID")
-            _require(oid not in seen_commits, "decision PR commit history contains a duplicate")
-            seen_commits.add(oid)
-
-            contributors.add(_numeric_user_id(commit.get("author"), "commit author"))
-            committer = commit.get("committer")
-            committer_user = committer.get("user") if isinstance(committer, dict) else None
-            if isinstance(committer_user, dict):
-                contributors.add(_numeric_user_id(committer, "commit committer"))
-            else:
-                # GitActor.user may be null for GitHub web-flow commits. Resolve
-                # only the exact immutable commit SHA through REST and require a
-                # concrete User with a positive numeric ID; do not compare mutable
-                # presentation metadata across API representations.
-                contributors.add(_rest_commit_committer_user_id(token, oid, committer))
-
-            authors = commit.get("authors")
-            _require(isinstance(authors, dict), "commit author/co-author connection is missing")
-            author_nodes = authors.get("nodes")
-            author_count = authors.get("totalCount")
-            author_page = authors.get("pageInfo")
-            _require(isinstance(author_nodes, list) and type(author_count) is int
-                     and isinstance(author_page, dict),
-                     "commit author/co-author connection is malformed")
-            _require(not author_page.get("hasNextPage") and len(author_nodes) == author_count,
-                     "commit author/co-author history is incomplete")
-            _require(author_count > 0, "commit has no resolvable author identity")
-            for actor in author_nodes:
-                contributors.add(_numeric_user_id(actor, "commit author/co-author"))
+            _add_commit_contributors(token, commit, contributors, seen_commits)
 
         has_next = page_info.get("hasNextPage")
         cursor = page_info.get("endCursor")
         _require(type(has_next) is bool, "commit pagination state is missing")
         if not has_next:
             _require(len(seen_commits) == expected_count,
-                     "decision PR commit history is incomplete")
+                     f"decision PR commit history is incomplete ({len(seen_commits)}/{expected_count})")
             return author_id, contributors
         _require(isinstance(cursor, str) and cursor,
                  "commit pagination cursor is missing")
