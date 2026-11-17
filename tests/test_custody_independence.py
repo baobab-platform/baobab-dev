@@ -270,6 +270,35 @@ class CompleteHistoryTests(unittest.TestCase):
                 custody._rest_commit_committer_user_id("token", "d" * 40, {"name": "GitHub", "email": "noreply@github.com", "date": "2026-11-17T01:29:58Z"})
         self.assertNotIn("Forbidden", str(caught.exception))
 
+    def test_collect_pr_adds_rest_reconciled_committer_to_contributor_set(self):
+        oid = "d" * 40
+        item = commit(oid)
+        committer = {
+            "name": "GitHub", "email": "noreply@github.com",
+            "date": "2026-11-17T01:29:58Z", "user": None,
+        }
+        item["commit"]["committer"] = committer
+        with patch.object(custody, "_graphql", return_value=page([item])), \
+             patch.object(custody, "_rest_commit_committer_user_id",
+                          return_value=19864447) as reconcile:
+            author_id, contributors = custody.collect_pr("token", 76, HEAD)
+        self.assertEqual(author_id, 1)
+        self.assertEqual(contributors, {10, 19864447})
+        reconcile.assert_called_once_with("token", oid, committer)
+
+    def test_collect_pr_fails_closed_when_rest_committer_resolution_fails(self):
+        oid = "d" * 40
+        item = commit(oid)
+        item["commit"]["committer"] = {
+            "name": "GitHub", "email": "noreply@github.com",
+            "date": "2026-11-17T01:29:58Z", "user": None,
+        }
+        with patch.object(custody, "_graphql", return_value=page([item])), \
+             patch.object(custody, "_rest_commit_committer_user_id",
+                          side_effect=custody.CustodyError("REST lookup unavailable")):
+            with self.assertRaisesRegex(custody.CustodyError, "REST lookup unavailable"):
+                custody.collect_pr("token", 76, HEAD)
+
     def test_rejects_incomplete_commit_count(self):
         with patch.object(custody, "_graphql", return_value=page(
             [commit("b" * 40)], total=2
