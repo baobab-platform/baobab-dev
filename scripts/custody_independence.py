@@ -250,7 +250,7 @@ def _http_error_summary(exc, context="GitHub API"):
         parts.append(message)
     if request_id:
         parts.append(f"GitHub request ID {request_id}")
-    return ": ".join(parts)"
+    return ": ".join(parts)
 
 
 def _graphql(token, query, variables):
