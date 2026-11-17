@@ -82,7 +82,14 @@ The configured `DEV10_SECURITY_APPROVER_LOGINS` values are used only to
 resolve the trusted reviewers to numeric GitHub IDs. Login and email are not
 identity comparison keys. A GitHub service account is not silently excluded:
 if its numeric identity appears as a committer, it is included in the
-contributor set.
+contributor set. If GraphQL returns a null `GitActor.user` for a committer,
+the verifier may reconcile that one identity against the REST commit endpoint
+for the exact same immutable commit SHA. It must require exact equality of the
+GraphQL and REST committer name, email and timestamp, and a REST committer of
+type `User` with a positive numeric ID and login. A missing REST identity,
+wrong SHA, metadata mismatch, non-User actor or API error remains fatal. This
+is evidence reconciliation across two representations of the same commit,
+not a login/email-based identity match or a service-account exclusion.
 
 The actual GitHub review ID, reviewer numeric ID and `submitted_at` timestamp
 are derived from the effective review at runtime. They are not embedded in the
