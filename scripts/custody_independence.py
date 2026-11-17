@@ -61,7 +61,7 @@ def _rest_commit_committer_user_id(token, oid, graphql_committer):
              "unlinked GraphQL committer metadata is missing")
     expected = {key: graphql_committer.get(key) for key in ("name", "email", "date")}
     _require(all(isinstance(value, str) and value for value in expected.values()),
-             "unlinked GraphQL committer metadata is incomplete for REST reconciliation")
+             "commit committer is not linked to a GitHub user and metadata is incomplete for REST reconciliation")
     request = urllib.request.Request(
         f"https://api.github.com/repos/baobab-platform/baobab-dev/commits/{oid}",
         headers={
