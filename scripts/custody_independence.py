@@ -271,7 +271,7 @@ def _graphql(token, query, variables):
         with open_github(request, timeout=30) as response:
             payload = json.loads(read_bounded(response))
     except urllib.error.HTTPError as exc:
-        raise CustodyError(_http_error_summary(exc)) from exc
+        raise CustodyError(_http_error_summary(exc, "GitHub GraphQL")) from exc
     except json.JSONDecodeError as exc:
         raise CustodyError("GitHub GraphQL returned invalid JSON") from exc
     except ValueError as exc:
