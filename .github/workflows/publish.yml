@@ -2042,14 +2042,26 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+          ORIGINAL_ACTOR_LOGIN: ${{ github.actor }}
+          ORIGINAL_ACTOR_ID: ${{ github.actor_id }}
+          TRIGGERING_ACTOR_LOGIN: ${{ github.triggering_actor }}
         run: |
           set -euo pipefail
+          [[ "$ORIGINAL_ACTOR_ID" =~ ^[1-9][0-9]*$ ]]
+          [[ -n "$ORIGINAL_ACTOR_LOGIN" && -n "$TRIGGERING_ACTOR_LOGIN" ]]
+          # Require the account's REST type as well as its immutable numeric ID.
+          # An untyped or non-User triggering actor cannot establish custody.
+          TRIGGERING_ACTOR_ID="$(gh api "users/$TRIGGERING_ACTOR_LOGIN" \
+            --jq 'select(.type == "User" and (.id | type) == "number" and .id > 0) | .id')"
+          [[ "$TRIGGERING_ACTOR_ID" =~ ^[1-9][0-9]*$ ]]
           mkdir -p "$RUNNER_TEMP/r5-promotion-evidence"
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/approvals" > "$RUNNER_TEMP/promotion-approvals.json"
           python3 scripts/verify_promotion_approval.py \
             --reviews "$RUNNER_TEMP/promotion-approvals.json" \
             --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" \
-            --actor "$GITHUB_ACTOR" --tag "$RELEASE_TAG" \
+            --actor "$ORIGINAL_ACTOR_LOGIN" --actor-id "$ORIGINAL_ACTOR_ID" \
+            --triggering-actor "$TRIGGERING_ACTOR_LOGIN" \
+            --triggering-actor-id "$TRIGGERING_ACTOR_ID" --tag "$RELEASE_TAG" \
             --output "$RUNNER_TEMP/r5-promotion-evidence/approval.json"
 
       - name: Verify Actions candidate artifact containers before download
