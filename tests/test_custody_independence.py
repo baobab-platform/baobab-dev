@@ -66,8 +66,11 @@ class CompleteHistoryTests(unittest.TestCase):
         self.assertIn("author {", query)
         self.assertIn("__typename", query)
         self.assertIn("... on User { databaseId }", query)
-        self.assertNotIn("author { user { databaseId } }", query)
-        self.assertNotIn("author { databaseId }", query)
+        pr_author_selection = query.split(
+            "pullRequest(number: $number) {", 1
+        )[1].split("commits(", 1)[0]
+        self.assertNotIn("user { databaseId }", pr_author_selection)
+        self.assertNotIn("author { databaseId }", pr_author_selection)
 
     def test_rejects_null_pull_request_author(self):
         response = page([commit("b" * 40)])
