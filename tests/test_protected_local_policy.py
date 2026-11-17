@@ -75,6 +75,21 @@ class LocalPolicyTests(unittest.TestCase):
                     approved_by_id=2, now=NOW)
                 self.assertEqual(result["findings"], 8)
 
+    def test_foundation_workflow_uses_reusable_authenticated_policy(self):
+        workflow = (ROOT / ".github/workflows/foundation.yml").read_text()
+        self.assertIn("scripts/verify_protected_risk_custody.py", workflow)
+        self.assertIn("scripts/verify_protected_policy_hash.py", workflow)
+        self.assertNotIn("python3 scripts/dev10_kernel_risk_gate.py", workflow)
+        self.assertIn("needs: scope", workflow)
+        self.assertIn("needs.scope.outputs.container_scan == 'true'", workflow)
+
+    def test_publish_pr_build_scan_uses_reusable_policy(self):
+        workflow = (ROOT / ".github/workflows/publish.yml").read_text()
+        self.assertIn("scripts/verify_protected_policy_hash.py", workflow)
+        build_start = workflow.index("name: Build & Security Scan")
+        exact_start = workflow.index("name: Release candidate exact-digest scan")
+        self.assertNotIn("scripts/dev10_kernel_risk_gate.py", workflow[build_start:exact_start])
+
     def test_untrusted_policy_hash(self):
         with self.assertRaises(ValueError):
             self.evaluate(trusted_hash="a" * 64)
