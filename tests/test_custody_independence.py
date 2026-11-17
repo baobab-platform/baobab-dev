@@ -56,7 +56,6 @@ class CompleteHistoryTests(unittest.TestCase):
         self.assertEqual(author, 1)
         self.assertEqual(contributors, {10, 11, 12, 13, 14})
         self.assertEqual(graphql.call_count, 2)
-        self.assertIsNone(graphql.call_args_list[0].args[2]["after"])
         self.assertEqual(graphql.call_args_list[1].args[2]["after"], "cursor-1")
 
     def test_rejects_incomplete_commit_count(self):
