@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Fail-closed DEV-10 release approval evidence from GitHub deployment reviews.
 
-Input is GitHub REST deployment approvals for the current workflow run.
-Only independently approved human entries for the protected environment count.
-GitHub's deployment approvals endpoint does not return submitted_at; record the
-reviewer identity and run identity, never fabricate an approval timestamp.
+The deployment-approvals endpoint does not return submitted_at. Evidence
+therefore records immutable numeric User IDs for the reviewer, original
+workflow actor and rerun-triggering actor, without fabricating a timestamp.
 No token, secrets, or untrusted free-text comments are persisted.
 """
 from __future__ import annotations
@@ -20,10 +19,38 @@ class EvidenceError(ValueError):
     pass
 
 
-def attest(reviews: object, *, run_id: int, attempt: int, actor: str, tag: str) -> dict:
+def _positive_id(value, label):
+    if type(value) is not int or value <= 0:
+        raise EvidenceError(f"{label} must be a positive numeric GitHub user ID")
+    return value
+
+
+def _login(value, label):
+    if not isinstance(value, str) or not re.fullmatch(
+        r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?", value
+    ):
+        raise EvidenceError(f"{label} is not a valid GitHub login")
+    return value
+
+
+def attest(
+    reviews: object, *, run_id: int, attempt: int, actor: str, actor_id: int,
+    triggering_actor: str, triggering_actor_id: int, tag: str,
+) -> dict:
     if not isinstance(reviews, list):
         raise EvidenceError("missing deployment review response")
-    approved = []
+    if type(run_id) is not int or run_id <= 0:
+        raise EvidenceError("workflow run ID must be positive")
+    if type(attempt) is not int or attempt <= 0:
+        raise EvidenceError("workflow run attempt must be positive")
+    actor_id = _positive_id(actor_id, "original workflow actor")
+    triggering_actor_id = _positive_id(triggering_actor_id, "rerun-triggering actor")
+    actor = _login(actor, "original workflow actor login")
+    triggering_actor = _login(triggering_actor, "rerun-triggering actor login")
+    if not isinstance(tag, str) or not tag.strip():
+        raise EvidenceError("release tag is missing")
+
+    approved = {}
     for item in reviews:
         if not isinstance(item, dict) or item.get("state") != "approved":
             continue
@@ -33,27 +60,36 @@ def attest(reviews: object, *, run_id: int, attempt: int, actor: str, tag: str) 
         ):
             continue
         reviewer = item.get("user")
-        login = reviewer.get("login") if isinstance(reviewer, dict) else None
-        if not isinstance(login, str) or not login or login.casefold() == actor.casefold():
+        if not isinstance(reviewer, dict):
+            raise EvidenceError("approved deployment review has no reviewer identity")
+        reviewer_type = reviewer.get("type")
+        if reviewer_type == "Bot":
             continue
-        # GitHub REST GET /actions/runs/{run_id}/approvals does not include
-        # submitted_at. Never require or synthesize an unsupported timestamp.
-        # An automation/wait-timer entry is not a human approval.
-        if reviewer.get("type") == "Bot" or login.casefold().endswith("[bot]"):
+        if reviewer_type != "User":
+            raise EvidenceError("approved deployment reviewer is not a typed GitHub User")
+        reviewer_id = _positive_id(reviewer.get("id"), "deployment reviewer")
+        login = _login(reviewer.get("login"), "deployment reviewer login")
+        if reviewer_id in (actor_id, triggering_actor_id):
             continue
-        if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?", login):
-            continue
-        approved.append({"reviewer": login})
+        previous = approved.get(reviewer_id)
+        if previous is not None and previous != login:
+            raise EvidenceError("one numeric reviewer ID resolved to conflicting login values")
+        approved[reviewer_id] = login
+
     if not approved:
-        raise EvidenceError("no independent human-approved deployment review for protected environment")
+        raise EvidenceError(
+            "no independent human-approved deployment review for protected environment"
+        )
+    reviewer_id = sorted(approved)[0]
     return {
-        "schema": "dev10.promotion-approval.v1",
+        "schema": "dev10.promotion-approval.v2",
         "environment": ENVIRONMENT,
         "run_id": run_id,
         "run_attempt": attempt,
         "tag": tag,
-        "initiator": actor,
-        "approval": sorted(approved, key=lambda x: x["reviewer"].casefold())[0],
+        "initiator": {"id": actor_id, "login": actor},
+        "triggering_actor": {"id": triggering_actor_id, "login": triggering_actor},
+        "approval": {"reviewer_id": reviewer_id, "reviewer": approved[reviewer_id]},
     }
 
 
@@ -63,12 +99,19 @@ def main() -> int:
     p.add_argument("--run-id", type=int, required=True)
     p.add_argument("--attempt", type=int, required=True)
     p.add_argument("--actor", required=True)
+    p.add_argument("--actor-id", type=int, required=True)
+    p.add_argument("--triggering-actor", required=True)
+    p.add_argument("--triggering-actor-id", type=int, required=True)
     p.add_argument("--tag", required=True)
     p.add_argument("--output", type=Path, required=True)
     a = p.parse_args()
     try:
-        result = attest(json.loads(a.reviews.read_text()), run_id=a.run_id,
-                        attempt=a.attempt, actor=a.actor, tag=a.tag)
+        result = attest(
+            json.loads(a.reviews.read_text()), run_id=a.run_id, attempt=a.attempt,
+            actor=a.actor, actor_id=a.actor_id,
+            triggering_actor=a.triggering_actor,
+            triggering_actor_id=a.triggering_actor_id, tag=a.tag,
+        )
     except (ValueError, OSError) as exc:
         p.error(str(exc))
     a.output.parent.mkdir(parents=True, exist_ok=True)
