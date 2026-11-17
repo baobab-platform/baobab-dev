@@ -86,10 +86,18 @@ class OwnerConcurrenceTests(unittest.TestCase):
             "id": 6924572973,
             "user": {"id": 49340314, "login": "bjnabs"},
             "body": "@wekhason, I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
+            "created_at": "2026-11-16T14:00:00Z",
+            "updated_at": "2026-11-16T14:00:00Z",
         }]
         self.assertEqual(
-            provisioner.verify_owner_concurrence(comments),
-            {"owner_id": 49340314, "owner_comment_id": 6924572973},
+            provisioner.verify_owner_concurrence(
+                comments, merged_at="2026-11-17T02:00:00Z"
+            ),
+            {
+                "owner_id": 49340314,
+                "owner_comment_id": 6924572973,
+                "owner_concurrence_at": "2026-11-16T14:00:00Z",
+            },
         )
 
     def test_rejects_other_author_or_nonconcurrence_comment(self):
@@ -102,7 +110,9 @@ class OwnerConcurrenceTests(unittest.TestCase):
         )
         for comments in cases:
             with self.subTest(comments=comments), self.assertRaises(provisioner.ProvisioningError):
-                provisioner.verify_owner_concurrence(comments)
+                provisioner.verify_owner_concurrence(
+                    comments, merged_at="2026-11-17T02:00:00Z"
+                )
 
 
 class IndependentApprovalTests(unittest.TestCase):
@@ -134,6 +144,7 @@ class IndependentApprovalTests(unittest.TestCase):
         self.assertEqual(result["approved_by_id"], 356890520)
         self.assertEqual(result["owner_id"], 49340314)
         self.assertEqual(result["owner_comment_id"], 6924572973)
+        self.assertEqual(result["owner_concurrence_at"], "2026-11-16T14:00:00Z")
 
     def test_later_comment_changes_requested_or_dismissal_invalidates_approval(self):
         for state in ("COMMENTED", "CHANGES_REQUESTED", "DISMISSED"):
@@ -190,6 +201,8 @@ class MergedCustodyTests(unittest.TestCase):
             "id": 6924572973,
             "user": {"id": 49340314, "login": "bjnabs"},
             "body": "I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
+            "created_at": "2026-11-16T14:00:00Z",
+            "updated_at": "2026-11-16T14:00:00Z",
         }]
         self.reviews = [{
             "id": 99,
