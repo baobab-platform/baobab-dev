@@ -1,8 +1,12 @@
 """Regression tests for complete DEV-10 GitHub commit-custody enumeration."""
+import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from scripts import custody_independence as custody
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+import custody_independence as custody
 
 
 HEAD = "a" * 40
