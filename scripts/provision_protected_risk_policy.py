@@ -195,6 +195,52 @@ def resolve_trusted_reviewers(token, logins):
     return identities
 
 
+def select_independent_approval(reviews, *, head, trusted_reviewers, author_id, contributors):
+    """Select a trusted reviewer whose latest effective approval is on this exact head."""
+    require(isinstance(reviews, list), "review history must be a complete list")
+    latest = {}
+    for review in reviews:
+        require(isinstance(review, dict), "malformed pull-request review")
+        if review.get("state") == "PENDING":
+            continue
+        reviewer = review.get("user") or {}
+        reviewer_id = reviewer.get("id")
+        require(type(reviewer_id) is int and reviewer_id > 0,
+                "review contains an unresolved numeric reviewer identity")
+        state = review.get("state")
+        require(state in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED", "DISMISSED"),
+                "review contains an unknown effective state")
+        review_id = review.get("id")
+        require(type(review_id) is int and review_id > 0, "review ID is missing")
+        submitted = parse_utc(review.get("submitted_at"), "review submitted_at")
+        candidate = (submitted, review_id, state, review)
+        if reviewer_id not in latest or candidate[:2] > latest[reviewer_id][:2]:
+            latest[reviewer_id] = candidate
+
+    qualifying = []
+    for reviewer_id, (submitted, review_id, state, review) in latest.items():
+        if state != "APPROVED" or review.get("commit_id") != head:
+            continue
+        if reviewer_id not in trusted_reviewers:
+            continue
+        try:
+            require_independent(reviewer_id, set(trusted_reviewers), author_id, contributors)
+        except ValueError:
+            continue
+        qualifying.append((submitted, review_id, reviewer_id, review))
+    require(bool(qualifying),
+            "no current-head APPROVED review by a trusted independent numeric reviewer")
+    _, review_id, reviewer_id, review = max(
+        qualifying, key=lambda item: (item[0], item[1])
+    )
+    return {
+        "approval_id": f"github-review-{review_id}",
+        "approved_by_id": reviewer_id,
+        "reviewer": (review.get("user") or {}).get("login"),
+        "approved_at": review["submitted_at"],
+    }
+
+
 def verify_merged_custody(token, decision, decision_pr, expected_head_sha, trusted_reviewers):
     base = f"/repos/{REPOSITORY}/pulls/{decision_pr}"
     _, pull = api_request(token, "GET", base)
@@ -254,48 +300,15 @@ def verify_merged_custody(token, decision, decision_pr, expected_head_sha, trust
             "decision PR merge commit is not an ancestor of current main")
 
     reviews = paginated(token, base + "/reviews")
-    require(len(reviews) < 10000, "review history exceeds the supported audit bound")
-    latest = {}
-    for review in reviews:
-        require(isinstance(review, dict), "malformed pull-request review")
-        if review.get("state") == "PENDING":
-            continue
-        reviewer = review.get("user") or {}
-        reviewer_id = reviewer.get("id")
-        require(type(reviewer_id) is int and reviewer_id > 0,
-                "review contains an unresolved numeric reviewer identity")
-        state = review.get("state")
-        require(state in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED", "DISMISSED"),
-                "review contains an unknown effective state")
-        review_id = review.get("id")
-        require(type(review_id) is int and review_id > 0, "review ID is missing")
-        submitted = parse_utc(review.get("submitted_at"), "review submitted_at")
-        candidate = (submitted, review_id, state, review)
-        if reviewer_id not in latest or candidate[:2] > latest[reviewer_id][:2]:
-            latest[reviewer_id] = candidate
-
     author_id_graphql, contributors = collect_pr(token, decision_pr, head)
     require(author_id_graphql == author_id,
             "REST and GraphQL decision PR author identities disagree")
-    qualifying = []
-    for reviewer_id, (_, review_id, state, review) in latest.items():
-        if state != "APPROVED" or review.get("commit_id") != head:
-            continue
-        if reviewer_id not in trusted_reviewers:
-            continue
-        try:
-            require_independent(reviewer_id, set(trusted_reviewers), author_id, contributors)
-        except ValueError:
-            continue
-        qualifying.append((latest[reviewer_id][0], review_id, reviewer_id, review))
-    require(bool(qualifying),
-            "no current-head APPROVED review by a trusted independent numeric reviewer")
-    _, review_id, reviewer_id, review = max(qualifying, key=lambda item: (item[0], item[1]))
+    approval = select_independent_approval(
+        reviews, head=head, trusted_reviewers=trusted_reviewers,
+        author_id=author_id, contributors=contributors,
+    )
     return {
-        "approval_id": f"github-review-{review_id}",
-        "approved_by_id": reviewer_id,
-        "reviewer": (review.get("user") or {}).get("login"),
-        "approved_at": review["submitted_at"],
+        **approval,
         "decision_pr": decision_pr,
         "decision_pr_head": head,
         "merge_commit_sha": merge_sha,
