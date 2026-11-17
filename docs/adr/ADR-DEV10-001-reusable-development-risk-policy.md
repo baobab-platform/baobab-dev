@@ -94,17 +94,45 @@ bound to the exact final file contents and current head.
 
 The policy SHA-256 is computed over the exact final bytes of the merged
 `foundation.json`. The separately controlled
-`DEV10_PROTECTED_DECISION_SHA256` repository variable is provisioned only
-after the decision PR is merged and custody verification succeeds. The
-proposal file is never hashed as an authority.
+`DEV10_PROTECTED_DECISION_SHA256` repository Actions variable is provisioned
+by the explicit `Provision DEV-10 development risk policy` workflow. The
+workflow is manual-dispatch-only, runs from `main`, and is gated by the
+existing `dev10-security-policy-read` environment's human approval. It
+requires the exact decision-PR head SHA as a dispatch input and the
+environment-scoped `DEV10_POLICY_PROVISIONER_TOKEN` secret.
+
+The provisioner uses a fine-grained token restricted to this repository with
+`Variables: read/write`, `Contents: read`, `Pull requests: read` and
+`Metadata: read`. It does not use a broad classic PAT. The token is never
+printed or written to an artifact. The configured
+`DEV10_SECURITY_APPROVER_LOGINS` variable resolves trusted reviewer logins to
+immutable numeric GitHub IDs.
+
+Before changing the repository variable, the provisioner verifies that the
+decision PR is merged into `main`, the PR head equals the explicitly supplied
+SHA, the PR author numeric ID matches `prepared_by_id`, the PR changed the
+selected decision file, and the current effective APPROVED review is on that
+exact head by a trusted numeric reviewer who is independent of the PR author
+and every author/co-author/committer in the complete GraphQL commit history.
+It also verifies that the approved PR-head file bytes equal the current
+`main` file bytes and that the PR merge commit is an ancestor of `main`.
+Only then does it hash the exact bytes.
+
+Provisioning is create-only and idempotent: if the variable is absent, it is
+created; if it already contains the same hash, the operation succeeds without
+changing it; if it contains a different hash, provisioning fails and never
+overwrites it. The workflow records a non-secret receipt containing the hash,
+decision PR/head/merge commit, reviewer numeric ID, review ID and approval
+timestamp. The proposal file is never hashed as an authority.
 
 The policy remains inactive while the active file, exact hash, trusted
-reviewer configuration or custody evidence is missing. The decision PR carries
-`record_type: proposed_approved_form` to distinguish the candidate record from
-an effective decision. Its `status: approved` expresses the intended decision
-state only; no operator or workflow may treat that field alone as proof of
-approval or activation. Effectiveness requires the merged file, current
-independent review, verified custody and exact-byte trust-anchor provisioning.
+reviewer configuration, provisioning credential or custody evidence is
+missing. The decision PR carries `record_type: proposed_approved_form` to
+distinguish the candidate record from an effective decision. Its
+`status: approved` expresses the intended decision state only; no operator or
+workflow may treat that field alone as proof of approval or activation.
+Effectiveness requires the merged file, current independent review, verified
+custody and exact-byte trust-anchor provisioning.
 
 ## 5. Expiry and execution are separate controls
 
