@@ -80,6 +80,31 @@ class DecisionContractTests(unittest.TestCase):
             )
 
 
+class OwnerConcurrenceTests(unittest.TestCase):
+    def test_requires_attributable_owner_comment_on_the_decision_pr(self):
+        comments = [{
+            "id": 6924572973,
+            "user": {"id": 49340314, "login": "bjnabs"},
+            "body": "@wekhason, I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
+        }]
+        self.assertEqual(
+            provisioner.verify_owner_concurrence(comments),
+            {"owner_id": 49340314, "owner_comment_id": 6924572973},
+        )
+
+    def test_rejects_other_author_or_nonconcurrence_comment(self):
+        cases = (
+            [{"id": 1, "user": {"id": 350241706},
+              "body": "owner concurrence is hereby recorded for the new reusable policy"}],
+            [{"id": 2, "user": {"id": 49340314},
+              "body": "I acknowledge the new reusable policy"}],
+            [],
+        )
+        for comments in cases:
+            with self.subTest(comments=comments), self.assertRaises(provisioner.ProvisioningError):
+                provisioner.verify_owner_concurrence(comments)
+
+
 class IndependentApprovalTests(unittest.TestCase):
     @staticmethod
     def review(review_id, state, submitted_at, commit_id=HEAD, reviewer_id=356890520):
@@ -107,6 +132,8 @@ class IndependentApprovalTests(unittest.TestCase):
         ])
         self.assertEqual(result["approval_id"], "github-review-11")
         self.assertEqual(result["approved_by_id"], 356890520)
+        self.assertEqual(result["owner_id"], 49340314)
+        self.assertEqual(result["owner_comment_id"], 6924572973)
 
     def test_later_comment_changes_requested_or_dismissal_invalidates_approval(self):
         for state in ("COMMENTED", "CHANGES_REQUESTED", "DISMISSED"):
@@ -159,6 +186,11 @@ class MergedCustodyTests(unittest.TestCase):
             "status": "ahead",
             "merge_base_commit": {"sha": self.merge_sha},
         }
+        self.comments = [{
+            "id": 6924572973,
+            "user": {"id": 49340314, "login": "bjnabs"},
+            "body": "I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
+        }]
         self.reviews = [{
             "id": 99,
             "state": "APPROVED",
@@ -167,13 +199,14 @@ class MergedCustodyTests(unittest.TestCase):
             "user": {"id": 356890520, "login": "sknabusiu"},
         }]
 
-    def api_sequence(self, main_content=None, reviews=None):
+    def api_sequence(self, main_content=None, reviews=None, comments=None):
         return [
             (200, self.pull),
             (200, self.files),
             (200, self.content),
             (200, self.content if main_content is None else main_content),
             (200, self.comparison),
+            (200, self.comments if comments is None else comments),
             (200, self.reviews if reviews is None else reviews),
         ]
 
@@ -221,6 +254,16 @@ class MergedCustodyTests(unittest.TestCase):
             self.verify(api_sequence=self.api_sequence(reviews=stale_reviews))
         with self.assertRaisesRegex(provisioner.ProvisioningError, "no current-head"):
             self.verify(contributors={356890520})
+
+    def test_rejects_missing_owner_concurrence_and_uses_numeric_preparer_identity(self):
+        no_owner = self.api_sequence(comments=[])
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "owner concurrence"):
+            self.verify(api_sequence=no_owner)
+        renamed_login = dict(self.pull, user={"id": AUTHOR, "login": "renamed-wekhason"})
+        sequence = self.api_sequence()
+        sequence[0] = (200, renamed_login)
+        result = self.verify(api_sequence=sequence)
+        self.assertEqual(result["approved_by_id"], 356890520)
 
 
 class RepositoryVariableTests(unittest.TestCase):
