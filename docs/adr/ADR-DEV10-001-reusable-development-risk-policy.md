@@ -82,7 +82,16 @@ The configured `DEV10_SECURITY_APPROVER_LOGINS` values are used only to
 resolve the trusted reviewers to numeric GitHub IDs. Login and email are not
 identity comparison keys. A GitHub service account is not silently excluded:
 if its numeric identity appears as a committer, it is included in the
-contributor set.
+contributor set. If GraphQL returns a null `GitActor.user` for a committer,
+the verifier may reconcile that one identity against the REST commit endpoint
+for the exact same immutable commit SHA. It must require exact equality of the
+GraphQL and REST committer name and email, and equality of the timestamp as a
+timezone-aware instant, together with a REST response SHA equal to the requested
+SHA and a REST committer of type `User` with a positive immutable numeric ID
+and login. A missing REST identity, wrong SHA, metadata mismatch, non-User
+actor, malformed response or API error remains fatal. This is evidence
+reconciliation across two representations of the same commit, not a
+login/email-based identity match or a service-account exclusion.
 
 The actual GitHub review ID, reviewer numeric ID and `submitted_at` timestamp
 are derived from the effective review at runtime. They are not embedded in the
@@ -94,14 +103,69 @@ bound to the exact final file contents and current head.
 
 The policy SHA-256 is computed over the exact final bytes of the merged
 `foundation.json`. The separately controlled
-`DEV10_PROTECTED_DECISION_SHA256` repository variable is provisioned only
-after the decision PR is merged and custody verification succeeds. The
-proposal file is never hashed as an authority.
+`DEV10_PROTECTED_DECISION_SHA256` repository Actions variable is provisioned
+by the explicit `Provision DEV-10 development risk policy` workflow. The
+workflow is manual-dispatch-only and runs from `main`. It first pauses at the
+existing `dev10-security-policy-read` environment for human approval; that
+job receives no provisioning credential. Only after that gate succeeds does
+the provisioning job enter the separate `dev10-security-policy-provision`
+environment. That environment is the sole location for
+`DEV10_POLICY_PROVISIONER_TOKEN`, and only the provisioning job references
+it. Configure its deployment branch policy to allow `main` only, and move
+the existing fine-grained token secret out of
+`dev10-security-policy-read` into this dedicated environment. The workflow
+also checks that it is running in the canonical repository on `refs/heads/main`.
+It requires the exact decision-PR head SHA as a dispatch input.
 
+The fine-grained token is restricted to this repository with `Variables:
+read/write`, `Contents: read`, `Pull requests: read`, `Issues: read` and
+`Metadata: read`. Repository variables require the distinct `Variables`
+permission; the workflow `GITHUB_TOKEN` permission model does not provide
+that permission, so substituting `Actions: write` would not authorize this
+write. Ensure `DEV10_SECURITY_APPROVER_LOGINS` is available to the new
+provisioning job as a repository variable or as a variable on the dedicated
+provisioning environment; an environment-scoped variable on the approval-only
+environment is not inherited. The token is never printed or written to an artifact. A short-lived
+GitHub App installation token would be preferable, but no configured
+repository app/token issuer is part of this accepted implementation; that
+migration is deferred rather than represented as complete. The configured
+`DEV10_SECURITY_APPROVER_LOGINS` variable resolves trusted reviewer logins to
+immutable numeric GitHub IDs.
+
+Before changing the repository variable, the provisioner verifies that the
+decision PR is merged into `main`, the PR head equals the explicitly supplied
+SHA, the PR author numeric ID matches `prepared_by_id`, the PR changed the
+selected decision file, and the current effective APPROVED review is on that
+exact head by a trusted numeric reviewer who is independent of the PR author
+and every author/co-author/committer in the complete GraphQL commit history.
+It also verifies that the approved PR-head file bytes equal the current
+`main` file bytes and that the PR merge commit is an ancestor of `main`.
+Only then does it hash the exact bytes.
+
+Provisioning is create-only and idempotent: if the variable is absent, it is
+created; if it already contains the same hash, the operation succeeds without
+changing it; if it contains a different hash, provisioning fails and never
+overwrites it. The workflow records a non-secret receipt containing the hash,
+decision PR/head/merge commit, reviewer numeric ID, review ID and approval
+timestamp. The proposal file is never hashed as an authority.
+
+
+The provisioner also verifies attributable owner concurrence on this exact
+decision PR from the accountable owner's immutable numeric GitHub ID
+(49340314), rather than trusting the PR description. The comment must be
+created and last edited before merge; the receipt records its ID and
+timestamp. This is an accountability/attribution record, not an independent
+approval and not a substitute for the trusted reviewer check. The preparer
+login is display metadata; the numeric preparer ID is the identity key, so
+account renames do not break custody verification.
 The policy remains inactive while the active file, exact hash, trusted
-reviewer configuration or custody evidence is missing. The decision PR may
-contain the proposed final record, but it has no enforcement effect before
-merge and trust-anchor provisioning.
+reviewer configuration, dedicated environment credential, token permissions
+or custody evidence is missing. The decision PR carries `record_type: proposed_approved_form` to
+distinguish the candidate record from an effective decision. Its
+`status: approved` expresses the intended decision state only; no operator or
+workflow may treat that field alone as proof of approval or activation.
+Effectiveness requires the merged file, current independent review, verified
+custody and exact-byte trust-anchor provisioning.
 
 ## 5. Expiry and execution are separate controls
 
@@ -111,12 +175,18 @@ mandatory on every scan. A future expiry does not authorize a tag, fork,
 different base branch or deployment; a permitted branch context does not
 extend the expiry. There is no silent renewal.
 
-Development PR/main image scans do not use a manual-review environment
-pause. They run immediately to collect evidence. Residual findings still fail
-closed unless the active decision, exact SHA-256 trust anchor, trusted reviewer
-identity and merged custody verify. The separate release-promotion job retains
-its protected environment and human approval. Environment approval is not a
-substitute for an independently approved release decision.
+Development PR and main-push vulnerability scans do not use a
+manual-review environment gate. That gate delayed evidence collection but did
+not authenticate the risk decision. Scans therefore run immediately; residual
+findings still fail closed unless the active decision file, exact repository
+SHA-256 trust anchor, trusted reviewer identities and merged custody all
+verify. Removing the pause does not authorize the findings or weaken the
+evaluator.
+
+The separate release-promotion job retains its protected environment and
+human approval. Environment approval is an execution/access control, not a
+substitute for an independently approved, exact-digest release decision.
+A broad deployment-ref wildcard is prohibited.
 
 ## 6. Release separation
 
@@ -130,23 +200,53 @@ not rebuild.
 ## 7. Bootstrap and governance
 
 The separate decision PR must pass its required checks and receive an
-independent approval on its exact final head. Any administrator bypass must be
+independent approval on its exact final head. The shared Foundation workflow
+continues to run its full profile on every event; no Foundation security,
+baseline, reproducibility, runtime or environment gate is disabled for this
+policy PR. The additional unfiltered Foundation image CVE scan runs when a PR
+changes container build inputs (`.devcontainer/`, `config/`, the scripts
+explicitly consumed by the Dockerfile), the repository's shared scanner-policy
+manifest (`.baobab/repository.yaml`), or the kernel inventory. The
+custodian-only `scripts/provision_protected_risk_policy.py` and
+`scripts/custody_independence.py` are not copied or executed by the image and
+are explicitly excluded from the image-scan triggers;
+its provisioning contract is tested by the policy workflow. A policy-only PR
+does not claim an image scan passed; decision JSON and proposal records are
+validated against the pinned Draft 2020-12 schema, including negative
+fixtures. Any PR changing image inputs still runs the full image scan and must
+satisfy the active exact risk policy. PR #74's Foundation/Publish qualification
+remains mandatory after this decision is merged and activated. Any administrator bypass must be
 attributable and recorded with the administrator identity, exact commit,
 reason and checks bypassed. A broad or undocumented bypass is not acceptable.
 
-The repository does not currently have a GitHub Teams subscription or
-enforceable default-branch protection. Use the individually requestable
-accounts @sknabusiu and @sdnabusiu for security-sensitive CODEOWNERS paths and
-@bjnabs for general/platform ownership; do not list unavailable team slugs.
-The compensating process is to request those reviewers, verify the latest
-effective APPROVED review on the exact current head, verify numeric reviewer
-independence from the PR author and every commit author/co-author/committer,
-verify all CI checks on that head, record the evidence in the PR, and then
-merge. This is auditable but cannot technically prevent a sufficiently
-privileged user from bypassing the process. Do not claim CODEOWNERS or a green
-workflow is equivalent to branch protection. The post-merge custody verifier
-and exact-byte trust anchor remain mandatory, so an unapproved change to the
-decision bytes cannot become active merely by being merged.
+The repository does not currently have a GitHub Teams subscription, and
+GitHub rejected review requests for the `security` and
+`platform-engineering` team slugs because those teams are not recognized as
+repository collaborators. The CODEOWNERS file therefore uses individually
+requestable accounts only: `@bjnabs` for general/platform ownership and
+`@sknabusiu` plus `@sdnabusiu` for security-sensitive paths. Explicit
+ownership entries cover `/security/decisions/`, `/docs/assessments/`,
+`/docs/security/` and this ADR. Do not add unavailable team slugs as owners.
+
+CODEOWNERS is still advisory until branch protection enforces code-owner
+reviews. With the current subscription, the compensating procedure is:
+(1) request the named individual reviewers on every PR touching an owned path;
+(2) before merge, verify the latest effective review is APPROVED on the exact
+current head, and verify reviewer numeric identity is independent of the PR
+author and all commit contributors; (3) verify all required CI checks on that
+same head; (4) record the decision and evidence in the PR conversation; and
+(5) only then use the normal merge operation. The existing reviewer-independence
+audit and protected-decision custody verifier provide machine-verifiable
+evidence for the security-sensitive path. This process is not an equivalent
+technical prevention mechanism: a repository user with direct write/merge
+authority can bypass it while branch protection is unavailable. The limitation
+must remain visible in audit records, and unauthorized direct updates to
+`main` must be detected by the repository's push-triggered verification and
+reviewed immediately.
+
+No Enterprise-only feature is assumed. Individual reviewer requests, Actions,
+CODEOWNERS syntax, immutable commit IDs, exact-head review evidence and
+repository-local scripts are the available controls.
 
 ## 8. Consequences and deferred work
 
