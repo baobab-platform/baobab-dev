@@ -45,6 +45,10 @@ jobs:
           while IFS= read -r path; do
             [[ -n "$path" ]] || continue
             case "$path" in
+              # This custodian-only tool is not copied or executed by the
+              # development image; its own policy-contract workflow tests it.
+              scripts/provision_protected_risk_policy.py)
+                ;;
               .devcontainer/*|config/*|scripts/*|.baobab/repository.yaml|docs/assessments/dev10-kernel-cves.tsv)
                 container_changed=true
                 ;;
