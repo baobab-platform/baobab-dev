@@ -37,12 +37,15 @@ The shared Foundation reusable workflow remains on its **full profile** for
 all PRs; baseline, reproducibility, runtime, environment and security gates are
 not disabled for the decision PR. The additional unfiltered DEV-10 image scan
 runs when container build inputs change (`.devcontainer/`, `config/`,
-`scripts/`), the shared scanner-policy manifest (`.baobab/repository.yaml`)
-changes, or the kernel inventory changes. A policy-only decision PR does not alter
-those image inputs, so the DEV-10 image rebuild is not applicable; its risk
-gate negative tests still run and the dedicated policy workflow validates the
-proposal and decision against the pinned Draft 2020-12 schema. No image scan
-pass is claimed for that path. The shared Foundation container job remains in the full profile and
+Dockerfile-consumed scripts), the shared scanner-policy manifest
+(`.baobab/repository.yaml`) changes, or the kernel inventory changes. The
+custodian-only `scripts/provision_protected_risk_policy.py` is not an image
+input and is explicitly excluded from the image-scan trigger; its tests run in
+the dedicated policy-contract workflow. A policy-only decision PR does not
+alter image inputs, so the DEV-10 image rebuild is not applicable; risk-gate
+negative tests still run and the policy workflow validates the proposal and
+decision against the pinned Draft 2020-12 schema. No image scan pass is claimed
+for that path. The shared Foundation container job remains in the full profile and
 builds/validates the image and SBOM, but its Trivy install/scan steps are
 skipped under the separately governed `container-scan` implementation
 exception, which PR #65 aligned to the 2026-11-26 sunset. This is not an
