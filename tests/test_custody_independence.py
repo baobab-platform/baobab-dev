@@ -47,6 +47,35 @@ def page(nodes, *, has_next=False, cursor=None, total=None):
 
 
 class CompleteHistoryTests(unittest.TestCase):
+    def test_collect_pr_uses_exact_local_oids_for_large_histories(self):
+        first = commit(HEAD)["commit"]
+        second = commit("b" * 40)["commit"]
+        second["committer"] = {
+            "name": "GitHub", "email": "noreply@github.com",
+            "date": "2026-11-17T01:29:58Z", "user": None,
+        }
+        with patch.object(custody, "_pull_request_metadata", side_effect=[(1, 2), (1, 2)]), patch.object(custody, "_fetch_commit_records", return_value=[first, second]) as fetch, patch.object(custody, "_rest_commit_committer_user_id", return_value=19864447) as rest:
+            author, contributors = custody.collect_pr("token", 74, HEAD, [HEAD, "b" * 40])
+        self.assertEqual(author, 1)
+        self.assertEqual(contributors, {10, 11, 19864447})
+        fetch.assert_called_once_with("token", [HEAD, "b" * 40])
+        rest.assert_called_once()
+
+    def test_collect_pr_rejects_invalid_local_commit_ranges(self):
+        invalid_ranges = ([HEAD], ["b" * 40, "c" * 40], [HEAD, "not-a-sha"], [HEAD, HEAD])
+        for oids in invalid_ranges:
+            with self.subTest(oids=oids), patch.object(custody, "_pull_request_metadata", return_value=(1, 2)), self.assertRaisesRegex(custody.CustodyError, "local commit range"):
+                custody.collect_pr("token", 74, HEAD, oids)
+
+    def test_fetch_commit_records_uses_exact_sha_object_queries(self):
+        records = {"c0": commit(HEAD)["commit"], "c1": commit("b" * 40)["commit"]}
+        with patch.object(custody, "_graphql", return_value={"repository": records}) as graphql:
+            result = custody._fetch_commit_records("token", [HEAD, "b" * 40])
+        self.assertEqual([item["oid"] for item in result], [HEAD, "b" * 40])
+        query = graphql.call_args.args[1]
+        self.assertIn("object(expression: $oid0)", query)
+        self.assertIn("object(expression: $oid1)", query)
+
     def test_collects_authors_coauthors_and_committers_across_all_pages(self):
         responses = [
             page([commit("b" * 40, authors=(10, 12))],
@@ -111,13 +140,13 @@ class CompleteHistoryTests(unittest.TestCase):
         "live GitHub GraphQL validation is enabled only by the DEV-10 PR workflow",
     )
     def test_live_github_graphql_schema_and_author_response(self):
-        author_id, contributors = custody.collect_pr(
+        author_id, commit_count = custody._pull_request_metadata(
             os.environ["GH_TOKEN"],
             int(os.environ["DEV10_GRAPHQL_INTEGRATION_PR_NUMBER"]),
             os.environ["DEV10_GRAPHQL_INTEGRATION_EXPECTED_HEAD"],
         )
         self.assertGreater(author_id, 0)
-        self.assertTrue(contributors)
+        self.assertGreater(commit_count, 0)
 
     @unittest.skipUnless(
         os.environ.get("GH_TOKEN"),
