@@ -232,6 +232,7 @@ class MergedCustodyTests(unittest.TestCase):
             (200, self.pull),
             (200, self.files),
             (200, self.content),
+            (200, self.content),
             (200, self.content if main_content is None else main_content),
             (200, self.comparison),
             (200, self.comments if comments is None else comments),
@@ -278,10 +279,20 @@ class MergedCustodyTests(unittest.TestCase):
                 self.raw,
             )
 
+    def test_rejects_merge_commit_bytes_different_from_reviewed_head(self):
+        changed = {
+            "type": "file", "encoding": "base64",
+            "content": provisioner.base64.b64encode(self.raw + b" ").decode(),
+        }
+        sequence = self.api_sequence()
+        sequence[3] = (200, changed)
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "merge-commit"):
+            self.verify(api_sequence=sequence)
+
     def test_rejects_nonancestor_merge_commit(self):
         comparison = {"status": "ahead", "merge_base_commit": {"sha": "c" * 40}}
         sequence = self.api_sequence()
-        sequence[4] = (200, comparison)
+        sequence[5] = (200, comparison)
         with self.assertRaisesRegex(provisioner.ProvisioningError, "not an ancestor"):
             self.verify(api_sequence=sequence)
 
