@@ -43,7 +43,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           DEV10_GRAPHQL_INTEGRATION_PR_NUMBER: ${{ github.event.pull_request.number }}
           DEV10_GRAPHQL_INTEGRATION_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
-          DEV10_REST_RECONCILIATION_COMMIT_SHA: dad5dc64031d05b7e7d93345f1ea553abea6c70e
         run: |
           set -euo pipefail
           python3 -B -m unittest -v tests/test_custody_independence.py
