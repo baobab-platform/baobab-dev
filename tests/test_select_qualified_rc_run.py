@@ -57,6 +57,27 @@ class QualifiedRcRunSelectionTests(unittest.TestCase):
             with self.subTest(tag=tag, sha=sha), self.assertRaises(QualifiedRunSelectionError):
                 select_qualified_rc_run({"workflow_runs": [run(1, 1)]}, tag, sha)
 
+    def test_selects_from_all_paginated_workflow_run_pages(self):
+        first = [run(i, i) for i in range(1, 101)]
+        second = [run(101, 101, tag="v1.5.2-rc.9")]
+        pages = [
+            {"total_count": 101, "workflow_runs": first},
+            {"total_count": 101, "workflow_runs": second},
+        ]
+        self.assertEqual(select_qualified_rc_run(pages, "v1.5.2", SHA)["id"], 101)
+
+    def test_rejects_incomplete_or_inconsistent_pagination(self):
+        cases = [
+            [{"total_count": 101, "workflow_runs": [run(1, 1)]}],
+            [{"total_count": 2, "workflow_runs": [run(1, 1)]},
+             {"total_count": 3, "workflow_runs": [run(2, 2)]}],
+            [{"total_count": 1, "workflow_runs": "not-a-list"}],
+            [],
+        ]
+        for pages in cases:
+            with self.subTest(pages=pages), self.assertRaises(QualifiedRunSelectionError):
+                select_qualified_rc_run(pages, "v1.5.2", SHA)
+
     def test_rejects_invalid_response_and_run_ids(self):
         for data in ({}, {"workflow_runs": [run(0, 1)]},
                      {"workflow_runs": [run(1, 0)]},
