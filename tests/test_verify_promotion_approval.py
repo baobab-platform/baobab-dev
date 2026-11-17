@@ -81,6 +81,30 @@ class ApprovalTests(unittest.TestCase):
             with self.subTest(entries=entries), self.assertRaises(mod.EvidenceError):
                 self.verify(entries)
 
+    def test_mixed_approved_and_rejected_protected_reviews_fail_closed(self):
+        rejected = {
+            **self.approval[0],
+            "state": "rejected",
+            "user": {"login": "another-reviewer", "id": 9002, "type": "User"},
+        }
+        for entries in (
+            [self.approval[0], rejected],
+            [rejected, self.approval[0]],
+        ):
+            with self.subTest(entries=entries), self.assertRaisesRegex(
+                mod.EvidenceError, "includes a rejection"
+            ):
+                self.verify(entries)
+
+    def test_rejection_for_unrelated_environment_is_not_release_evidence(self):
+        unrelated = {
+            **self.approval[0],
+            "state": "rejected",
+            "environments": [{"name": "unrelated-staging"}],
+        }
+        evidence = self.verify([unrelated, self.approval[0]])
+        self.assertEqual(evidence["approval"]["reviewer_id"], 9001)
+
     def test_missing_or_invalid_reviewer_identity_fails_closed(self):
         invalid_users = (
             {"login": "security-reviewer", "type": "User"},
