@@ -32,7 +32,7 @@ def page(nodes, *, has_next=False, cursor=None, total=None):
         "repository": {
             "pullRequest": {
                 "headRefOid": HEAD,
-                "author": {"databaseId": 1},
+                "author": {"user": {"databaseId": 1}},
                 "commits": {
                     "totalCount": len(nodes) if total is None else total,
                     "pageInfo": {"hasNextPage": has_next, "endCursor": cursor},
@@ -57,6 +57,20 @@ class CompleteHistoryTests(unittest.TestCase):
         self.assertEqual(contributors, {10, 11, 12, 13, 14})
         self.assertEqual(graphql.call_count, 2)
         self.assertEqual(graphql.call_args_list[1].args[2]["after"], "cursor-1")
+
+    def test_queries_pull_request_author_numeric_id_through_user(self):
+        with patch.object(custody, "_graphql", return_value=page([commit("b" * 40)])) as graphql:
+            custody.collect_pr("token", 76, HEAD)
+        query = graphql.call_args.args[1]
+        self.assertIn("author { user { databaseId } }", query)
+        self.assertNotIn("author { databaseId }", query)
+
+    def test_rejects_unlinked_pull_request_author(self):
+        response = page([commit("b" * 40)])
+        response["repository"]["pullRequest"]["author"] = {"user": None}
+        with patch.object(custody, "_graphql", return_value=response):
+            with self.assertRaisesRegex(custody.CustodyError, "not linked"):
+                custody.collect_pr("token", 76, HEAD)
 
     def test_rejects_incomplete_commit_count(self):
         with patch.object(custody, "_graphql", return_value=page(
