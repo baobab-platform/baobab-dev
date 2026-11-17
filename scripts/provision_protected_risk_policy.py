@@ -14,12 +14,14 @@ import hashlib
 import json
 import os
 import re
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from custody_independence import collect_pr, require_independent
+from custody_independence import _safe_detail, collect_pr, require_independent
+from github_api_transport import open_github, read_bounded
 
 REPOSITORY = "baobab-platform/baobab-dev"
 DECISION_PATH = "security/decisions/development/foundation.json"
@@ -121,7 +123,20 @@ def validate_decision(decision, *, decision_pr, now=None):
 
 
 def api_request(token, method, path, payload=None, allowed_status=()):
-    url = path if path.startswith("https://") else API_ROOT + path
+    require(isinstance(path, str), "GitHub API path must be text")
+    if path.startswith("https://"):
+        parsed = urllib.parse.urlsplit(path)
+        require(parsed.scheme == "https" and parsed.hostname == "api.github.com"
+                and parsed.port in (None, 443)
+                and parsed.username is None and parsed.password is None,
+                "absolute GitHub API URL must target api.github.com over HTTPS")
+        url = path
+    else:
+        require(path.startswith("/") and not path.startswith("//")
+                and not urllib.parse.urlsplit(path).scheme
+                and not urllib.parse.urlsplit(path).netloc,
+                "GitHub API path must be a repository-relative API path")
+        url = API_ROOT + path
     data = None if payload is None else json.dumps(payload, separators=(",", ":")).encode()
     request = urllib.request.Request(url, data=data, method=method, headers={
         "Authorization": f"Bearer {token}",
@@ -131,23 +146,27 @@ def api_request(token, method, path, payload=None, allowed_status=()):
         "User-Agent": "baobab-dev-dev10-policy-provisioner",
     })
     try:
-        with urllib.request.urlopen(request, timeout=30) as response:
-            raw = response.read()
+        with open_github(request, timeout=30) as response:
+            raw = read_bounded(response)
             status = response.status
     except urllib.error.HTTPError as exc:
         if exc.code in allowed_status:
             return exc.code, None
         # Never include response bodies, which may contain sensitive metadata.
         raise ProvisioningError(f"GitHub API {method} returned HTTP {exc.code}") from exc
-    except (urllib.error.URLError, TimeoutError) as exc:
-        raise ProvisioningError(f"GitHub API {method} request failed") from exc
+    except ValueError as exc:
+        raise ProvisioningError(_safe_detail(str(exc), 180)) from exc
+    except urllib.error.URLError as exc:
+        raise ProvisioningError(f"GitHub API {method} transport failed") from exc
+    except TimeoutError as exc:
+        raise ProvisioningError(f"GitHub API {method} request timed out") from exc
     if status not in (200, 201, 204) and status not in allowed_status:
         raise ProvisioningError(f"GitHub API {method} returned HTTP {status}")
     if not raw:
         return status, None
     try:
         return status, json.loads(raw)
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ProvisioningError("GitHub API returned invalid JSON") from exc
 
 
@@ -453,7 +472,7 @@ def main():
         return 0
     except (ProvisioningError, OSError, ValueError, TypeError, KeyError,
             json.JSONDecodeError) as exc:
-        print(f"DEV-10 POLICY PROVISIONING DENIED: {exc}", file=sys.stderr)
+        print(f"DEV-10 POLICY PROVISIONING DENIED: {_safe_detail(str(exc), 600)}", file=sys.stderr)
         return 2
 
 

@@ -10,22 +10,33 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
 
 concurrency:
   group: dev10-protected-risk-policy-provisioning
   cancel-in-progress: false
 
 jobs:
-  provision:
-    name: Verify merged custody and provision exact policy hash
+  authorize:
+    name: Obtain existing human provisioning approval
     if: github.repository == 'baobab-platform/baobab-dev' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-26.04
-    timeout-minutes: 15
+    timeout-minutes: 5
     environment: dev10-security-policy-read
     permissions:
       contents: read
-      pull-requests: read
+    steps:
+      - name: Confirm the protected environment approval gate passed
+        run: echo "Existing human approval gate passed; continue to the isolated provisioning environment."
+
+  provision:
+    name: Verify merged custody and provision exact policy hash
+    needs: authorize
+    if: github.repository == 'baobab-platform/baobab-dev' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    environment: dev10-security-policy-provision
+    permissions:
+      contents: read
     steps:
       - name: Check out the default branch
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -45,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           [[ -n "$GH_TOKEN" ]] || {
-            echo "::error::Environment secret DEV10_POLICY_PROVISIONER_TOKEN is not configured."
+            echo "::error::Environment secret DEV10_POLICY_PROVISIONER_TOKEN is not configured in dev10-security-policy-provision."
             exit 2
           }
           python3 scripts/provision_protected_risk_policy.py \

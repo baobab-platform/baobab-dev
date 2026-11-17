@@ -96,15 +96,30 @@ The policy SHA-256 is computed over the exact final bytes of the merged
 `foundation.json`. The separately controlled
 `DEV10_PROTECTED_DECISION_SHA256` repository Actions variable is provisioned
 by the explicit `Provision DEV-10 development risk policy` workflow. The
-workflow is manual-dispatch-only, runs from `main`, and is gated by the
-existing `dev10-security-policy-read` environment's human approval. It
-requires the exact decision-PR head SHA as a dispatch input and the
-environment-scoped `DEV10_POLICY_PROVISIONER_TOKEN` secret.
+workflow is manual-dispatch-only and runs from `main`. It first pauses at the
+existing `dev10-security-policy-read` environment for human approval; that
+job receives no provisioning credential. Only after that gate succeeds does
+the provisioning job enter the separate `dev10-security-policy-provision`
+environment. That environment is the sole location for
+`DEV10_POLICY_PROVISIONER_TOKEN`, and only the provisioning job references
+it. Configure its deployment branch policy to allow `main` only, and move
+the existing fine-grained token secret out of
+`dev10-security-policy-read` into this dedicated environment. The workflow
+also checks that it is running in the canonical repository on `refs/heads/main`.
+It requires the exact decision-PR head SHA as a dispatch input.
 
-The provisioner uses a fine-grained token restricted to this repository with
-`Variables: read/write`, `Contents: read`, `Pull requests: read`, `Issues: read`
-and `Metadata: read`. It does not use a broad classic PAT. The token is never
-printed or written to an artifact. The configured
+The fine-grained token is restricted to this repository with `Variables:
+read/write`, `Contents: read`, `Pull requests: read`, `Issues: read` and
+`Metadata: read`. Repository variables require the distinct `Variables`
+permission; the workflow `GITHUB_TOKEN` permission model does not provide
+that permission, so substituting `Actions: write` would not authorize this
+write. Ensure `DEV10_SECURITY_APPROVER_LOGINS` is available to the new
+provisioning job as a repository variable or as a variable on the dedicated
+provisioning environment; an environment-scoped variable on the approval-only
+environment is not inherited. The token is never printed or written to an artifact. A short-lived
+GitHub App installation token would be preferable, but no configured
+repository app/token issuer is part of this accepted implementation; that
+migration is deferred rather than represented as complete. The configured
 `DEV10_SECURITY_APPROVER_LOGINS` variable resolves trusted reviewer logins to
 immutable numeric GitHub IDs.
 
@@ -126,15 +141,17 @@ decision PR/head/merge commit, reviewer numeric ID, review ID and approval
 timestamp. The proposal file is never hashed as an authority.
 
 
-The provisioner also verifies owner concurrence on this exact decision PR
-from the accountable owner's immutable numeric GitHub ID (49340314), rather
-than trusting the PR description. The comment must be created and last edited
-before merge; the receipt records its ID and timestamp. The preparer login is
-display metadata; the numeric preparer ID is the identity key, so account
-renames do not break custody verification.
+The provisioner also verifies attributable owner concurrence on this exact
+decision PR from the accountable owner's immutable numeric GitHub ID
+(49340314), rather than trusting the PR description. The comment must be
+created and last edited before merge; the receipt records its ID and
+timestamp. This is an accountability/attribution record, not an independent
+approval and not a substitute for the trusted reviewer check. The preparer
+login is display metadata; the numeric preparer ID is the identity key, so
+account renames do not break custody verification.
 The policy remains inactive while the active file, exact hash, trusted
-reviewer configuration, provisioning credential or custody evidence is
-missing. The decision PR carries `record_type: proposed_approved_form` to
+reviewer configuration, dedicated environment credential, token permissions
+or custody evidence is missing. The decision PR carries `record_type: proposed_approved_form` to
 distinguish the candidate record from an effective decision. Its
 `status: approved` expresses the intended decision state only; no operator or
 workflow may treat that field alone as proof of approval or activation.

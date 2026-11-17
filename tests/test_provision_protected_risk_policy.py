@@ -25,6 +25,150 @@ TRUSTED = {356890520: "sknabusiu"}
 AUTHOR = 350241706
 
 
+class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
+    def test_graphql_errors_include_bounded_safe_message_type_and_path(self):
+        from custody_independence import CustodyError, _graphql
+        response = {"errors": [{
+            "message": "Resource not accessible by integration",
+            "type": "FORBIDDEN",
+            "path": ["repository", "pullRequest", "github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"],
+            "extensions": {"secret": "must-not-appear"},
+        }]}
+        with patch("github_api_transport._OPENER.open") as urlopen:
+            urlopen.return_value.__enter__.return_value.read.return_value = (
+                provisioner.json.dumps(response).encode()
+            )
+            with self.assertRaises(CustodyError) as caught:
+                _graphql("not-a-real-token", "query { viewer { login } }", {})
+        message = str(caught.exception)
+        self.assertIn("Resource not accessible by integration", message)
+        self.assertIn("FORBIDDEN", message)
+        self.assertIn("repository.pullRequest", message)
+        self.assertNotIn("github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ", message)
+        self.assertNotIn("must-not-appear", message)
+        self.assertNotIn("not-a-real-token", message)
+
+    def test_http_error_reports_status_and_github_message_not_raw_body(self):
+        import io
+        from custody_independence import CustodyError, _graphql
+        body = provisioner.json.dumps({
+            "message": "Resource not accessible by integration",
+            "documentation_url": "https://example.invalid/private",
+        }).encode()
+        error = provisioner.urllib.error.HTTPError(
+            "https://api.github.com/graphql", 403, "Forbidden", {}, io.BytesIO(body)
+        )
+        with patch("github_api_transport._OPENER.open", side_effect=error):
+            with self.assertRaises(CustodyError) as caught:
+                _graphql("not-a-real-token", "query { viewer { login } }", {})
+        self.assertIn("HTTP 403", str(caught.exception))
+        self.assertIn("Resource not accessible by integration", str(caught.exception))
+        self.assertNotIn("documentation_url", str(caught.exception))
+        self.assertNotIn("not-a-real-token", str(caught.exception))
+
+    def test_sanitizer_redacts_github_token_formats(self):
+        from custody_independence import _safe_detail
+        detail = _safe_detail(
+            "Bearer abc123 github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        )
+        self.assertNotIn("abc123", detail)
+        self.assertNotIn("github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ", detail)
+        self.assertIn("[REDACTED]", detail)
+        self.assertIn("[REDACTED_GITHUB_TOKEN]", detail)
+
+    def test_provisioner_error_handler_reports_original_error(self):
+        import contextlib
+        import io
+        import os
+        argv = ["provisioner", "--expected-head-sha", "a" * 40]
+        stderr = io.StringIO()
+        with patch.object(provisioner.sys, "argv", argv), \
+             patch.dict(os.environ, {"GH_TOKEN": "test-token", "GITHUB_REF": "refs/heads/main", "GITHUB_REPOSITORY": "baobab-platform/baobab-dev"}), \
+             patch.object(provisioner.Path, "read_bytes", side_effect=OSError("simulated file read failure")), \
+             contextlib.redirect_stderr(stderr):
+            result = provisioner.main()
+        self.assertEqual(result, 2)
+        self.assertIn("simulated file read failure", stderr.getvalue())
+        self.assertNotIn("NameError", stderr.getvalue())
+
+    def test_graphql_timeout_fails_closed_with_specific_diagnostic(self):
+        from custody_independence import CustodyError, _graphql
+        with patch("github_api_transport._OPENER.open", side_effect=TimeoutError()):
+            with self.assertRaisesRegex(CustodyError, "timed out"):
+                _graphql("token", "query { viewer { login } }", {})
+
+    def test_graphql_invalid_json_fails_closed_without_echoing_body(self):
+        from custody_independence import CustodyError, _graphql
+        with patch("github_api_transport._OPENER.open") as urlopen:
+            urlopen.return_value.__enter__.return_value.read.return_value = b"not-json-secret"
+            with self.assertRaises(CustodyError) as caught:
+                _graphql("token", "query { viewer { login } }", {})
+        self.assertIn("invalid JSON", str(caught.exception))
+        self.assertNotIn("not-json-secret", str(caught.exception))
+
+    def test_http_malformed_body_reports_status_without_echoing_body(self):
+        import io
+        from custody_independence import CustodyError, _graphql
+        error = provisioner.urllib.error.HTTPError(
+            "https://api.github.com/graphql", 502, "Bad Gateway", {},
+            io.BytesIO(b"upstream-secret-body"),
+        )
+        with patch("github_api_transport._OPENER.open", side_effect=error):
+            with self.assertRaises(CustodyError) as caught:
+                _graphql("token", "query { viewer { login } }", {})
+        self.assertIn("HTTP 502", str(caught.exception))
+        self.assertNotIn("upstream-secret-body", str(caught.exception))
+
+    def test_graphql_secret_bearing_error_fields_are_redacted(self):
+        from custody_independence import CustodyError, _graphql
+        response = {"errors": [{
+            "message": "authorization: supersecret github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
+            "type": "token=anothersecret",
+            "path": ["repository", {"secret": "must-not-appear"}],
+            "extensions": {"secret": "must-not-appear"},
+        }]}
+        with patch("github_api_transport._OPENER.open") as urlopen:
+            urlopen.return_value.__enter__.return_value.read.return_value = (
+                provisioner.json.dumps(response).encode()
+            )
+            with self.assertRaises(CustodyError) as caught:
+                _graphql("not-a-real-token", "query { viewer { login } }", {})
+        message = str(caught.exception)
+        self.assertIn("repository", message)
+        self.assertNotIn("supersecret", message)
+        self.assertNotIn("anothersecret", message)
+        self.assertNotIn("github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ", message)
+        self.assertNotIn("must-not-appear", message)
+
+    def test_graphql_error_path_is_bounded_and_ignores_non_scalar_components(self):
+        from custody_independence import _graphql_error_summary
+        path = ["x" * 100 for _ in range(8)] + [{"secret": "never-render"}]
+        message = _graphql_error_summary([{"message": "bad query", "path": path}])
+        self.assertLessEqual(len(message), 520)
+        self.assertNotIn("never-render", message)
+
+    def test_malformed_graphql_error_shape_fails_closed_with_diagnostic(self):
+        from custody_independence import CustodyError, _graphql
+        with patch("github_api_transport._OPENER.open") as urlopen:
+            urlopen.return_value.__enter__.return_value.read.return_value = b'{"errors":{}}'
+            with self.assertRaisesRegex(CustodyError, "invalid errors field"):
+                _graphql("token", "query { viewer { login } }", {})
+
+
+    def test_unknown_github_error_messages_are_not_echoed(self):
+        from custody_independence import _graphql_error_summary
+        message = _graphql_error_summary([{
+            "message": "authorization=runtime-secret-should-never-appear",
+            "type": "UNRECOGNIZED_SECRET_TYPE",
+            "path": ["repository", "token=runtime-secret"],
+        }])
+        self.assertIn("unrecognized GitHub error", message)
+        self.assertIn("repository", message)
+        self.assertNotIn("runtime-secret", message)
+        self.assertNotIn("UNRECOGNIZED_SECRET_TYPE", message)
+        self.assertNotIn("token=", message)
+
+
 class DecisionContractTests(unittest.TestCase):
     def test_exact_candidate_record_is_accepted_for_provisioning(self):
         result = provisioner.validate_decision(
@@ -322,6 +466,7 @@ class ImageScanScopeTests(unittest.TestCase):
         for path in (
             "scripts/provision_protected_risk_policy.py",
             "scripts/custody_independence.py",
+            "scripts/github_api_transport.py",
         ):
             self.assertLess(workflow.index(path), broad_scripts_match)
             self.assertIn('!'+path, publish)
@@ -362,6 +507,95 @@ class RepositoryVariableTests(unittest.TestCase):
         ]):
             with self.assertRaises(provisioner.ProvisioningError):
                 provisioner.provision_variable("token", self.HASH)
+
+
+class ProvisioningWorkflowSecurityTests(unittest.TestCase):
+    def test_write_credential_is_isolated_from_human_approval_environment(self):
+        workflow = (ROOT / ".github/workflows/provision-dev10-risk-policy.yml").read_text()
+        authorize, provision = workflow.split("  provision:", 1)
+        self.assertIn("environment: dev10-security-policy-read", authorize)
+        self.assertNotIn("DEV10_POLICY_PROVISIONER_TOKEN", authorize)
+        self.assertIn("needs: authorize", provision)
+        self.assertIn("environment: dev10-security-policy-provision", provision)
+        self.assertIn("GH_TOKEN: $" + "{{ secrets.DEV10_POLICY_PROVISIONER_TOKEN }}", provision)
+        self.assertIn("github.ref == 'refs/heads/main'", provision)
+        self.assertNotIn("actions: write", workflow)
+
+
+class TransportHardeningTests(unittest.TestCase):
+    def test_sanitizer_redacts_basic_json_credentials_urls_and_jwts(self):
+        import base64
+        from custody_independence import _safe_detail
+        basic = base64.b64encode(b"user:pw").decode()
+        token_value = "alpha" + "bravo" + "charlie" + "1234567890"
+        password_value = "pass" + "phrase" + "1234567890"
+        github_token = "gh" + "p_" + ("A" * 40)
+        jwt_header = base64.urlsafe_b64encode(b'{"alg":"HS256"}').decode().rstrip("=")
+        jwt_payload = base64.urlsafe_b64encode(b'{"sub":"user"}').decode().rstrip("=")
+        jwt = jwt_header + "." + jwt_payload + "." + ("S" * 24)
+        userinfo = "alice" + ":" + "pw" + "@"
+        hostile = (
+            "Authorization: Basic " + basic + " "
+            + provisioner.json.dumps({"token": token_value, "password": password_value}) + " "
+            + "X_TOKEN_" + github_token + " "
+            + "https://" + userinfo + "example.invalid/path " + jwt
+        )
+        safe = _safe_detail(hostile)
+        for secret in (basic, token_value, password_value, github_token, userinfo, jwt_header):
+            self.assertNotIn(secret, safe)
+        self.assertIn("[REDACTED_JWT]", safe)
+
+    def test_sanitizer_removes_ansi_nul_and_bidi_controls_and_command_prefix(self):
+        from custody_independence import _safe_detail
+        safe = _safe_detail("::error::bad\\x1b[31m\\x00\\u202equery")
+        self.assertNotIn("\\x1b", safe)
+        self.assertNotIn("\\x00", safe)
+        self.assertNotIn("\\u202e", safe)
+        self.assertFalse(safe.startswith("::"))
+
+    def test_github_transport_rejects_cross_origin_redirect(self):
+        import urllib.error
+        import urllib.request
+        from github_api_transport import _SameHostRedirect
+        request = urllib.request.Request(
+            "https://api.github.com/graphql",
+            headers={"Authorization": "Bearer test-secret"},
+        )
+        with self.assertRaises(urllib.error.HTTPError):
+            _SameHostRedirect().redirect_request(
+                request, None, 302, "Found", {}, "https://attacker.invalid/collect"
+            )
+
+    def test_github_transport_rejects_non_api_initial_destination(self):
+        import urllib.request
+        from github_api_transport import open_github
+        request = urllib.request.Request(
+            "https://attacker.invalid/collect",
+            headers={"Authorization": "Bearer test-secret"},
+        )
+        with self.assertRaisesRegex(ValueError, "api.github.com"):
+            open_github(request)
+
+    def test_github_transport_rejects_oversized_response(self):
+        from github_api_transport import read_bounded
+        class OversizedResponse:
+            def read(self, amount):
+                self.amount = amount
+                return b"x" * amount
+        response = OversizedResponse()
+        with self.assertRaisesRegex(ValueError, "1 MiB"):
+            read_bounded(response)
+        self.assertEqual(response.amount, 1_048_577)
+
+    def test_provisioner_rejects_arbitrary_absolute_api_url_before_network(self):
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "must target api.github.com"):
+            provisioner.api_request(
+                "test-secret", "GET", "https://attacker.invalid/steal"
+            )
+
+    def test_provisioner_rejects_network_path_reference(self):
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "repository-relative"):
+            provisioner.api_request("test-secret", "GET", "//attacker.invalid/steal")
 
 
 if __name__ == "__main__":
