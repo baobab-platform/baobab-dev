@@ -547,10 +547,10 @@ class TransportHardeningTests(unittest.TestCase):
 
     def test_sanitizer_removes_ansi_nul_and_bidi_controls_and_command_prefix(self):
         from custody_independence import _safe_detail
-        safe = _safe_detail("::error::bad\\x1b[31m\\x00\\u202equery")
-        self.assertNotIn("\\x1b", safe)
-        self.assertNotIn("\\x00", safe)
-        self.assertNotIn("\\u202e", safe)
+        safe = _safe_detail("::error::bad\x1b[31m\x00\u202equery")
+        self.assertNotIn("\x1b", safe)
+        self.assertNotIn("\x00", safe)
+        self.assertNotIn("\u202e", safe)
         self.assertFalse(safe.startswith("::"))
 
     def test_github_transport_rejects_cross_origin_redirect(self):
