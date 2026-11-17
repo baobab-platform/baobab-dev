@@ -77,6 +77,7 @@ def attest(
             raise EvidenceError("approved deployment review has no reviewer identity")
         reviewer_type = reviewer.get("type")
         if reviewer_type == "Bot":
+            # Automation/wait-timer records are not independent approvals.
             continue
         if reviewer_type != "User":
             raise EvidenceError("approved deployment reviewer is not a typed GitHub User")
@@ -90,7 +91,14 @@ def attest(
         raise EvidenceError(
             "no independent human-approved deployment review for protected environment"
         )
-    reviewer_id = sorted(approved)[0]
+    # More than one independent reviewer may be present. Preserve every
+    # eligible immutable ID instead of silently discarding all but the lowest.
+    # This is evidence, not a declaration that a GitHub User is a human.
+    reviewers = [
+        {"reviewer_id": reviewer_id,
+         "reviewer_logins": sorted(logins, key=str.casefold)}
+        for reviewer_id, logins in sorted(approved.items())
+    ]
     return {
         "schema": "dev10.promotion-approval.v2",
         "environment": ENVIRONMENT,
@@ -99,10 +107,8 @@ def attest(
         "tag": tag,
         "initiator": {"id": actor_id, "login": actor},
         "triggering_actor": {"id": triggering_actor_id, "login": triggering_actor},
-        "approval": {
-            "reviewer_id": reviewer_id,
-            "reviewer_logins": sorted(approved[reviewer_id], key=str.casefold),
-        },
+        "approval": reviewers[0],
+        "eligible_approvals": reviewers,
     }
 
 
