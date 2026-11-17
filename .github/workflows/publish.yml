@@ -1962,7 +1962,10 @@ jobs:
           set -euo pipefail
           [[ "$ORIGINAL_ACTOR_ID" =~ ^[1-9][0-9]*$ ]]
           [[ -n "$ORIGINAL_ACTOR_LOGIN" && -n "$TRIGGERING_ACTOR_LOGIN" ]]
-          TRIGGERING_ACTOR_ID="$(gh api "users/$TRIGGERING_ACTOR_LOGIN" --jq .id)"
+          # Require the account's REST type as well as its immutable numeric ID.
+          # An untyped or non-User triggering actor cannot establish custody.
+          TRIGGERING_ACTOR_ID="$(gh api "users/$TRIGGERING_ACTOR_LOGIN" \
+            --jq 'select(.type == "User" and (.id | type) == "number" and .id > 0) | .id')"
           [[ "$TRIGGERING_ACTOR_ID" =~ ^[1-9][0-9]*$ ]]
           mkdir -p "$RUNNER_TEMP/r5-promotion-evidence"
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/approvals" > "$RUNNER_TEMP/promotion-approvals.json"
