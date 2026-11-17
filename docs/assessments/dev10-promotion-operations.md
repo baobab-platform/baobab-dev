@@ -17,6 +17,13 @@ a rerun initiated by the original approver or a different self-reviewing actor
 from being mistaken for independent approval. Login values are retained only
 as display metadata; identity comparison uses numeric IDs.
 
+The evidence retains a deterministic primary `approval` for compatibility and an
+`eligible_approvals` array of every independently eligible numeric reviewer ID,
+deduplicated by ID. A GitHub REST `User` type establishes an account type,
+**not** proof that the account is a human rather than a machine user. The
+protected GitHub Environment and independent reviewer governance remain
+necessary; do not interpret this evidence as human identity verification.
+
 The minimal JSON evidence records the reviewer numeric ID and all observed login aliases, original actor ID/login,
 triggering actor ID/login, run ID, current attempt, tag and environment.
 GitHub's deployment-approvals response does not provide a trustworthy
