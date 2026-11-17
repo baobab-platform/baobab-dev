@@ -19,8 +19,36 @@ def select_qualified_rc_run(data: dict, ga_tag: str, source_sha: str) -> dict:
         raise QualifiedRunSelectionError("GA selection requires a canonical stable release tag")
     if not re.fullmatch(r"[a-f0-9]{40}", source_sha):
         raise QualifiedRunSelectionError("GA source SHA must be a full lowercase commit SHA")
-    runs = data.get("workflow_runs") if isinstance(data, dict) else None
-    if not isinstance(runs, list):
+    # The workflow API is fetched with gh api --paginate --slurp.  Its
+    # JSON shape is an array of response pages; validate the shared total_count
+    # and require every reported run to be present before selecting anything.
+    if isinstance(data, list):
+        pages = data
+        if not pages:
+            raise QualifiedRunSelectionError("workflow-runs pagination returned no pages")
+        totals = []
+        for page in pages:
+            if not isinstance(page, dict) or not isinstance(page.get("workflow_runs"), list):
+                raise QualifiedRunSelectionError("invalid workflow-runs page")
+            total = page.get("total_count")
+            if isinstance(total, bool) or not isinstance(total, int) or total < 0:
+                raise QualifiedRunSelectionError("workflow-runs page has no valid total_count")
+            totals.append(total)
+        if len(set(totals)) != 1:
+            raise QualifiedRunSelectionError("workflow-runs pagination totals disagree")
+        runs = [run for page in pages for run in page["workflow_runs"]]
+        if len(runs) != totals[0]:
+            raise QualifiedRunSelectionError(
+                f"incomplete workflow-runs pagination: observed {len(runs)}, expected {totals[0]}")
+    elif isinstance(data, dict) and isinstance(data.get("workflow_runs"), list):
+        # Retain the pure selector's single-page input for focused unit tests
+        # and callers that already supply a complete response.
+        runs = data["workflow_runs"]
+        total = data.get("total_count")
+        if total is not None and (isinstance(total, bool) or not isinstance(total, int)
+                                  or total != len(runs)):
+            raise QualifiedRunSelectionError("single-page workflow-runs response is incomplete")
+    else:
         raise QualifiedRunSelectionError("workflow-runs response is missing workflow_runs")
     rc_pattern = re.compile(re.escape(ga_tag) + r"-rc\.[1-9][0-9]*")
     candidates = []
