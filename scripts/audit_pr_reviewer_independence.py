@@ -11,7 +11,16 @@ import re
 import subprocess
 import urllib.request
 
-from custody_independence import collect_pr, require_independent, uid, IndependenceError
+from custody_independence import collect_pr, require_independent, CustodyError
+
+IndependenceError = CustodyError
+
+
+def uid(node):
+    value = (node or {}).get("databaseId")
+    if type(value) is not int or value <= 0:
+        raise CustodyError("unresolved numeric GitHub user identity")
+    return value
 
 
 def fetch(url, token):
@@ -78,7 +87,7 @@ def audit(token, number):
     ).stdout.splitlines()
     if len(revision_list) != expected_count or not revision_list or head not in revision_list:
         raise IndependenceError("local full-history commit range differs from GitHub PR metadata")
-    author_id, contributors = collect_pr(token, number, head, revision_list)
+    author_id, contributors = collect_pr(token, number, head)
     api_author_id = uid({"databaseId": (pull.get("user") or {}).get("id")})
     if author_id != api_author_id:
         raise IndependenceError("REST and GraphQL PR author identities disagree")
