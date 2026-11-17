@@ -21,7 +21,12 @@ class _SameHostRedirect(urllib.request.HTTPRedirectHandler):
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         old = _validate_api_url(req.full_url)
-        new = _validate_api_url(newurl)
+        try:
+            new = _validate_api_url(newurl)
+        except ValueError as exc:
+            raise urllib.error.HTTPError(
+                newurl, code, "cross-origin GitHub API redirect refused", headers, fp
+            ) from exc
         if (old.scheme, old.hostname, old.port or 443) != (
                 new.scheme, new.hostname, new.port or 443):
             raise urllib.error.HTTPError(
