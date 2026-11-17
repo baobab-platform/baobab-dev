@@ -51,10 +51,12 @@ evidence URL is not, by itself, authentication.
 The provisioner verifies the merged PR, exact head, author/preparer numeric
 identity, changed decision path, latest effective exact-head APPROVED review,
 trusted reviewer numeric ID, complete commit author/co-author/committer
-independence, merge ancestry and byte-for-byte equality between the approved
-PR-head file and current main. It hashes the exact current main bytes only
-after those checks. The variable is create-only and idempotent: the same hash
-is accepted, but a different existing hash is never overwritten.
+independence, attributable owner concurrence from numeric owner ID 49340314
+(created and last edited before merge), merge ancestry and byte-for-byte
+equality between the approved PR-head file and current main. It hashes the
+exact current main bytes only after those checks. The variable is create-only
+and idempotent: the same hash is accepted, but a different existing hash is
+never overwritten.
 
 The workflow uses an environment-scoped fine-grained token named
 `DEV10_POLICY_PROVISIONER_TOKEN` with repository permissions limited to
