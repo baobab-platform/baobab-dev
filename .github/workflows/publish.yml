@@ -2232,7 +2232,8 @@ jobs:
                 --output "$RUNNER_TEMP/security-$target-${architecture#linux/}.json" "$image@$child"
               python3 scripts/verify_digest_security_decision.py \
                 --report "$RUNNER_TEMP/security-$target-${architecture#linux/}.json" \
-                --target "$target" --digest "$child" --release-tag "$RELEASE_TAG"
+                --target "$target" --digest "$child" --release-tag "$RELEASE_TAG" \
+                --image-repository "$image" --architecture "$architecture"
             done
             bash scripts/verify-image.sh "$image@$digest" "$verification_tag"
             echo "::notice::Promotion precheck: $target digest $digest verified"
