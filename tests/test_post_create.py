@@ -40,6 +40,10 @@ fi
   [ "$COREPACK_ENABLE_NETWORK" = "1" ] || exit 43
   [ "$COREPACK_ON_UNVERIFIED_DOWNLOAD" = "error" ] || exit 44
   [ "$COREPACK_ENABLE_DOWNLOAD_PROMPT" = "0" ] || exit 45
+  [ "$COREPACK_ENV_FILE" = "0" ] || exit 61
+  [ "$COREPACK_ENABLE_PROJECT_SPEC" = "1" ] || exit 62
+  [ "$COREPACK_ENABLE_STRICT" = "1" ] || exit 63
+  [ "$COREPACK_ENABLE_AUTO_PIN" = "0" ] || exit 64
   [ -z "${COREPACK_INTEGRITY_KEYS+x}" ] || exit 46
   [ "$FAIL_TOOL" != "corepack" ] || exit 47
   : > "$COREPACK_HOME/package-manager-ready"
@@ -51,6 +55,10 @@ if [ "$1" = "pnpm" ]; then
   [ -d "$COREPACK_HOME" ] || exit 49
   [ "$COREPACK_ON_UNVERIFIED_DOWNLOAD" = "error" ] || exit 51
   [ "$COREPACK_ENABLE_DOWNLOAD_PROMPT" = "0" ] || exit 52
+  [ "$COREPACK_ENV_FILE" = "0" ] || exit 65
+  [ "$COREPACK_ENABLE_PROJECT_SPEC" = "1" ] || exit 66
+  [ "$COREPACK_ENABLE_STRICT" = "1" ] || exit 67
+  [ "$COREPACK_ENABLE_AUTO_PIN" = "0" ] || exit 68
   [ -z "${COREPACK_INTEGRITY_KEYS+x}" ] || exit 53
   if [ "$1" = "--version" ]; then
     [ -f "$COREPACK_HOME/package-manager-ready" ] || exit 54
@@ -173,6 +181,23 @@ fi
         self.assertNotEqual(0, r.returncode)
         self.assertNotIn('corepack pnpm install --frozen-lockfile', trace)
         self.assertNotIn('pnpm install --frozen-lockfile', trace)
+
+    def test_project_pnpm_ignores_project_corepack_env_overrides(self):
+        files = {
+            'package.json': json.dumps({'packageManager': 'pnpm@12.21.0'}),
+            'pnpm-lock.yaml': '',
+            '.corepack.env': (
+                'COREPACK_ENABLE_PROJECT_SPEC=0\\n'
+                'COREPACK_ENABLE_STRICT=0\\n'
+                'COREPACK_ENABLE_AUTO_PIN=1\\n'
+                'COREPACK_ENABLE_NETWORK=1\\n'
+                'COREPACK_ON_UNVERIFIED_DOWNLOAD=ignore\\n'
+            ),
+        }
+        r, trace = self.run_case(files)
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+        self.assertIn('corepack install', trace)
+        self.assertIn('corepack pnpm install --frozen-lockfile', trace)
 
     def test_root_pnpm_workspace_requires_declared_frontend_membership(self):
         files = {
