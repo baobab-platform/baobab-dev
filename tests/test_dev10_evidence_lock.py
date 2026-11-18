@@ -31,6 +31,8 @@ class EvidenceLockTests(unittest.TestCase):
         self.assertEqual(stable["index_digest"], "sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed")
         self.assertEqual(stable["signer_tag"], "v1.5.1-rc.2")
         self.assertEqual(lock.binary_manifest_sha256, "688453ae46c07ec19b3bf6734eb2f23b0dfe5625c16d76d75149b8194da91fa3")
+        self.assertEqual(lock.binary_manifest_path_count, 1102)
+        self.assertEqual(lock.header_count, 1039)
         self.assertEqual(lock.historical_inventory_count, 295)
         self.assertEqual(lock.historical_package_version, "7.0.0-42.42")
         self.assertEqual(len(lock.observed_kernel_cves), 11)
