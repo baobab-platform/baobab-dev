@@ -33,6 +33,7 @@ class EvidenceLock:
     header_count: int
     binary_manifest_path_count: int
     stable_profile_images: dict[str, dict]
+    stable_image_readback: dict
     historical_inventory_path: str
     historical_inventory_sha256: str
     historical_inventory_count: int
@@ -82,6 +83,7 @@ class EvidenceLock:
             header_count=manifest["header_count"],
             binary_manifest_path_count=manifest["path_count"],
             stable_profile_images=data.get("stable_profile_images", {}),
+            stable_image_readback=stable.get("independent_readback", {}),
             historical_inventory_path=data["historical_295_inventory"]["path"],
             historical_inventory_sha256=data["historical_295_inventory"]["sha256"],
             historical_inventory_count=data["historical_295_inventory"]["count"],
@@ -188,6 +190,30 @@ class EvidenceLock:
                     or not isinstance(image.get("ga_reuse_run_id"), int)
                     or not isinstance(image.get("signer_run_id"), int)):
                 raise ValueError(f"historical GHCR {profile} image digest or provenance identity is not locked")
+        readback = lock.stable_image_readback
+        if (readback.get("status") != "STRICT_SIGNED_NATIVE_CONTENT_VERIFIED"
+                or readback.get("release_tag") != stable.get("release_tag")
+                or readback.get("signer_tag") != stable.get("signer_tag")
+                or readback.get("source_sha") != stable.get("source_sha")
+                or not isinstance(readback.get("run_id"), int)
+                or readback.get("release_qualification") is not False
+                or readback.get("image_signature_count") != 5
+                or readback.get("signed_slsa_statements") != 2
+                or readback.get("signed_spdx_statements") != 2):
+            raise ValueError("historical GHCR independent readback is incomplete or over-claims qualification")
+        readback_profiles = readback.get("profiles", {})
+        if set(readback_profiles) != expected_profiles:
+            raise ValueError("historical GHCR readback must cover all four profiles")
+        for profile, proof in readback_profiles.items():
+            image = lock.stable_profile_images[profile]
+            children = proof.get("native_child_digests", {})
+            if (proof.get("index_digest") != image.get("index_digest")
+                    or not isinstance(proof.get("artifact_id"), int)
+                    or not SHA256.fullmatch(proof.get("artifact_sha256", ""))
+                    or set(children) != {"linux/amd64", "linux/arm64"}
+                    or any(not re.fullmatch(r"sha256:[a-f0-9]{64}", digest)
+                           for digest in children.values())):
+                raise ValueError(f"historical GHCR {profile} readback is not bound to its locked index and native children")
         final_image = lock.stable_profile_images["final"]
         if (final_image["image_tag"] != stable["image_tag"]
                 or final_image["index_digest"] != stable["index_digest"]):
