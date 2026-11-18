@@ -187,6 +187,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
       - name: A failed final verifier must fail the actual container lifecycle
+        if: matrix.profile == 'final' && matrix.architecture == 'amd64'
         env:
           IMAGE_REF: ${{ steps.stable-image.outputs.image_ref }}
         run: |
