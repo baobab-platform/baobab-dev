@@ -30,6 +30,11 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         self.assertIn("cancel-in-progress: ${{ github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/') }}", text)
         self.assertNotIn("-e HOME=/tmp/dev10-home", text)
         self.assertIn('docker run --rm -e EXPECTED_PROFILE=', text)
+        self.assertIn('if "${{ matrix.profile }}" == "frontend-e2e"; then', text)
+        self.assertIn('docker run --rm --user 0:0', text)
+        self.assertIn('cp -a "$browser_source/." /evidence/browser-cache/', text)
+        self.assertIn('chmod -R a+rX /evidence/browser-cache', text)
+        self.assertIn('-e PLAYWRIGHT_BROWSERS_PATH=/evidence/browser-cache', text)
 
     def test_profile_contracts_and_historical_verifier_status_are_explicit(self):
         script = SCRIPT.read_text(encoding="utf-8")
@@ -39,6 +44,7 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         self.assertIn('if [[ "$BUILD_PROFILE" != "infra" ]]', script)
         self.assertIn('"HISTORICAL_BASELINE_UNQUALIFIED"', script)
         self.assertIn('"playwright_chromium_verified"', script)
+        self.assertNotIn('python3 - "$verify_log"', script)
         self.assertIn('"image_ref": "$IMAGE_REF"', script)
         self.assertIn('baobab-dev@sha256:[a-f0-9]{64}', script)
         for profile in ("final", "frontend", "frontend-e2e", "infra"):
