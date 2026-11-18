@@ -82,6 +82,37 @@ class DevelopmentRiskDecisionRecordTests(unittest.TestCase):
         self.assertNotIn("approved_at", proposal)
         self.assertNotIn("approved_by_id", proposal)
 
+    def test_twelve_finding_schema_requires_evidence_lock_but_legacy_eight_does_not(self):
+        condition = next(
+            item for item in self.schema["allOf"]
+            if item.get("if", {}).get("properties", {}).get("finding_count") == {"const": 12}
+        )
+        self.assertIn("evidence_lock_sha256", condition["then"]["required"])
+        eight = {
+            "schema_version": 2,
+            "record_type": "proposed_approved_form",
+            "status": "approved",
+            "revoked_at": None,
+            "repository": "baobab-platform/baobab-dev",
+            "image_repository": "ghcr.io/baobab-platform/baobab-dev",
+            "environment": "development",
+            "execution_scope": {
+                "pull_request_base": "main",
+                "push_ref": "refs/heads/main",
+                "pull_request_head_repository": "baobab-platform/baobab-dev",
+            },
+            "profiles": ["final", "frontend", "frontend-e2e", "infra"],
+            "architectures": ["linux/amd64", "linux/arm64"],
+            "prepared_by": "reviewed",
+            "prepared_by_id": 1,
+            "approval_evidence": "https://github.com/baobab-platform/baobab-dev/pull/1",
+            "expires_at": "2026-11-26T00:00:00Z",
+            "findings": [],
+            "finding_count": 8,
+            "notes": "legacy eight-finding record",
+        }
+        self.assertNotIn("evidence_lock_sha256", eight)
+
     def test_approved_schema_requires_numeric_preparer_identity(self):
         approved = self.schema["allOf"][0]["then"]["properties"]
         self.assertEqual(approved["prepared_by_id"]["type"], "integer")
@@ -93,7 +124,8 @@ class DevelopmentRiskDecisionRecordTests(unittest.TestCase):
         if not DECISION_PATH.exists():
             self.skipTest("The final record is introduced by the separate decision PR")
         decision = json.loads(DECISION_PATH.read_text())
-        self.assertEqual(set(decision), set(self.schema["properties"]))
+        self.assertTrue(set(self.schema["required"]).issubset(decision))
+        self.assertTrue(set(decision).issubset(self.schema["properties"]))
         self.assertEqual(decision["schema_version"], 2)
         self.assertEqual(decision["record_type"], "proposed_approved_form")
         self.assertEqual(decision["status"], "approved")
@@ -105,6 +137,10 @@ class DevelopmentRiskDecisionRecordTests(unittest.TestCase):
         self.assertEqual(set(decision["architectures"]), {"linux/amd64", "linux/arm64"})
         self.assertEqual(decision["expires_at"], "2026-11-26T00:00:00Z")
         self.assertEqual(decision["finding_count"], len(decision["findings"]))
+        if decision["finding_count"] == 12:
+            self.assertRegex(decision["evidence_lock_sha256"], r"^[a-f0-9]{64}$")
+        else:
+            self.assertNotIn("evidence_lock_sha256", decision)
         observed_cves = {item["cve"] for item in decision["findings"]}
         self.assertIn(decision["finding_count"], {8, 12})
         if decision["finding_count"] == 8:
