@@ -96,6 +96,7 @@ jobs:
             --vendor docs/assessments/dev10-canonical-cve-status-20261030.tsv \
             --manifest "$RUNNER_TEMP/kernel-evidence/installed-paths.txt" \
             --upstream-sha "$UPSTREAM_SHA" \
+            --binary-package-version "$UBUNTU_KERNEL_RELEASE" \
             --upstream-root "$UPSTREAM_ROOT" \
             --output "$RUNNER_TEMP/kernel-evidence/affected-source-files.json"
           python3 - "$RUNNER_TEMP/kernel-evidence/affected-source-files.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
