@@ -99,10 +99,12 @@ def compare(args: argparse.Namespace) -> dict:
                         item for item in matches
                         if item["kind"] == "file" and item["value"] == source_sha256
                     ]
-                    classification = (
-                        "EXPORTED_UAPI_FILE_CONTENT_MATCH"
-                        if file_matches else "EXPORTED_UAPI_PATH_PRESENT_CONTENT_DIFFERS_OR_IS_GENERATED"
-                    )
+                    if file_matches:
+                        classification = "EXPORTED_UAPI_FILE_CONTENT_MATCH"
+                    elif any(item["kind"] == "symlink" for item in matches):
+                        classification = "EXPORTED_UAPI_PATH_PRESENT_AS_SYMLINK"
+                    else:
+                        classification = "EXPORTED_UAPI_PATH_PRESENT_CONTENT_DIFFERS_OR_IS_GENERATED"
                 elif candidates:
                     classification = "UAPI_SOURCE_PATH_NOT_FOUND_IN_BINARY_MANIFEST"
                 elif source_path.endswith(".h"):
