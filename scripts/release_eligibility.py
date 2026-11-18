@@ -60,50 +60,123 @@ def manifest(ref):
     raw = run("git", "show", f"{ref}:config/versions.yaml")
     return json.loads(run("yq", "eval", "-o=json", ".", "-", input=raw))
 
-def verify_current_approval(pr, reviews, author, trusted_approvers=None):
-    """Return current-head approvals after resolving each reviewer's latest state."""
-    if not isinstance(reviews, list) or len(reviews) >= 100:
+def positive_github_user_id(value, label):
+    if type(value) is not int or value <= 0:
+        raise ReleaseEligibilityError(f"{label} has no positive numeric GitHub user ID")
+    return value
+
+
+def review_timestamp(value):
+    if not isinstance(value, str) or not value:
+        raise ReleaseEligibilityError("submitted review timestamp missing")
+    try:
+        from datetime import datetime, timezone
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ReleaseEligibilityError("submitted review timestamp is invalid") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ReleaseEligibilityError("submitted review timestamp must include a timezone")
+    return parsed.astimezone(timezone.utc)
+
+
+def resolve_trusted_approvers(logins):
+    """Resolve the configured allowlist to unique, typed immutable GitHub User IDs."""
+    if not isinstance(logins, list) or not logins:
+        raise ReleaseEligibilityError("trusted maintenance approver allow-list is missing")
+    identities = {}
+    seen_logins = set()
+    for login in logins:
+        if not isinstance(login, str) or not re.fullmatch(r"[A-Za-z0-9-]{1,39}", login):
+            raise ReleaseEligibilityError("trusted maintenance approver login has invalid syntax")
+        key = login.casefold()
+        if key in seen_logins:
+            raise ReleaseEligibilityError("trusted maintenance approver allow-list contains duplicate logins")
+        seen_logins.add(key)
+        try:
+            identity = json.loads(run("gh", "api", f"users/{urllib.parse.quote(login, safe='')}"))
+        except (ValueError, ReleaseEligibilityError) as exc:
+            raise ReleaseEligibilityError("cannot resolve trusted maintenance reviewer identity") from exc
+        if (not isinstance(identity, dict) or identity.get("type") != "User"
+                or not isinstance(identity.get("login"), str)
+                or identity["login"].casefold() != key):
+            raise ReleaseEligibilityError("trusted maintenance reviewer is not a matching typed GitHub User")
+        user_id = positive_github_user_id(identity.get("id"), "trusted maintenance reviewer")
+        if user_id in identities:
+            raise ReleaseEligibilityError("trusted maintenance reviewers resolve to duplicate numeric identities")
+        identities[user_id] = identity["login"]
+    return identities
+
+
+def flatten_review_pages(pages):
+    """Flatten the page arrays returned by gh api --paginate --slurp."""
+    if not isinstance(pages, list) or not pages or any(not isinstance(page, list) for page in pages):
+        raise ReleaseEligibilityError("maintenance review pagination returned incomplete history")
+    reviews = []
+    for page in pages:
+        reviews.extend(page)
+    if len(reviews) > 10000:
+        raise ReleaseEligibilityError("maintenance review history exceeded the safety limit")
+    return reviews
+
+
+def verify_current_approval(pr, reviews, author_id, trusted_approver_ids=None):
+    """Return exact-head approvals after resolving each typed reviewer's latest state by ID."""
+    if not isinstance(reviews, list) or len(reviews) > 10000:
         raise ReleaseEligibilityError("incomplete or invalid review history")
     head = (pr.get("head") or {}).get("sha")
     if not isinstance(head, str) or not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ReleaseEligibilityError("merged PR head is unavailable")
+    author_id = positive_github_user_id(author_id, "maintenance PR author")
     trusted = None
-    if trusted_approvers is not None:
-        trusted = {str(login).casefold() for login in trusted_approvers if str(login).strip()}
-        if not trusted:
-            raise ReleaseEligibilityError("no trusted maintenance approvers are configured")
+    if trusted_approver_ids is not None:
+        if (not isinstance(trusted_approver_ids, set) or not trusted_approver_ids
+                or any(type(item) is not int or item <= 0 for item in trusted_approver_ids)):
+            raise ReleaseEligibilityError("trusted maintenance numeric reviewer allow-list is invalid")
+        trusted = trusted_approver_ids
+
     latest = {}
+    seen_review_ids = set()
     for review in reviews:
         if not isinstance(review, dict):
             raise ReleaseEligibilityError("malformed review evidence")
-        review_id = review.get("id")
-        if type(review_id) is not int or review_id <= 0:
-            raise ReleaseEligibilityError("numeric GitHub review ID is missing")
-        actor = (review.get("user") or {}).get("login")
         state = review.get("state")
         if state == "PENDING":
             continue
-        if not actor:
-            raise ReleaseEligibilityError("review actor is missing")
+        reviewer = review.get("user")
+        if not isinstance(reviewer, dict):
+            raise ReleaseEligibilityError("review contains no reviewer account identity")
+        reviewer_type = reviewer.get("type")
+        if reviewer_type == "Bot":
+            # Bot records are not effective trusted reviewer state.
+            continue
+        if reviewer_type != "User":
+            raise ReleaseEligibilityError("review contains a non-User or untyped reviewer identity")
+        reviewer_id = positive_github_user_id(reviewer.get("id"), "reviewer")
+        login = reviewer.get("login")
+        if not isinstance(login, str) or not login.strip():
+            raise ReleaseEligibilityError("typed review actor has no GitHub login")
+        review_id = review.get("id")
+        if type(review_id) is not int or review_id <= 0:
+            raise ReleaseEligibilityError("numeric GitHub review ID is missing")
+        if review_id in seen_review_ids:
+            raise ReleaseEligibilityError("duplicate GitHub review ID in maintenance history")
+        seen_review_ids.add(review_id)
         if state not in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED", "DISMISSED"):
             raise ReleaseEligibilityError("unrecognized review state")
-        submitted_at = review.get("submitted_at")
-        if not isinstance(submitted_at, str) or not submitted_at:
-            raise ReleaseEligibilityError("submitted review timestamp missing")
-        if actor.casefold() == str(author).casefold():
-            continue
-        key = actor.casefold()
-        previous = latest.get(key)
-        if previous is None or (submitted_at, review_id) > (
-                previous["submitted_at"], previous["id"]):
-            latest[key] = review
+        submitted_at = review_timestamp(review.get("submitted_at"))
+        candidate = (submitted_at, review_id, state, review)
+        previous = latest.get(reviewer_id)
+        if previous is None or candidate[:2] > previous[:2]:
+            latest[reviewer_id] = candidate
+
     approvals = [
-        review for review in latest.values()
-        if review["state"] == "APPROVED" and review.get("commit_id") == head
-        and (trusted is None or review["user"]["login"].casefold() in trusted)
+        review for reviewer_id, (_, _, state, review) in latest.items()
+        if reviewer_id != author_id and state == "APPROVED"
+        and review.get("commit_id") == head
+        and (trusted is None or reviewer_id in trusted)
     ]
     if not approvals:
-        raise ReleaseEligibilityError("no current trusted independent approval on merged head")
+        raise ReleaseEligibilityError("no current trusted independent typed-User approval on merged head")
     return approvals
 
 def maintenance(family, previous):
@@ -145,13 +218,26 @@ def maintenance(family, previous):
         reviews = json.loads(run("gh", "api", f"repos/{repo}/pulls/{decision['review_pr']}/reviews?per_page=100"))
     except (ValueError, ReleaseEligibilityError) as exc:
         raise ReleaseEligibilityError("cannot verify independent maintenance approval") from exc
-    author = (pr.get("user") or {}).get("login")
+    author = pr.get("user")
+    if not isinstance(author, dict) or author.get("type") != "User":
+        raise ReleaseEligibilityError("maintenance PR author is not a typed GitHub User")
+    author_id = positive_github_user_id(author.get("id"), "maintenance PR author")
     merged_sha = pr.get("merge_commit_sha")
     if (not pr.get("merged") or not isinstance(merged_sha, str)
-            or pr.get("state") != "closed" or (pr.get("base") or {}).get("ref") != "main"):
-        raise ReleaseEligibilityError("maintenance exception PR must be merged into main")
+            or not re.fullmatch(r"[0-9a-f]{40}", merged_sha)
+            or pr.get("state") != "closed" or (pr.get("base") or {}).get("ref") != "main"
+            or ((pr.get("base") or {}).get("repo") or {}).get("full_name") != repo):
+        raise ReleaseEligibilityError("maintenance exception PR must be merged into canonical main")
     run("git", "merge-base", "--is-ancestor", merged_sha, "HEAD")
-    approvals = verify_current_approval(pr, reviews, author, trusted_logins)
+    trusted_identities = resolve_trusted_approvers(trusted_logins)
+    review_pages = json.loads(run(
+        "gh", "api", "--paginate", "--slurp",
+        f"repos/{repo}/pulls/{decision['review_pr']}/reviews?per_page=100",
+    ))
+    reviews = flatten_review_pages(review_pages)
+    approvals = verify_current_approval(
+        pr, reviews, author_id, set(trusted_identities),
+    )
     try:
         from custody_independence import collect_pr, require_independent, uid
     except ModuleNotFoundError as exc:
@@ -168,23 +254,11 @@ def maintenance(family, previous):
     api_author_id = uid({"databaseId": (pr.get("user") or {}).get("id")})
     if author_id != api_author_id:
         raise ReleaseEligibilityError("numeric PR author identity differs between GitHub APIs")
-    trusted_ids = {}
-    for login in trusted_logins:
-        try:
-            identity = json.loads(run("gh", "api", f"users/{login}"))
-        except (ValueError, ReleaseEligibilityError) as exc:
-            raise ReleaseEligibilityError("cannot resolve trusted maintenance reviewer identity") from exc
-        if not isinstance(identity, dict) or identity.get("login", "").casefold() != login.casefold():
-            raise ReleaseEligibilityError("trusted maintenance reviewer login resolution mismatch")
-        reviewer_id = uid({"databaseId": identity.get("id")})
-        if reviewer_id in trusted_ids.values():
-            raise ReleaseEligibilityError("trusted maintenance reviewers resolve to duplicate numeric identities")
-        trusted_ids[login.casefold()] = reviewer_id
+    trusted_ids = set(trusted_identities)
     for approval in approvals:
         reviewer = approval.get("user") or {}
-        login = reviewer.get("login", "").casefold()
-        reviewer_id = uid({"databaseId": reviewer.get("id")})
-        if trusted_ids.get(login) != reviewer_id:
+        reviewer_id = positive_github_user_id(reviewer.get("id"), "approved reviewer")
+        if reviewer_id not in trusted_ids:
             continue
         try:
             require_independent(reviewer_id, set(trusted_ids.values()), author_id, contributors)
