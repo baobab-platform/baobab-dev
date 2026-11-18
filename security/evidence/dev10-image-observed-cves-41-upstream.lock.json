@@ -64,5 +64,9 @@
     "CVE-2026-99306",
     "CVE-2026-99310",
     "CVE-2026-99311"
-  ]
+  ],
+  "cvelist_mirror_lock": "security/evidence/dev10-image-observed-cves-41-cvelist.lock.json",
+  "cvelist_mirror_commit": "4c07c147c7a7132e0228ab8bf6fb8b411b256e13",
+  "cvelist_mirror_inventory_blob_sha1": "6a8953adfe3545ede30ea8390e2c66ee6f2870a2",
+  "cvelist_mirror_record_count": 41
 }
