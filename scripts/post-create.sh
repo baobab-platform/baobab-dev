@@ -165,9 +165,9 @@ run_on_create() {
 # -----------------------------------------------------------------------------
 
 # Keep the image-owned COREPACK_HOME as the read-only cache for preloaded Yarn.
-# Consumer-pinned pnpm is hydrated separately into a writable user cache.
-# Only the one-time Corepack install gets network access; the package-manager
-# download must be signed by the registry or carry an explicit packageManager hash.
+# Consumer-pinned pnpm uses the shared helper and a separate writable user cache.
+# It verifies Corepack's pnpm wrapper and pnpm's native executable before
+# disabling network access for all subsequent project-pinned pnpm commands.
 install_node_project() {
     command -v node >/dev/null 2>&1 || die "Node is required by package.json."
     if [ -f .node-version ]; then

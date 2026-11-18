@@ -544,6 +544,9 @@ RUN rm -f /usr/bin/pebble && rm -rf /var/lib/pebble
 # all of those stages descend from, so installing it once here, at a fixed
 # path under BAOBAB_CONFIG_DIR, means every call site sources the exact
 # same function definition rather than three drifting inline copies of it.
+#
+# scripts/project-pnpm.sh is installed as baobab-project-pnpm so onboarding,
+# summary and read-only verification use one project-pin/cache implementation.
 # -----------------------------------------------------------------------------
 RUN mkdir -p /usr/local/share/baobab/config
 
