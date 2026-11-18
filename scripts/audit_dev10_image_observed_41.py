@@ -32,7 +32,7 @@ def read_tsv(path: Path) -> list[dict[str, str]]:
 
 
 def git_blob_sha1(raw: bytes) -> str:
-    return hashlib.sha1(b"blob " + str(len(raw)).encode("ascii") + b"\\0" + raw).hexdigest()
+    return hashlib.sha1(b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw).hexdigest()
 
 
 def git(repo: Path, *args: str) -> str:
