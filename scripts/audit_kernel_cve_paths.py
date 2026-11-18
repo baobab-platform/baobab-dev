@@ -21,6 +21,7 @@ from urllib import request
 
 CVE_RE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
+VERSION_RE = re.compile(r"^\\d+\\.\\d+\\.\\d+-\\d+\\.\\d+$")
 GITILES = "https://kernel.googlesource.com/pub/scm/linux/security/vulns"
 
 
@@ -110,7 +111,7 @@ def inspect(cve: str, sha: str, manifest: set[str], source_root: Path | None = N
 
 
 def audit(trivy: list[dict[str, str]], vendor: list[dict[str, str]],
-          manifest: set[str], sha: str, source_root: Path | None = None) -> dict:
+          manifest: set[str], sha: str, package_version: str, source_root: Path | None = None) -> dict:
     ids = {row["cve"] for row in trivy}
     vendors = {row["cve"]: row for row in vendor}
     if len(trivy) != 295 or len(ids) != 295 or ids != set(vendors) or len(vendor) != 295:
@@ -134,7 +135,7 @@ def audit(trivy: list[dict[str, str]], vendor: list[dict[str, str]],
     return {
         "schema": "baobab.dev10.kernel-cve-upstream-file-evidence.v1",
         "decision": "SECURITY_HELD_NO_VEX_NO_EXCEPTIONS",
-        "upstream_commit": sha, "package": "linux-libc-dev=7.0.0-42.42",
+        "upstream_commit": sha, "package": f"linux-libc-dev={package_version}",
         "manifest_header_count": sum(p.endswith(".h") for p in manifest),
         "counts": dict(Counter(row["classification"] for row in rows)),
         "records": rows,
@@ -146,14 +147,14 @@ def main() -> int:
     p.add_argument("--trivy", type=Path, required=True)
     p.add_argument("--vendor", type=Path, required=True)
     p.add_argument("--manifest", type=Path, required=True)
-    p.add_argument("--upstream-sha", required=True)
+    p.add_argument("--upstream-sha", required=True)\n    p.add_argument("--binary-package-version", required=True,\n                   help="exact linux-libc-dev version installed from the configured Ubuntu pockets")
     p.add_argument("--upstream-root", type=Path, help="immutable Git checkout; preferred to individual HTTP CVE fetches")
     p.add_argument("--output", type=Path, required=True)
     a = p.parse_args()
     try:
         result = audit(read_tsv(a.trivy), read_tsv(a.vendor),
                        set(a.manifest.read_text(encoding="utf-8").splitlines()),
-                       a.upstream_sha, a.upstream_root)
+                       a.upstream_sha, a.binary_package_version, a.upstream_root)
         a.output.parent.mkdir(parents=True, exist_ok=True)
         a.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         print("Upstream CVE file path evidence:", result["counts"])
