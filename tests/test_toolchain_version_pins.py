@@ -102,7 +102,7 @@ class ToolchainVersionPinTests(unittest.TestCase):
         labels = {
             "NODE_VERSION": "Node.js",
             "NPM_VERSION": "npm",
-            "PNPM_VERSION": "pnpm",
+            "PNPM_VERSION": "Image pnpm",
             "COREPACK_VERSION": "Corepack",
             "YARN_VERSION": "Yarn",
             "TASK_VERSION": "Task",
@@ -115,6 +115,19 @@ class ToolchainVersionPinTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertRegex(lock, rf"(?m)^export {name}={re.escape(version)}$")
                 self.assertIn(f'check_exact_version "{labels[name]}"', verifier)
+
+        self.assertIn("check_project_pnpm", verifier)
+        self.assertIn("offline Corepack cache unavailable", verifier)
+        helper = read("scripts/project-pnpm.sh")
+        self.assertIn("COREPACK_ENABLE_NETWORK=1", helper)
+        self.assertIn("COREPACK_ENABLE_NETWORK=0", helper)
+        self.assertIn("env -u COREPACK_INTEGRITY_KEYS", helper)
+        self.assertIn("COREPACK_ON_UNVERIFIED_DOWNLOAD=error", helper)
+        dockerfile = read(".devcontainer/docker/Dockerfile")
+        self.assertIn(
+            "COPY --chmod=0755 scripts/project-pnpm.sh /usr/local/bin/baobab-project-pnpm",
+            dockerfile,
+        )
 
 
 if __name__ == "__main__":
