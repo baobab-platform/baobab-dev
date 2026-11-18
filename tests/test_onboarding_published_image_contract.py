@@ -27,6 +27,7 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
     def test_workflow_passes_a_script_not_nested_container_shell_text(self):
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("bash /source/scripts/ci/onboarding-published-image.sh", text)
+        self.assertIn("cancel-in-progress: ${{ github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/') }}", text)
         self.assertNotIn("-e HOME=/tmp/dev10-home", text)
         self.assertIn('docker run --rm -e EXPECTED_PROFILE=', text)
 
