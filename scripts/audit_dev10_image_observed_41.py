@@ -99,8 +99,11 @@ def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
         if actual_blob != canonical_record["blob_sha1"]:
             raise ValueError(cve + ": Canonical OSV blob SHA differs from pinned lock")
         paths, references = parse_upstream_details(base64.b64encode(raw))
+        candidate_commit_references = sorted(
+            url for url in references if COMMIT_URL_RE.search(url)
+        )
         candidate_commits = sorted({
-            match.group(1) for url in references
+            match.group(1) for url in candidate_commit_references
             if (match := COMMIT_URL_RE.search(url))
         })
         if not paths:
@@ -110,7 +113,8 @@ def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
             "upstream_record_path": str(record_path.relative_to(upstream_root)),
             "upstream_record_sha256": hashlib.sha256(raw).hexdigest(),
             "affected_source_paths": paths,
-            "candidate_fix_references": references,
+            "upstream_references": references,
+            "candidate_fix_commit_references": candidate_commit_references,
             "candidate_fix_commit_ids": candidate_commits,
             "canonical_osv_record_path": canonical_record["path"],
             "canonical_osv_blob_sha1": canonical_record["blob_sha1"],
