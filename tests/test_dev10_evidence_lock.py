@@ -35,6 +35,9 @@ class EvidenceLockTests(unittest.TestCase):
         self.assertEqual(lock.header_count, 1039)
         self.assertEqual(lock.historical_inventory_count, 295)
         self.assertEqual(lock.historical_package_version, "7.0.0-42.42")
+        self.assertEqual(lock.extension_cves, {
+            "CVE-2026-98869", "CVE-2026-98890", "CVE-2026-99083",
+        })
         self.assertEqual(len(lock.observed_kernel_cves), 11)
         self.assertEqual(len(lock.profile_scan_artifacts), 8)
         self.assertEqual(set(lock.stable_profile_images), {"final", "frontend", "frontend-e2e", "infra"})
