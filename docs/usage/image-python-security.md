@@ -42,7 +42,7 @@ exactly 6.29.1 in the existing isolated security-patch scratch project, copies
 that dependency into npm's private tree and reads back its installed version.
 At the time of this 29 October remediation, Node 24, npm, pnpm and project
 lock baselines were unchanged. The current published v1.5.1 baseline is Node
-26.13.1 / pnpm 12.21.0; this historical patch note does not override it.
+26.13.1 / pnpm 12.16.1; this historical patch note does not override it.
 Task/yq and Docker plugin findings remain independently failing; this correction
 did not qualify any image or Codespace.
 # Vendored pip dependency remediation
