@@ -261,9 +261,12 @@ class ApplicabilityTests(unittest.TestCase):
             "ubuntu_release_tag": builder.LOCK.ubuntu_tag,
             "ubuntu_source_commit": tag_sha,
             "path_counts": {"PATHS_PRESENT_NONDISCRIMINATING": 298},
+            "binary_source": binary_source_fixture(),
             "binary_manifest": {
-                "package": "linux-libc-dev=7.0.0-43.43",
-                "sha256": "a" * 64, "path_count": 1300, "header_count": 1039,
+                "package": "linux-libc-dev=" + builder.LOCK.package_version,
+                "sha256": builder.LOCK.binary_manifest_sha256,
+                "path_count": builder.LOCK.binary_manifest_path_count,
+                "header_count": builder.LOCK.header_count,
             },
             "records": [{
                 "cve": row["cve"], "ubuntu_release_tag": builder.LOCK.ubuntu_tag,
