@@ -93,7 +93,25 @@
       "job_id": 134665477172,
       "artifact_id": 14410890378,
       "artifact_sha256": "24ea09610d506fa4a439bd76a6087ef1b9ab21f3a4896a776c07035691feb3d8"
-    }
+    },
+    "package_version": "7.0.0-43.43",
+    "observed_kernel_cves": [
+      "CVE-2022-50240",
+      "CVE-2025-40190",
+      "CVE-2026-68103",
+      "CVE-2026-72198",
+      "CVE-2026-74578",
+      "CVE-2026-89805",
+      "CVE-2026-98376",
+      "CVE-2026-98420",
+      "CVE-2026-98869",
+      "CVE-2026-98890",
+      "CVE-2026-99083"
+    ],
+    "observed_node_cves": [
+      "CVE-2026-112366"
+    ],
+    "observation_note": "The eight profile/architecture Trivy artifacts all report the same 11 linux-libc-dev CVEs on 7.0.0-43.43; infra artifacts contain only those 11. The separate node-pkg finding appears in the other profile artifacts. This scan evidence is distinct from the historical 295-CVE 7.0.0-42.42 inventory."
   },
   "stable_base_image": {
     "image_tag": "ghcr.io/baobab-platform/baobab-dev:1.5.1",
@@ -331,5 +349,11 @@
       "image_tag": "ghcr.io/baobab-platform/baobab-dev:1.5.1-infra",
       "index_digest": "sha256:5b39e71dd068da12e009421012d7c3620339746c2a39839182ea1f4fe788ffda"
     }
+  },
+  "historical_295_inventory": {
+    "path": "docs/assessments/dev10-kernel-cves.tsv",
+    "sha256": "d79f62e624091c24f0d3636a6bb6e6134f52502ff10d9959d43f12ca0f8047d0",
+    "count": 295,
+    "package_version": "7.0.0-42.42"
   }
 }
