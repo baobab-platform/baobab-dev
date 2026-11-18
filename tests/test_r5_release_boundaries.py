@@ -154,6 +154,8 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
             "development-only acceptance is insufficient",
             release_scan,
         )
+        self.assertIn("never consulted for a release tag", release_scan)
+        self.assertIn("any HIGH/CRITICAL or secret finding", release_scan)
         self.assertIn(
             "Residual vulnerabilities in a tagged remote image require separately authenticated exact-digest release approval",
             release_scan,
