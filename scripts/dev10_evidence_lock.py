@@ -59,6 +59,7 @@ class EvidenceLock:
         )
         canonical_osv = data["canonical_osv"]
         binary_source = data["binary_source"]
+        stable = data.get("stable_base_image", {})
         if binary_source != {
             "binary_package": "linux-libc-dev",
             "binary_version": data["package_version"],
@@ -166,7 +167,6 @@ class EvidenceLock:
         if (not isinstance(foundation.get("artifact_id"), int)
                 or not SHA256.fullmatch(foundation.get("artifact_sha256", ""))):
             raise ValueError("historical Foundation scan artifact provenance is incomplete")
-        stable = data.get("stable_base_image", {})
         if (stable.get("image_tag") != "ghcr.io/baobab-platform/baobab-dev:1.5.1"
                 or not re.fullmatch(r"sha256:[a-f0-9]{64}", stable.get("index_digest", ""))
                 or not SHA40.fullmatch(stable.get("source_sha", ""))
