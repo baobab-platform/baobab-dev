@@ -28,7 +28,7 @@ class ApprovalTests(unittest.TestCase):
         args.update(overrides)
         return mod.attest(entries, **args)
 
-    def test_independent_human_approval_records_immutable_ids(self):
+    def test_independent_typed_user_approval_records_immutable_ids(self):
         evidence = self.verify(self.approval)
         self.assertEqual(evidence["approval"], {
             "reviewer_logins": ["security-reviewer"], "reviewer_id": 9001,
@@ -56,6 +56,34 @@ class ApprovalTests(unittest.TestCase):
         }]
         with self.assertRaisesRegex(mod.EvidenceError, "no independent human-approved"):
             self.verify(rerun_approval)
+
+    def test_same_original_and_triggering_numeric_id_cannot_evade_self_review(self):
+        # Reruns retain the original actor's privileges. Different login
+        # aliases must not turn one immutable account into an independent actor.
+        same_identity = [{
+            **self.approval[0],
+            "user": {"login": "renamed-initiator", "id": 1001, "type": "User"},
+        }]
+        with self.assertRaisesRegex(mod.EvidenceError, "no independent human-approved"):
+            self.verify(
+                same_identity,
+                actor="original-login", actor_id=1001,
+                triggering_actor="renamed-login", triggering_actor_id=1001,
+            )
+
+    def test_v2_evidence_contract_is_explicit_and_does_not_emit_v1_shape(self):
+        evidence = self.verify(self.approval)
+        self.assertEqual(set(evidence), {
+            "schema", "environment", "run_id", "run_attempt", "tag",
+            "initiator", "triggering_actor", "approval", "eligible_approvals",
+        })
+        self.assertEqual(evidence["schema"], "dev10.promotion-approval.v2")
+        self.assertIsInstance(evidence["initiator"], dict)
+        self.assertEqual(set(evidence["initiator"]), {"id", "login"})
+        self.assertEqual(set(evidence["triggering_actor"]), {"id", "login"})
+        self.assertEqual(set(evidence["approval"]), {"reviewer_id", "reviewer_logins"})
+        self.assertNotIn("reviewer", evidence["approval"])
+        self.assertNotIn("submitted_at", evidence["approval"])
 
     def test_real_world_bot_wait_timer_and_independent_human_approval(self):
         wait_timer = {
@@ -180,6 +208,13 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertIn("name: dev10-release-promotion", release_job)
         self.assertIn("verify_release_environment.py", release_job)
         self.assertIn("deployment-branch-policies", release_job)
+
+    def test_triggering_actor_resolution_rejects_non_user_and_invalid_numeric_ids(self):
+        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/publish.yml").read_text()
+        self.assertIn('select(.type == "User" and (.id | type) == "number" and .id > 0) | .id', workflow)
+        self.assertIn('[[ "$TRIGGERING_ACTOR_ID" =~ ^[1-9][0-9]*$ ]]', workflow)
+        self.assertIn('ORIGINAL_ACTOR_ID: ${{ github.actor_id }}', workflow)
+        self.assertIn('set -euo pipefail', workflow)
 
 
 if __name__ == "__main__":
