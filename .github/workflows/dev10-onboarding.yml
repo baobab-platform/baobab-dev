@@ -7,6 +7,13 @@ on:
 permissions:
   contents: read
   packages: read
+
+# Only the newest branch/PR image qualification is useful; cancel superseded
+# pending matrices while never interrupting main or release-tag validation.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/') }}
+
 jobs:
   source:
     runs-on: ubuntu-26.04
