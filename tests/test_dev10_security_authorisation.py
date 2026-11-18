@@ -47,6 +47,18 @@ def canonical_osv_fixture(scanner, retrieved_at=None):
 
 
 class ApplicabilityTests(unittest.TestCase):
+    def test_historical_ghcr_profile_digests_and_signer_are_locked(self):
+        images = builder.LOCK.stable_profile_images
+        self.assertEqual(set(images), {"final", "frontend", "frontend-e2e", "infra"})
+        for profile, image in images.items():
+            with self.subTest(profile=profile):
+                self.assertRegex(image["index_digest"], r"^sha256:[a-f0-9]{64}$")
+                self.assertEqual(image["release_tag"], "v1.5.1")
+                self.assertEqual(image["signer_tag"], "v1.5.1-rc.2")
+                self.assertEqual(image["source_sha"], "13493b24d6af1a9e7bddf7df9be555d1c06a635d")
+                self.assertGreater(image["ga_reuse_run_id"], 0)
+                self.assertGreater(image["signer_run_id"], 0)
+
     def test_all_298_are_under_investigation_not_approved(self):
         result = builder.build(
             builder.tsv(ROOT / "docs/assessments/dev10-kernel-cves-298.tsv"),
