@@ -14,6 +14,7 @@ SPEC.loader.exec_module(mod)
 # existing Foundation DEV-10 test job (which is present on the PR base branch).
 from test_dev10_image_observed_41_sources import Supplemental41SourceEvidenceTests
 from test_dev10_image_observed_41_cvelist import Supplemental41CveListMirrorTests
+from test_verify_dev10_linux_cna_mirror import LinuxCnaMirrorVerifierTests
 from test_audit_dev10_image_observed_41 import Supplemental41SourceAuditorTests
 from test_ubuntu_binary_package_arch import UbuntuBinaryPackageArchitectureTests
 from test_reconcile_dev10_image_observed_41_binary_paths import Supplemental41BinaryPathMappingTests
