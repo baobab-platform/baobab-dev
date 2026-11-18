@@ -102,7 +102,7 @@ if (!Object.prototype.hasOwnProperty.call(pkg, "packageManager")) {
   process.stdout.write(typeof pkg.packageManager === "string" ? pkg.packageManager : "invalid");
 }
 ' 2>/dev/null)" || {
-        printf '%s\\n' "[baobab] Cannot read package.json; refusing pnpm alias fallback." >&2
+        printf '%s\n' "[baobab] Cannot read package.json; refusing pnpm alias fallback." >&2
         return 2
     }
 
@@ -111,15 +111,15 @@ if (!Object.prototype.hasOwnProperty.call(pkg, "packageManager")) {
         return $?
     fi
     [[ "$manager" == pnpm@* ]] || {
-        printf '%s\\n' "[baobab] pnpm aliases require an exact pnpm packageManager; found: $manager" >&2
+        printf '%s\n' "[baobab] pnpm aliases require an exact pnpm packageManager; found: $manager" >&2
         return 2
     }
     command -v baobab-project-pnpm >/dev/null 2>&1 || {
-        printf '%s\\n' "[baobab] baobab-project-pnpm is required for this consumer pin." >&2
+        printf '%s\n' "[baobab] baobab-project-pnpm is required for this consumer pin." >&2
         return 127
     }
     baobab-project-pnpm pin >/dev/null || {
-        printf '%s\\n' "[baobab] Invalid exact pnpm packageManager; refusing native pnpm fallback." >&2
+        printf '%s\n' "[baobab] Invalid exact pnpm packageManager; refusing native pnpm fallback." >&2
         return 2
     }
     baobab-project-pnpm "$@"
