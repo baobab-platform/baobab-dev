@@ -102,7 +102,8 @@ def verify(args: argparse.Namespace) -> dict:
     if len(deb_lines) != 1:
         raise ValueError("downloaded binary package must have exactly one SHA-256 record")
     deb_hash, deb_name = deb_lines[0].split(maxsplit=1)
-    if not SHA256.fullmatch(deb_hash) or not deb_name.lstrip("*").startswith(
+    deb_filename = Path(deb_name.strip().lstrip("*")).name
+    if not SHA256.fullmatch(deb_hash) or not deb_filename.startswith(
         expected["binary_package"] + "_" + expected["binary_version"] + "_"
     ):
         raise ValueError("downloaded binary package digest/name is invalid")
@@ -131,7 +132,7 @@ def verify(args: argparse.Namespace) -> dict:
         "apt_policy_sha256": digest(args.apt_policy),
         "apt_madison_sha256": digest(args.apt_madison),
         "apt_package_deb_sha256": deb_hash,
-        "apt_package_deb_filename": Path(deb_name.strip().lstrip("*")).name,
+        "apt_package_deb_filename": deb_filename,
         "apt_package_index_sha256": sorted(index_records, key=lambda item: item["index_name"]),
         "installed_package_metadata_sha256": digest(args.installed_package),
         "ubuntu_base_image": base_image,
