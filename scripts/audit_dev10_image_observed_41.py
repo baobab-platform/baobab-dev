@@ -121,7 +121,20 @@ def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
                           f"{canonical_commit}:{canonical_record['path']}")
         if actual_blob != canonical_record["blob_sha1"]:
             raise ValueError(cve + ": Canonical OSV blob SHA differs from pinned lock")
-        paths, references = parse_upstream_details(base64.b64encode(raw))
+        try:
+            paths, references = parse_upstream_details(base64.b64encode(raw))
+            path_status = "AFFECTED_SOURCE_PATHS_VALIDATED"
+        except ValueError as error:
+            if str(error) != "kernel CVE has no validated affected-file paths":
+                raise
+            cna = data.get("containers", {}).get("cna", {})
+            paths = []
+            references = sorted({
+                item["url"] for item in cna.get("references", [])
+                if isinstance(item, dict) and isinstance(item.get("url"), str)
+                and item["url"].startswith("https://") and len(item["url"]) < 1024
+            })
+            path_status = "CNA_RECORD_HAS_NO_VALIDATED_AFFECTED_FILE_PATHS"
         candidate_commit_references = sorted(
             url for url in references if COMMIT_URL_RE.search(url)
         )
@@ -129,13 +142,12 @@ def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
             match.group(1) for url in candidate_commit_references
             if (match := COMMIT_URL_RE.search(url))
         })
-        if not paths:
-            raise ValueError(cve + ": no validated Linux affected source paths")
         upstream_records.append({
             "cve": cve,
             "upstream_record_path": str(record_path.relative_to(upstream_root)),
             "upstream_record_sha256": hashlib.sha256(raw).hexdigest(),
             "affected_source_paths": paths,
+            "affected_source_path_status": path_status,
             "upstream_references": references,
             "candidate_fix_commit_references": candidate_commit_references,
             "candidate_fix_commit_ids": candidate_commits,
@@ -167,6 +179,7 @@ def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
             "records": len(upstream_records),
             "records_with_candidate_fix_commit_ids": sum(bool(x["candidate_fix_commit_ids"]) for x in upstream_records),
             "records_with_affected_paths": sum(bool(x["affected_source_paths"]) for x in upstream_records),
+            "records_without_affected_paths": sum(not x["affected_source_paths"] for x in upstream_records),
         },
         "policy_boundary": lock["policy_boundary"],
         "records": upstream_records,
