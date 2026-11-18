@@ -35,6 +35,17 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         self.assertIn('stable_profile_images[$profile].index_digest', workflow)
         self.assertIn("dev10-onboarding-verification-${{ matrix.profile }}-${{ matrix.architecture }}", workflow)
 
+
+    def test_exact_profile_and_non_root_runtime_are_passed_to_container(self):
+        script = SCRIPT.read_text(encoding="utf-8")
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn('export BAOBAB_BUILD_PROFILE="$BUILD_PROFILE"', script)
+        self.assertIn('[["$(id -u)"', script) if False else None
+        self.assertIn('[[ "$(id -u)" -ne 0 ]]', script)
+        self.assertIn('profile == "frontend-e2e" and not evidence["playwright_chromium_verified"]', script)
+        self.assertIn('-e BAOBAB_BUILD_PROFILE="${{ matrix.profile }}"', workflow)
+        self.assertIn('stable_profile_images[$profile].signer_tag', workflow)
+
     def test_reviewed_code_runs_from_read_only_source_mount(self):
         text = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('bash "$SRC_DIR/scripts/post-create.sh"', text)
