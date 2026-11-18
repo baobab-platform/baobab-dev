@@ -54,7 +54,7 @@ jobs:
           while IFS= read -r path; do
             [[ -n "$path" ]] || continue
             case "$path" in
-              docs/assessments/dev10-image-observed-cves-41.tsv|docs/assessments/dev10-image-observed-cves-41-canonical.tsv|security/evidence/dev10-image-observed-cves-41-canonical.lock.json|security/evidence/dev10-image-observed-cves-41-upstream.lock.json|scripts/audit_dev10_image_observed_41.py|scripts/verify_ubuntu_binary_package_arch.py|scripts/reconcile_dev10_image_observed_41_binary_paths.py|tests/test_reconcile_dev10_image_observed_41_binary_paths.py|tests/test_dev10_image_observed_41_sources.py|tests/test_ubuntu_binary_package_arch.py|tests/test_kernel_cve_paths.py)
+              docs/assessments/dev10-image-observed-cves-41.tsv|docs/assessments/dev10-image-observed-cves-41-upstream.tsv|security/evidence/dev10-image-observed-cves-41-cvelist.lock.json|docs/assessments/dev10-image-observed-cves-41-canonical.tsv|security/evidence/dev10-image-observed-cves-41-canonical.lock.json|security/evidence/dev10-image-observed-cves-41-upstream.lock.json|scripts/audit_dev10_image_observed_41.py|scripts/verify_dev10_linux_cna_mirror.py|scripts/verify_ubuntu_binary_package_arch.py|scripts/reconcile_dev10_image_observed_41_binary_paths.py|tests/test_reconcile_dev10_image_observed_41_binary_paths.py|tests/test_dev10_image_observed_41_sources.py|tests/test_dev10_image_observed_41_cvelist.py|tests/test_verify_dev10_linux_cna_mirror.py|tests/test_ubuntu_binary_package_arch.py|tests/test_kernel_cve_paths.py)
                 image_41_evidence=true
                 ;;
               # This custodian-only tool is not copied or executed by the
@@ -153,11 +153,51 @@ jobs:
         with:
           sha: ${{ env.UPSTREAM_41_SHA }}
           inventory: docs/assessments/dev10-image-observed-cves-41.tsv
+      - name: Checkout pinned official CVE List mirror
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/cvelist-v5-41"
+          sha="$(jq -r .source.commit security/evidence/dev10-image-observed-cves-41-cvelist.lock.json)"
+          git init -q "$root"
+          git -C "$root" remote add origin https://github.com/CVEProject/cvelistV5.git
+          git -C "$root" -c protocol.version=2 fetch --filter=blob:none --no-tags --depth=1 origin "$sha"
+          git -C "$root" sparse-checkout init --cone
+          git -C "$root" sparse-checkout set cves/2026/99xxx cves/2026/100xxx
+          git -C "$root" checkout --detach --quiet FETCH_HEAD
+          test "$(git -C "$root" rev-parse HEAD)" = "$sha"
+          echo "CVELIST_41_ROOT=$root" >> "$GITHUB_ENV"
+          echo "CVELIST_41_SHA=$sha" >> "$GITHUB_ENV"
+      - name: Verify Linux CNA source paths and candidate fixes against official CVE List mirror
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/dev10-image-41-source-evidence"
+          mkdir -p "$evidence"
+          python3 -B scripts/verify_dev10_linux_cna_mirror.py \
+            --cvelist-lock security/evidence/dev10-image-observed-cves-41-cvelist.lock.json \
+            --cvelist-tsv docs/assessments/dev10-image-observed-cves-41-upstream.tsv \
+            --upstream-lock security/evidence/dev10-image-observed-cves-41-upstream.lock.json \
+            --cvelist-root "$CVELIST_41_ROOT" \
+            --kernel-root "$UPSTREAM_ROOT" \
+            --output "$evidence/cvelist-mirror-reconciliation.json"
+          python3 - "$evidence/cvelist-mirror-reconciliation.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1]))
+          mirror=json.load(open(sys.argv[1].replace("upstream-canonical-reconciliation.json","cvelist-mirror-reconciliation.json")))
+          assert mirror["counts"]["records"] == 41
+          assert mirror["counts"]["mirror_mismatches"] == 0
+          assert data["counts"]["records"] == 41
+          assert data["counts"]["records_with_affected_paths"] == 41
+          assert data["counts"]["mirror_mismatches"] == 0
+          print("### Linux CNA mirror verification")
+          print("CVE List commit:",data["cvelist_source"]["commit"])
+          print("Kernel CNA commit:",data["kernel_cna_source"]["commit"])
+          print("Verified paths and candidate fixes:",data["counts"])
+          PY
       - name: Audit all 41 upstream paths and Canonical Resolute records
         run: |
           set -euo pipefail
           evidence="$RUNNER_TEMP/dev10-image-41-source-evidence"
-          mkdir -p "$evidence/upstream-records" "$evidence/canonical-records"
+          mkdir -p "$evidence/upstream-records" "$evidence/canonical-records" "$evidence/cvelist-records"
           python3 -B scripts/audit_dev10_image_observed_41.py \
             --inventory docs/assessments/dev10-image-observed-cves-41.tsv \
             --canonical-tsv docs/assessments/dev10-image-observed-cves-41-canonical.tsv \
@@ -172,6 +212,8 @@ jobs:
             year="$(printf '%s' "$cve" | cut -c5-8)"
             cp "$UPSTREAM_ROOT/cve/published/$year/$cve.json" "$evidence/upstream-records/$cve.json"
             cp "$CANONICAL_41_ROOT/osv/cve/2026/UBUNTU-$cve.json" "$evidence/canonical-records/$cve.json"
+            record_path="$(awk -F "\t" -v id="$cve" 'NR>1 && $1==id {print $2}' docs/assessments/dev10-image-observed-cves-41-upstream.tsv)"
+            cp "$CVELIST_41_ROOT/$record_path" "$evidence/cvelist-records/$cve.json"
           done < <(tail -n +2 docs/assessments/dev10-image-observed-cves-41.tsv | cut -f1)
           python3 - "$evidence/upstream-canonical-reconciliation.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
           import json,sys
@@ -182,6 +224,7 @@ jobs:
           assert data["canonical"]["binary_records_listed_as_affected"] == 41
           print("### Supplemental 41-CVE source evidence")
           print("Linux CNA revision:",data["upstream"]["commit"])
+          print("Official CVE List mirror:",mirror["cvelist_source"]["commit"])
           print("Canonical OSV revision:",data["canonical"]["commit"])
           print("Verified records and affected paths:",data["counts"])
           print("Resolute source package/version:",data["canonical"]["resolute_source_package"],data["canonical"]["affected_version"])
