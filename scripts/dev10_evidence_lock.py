@@ -36,6 +36,7 @@ class EvidenceLock:
     historical_inventory_sha256: str
     historical_inventory_count: int
     historical_package_version: str
+    extension_cves: frozenset[str]
     profile_scan_run_id: int
     profile_scan_package_version: str
     observed_kernel_cves: frozenset[str]
@@ -117,15 +118,15 @@ class EvidenceLock:
         ))
         historical_ids = {row.get("cve") for row in historical_rows}
         current_ids = {row.get("cve") for row in current_rows}
+        extension_ids = current_ids - historical_ids
         if (len(historical_rows) != lock.historical_inventory_count
                 or len(historical_ids) != lock.historical_inventory_count
                 or lock.historical_inventory_count != 295
                 or lock.historical_package_version != "7.0.0-42.42"
-                or current_ids - historical_ids != {
-                    "CVE-2026-98869", "CVE-2026-98890", "CVE-2026-99083"
-                }
+                or len(extension_ids) != lock.inventory_count - lock.historical_inventory_count
                 or not historical_ids.issubset(current_ids)):
-            raise ValueError("historical 295-CVE inventory is not an exact subset of the expanded 298 inventory")
+            raise ValueError("historical 295-CVE inventory is not an exact subset of the expanded inventory")
+        object.__setattr__(lock, "extension_cves", frozenset(extension_ids))
         if (lock.profile_scan_package_version != lock.package_version
                 or len(lock.observed_kernel_cves) != 11
                 or not lock.observed_kernel_cves.issubset(current_ids)
