@@ -37,7 +37,7 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         self.assertIn('"HISTORICAL_BASELINE_UNQUALIFIED"', script)
         self.assertIn('"playwright_chromium_verified"', script)
         self.assertIn('"image_ref": __import__("os").environ.get("IMAGE_REF")', script)
-        self.assertIn('[[ "$IMAGE_REF" == *@sha256:* ]]', script)
+        self.assertIn('baobab-dev@sha256:[a-f0-9]{64}', script)
         for profile in ("final", "frontend", "frontend-e2e", "infra"):
             self.assertIn("profile: " + profile, workflow)
         self.assertIn('stable_profile_images[$profile].index_digest', workflow)
