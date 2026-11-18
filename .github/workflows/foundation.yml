@@ -54,7 +54,7 @@ jobs:
           while IFS= read -r path; do
             [[ -n "$path" ]] || continue
             case "$path" in
-              docs/assessments/dev10-image-observed-cves-41.tsv|docs/assessments/dev10-image-observed-cves-41-canonical.tsv|security/evidence/dev10-image-observed-cves-41-canonical.lock.json|security/evidence/dev10-image-observed-cves-41-upstream.lock.json|scripts/audit_dev10_image_observed_41.py|scripts/verify_ubuntu_binary_package_arch.py|tests/test_dev10_image_observed_41_sources.py|tests/test_ubuntu_binary_package_arch.py|tests/test_kernel_cve_paths.py)
+              docs/assessments/dev10-image-observed-cves-41.tsv|docs/assessments/dev10-image-observed-cves-41-canonical.tsv|security/evidence/dev10-image-observed-cves-41-canonical.lock.json|security/evidence/dev10-image-observed-cves-41-upstream.lock.json|scripts/audit_dev10_image_observed_41.py|scripts/verify_ubuntu_binary_package_arch.py|scripts/reconcile_dev10_image_observed_41_binary_paths.py|tests/test_reconcile_dev10_image_observed_41_binary_paths.py|tests/test_dev10_image_observed_41_sources.py|tests/test_ubuntu_binary_package_arch.py|tests/test_kernel_cve_paths.py)
                 image_41_evidence=true
                 ;;
               # This custodian-only tool is not copied or executed by the
@@ -312,6 +312,86 @@ jobs:
         with:
           name: dev10-image-observed-41-binary-${{ matrix.architecture }}
           path: ${{ runner.temp }}/dev10-image-41-binary/${{ matrix.architecture }}/
+          if-no-files-found: error
+          retention-days: 30
+
+
+  dev10-image-observed-41-source-binary-reconciliation:
+    needs:
+      - scope
+      - dev10-image-observed-41-source-evidence
+      - dev10-image-observed-41-binary-manifests
+    if: needs.scope.outputs.image_41_evidence == 'true'
+    name: DEV-10 supplemental 41-CVE source-to-binary reconciliation
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout immutable PR merge head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Download pinned upstream and Canonical evidence
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dev10-image-observed-41-upstream-canonical-evidence
+          path: ${{ runner.temp }}/dev10-image-41-reconciliation/source
+      - name: Download amd64 binary package manifest
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dev10-image-observed-41-binary-amd64
+          path: ${{ runner.temp }}/dev10-image-41-reconciliation/amd64
+      - name: Download arm64 binary package manifest
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dev10-image-observed-41-binary-arm64
+          path: ${{ runner.temp }}/dev10-image-41-reconciliation/arm64
+      - name: Checkout exact Ubuntu Resolute kernel source tag
+        run: |
+          set -euo pipefail
+          tag="$(jq -r .ubuntu_tag.name security/evidence/dev10-kernel-evidence.lock.json)"
+          commit="$(jq -r .ubuntu_tag.commit security/evidence/dev10-kernel-evidence.lock.json)"
+          root="$RUNNER_TEMP/ubuntu-linux-resolute-41"
+          git clone --depth 1 --filter=blob:none --single-branch \
+            --branch "$tag" \
+            https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute \
+            "$root"
+          actual="$(git -C "$root" rev-parse --verify "refs/tags/$tag^{commit}")"
+          test "$actual" = "$commit"
+          echo "UBUNTU_41_ROOT=$root" >> "$GITHUB_ENV"
+          echo "UBUNTU_41_TAG=$tag" >> "$GITHUB_ENV"
+          echo "UBUNTU_41_COMMIT=$commit" >> "$GITHUB_ENV"
+      - name: Compare all 41 affected paths with Ubuntu source and both binary payloads
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s tests -p test_reconcile_dev10_image_observed_41_binary_paths.py -v
+          python3 -B scripts/reconcile_dev10_image_observed_41_binary_paths.py \
+            --upstream-evidence "$RUNNER_TEMP/dev10-image-41-reconciliation/source/upstream-canonical-reconciliation.json" \
+            --amd64-manifest "$RUNNER_TEMP/dev10-image-41-reconciliation/amd64/binary-package-provenance.json" \
+            --arm64-manifest "$RUNNER_TEMP/dev10-image-41-reconciliation/arm64/binary-package-provenance.json" \
+            --ubuntu-root "$UBUNTU_41_ROOT" \
+            --ubuntu-tag "$UBUNTU_41_TAG" \
+            --ubuntu-commit "$UBUNTU_41_COMMIT" \
+            --output "$RUNNER_TEMP/dev10-image-41-reconciliation/path-reconciliation.json"
+          python3 - "$RUNNER_TEMP/dev10-image-41-reconciliation/path-reconciliation.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1]))
+          assert data["counts"]["cves"] == 41
+          assert len(data["binary_packages"]) == 2
+          assert data["policy_boundary"]["not_affected"] is False
+          print("### 41-CVE Ubuntu source-to-binary path reconciliation")
+          print("Ubuntu source tag:",data["ubuntu_source"]["tag"],data["ubuntu_source"]["commit"])
+          print("Counts:",data["counts"])
+          print("AMD64/ARM64 package manifests:",data["binary_packages"])
+          print("All 41 binary applicability and VEX dispositions remain under investigation.")
+          PY
+      - name: Retain 41-CVE source-to-binary reconciliation
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev10-image-observed-41-source-binary-reconciliation
+          path: ${{ runner.temp }}/dev10-image-41-reconciliation/path-reconciliation.json
           if-no-files-found: error
           retention-days: 30
 
