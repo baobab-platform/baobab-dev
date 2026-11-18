@@ -96,7 +96,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Python 3.14
-        uses: actions/setup-python@ad3497abcd142e169a10aac37abd5175c44f33c4 # v7.0.0+6
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.14'
       - name: Install exact checksum-verified uv / uvx from committed lock
