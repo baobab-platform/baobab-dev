@@ -241,6 +241,225 @@
         "a8b024cbf62b497062c86995737fc303e4cc384e",
         "e057d201640eebb8ed47ec924872c41570a3bd28"
       ]
+    },
+    {
+      "cve": "CVE-2026-99147",
+      "path": "cves/2026/99xxx/CVE-2026-99147.json",
+      "blob_sha1": "f6b075ea141c710e47d24bfabb29254052d30024",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-30T12:42:16.086Z",
+      "affected_source_paths": [
+        "drivers/gpu/drm/drm_exec.c",
+        "include/drm/drm_exec.h"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/26401a4999f1596a515b2e704e7066ac09306488",
+        "https://git.kernel.org/stable/c/74b4d2370a9e2b77247063dfa05f452766102676",
+        "https://git.kernel.org/stable/c/7a10cd79c4d9a90334fece32fef3a8e5b1a9727b",
+        "https://git.kernel.org/stable/c/96d9996e5dbcfabed052c0d9377a382c95fed607",
+        "https://git.kernel.org/stable/c/9dd91a22f076a4d19f14d82a5ab790c6bbaa073e"
+      ],
+      "candidate_fix_commit_ids": [
+        "26401a4999f1596a515b2e704e7066ac09306488",
+        "74b4d2370a9e2b77247063dfa05f452766102676",
+        "7a10cd79c4d9a90334fece32fef3a8e5b1a9727b",
+        "96d9996e5dbcfabed052c0d9377a382c95fed607",
+        "9dd91a22f076a4d19f14d82a5ab790c6bbaa073e"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99152",
+      "path": "cves/2026/99xxx/CVE-2026-99152.json",
+      "blob_sha1": "fcb3cb8d9151c33b0525d0807e454b50ad90171c",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-31T12:44:00.040Z",
+      "affected_source_paths": [
+        "drivers/scsi/libiscsi.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/11bffcd9cb346732eab2914ef44fe777a3f0b585",
+        "https://git.kernel.org/stable/c/55a65ef61e2775aeb18fda63bd1959fa8b41f936",
+        "https://git.kernel.org/stable/c/5b56229cc152095fbe4e4ff537cb206c4aa41610",
+        "https://git.kernel.org/stable/c/77134cf996bab55683f0ceafb9e300d97ac046f8",
+        "https://git.kernel.org/stable/c/7a7a473aec51195778a54fdd71f20fda3047b8ef",
+        "https://git.kernel.org/stable/c/bf4035656852a386fecb5d6217710a1bde536e76",
+        "https://git.kernel.org/stable/c/e96ae694c5038aae84142b64e41b56324b7af9a7",
+        "https://git.kernel.org/stable/c/f721487523d45941aed4b0ac8d829b0461a7d860"
+      ],
+      "candidate_fix_commit_ids": [
+        "11bffcd9cb346732eab2914ef44fe777a3f0b585",
+        "55a65ef61e2775aeb18fda63bd1959fa8b41f936",
+        "5b56229cc152095fbe4e4ff537cb206c4aa41610",
+        "77134cf996bab55683f0ceafb9e300d97ac046f8",
+        "7a7a473aec51195778a54fdd71f20fda3047b8ef",
+        "bf4035656852a386fecb5d6217710a1bde536e76",
+        "e96ae694c5038aae84142b64e41b56324b7af9a7",
+        "f721487523d45941aed4b0ac8d829b0461a7d860"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99153",
+      "path": "cves/2026/99xxx/CVE-2026-99153.json",
+      "blob_sha1": "c495d09ca99e472aff87f25c44f6e9e03ffb7f21",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-31T12:44:04.972Z",
+      "affected_source_paths": [
+        "drivers/scsi/libiscsi.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/21ef746340ce246344f34278e205b8960c1d8874",
+        "https://git.kernel.org/stable/c/3637a4ad1d07477f1c60609876da6b60154d224b",
+        "https://git.kernel.org/stable/c/576125e7382a7826bd6c3c1ca4d9c582ed5be21d",
+        "https://git.kernel.org/stable/c/7215a69b6456fda79c0935c2959045dff3fcaac8",
+        "https://git.kernel.org/stable/c/c5958c770b2a0ee492414e26b07da9164a0d1f5d",
+        "https://git.kernel.org/stable/c/d20583a9dbe0d32a9af8384c857c95c0fc115103",
+        "https://git.kernel.org/stable/c/d79343ae3223b3f7f74b55e79f8a1371fa3f4b1a",
+        "https://git.kernel.org/stable/c/ebb8c5ef2aabf66895253600e8390e8fc7094807"
+      ],
+      "candidate_fix_commit_ids": [
+        "21ef746340ce246344f34278e205b8960c1d8874",
+        "3637a4ad1d07477f1c60609876da6b60154d224b",
+        "576125e7382a7826bd6c3c1ca4d9c582ed5be21d",
+        "7215a69b6456fda79c0935c2959045dff3fcaac8",
+        "c5958c770b2a0ee492414e26b07da9164a0d1f5d",
+        "d20583a9dbe0d32a9af8384c857c95c0fc115103",
+        "d79343ae3223b3f7f74b55e79f8a1371fa3f4b1a",
+        "ebb8c5ef2aabf66895253600e8390e8fc7094807"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99154",
+      "path": "cves/2026/99xxx/CVE-2026-99154.json",
+      "blob_sha1": "f6058ab07fdf66f535eda54440c3f4e7feb9b1fb",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-31T12:44:09.854Z",
+      "affected_source_paths": [
+        "drivers/scsi/libiscsi.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/0eb06ebbbecb122f0df9a1f7f623f5255be741ed",
+        "https://git.kernel.org/stable/c/24bd9ba431b2daa263f3551bc2f09f6b4487f5ae",
+        "https://git.kernel.org/stable/c/35b60549a956237488c89a2d85352e026e7d55b7",
+        "https://git.kernel.org/stable/c/6200fb2de579f268742a77b0f3d823cb0a8b1947",
+        "https://git.kernel.org/stable/c/6cadfa6f1f5896632d4223d3b7addb2a29fea74e",
+        "https://git.kernel.org/stable/c/8ee2a09a1dbb257c9e828ad2497f8e4832dfb142",
+        "https://git.kernel.org/stable/c/e896a97f336c5edfc13066b57ed431cb3f64e68c",
+        "https://git.kernel.org/stable/c/f8fabe1fe044f86abc42194b8f86dfd70212115f"
+      ],
+      "candidate_fix_commit_ids": [
+        "0eb06ebbbecb122f0df9a1f7f623f5255be741ed",
+        "24bd9ba431b2daa263f3551bc2f09f6b4487f5ae",
+        "35b60549a956237488c89a2d85352e026e7d55b7",
+        "6200fb2de579f268742a77b0f3d823cb0a8b1947",
+        "6cadfa6f1f5896632d4223d3b7addb2a29fea74e",
+        "8ee2a09a1dbb257c9e828ad2497f8e4832dfb142",
+        "e896a97f336c5edfc13066b57ed431cb3f64e68c",
+        "f8fabe1fe044f86abc42194b8f86dfd70212115f"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99164",
+      "path": "cves/2026/99xxx/CVE-2026-99164.json",
+      "blob_sha1": "e04bea8c2b819da4cbc46838576a803205b867cb",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-31T12:44:24.973Z",
+      "affected_source_paths": [
+        "drivers/spi/spi-imx.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/2777f6637da02da84c9c1ff92f413ce0f0995084",
+        "https://git.kernel.org/stable/c/59eb22641f0c526dd064390b11cff99ae87c2858"
+      ],
+      "candidate_fix_commit_ids": [
+        "2777f6637da02da84c9c1ff92f413ce0f0995084",
+        "59eb22641f0c526dd064390b11cff99ae87c2858"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99166",
+      "path": "cves/2026/99xxx/CVE-2026-99166.json",
+      "blob_sha1": "e22b2fbda50b6c1f8fa27d9692863c8cad92d6a4",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-30T12:42:32.571Z",
+      "affected_source_paths": [
+        "net/rds/rdma_transport.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/074bb7cdc3e26afa698888ba56fc1df0e3f24650",
+        "https://git.kernel.org/stable/c/0d15e853aa88da5375edd32b39d08a048b64a1c5",
+        "https://git.kernel.org/stable/c/492ba6ac1b1ffb8a06ff52db0825c1af2cdb28c8",
+        "https://git.kernel.org/stable/c/5f23e4e3a31dacfd82a8f56be253adc0910ee84f",
+        "https://git.kernel.org/stable/c/8973f70cb068012d83cff1cfa3f45ef94ab02267",
+        "https://git.kernel.org/stable/c/8c77774535c3d6162929521a6fa11e3db086fa32",
+        "https://git.kernel.org/stable/c/a2fde862b98db8908e2ebaffbb35a75a0e9d5b33",
+        "https://git.kernel.org/stable/c/ca14c289ed9ffed6cc64290d039e923e5720a8bf"
+      ],
+      "candidate_fix_commit_ids": [
+        "074bb7cdc3e26afa698888ba56fc1df0e3f24650",
+        "0d15e853aa88da5375edd32b39d08a048b64a1c5",
+        "492ba6ac1b1ffb8a06ff52db0825c1af2cdb28c8",
+        "5f23e4e3a31dacfd82a8f56be253adc0910ee84f",
+        "8973f70cb068012d83cff1cfa3f45ef94ab02267",
+        "8c77774535c3d6162929521a6fa11e3db086fa32",
+        "a2fde862b98db8908e2ebaffbb35a75a0e9d5b33",
+        "ca14c289ed9ffed6cc64290d039e923e5720a8bf"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99167",
+      "path": "cves/2026/99xxx/CVE-2026-99167.json",
+      "blob_sha1": "99dc00fd1b33835fa470ca18121174428cd0fbae",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-31T12:44:30.175Z",
+      "affected_source_paths": [
+        "net/sched/act_api.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/2465d27ef90de9105c2bffb6c35f8ce08918e642",
+        "https://git.kernel.org/stable/c/2e012e431aa271ef3c84206f48854f539c03bff0",
+        "https://git.kernel.org/stable/c/4d83a3fc03bc595dd39b79ad61288738fbb1f2ba",
+        "https://git.kernel.org/stable/c/7b16eb911091aae237a8673da94e4dfb9cd21d54",
+        "https://git.kernel.org/stable/c/969ad6f2b266f383b44194d50d15631969b26222",
+        "https://git.kernel.org/stable/c/fcc7d734ceccfab8ec3398c5b34f8e775d459507",
+        "https://git.kernel.org/stable/c/fd01abed2568209f7daaf60e5ee68ae4a4744f48",
+        "https://git.kernel.org/stable/c/fde33eb9955d819af282d5f5e84684eaec248291"
+      ],
+      "candidate_fix_commit_ids": [
+        "2465d27ef90de9105c2bffb6c35f8ce08918e642",
+        "2e012e431aa271ef3c84206f48854f539c03bff0",
+        "4d83a3fc03bc595dd39b79ad61288738fbb1f2ba",
+        "7b16eb911091aae237a8673da94e4dfb9cd21d54",
+        "969ad6f2b266f383b44194d50d15631969b26222",
+        "fcc7d734ceccfab8ec3398c5b34f8e775d459507",
+        "fd01abed2568209f7daaf60e5ee68ae4a4744f48",
+        "fde33eb9955d819af282d5f5e84684eaec248291"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99185",
+      "path": "cves/2026/99xxx/CVE-2026-99185.json",
+      "blob_sha1": "4327c9ce19dca9a876475a08af179d1d40b2405e",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-31T12:44:55.216Z",
+      "affected_source_paths": [
+        "drivers/firewire/core-transaction.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/7f9f2d6abc40f79e802b4063859eda343043b85c",
+        "https://git.kernel.org/stable/c/a8caee0e623ca5d56e829032f9ec073c09e4d224"
+      ],
+      "candidate_fix_commit_ids": [
+        "7f9f2d6abc40f79e802b4063859eda343043b85c",
+        "a8caee0e623ca5d56e829032f9ec073c09e4d224"
+      ]
     }
   ]
 }
