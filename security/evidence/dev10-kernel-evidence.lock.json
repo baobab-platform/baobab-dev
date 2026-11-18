@@ -125,7 +125,7 @@
     "signer_run_id": 43493272371,
     "signer_job_id": 132138775423,
     "signer_job_name": "Publish Multi-Arch Manifest & Cosign Sign (final)",
-    "qualification": "historical R5 publish succeeded; independent strict readback pending",
+    "qualification": "Historical v1.5.1 publish succeeded; independent strict readback verified all four profile indexes and both native architectures in run 44330235494. This is historical evidence, not v1.5.2 release qualification.",
     "release_qualification": {
       "rc_run_id": 43493272371,
       "ga_reuse_run_id": 43559737080,
@@ -311,6 +311,55 @@
           "job_id": 132138775502
         }
       ]
+    },
+    "independent_readback": {
+      "run_id": 44330235494,
+      "release_tag": "v1.5.1",
+      "signer_tag": "v1.5.1-rc.2",
+      "source_sha": "13493b24d6af1a9e7bddf7df9be555d1c06a635d",
+      "status": "STRICT_SIGNED_NATIVE_CONTENT_VERIFIED",
+      "image_signature_count": 5,
+      "signed_slsa_statements": 2,
+      "signed_spdx_statements": 2,
+      "release_qualification": false,
+      "profiles": {
+        "final": {
+          "artifact_id": 14439297155,
+          "artifact_sha256": "b4dfcabf04eef40b9fe2bb4fc671dd59e0f0dfe59a2da6f7958f4f5f6f768178",
+          "index_digest": "sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed",
+          "native_child_digests": {
+            "linux/amd64": "sha256:51c380e8128431dc546fdd59736ad91a02d3f6bcac2d6b9d16389f312f697c0c",
+            "linux/arm64": "sha256:1f1a90dc05e3248a8f90e1848d63aa9f5e82a078976a9a1a0d6be3c496360804"
+          }
+        },
+        "frontend": {
+          "artifact_id": 14439391830,
+          "artifact_sha256": "9a18e48105f10d806e1ef2338174e380e6dadb942735c1fce2fe2fea3eb1209a",
+          "index_digest": "sha256:388d604293fc6a2046d1abb9c7b80b32e78c6003636b091d1e9c7c827e34766d",
+          "native_child_digests": {
+            "linux/amd64": "sha256:387eefb51bb748194c10ac35e18c50faed467a8ff2ebc07697cc0dc7063c72f5",
+            "linux/arm64": "sha256:a1943251cbd035df107149e94bcd9a28d7feff8094ef911781ef8c71497e9182"
+          }
+        },
+        "frontend-e2e": {
+          "artifact_id": 14438972949,
+          "artifact_sha256": "ca5c45648e0209924044cdb21ad92e69772b1b8b18c9142f21a75d75d694bddd",
+          "index_digest": "sha256:5b4a9ce1ac819a2b125f078fef4b14837b5b65b46527087a2bb8898b4811bb0b",
+          "native_child_digests": {
+            "linux/amd64": "sha256:96d34348b0b7be9a85c024179d60481597619e15980897896c0653265c78d37e",
+            "linux/arm64": "sha256:549336dcc9405f0b657fcc4877749274a9c96d937c7c49ba2fa3fc3c0862f3b5"
+          }
+        },
+        "infra": {
+          "artifact_id": 14438583734,
+          "artifact_sha256": "74a54a878b13ebf5ce4affd11162eee3ffae8ac1cce46376b759b89ac08ddbdb",
+          "index_digest": "sha256:5b39e71dd068da12e009421012d7c3620339746c2a39839182ea1f4fe788ffda",
+          "native_child_digests": {
+            "linux/amd64": "sha256:1ca79f79867eb0fc3a4a1b0c31ccf0aa47d252915f2e01ff32d6e51d2cfb0fa7",
+            "linux/arm64": "sha256:290140edf7fc9c252befe9454119b059549c3a5ddd44cf668392d442f81657d7"
+          }
+        }
+      }
     }
   },
   "stable_profile_images": {
