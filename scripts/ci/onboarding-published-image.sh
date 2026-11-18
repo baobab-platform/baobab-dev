@@ -135,8 +135,28 @@ else
 fi
 cat "$verify_log"
 playwright_verified=false
-if grep -Fq "Playwright Chromium launches as" "$verify_log"; then
+if [[ "$EXPECTED_PROFILE" == "frontend-e2e" ]]; then
+  [[ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" && -d "$PLAYWRIGHT_BROWSERS_PATH" ]] || {
+    echo "frontend-e2e requires the immutable image's readable Playwright browser cache" >&2
+    exit 1
+  }
+  playwright_package="$(npm root -g)/playwright"
+  [[ -f "$playwright_package/package.json" ]] || {
+    echo "Global Playwright package is unavailable in the published image" >&2
+    exit 1
+  }
+  node - "$playwright_package" <<'NODE'
+const { chromium } = require(process.argv[2]);
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  await browser.close();
+})().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+NODE
   playwright_verified=true
+  echo "Playwright Chromium launches as $(id -un)"
 fi
 if (( verify_status == 0 )); then
   verify_label="VERIFIED"
