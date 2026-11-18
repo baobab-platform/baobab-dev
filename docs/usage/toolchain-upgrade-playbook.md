@@ -38,9 +38,9 @@ The image is not the sole authority for project dependencies. For each planned c
 - All supported target profiles and AMD64/ARM64 support.
 - Private GitHub Packages authentication and expected user/UID context.
 
-**Coupled tools must move together.** pnpm image cache ↔ consumer `packageManager`; global Playwright browser download ↔ project `@playwright/test`; PostgreSQL client 17 ↔ server migration (separate, not implied). Node 26.13.1, pnpm 12.21.0 and Python 3.14.10 are the published v1.5.1 platform baseline; consumer manifests and lockfiles must align to that baseline or a deliberately qualified newer version.
+**Coupled tools must move together.** pnpm image cache ↔ consumer `packageManager`; global Playwright browser download ↔ project `@playwright/test`; PostgreSQL client 17 ↔ server migration (separate, not implied). The published v1.5.1 baseline is Node 26.13.1, pnpm 12.16.1 and Python 3.14.10; consumer manifests and lockfiles must align to that baseline or a deliberately qualified newer version.
 
-The published v1.5.1 baseline now uses native pnpm 12.21.0 and Node 26.13.1. A passing offline fixture is necessary but not sufficient: each consumer still needs its exact `packageManager` and `.node-version` pins, frozen lock validation, native architecture testing and representative lifecycle qualification before upgrade acceptance.
+The current PR #74 source lock resolves native pnpm 12.21.0 and Playwright 1.65.0 as candidate next-image pins. They are not the published v1.5.1 baseline and must not be represented as installed in a released image until the exact candidate digest is built and qualified. A passing offline fixture is necessary but not sufficient: each consumer still needs its exact `packageManager` and `.node-version` pins, frozen lock validation, native architecture testing and representative lifecycle qualification before upgrade acceptance.
 
 ## 2. Resolve without drift
 
