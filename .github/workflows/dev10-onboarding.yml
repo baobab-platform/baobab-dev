@@ -75,6 +75,33 @@ jobs:
               printf "%s\n" "#!/usr/bin/env bash" "exec bash /source/scripts/summary.sh \"\$@\"" > /tmp/dev10-tools/baobab-summary
               printf "%s\n" "#!/usr/bin/env bash" "exec bash /source/scripts/verify.sh \"\$@\"" > /tmp/dev10-tools/baobab-verify
               chmod +x /tmp/dev10-tools/baobab-summary /tmp/dev10-tools/baobab-verify
+              # The stable v1.5.1 image predates this checkout's uv pin.
+              # Install the exact repository-pinned uv with the committed
+              # architecture-specific checksum; do not use an unverified self-update.
+              mkdir -p /tmp/dev10-uv
+              case "$(uname -m)" in
+                x86_64)
+                  uv_asset=uv-x86_64-unknown-linux-gnu.tar.gz
+                  uv_sha=a7fbaff2b9a271d85c1bdb540941090fd1ce011797b4abeb48e4dcd39c2471d5
+                  uv_dir=uv-x86_64-unknown-linux-gnu
+                  ;;
+                aarch64)
+                  uv_asset=uv-aarch64-unknown-linux-gnu.tar.gz
+                  uv_sha=0797542018e541a9288855df555c8077eed06f7a47d206362030480e8ecc9f3d
+                  uv_dir=uv-aarch64-unknown-linux-gnu
+                  ;;
+                *)
+                  echo "Unsupported onboarding architecture: $(uname -m)" >&2
+                  exit 2
+                  ;;
+              esac
+              curl -fsSL --retry 5 --retry-all-errors \
+                "https://github.com/astral-sh/uv/releases/download/0.13.9/$uv_asset" \
+                -o /tmp/dev10-uv/uv.tar.gz
+              echo "$uv_sha  /tmp/dev10-uv/uv.tar.gz" | sha256sum --check --strict
+              tar -xzf /tmp/dev10-uv/uv.tar.gz -C /tmp/dev10-uv
+              install "/tmp/dev10-uv/$uv_dir/uv" /tmp/dev10-tools/uv
+              test "$(uv --version)" = "uv 0.13.9"
               export PATH=/tmp/dev10-tools:$PATH WORKSPACE_DIR=/tmp/dev10-project
               cd "$WORKSPACE_DIR"
               bash /source/scripts/post-create.sh --stage=post-create
