@@ -215,8 +215,12 @@ def resolve_trusted_reviewers(token, logins):
                 and isinstance(user.get("login"), str)
                 and user["login"].casefold() == login.casefold(),
                 "trusted reviewer login resolution mismatch")
+        require(user.get("type") == "User",
+                "trusted reviewer must resolve to a typed GitHub User")
         user_id = user.get("id")
         require(type(user_id) is int and user_id > 0, "trusted reviewer has no numeric GitHub ID")
+        require(user_id not in identities,
+                "trusted reviewer identities collide on numeric GitHub ID")
         identities[user_id] = user["login"]
     require(bool(identities), "no trusted numeric reviewer identities resolved")
     return identities
@@ -262,7 +266,15 @@ def select_independent_approval(reviews, *, head, trusted_reviewers, author_id, 
         require(isinstance(review, dict), "malformed pull-request review")
         if review.get("state") == "PENDING":
             continue
-        reviewer = review.get("user") or {}
+        reviewer = review.get("user")
+        require(isinstance(reviewer, dict),
+                "review contains no reviewer account identity")
+        reviewer_type = reviewer.get("type")
+        if reviewer_type == "Bot":
+            # Bot reviews are never trusted approvals or effective human-review state.
+            continue
+        require(reviewer_type == "User",
+                "review contains a non-User or untyped reviewer identity")
         reviewer_id = reviewer.get("id")
         require(type(reviewer_id) is int and reviewer_id > 0,
                 "review contains an unresolved numeric reviewer identity")

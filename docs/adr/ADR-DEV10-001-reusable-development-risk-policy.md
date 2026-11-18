@@ -79,10 +79,17 @@ evidence:
    identities, incomplete history and malformed IDs fail closed.
 
 The configured `DEV10_SECURITY_APPROVER_LOGINS` values are used only to
-resolve the trusted reviewers to numeric GitHub IDs. Login and email are not
-identity comparison keys. A GitHub service account is not silently excluded:
-if its numeric identity appears as a committer, it is included in the
-contributor set. If GraphQL returns a null `GitActor.user` for a committer,
+resolve the trusted reviewers to numeric GitHub IDs. Each Users API response
+must be explicitly typed `User`; duplicate configured logins resolving to
+the same numeric ID are rejected rather than silently collapsed. Effective PR
+review records must also identify a typed `User`; Bot, App, missing and
+unknown actor types cannot qualify as approvals. GitHub's `User` type is an
+account classification, not proof that the account is a natural person. The
+trusted numeric-ID allowlist remains a manually governed appointment and must
+not be populated from commit email, display name, service labels or AI-agent
+claims. Login and email are not identity comparison keys. A GitHub service
+account is not silently excluded: if its numeric identity appears as a
+committer, it is included in the contributor set. If GraphQL returns a null `GitActor.user` for a committer,
 the verifier may reconcile that one identity against the REST commit endpoint
 for the exact same immutable commit SHA. It must require exact equality of the
 GraphQL and REST committer name and email, and equality of the timestamp as a
