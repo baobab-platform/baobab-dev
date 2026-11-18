@@ -30,7 +30,7 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         self.assertIn("cancel-in-progress: ${{ github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/') }}", text)
         self.assertNotIn("-e HOME=/tmp/dev10-home", text)
         self.assertIn('docker run --rm -e EXPECTED_PROFILE=', text)
-        self.assertIn('if "${{ matrix.profile }}" == "frontend-e2e"; then', text)
+        self.assertIn('if [[ "${{ matrix.profile }}" == "frontend-e2e" ]]; then', text)
         self.assertIn('docker run --rm --user 0:0', text)
         self.assertIn('cp -a "$browser_source/." /evidence/browser-cache/', text)
         self.assertIn('chmod -R a+rX /evidence/browser-cache', text)
