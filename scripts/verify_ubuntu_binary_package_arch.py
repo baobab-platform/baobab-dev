@@ -185,12 +185,16 @@ def verify(args: argparse.Namespace) -> dict:
     if package_entries != installed_entries:
         package_paths = {row["path"] for row in package_entries}
         installed_paths = {row["path"] for row in installed_entries}
+        mismatch_count = sum(
+            1 for path in package_paths & installed_paths
+            if next(row for row in package_entries if row["path"] == path)
+            != next(row for row in installed_entries if row["path"] == path)
+        )
         raise ValueError(
             "installed package payload differs from downloaded .deb: "
             f"archive_only={len(package_paths - installed_paths)} "
             f"installed_only={len(installed_paths - package_paths)} "
-            f"content_or_type_mismatches={sum(1 for p in package_paths & installed_paths "
-            f"if next(x for x in package_entries if x['path']==p) != next(x for x in installed_entries if x['path']==p))}"
+            f"content_or_type_mismatches={mismatch_count}"
         )
     manifest_bytes = json.dumps(package_entries, sort_keys=True, separators=(",", ":")).encode()
     manifest_sha = hashlib.sha256(manifest_bytes).hexdigest()
