@@ -25,7 +25,7 @@ class Supplemental41CveListMirrorTests(unittest.TestCase):
         self.assertEqual(lock["source"]["commit"], "4c07c147c7a7132e0228ab8bf6fb8b411b256e13")
         self.assertEqual(lock["source"]["record_count"], 41)
         raw = TSV.read_bytes()
-        git_blob = hashlib.sha1(b"blob " + str(len(raw)).encode("ascii") + b"\\0" + raw).hexdigest()
+        git_blob = hashlib.sha1(b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw).hexdigest()
         self.assertEqual(git_blob, lock["source"]["record_inventory_blob_sha1"])
         upstream_lock = json.loads((ROOT / "security/evidence/dev10-image-observed-cves-41-upstream.lock.json").read_text(encoding="utf-8"))
         self.assertEqual(upstream_lock["cvelist_mirror_commit"], lock["source"]["commit"])
