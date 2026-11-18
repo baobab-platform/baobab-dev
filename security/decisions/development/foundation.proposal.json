@@ -74,10 +74,38 @@
       "version": "7.0.0-43.43",
       "severity": "HIGH",
       "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-98869",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-98890",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99083",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-112366",
+      "package": "picomatch",
+      "version": "4.0.5",
+      "severity": "HIGH",
+      "type": "node-pkg"
     }
   ],
-  "finding_count": 8,
-  "notes": "PROPOSAL ONLY; NOT AN APPROVED EXCEPTION. This is intended to be reusable across eligible current and future same-repository pull requests targeting main, and development-main push CI, until 2026-11-26T00:00:00Z. Fork pull requests are excluded. It is not PR-number-bound and is not available to tags, release publication/promotion, workflow_dispatch, schedules, deployments, other PR base branches, staging or production. Evidence is from PR #74 Publish run 43829121908 at source head c161821441c0d7c054514abd78a40dc25e774479 and Foundation run 43829123295. All four profiles and both architectures reported the same eight HIGH findings against linux-libc-dev=7.0.0-43.43; Trivy 0.73.0 reported no fixed versions and no secret findings. Artifact IDs, raw-report hashes, normalized-finding hashes and Trivy DB freshness metadata are recorded in docs/security/dev10-foundation-policy-review.md. Issue #54 explicitly records PR #74 as assessment-only; this proposal seeks a new reusable decision for the exact observed inventory, not retroactive PR #74 approval. The 12 November owner-authorised eight-CVE amendment named PR #62; no PR #71 authority was located. Independent approval, merged approval custody, final approved bytes and the separately provisioned SHA-256 trust anchor remain absent. Do not activate until the approved decision is merged and verified.",
+  "finding_count": 12,
+  "notes": "REVIEW ONLY; NOT AN APPROVED EXCEPTION. Reconciled from the nine fresh Trivy evidence artifacts on PR #74 head f2778b003fc5958647a450aa15f39f37dc8a440d: Foundation run 44264457504 (artifact 14410890378) and Publish run 44264450503 (eight profile/architecture artifacts documented in docs/security/dev10-pr74-observed-cve-inventory.md). Deduplicated by exact (CVE, package, installed version, severity, ecosystem/type) identity, yielding the existing eight linux-libc-dev=7.0.0-43.43 HIGH Ubuntu findings, three new linux-libc-dev HIGH Ubuntu findings (CVE-2026-98869, CVE-2026-98890, CVE-2026-99083), and one CVE-2026-112366 HIGH picomatch=4.0.5 node-pkg finding. The picomatch package path is usr/lib/node_modules/npm/node_modules/tinyglobby/node_modules/picomatch/package.json; PURL pkg:npm/picomatch@4.0.5; advisory GHSA-fc5q-39xc-vjpf; no fixed version is currently published by the reviewed advisory. Canonical Ubuntu source status for the three new kernel CVEs is Vulnerable; linux-libc-dev 7.0.0-44.44 was not verified as an installable fixed candidate (reported as proposed/work-in-progress only). This proposal is not active. It retains the original expiry 2026-11-26T00:00:00Z, development-only execution scope, all four profiles and both architectures, and all existing fail-closed fixed-version, missing-inventory, secret, scanner-error and out-of-inventory vetoes. Activation requires a separate decision PR with exact-head trusted independent reviewer approval, attributable owner concurrence, complete typed numeric contributor custody, merged-byte equality, and a newly provisioned exact SHA-256 trust anchor. The currently provisioned foundation.json remains the eight-finding policy; until the amendment is separately approved, merged and provisioned, the four new findings remain denied. This does not authorize tags, releases, GHCR publication, signing, promotion, staging or production.",
   "execution_scope": {
     "pull_request_base": "main",
     "push_ref": "refs/heads/main",
