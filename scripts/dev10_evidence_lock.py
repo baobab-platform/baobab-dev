@@ -30,6 +30,7 @@ class EvidenceLock:
     canonical_count: int
     binary_manifest_sha256: str | None
     header_count: int
+    binary_manifest_path_count: int
     stable_profile_images: dict[str, dict]
     historical_inventory_path: str
     historical_inventory_sha256: str
@@ -67,6 +68,7 @@ class EvidenceLock:
             canonical_count=canonical["count"],
             binary_manifest_sha256=manifest["sha256"],
             header_count=manifest["header_count"],
+            binary_manifest_path_count=manifest["path_count"],
             stable_profile_images=data.get("stable_profile_images", {}),
             historical_inventory_path=data["historical_295_inventory"]["path"],
             historical_inventory_sha256=data["historical_295_inventory"]["sha256"],
@@ -86,8 +88,10 @@ class EvidenceLock:
         for digest in (lock.inventory_sha256, lock.canonical_sha256):
             if not SHA256.fullmatch(digest):
                 raise ValueError("DEV-10 evidence lock contains an invalid input digest")
-        if lock.binary_manifest_sha256 is not None and not SHA256.fullmatch(lock.binary_manifest_sha256):
-            raise ValueError("DEV-10 evidence lock contains an invalid binary manifest digest")
+        if (lock.binary_manifest_sha256 is None
+                or not SHA256.fullmatch(lock.binary_manifest_sha256)
+                or lock.header_count < 1 or lock.binary_manifest_path_count < lock.header_count):
+            raise ValueError("DEV-10 evidence lock contains an invalid binary manifest digest or counts")
         for rel, expected, count, label in (
             (lock.inventory_path, lock.inventory_sha256, lock.inventory_count, "CVE inventory"),
             (lock.canonical_path, lock.canonical_sha256, lock.canonical_count, "Canonical status input"),
