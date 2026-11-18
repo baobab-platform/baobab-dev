@@ -13,6 +13,11 @@ spec = importlib.util.spec_from_file_location("kernel_paths", SRC)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
+# Keep the established source-evidence workflow responsible for the supplemental
+# 41-CVE source pins and both architecture package-manifest regression tests.
+from test_dev10_image_observed_41_sources import Supplemental41SourceEvidenceTests
+from test_ubuntu_binary_package_arch import UbuntuBinaryPackageArchitectureTests
+
 
 class KernelPathTests(unittest.TestCase):
     def sample(self, paths):
