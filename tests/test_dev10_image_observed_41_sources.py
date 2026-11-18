@@ -39,10 +39,13 @@ class Supplemental41SourceEvidenceTests(unittest.TestCase):
         rows = read_rows(CANONICAL_TSV)
         lock = json.loads(CANONICAL_LOCK.read_text(encoding="utf-8"))
         self.assertEqual(git_blob_sha1(CANONICAL_TSV.read_bytes()),
-                         "93e1e8b8b20579157234a9e040c1cfdcc1eabfcd")
+                         "6615aed79616bd3247de087453a5f8e8fbc0928e")
         self.assertEqual(lock["source"]["commit"],
                          "a64faad6c6b5b52353b7300d278e501c0ca75d21")
         self.assertEqual(lock["source"]["record_count"], 41)
+        self.assertEqual(lock["source"]["binary_package_mapping"]["binary_package"], "linux-libc-dev")
+        self.assertEqual(lock["source"]["binary_package_mapping"]["binary_version"], "7.0.0-43.43")
+        self.assertEqual(lock["source"]["binary_package_mapping"]["records_listed_as_affected"], 41)
         self.assertEqual(len(rows), 41)
         self.assertEqual(len(lock["records"]), 41)
         self.assertEqual({row["cve"] for row in rows},
@@ -51,12 +54,18 @@ class Supplemental41SourceEvidenceTests(unittest.TestCase):
                          {row["cve"] for row in read_rows(INVENTORY)})
         for row in rows:
             self.assertEqual(row["resolute_source_purl"], SOURCE_PURL)
-            self.assertEqual(row["installed_7_0_0_43_43_listed_as_affected"], "true")
+            self.assertEqual(row["canonical_linux_source_version_7_0_0_43_43_affected"], "true")
+            self.assertEqual(row["canonical_linux_libc_dev_binary_version"], "7.0.0-43.43")
+            self.assertEqual(row["canonical_linux_libc_dev_binary_listed_as_affected"], "true")
             self.assertEqual(row["binary_disposition"], "under_investigation")
             self.assertEqual(len(row["canonical_osv_blob_sha"]), 40)
         self.assertEqual(sum(row["ubuntu_priority"] == "high" for row in rows), 38)
         self.assertEqual(sum(row["ubuntu_priority"] == "critical" for row in rows), 3)
         self.assertTrue(all(row["resolute_7_0_0_43_43_affected"] is True
+                            for row in lock["records"]))
+        self.assertTrue(all(row["canonical_linux_source_version_affected"] is True
+                            and row["linux_libc_dev_binary_version"] == "7.0.0-43.43"
+                            and row["linux_libc_dev_binary_listed_as_affected"] is True
                             for row in lock["records"]))
 
     def test_upstream_pin_is_immutable_and_scope_preserving(self):
