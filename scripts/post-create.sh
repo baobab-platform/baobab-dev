@@ -167,21 +167,30 @@ prepare_project_pnpm() {
         || die "Project Corepack cache is not writable: ${PROJECT_COREPACK_HOME}"
     [ -d "${PROJECT_COREPACK_HOME}" ] && [ -w "${PROJECT_COREPACK_HOME}" ] \
         || die "Project Corepack cache is not writable: ${PROJECT_COREPACK_HOME}"
-    COREPACK_HOME="${PROJECT_COREPACK_HOME}" \
-    COREPACK_ENABLE_NETWORK=1 \
-    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-    COREPACK_ON_UNVERIFIED_DOWNLOAD=error \
-    COREPACK_ENV_FILE=0 \
-        corepack install
+    env -u COREPACK_INTEGRITY_KEYS \
+        COREPACK_HOME="${PROJECT_COREPACK_HOME}" \
+        COREPACK_ENABLE_NETWORK=1 \
+        COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+        COREPACK_ON_UNVERIFIED_DOWNLOAD=error \
+            corepack install
+    # Corepack installs pnpm's JavaScript wrapper, not its native executable.
+    # Run it once online so pnpm's own downloader can verify and cache that
+    # exact platform binary using the bundled npm signing keys and SRI checksum.
+    env -u COREPACK_INTEGRITY_KEYS \
+        COREPACK_HOME="${PROJECT_COREPACK_HOME}" \
+        COREPACK_ENABLE_NETWORK=1 \
+        COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+        COREPACK_ON_UNVERIFIED_DOWNLOAD=error \
+            corepack pnpm --version >/dev/null
 }
 
 run_project_pnpm() {
-    COREPACK_HOME="${PROJECT_COREPACK_HOME}" \
-    COREPACK_ENABLE_NETWORK=0 \
-    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-    COREPACK_ON_UNVERIFIED_DOWNLOAD=error \
-    COREPACK_ENV_FILE=0 \
-        corepack pnpm "$@"
+    env -u COREPACK_INTEGRITY_KEYS \
+        COREPACK_HOME="${PROJECT_COREPACK_HOME}" \
+        COREPACK_ENABLE_NETWORK=0 \
+        COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+        COREPACK_ON_UNVERIFIED_DOWNLOAD=error \
+            corepack pnpm "$@"
 }
 
 install_node_project() {

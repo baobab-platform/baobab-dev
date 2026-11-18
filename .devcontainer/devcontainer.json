@@ -42,7 +42,6 @@
   "containerEnv": {
     "TZ": "UTC",
     "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
-    "COREPACK_ENV_FILE": "0",
     "BAOBAB_COREPACK_PROJECT_HOME": "/home/vscode/.cache/baobab-corepack"
   },
   "remoteUser": "vscode",

@@ -40,26 +40,38 @@ fi
   [ "$COREPACK_ENABLE_NETWORK" = "1" ] || exit 43
   [ "$COREPACK_ON_UNVERIFIED_DOWNLOAD" = "error" ] || exit 44
   [ "$COREPACK_ENABLE_DOWNLOAD_PROMPT" = "0" ] || exit 45
-  [ "$COREPACK_ENV_FILE" = "0" ] || exit 46
+  [ -z "${COREPACK_INTEGRITY_KEYS+x}" ] || exit 46
   [ "$FAIL_TOOL" != "corepack" ] || exit 47
+  : > "$COREPACK_HOME/package-manager-ready"
   exit 0
 fi
 if [ "$1" = "pnpm" ]; then
   shift
   [ "$COREPACK_HOME" = "$PROJECT_COREPACK_HOME_EXPECTED" ] || exit 48
   [ -d "$COREPACK_HOME" ] || exit 49
-  [ "$COREPACK_ENABLE_NETWORK" = "0" ] || exit 50
   [ "$COREPACK_ON_UNVERIFIED_DOWNLOAD" = "error" ] || exit 51
   [ "$COREPACK_ENABLE_DOWNLOAD_PROMPT" = "0" ] || exit 52
-  [ "$COREPACK_ENV_FILE" = "0" ] || exit 53
+  [ -z "${COREPACK_INTEGRITY_KEYS+x}" ] || exit 53
   if [ "$1" = "--version" ]; then
+    [ -f "$COREPACK_HOME/package-manager-ready" ] || exit 54
+    if [ "$COREPACK_ENABLE_NETWORK" = "1" ]; then
+      : > "$COREPACK_HOME/native-binary-ready"
+    elif [ "$COREPACK_ENABLE_NETWORK" = "0" ]; then
+      [ -f "$COREPACK_HOME/native-binary-ready" ] || exit 55
+    else
+      exit 56
+    fi
     printf '%s\\n' 'VERSION_PIN'
     exit 0
   fi
   if [ "$1" = "install" ]; then
+    [ "$COREPACK_ENABLE_NETWORK" = "0" ] || exit 57
+    [ -f "$COREPACK_HOME/native-binary-ready" ] || exit 58
     exit 0
   fi
   if [ "$1" = "list" ]; then
+    [ "$COREPACK_ENABLE_NETWORK" = "0" ] || exit 59
+    [ -f "$COREPACK_HOME/native-binary-ready" ] || exit 60
     if [ "$PNPM_MEMBERS" = "yes" ]; then
       printf '[{"path":"%s/frontend"}]\\n' "$WORKSPACE_DIR"
     else
@@ -73,7 +85,6 @@ exit 54
                 elif tool=='yarn':
                     body += """[ "$COREPACK_HOME" = "$IMAGE_COREPACK_HOME_EXPECTED" ] || exit 55
 [ "$COREPACK_ENABLE_NETWORK" = "0" ] || exit 56
-[ "$COREPACK_ENV_FILE" = "0" ] || exit 57
 if [ "$1" = "--version" ]; then
   printf '4.18.1\\n'
   exit 0
@@ -86,7 +97,7 @@ fi
                  'HOME':str(root/'home'),
                  'COREPACK_HOME':'/usr/local/share/baobab/corepack',
                  'COREPACK_ENABLE_NETWORK':'0','COREPACK_ENABLE_DOWNLOAD_PROMPT':'0',
-                 'COREPACK_ENV_FILE':'0',
+                 'COREPACK_INTEGRITY_KEYS':'0',
                  'BAOBAB_COREPACK_PROJECT_HOME':str(project_corepack_home),
                  'PROJECT_COREPACK_HOME_EXPECTED':str(project_corepack_home),
                  'IMAGE_COREPACK_HOME_EXPECTED':'/usr/local/share/baobab/corepack',

@@ -781,13 +781,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 #   downloading a consumer's packageManager version and replacing the
 #   SHA-256-verified publisher binary.
 # - Corepack 0.36 retains the image-owned, offline cache for preloaded Yarn.
-#   The Codespaces lifecycle invokes Corepack explicitly for a consumer's
-#   exact pnpm packageManager pin, hydrates that pin into a separate writable
-#   user cache with COREPACK_ON_UNVERIFIED_DOWNLOAD=error, then disables
-#   Corepack networking for version checks and execution. COREPACK_ENABLE_NETWORK
-#   remains 0 globally; only the one project-scoped Corepack install overrides
-#   it. COREPACK_ENV_FILE=0 prevents a workspace .corepack.env from weakening
-#   the image's network, cache or download-verification controls.
+#   The Codespaces lifecycle hydrates a consumer's exact pnpm packageManager
+#   pin into a separate writable user cache. Corepack verifies the pnpm
+#   package using its npm integrity keys (or the explicit packageManager hash).
+#   It then invokes the pnpm wrapper once with network enabled: pnpm's bundled
+#   get-pnpm downloader verifies the platform package's npm registry signature
+#   and the downloaded executable against the registry's SRI checksum before
+#   caching it beside the wrapper. COREPACK_INTEGRITY_KEYS is unset for both
+#   stages so neither verifier can be disabled by an inherited override.
+#   Subsequent version checks and pnpm execution use the cached wrapper and
+#   native executable with Corepack networking disabled. COREPACK_ENABLE_NETWORK
+#   remains 0 globally; only the two exact project-pinned bootstrap invocations
+#   override it.
 #
 # A FRESH pnpm 12 lockfile containing packageManager: pnpm@12.x needs registry
 # metadata once to record its configuration dependency and its integrity.
@@ -797,7 +802,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # that an empty cache resolve an unrecorded package offline.
 ENV COREPACK_ENABLE_NETWORK=0 \
     COREPACK_DEFAULT_TO_LATEST=0 \
-    COREPACK_ENV_FILE=0 \
     pnpm_config_pm_on_fail=error
 
 # -----------------------------------------------------------------------------
