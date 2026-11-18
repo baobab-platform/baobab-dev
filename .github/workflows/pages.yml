@@ -91,7 +91,7 @@ jobs:
           mkdir -p "${install_dir}"
           yq_path="${install_dir}/yq"
           curl -fsSL -o "${yq_path}" "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/${yq_asset}"
-          printf '%s  %s\\n' "${yq_sha256}" "${yq_path}" | sha256sum -c -
+          printf '%s  %s\n' "${yq_sha256}" "${yq_path}" | sha256sum -c -
           chmod 0755 "${yq_path}"
           "${yq_path}" --version | grep -F "version v${YQ_VERSION}"
           echo "${install_dir}" >> "${GITHUB_PATH}"
