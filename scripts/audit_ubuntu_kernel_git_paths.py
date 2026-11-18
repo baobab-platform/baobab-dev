@@ -67,12 +67,30 @@ def ranked_candidates(missing: str, index: dict[str, list[str]]) -> list[str]:
                   key=lambda candidate: (-shared_suffix(candidate), candidate))
 
 
-def inspect(upstream: dict, repo: Path, paths: set[str], *,
+def inspect(upstream: dict, repo: Path, paths: set[str], *, binary_source: dict,
             exact_tag: str = RELEASE_TAG,
             expected_commit: str = EXPECTED_RELEASE_COMMIT,
             require_origin: bool = True) -> dict:
     if upstream.get("package") != "linux-libc-dev=" + RELEASE_VERSION:
         raise ValueError("mismatched binary package source")
+    if binary_source.get("schema") != "baobab.dev10.ubuntu-binary-source-provenance.v1":
+        raise ValueError("missing reproducible Ubuntu binary/source package provenance")
+    for key, expected in LOCK.binary_source.items():
+        if binary_source.get(key) != expected:
+            raise ValueError("mismatched Ubuntu binary/source package identity: " + key)
+    for key in ("apt_package_metadata_sha256", "apt_policy_sha256", "apt_madison_sha256",
+                "apt_package_deb_sha256", "installed_package_metadata_sha256"):
+        if not SHA40.fullmatch(binary_source.get(key, "")) if key == "unused" else False:
+            raise ValueError("invalid binary/source provenance digest")
+    if any(not re.fullmatch(r"[a-f0-9]{64}", binary_source.get(key, "")) for key in (
+        "apt_package_metadata_sha256", "apt_policy_sha256", "apt_madison_sha256",
+        "apt_package_deb_sha256", "installed_package_metadata_sha256"
+    )):
+        raise ValueError("invalid binary/source provenance digest")
+    if (binary_source.get("apt_candidate_version") != RELEASE_VERSION
+            or not binary_source.get("apt_package_index_sha256")
+            or not re.fullmatch(r"ubuntu@sha256:[a-f0-9]{64}", binary_source.get("ubuntu_base_image", ""))):
+        raise ValueError("incomplete binary/source package provenance")
     rows = upstream.get("records", [])
     if len(rows) != EXPECTED or len({r["cve"] for r in rows}) != EXPECTED:
         raise ValueError("missing/duplicate CVE affected-file records")
@@ -161,6 +179,7 @@ def inspect(upstream: dict, repo: Path, paths: set[str], *,
         "schema": "baobab.dev10.ubuntu-source-path-correspondence.v1",
         "decision": "SECURITY_HELD_NO_APPROVAL",
         "ubuntu_release_tag": exact_tag, "ubuntu_source_commit": sha,
+        "binary_source": binary_source,
         "expected_ubuntu_source_commit": expected_commit,
         "shallow_history": shallow,
         "note": ("Snapshot path presence is NOT a fixing-commit or backport assessment; "
@@ -176,6 +195,7 @@ def main() -> int:
     p.add_argument("--upstream", type=Path, required=True)
     p.add_argument("--ubuntu-checkout", type=Path, required=True)
     p.add_argument("--installed-manifest", type=Path, required=True)
+    p.add_argument("--binary-source", type=Path, required=True)
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--expected-commit", default=EXPECTED_RELEASE_COMMIT)
     a = p.parse_args()
@@ -187,8 +207,9 @@ def main() -> int:
             or len(installed) != LOCK.binary_manifest_path_count
             or hashlib.sha256(manifest_bytes).hexdigest() != LOCK.binary_manifest_sha256):
         raise SystemExit("Exact binary manifest digest/path/header count differs from evidence lock")
+    binary_source = json.loads(a.binary_source.read_text(encoding="utf-8"))
     report = inspect(upstream, a.ubuntu_checkout, installed,
-                     expected_commit=a.expected_commit)
+                     binary_source=binary_source, expected_commit=a.expected_commit)
     report["binary_manifest"] = {
         "package": "linux-libc-dev=" + RELEASE_VERSION,
         "sha256": hashlib.sha256(manifest_bytes).hexdigest(),
