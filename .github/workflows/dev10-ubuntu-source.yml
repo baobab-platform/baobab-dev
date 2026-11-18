@@ -7,7 +7,8 @@ on:
       - scripts/audit_ubuntu_kernel_git_paths.py
       - scripts/audit_kernel_cve_paths.py
       - scripts/build_dev10_applicability_register.py
-      - tests/test_dev10_ubuntu_kernel_source.py\n      - tests/test_kernel_cve_paths.py
+      - tests/test_dev10_ubuntu_kernel_source.py
+      - tests/test_kernel_cve_paths.py
 
 permissions:
   contents: read
