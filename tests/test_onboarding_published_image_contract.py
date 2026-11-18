@@ -49,6 +49,8 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         text = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('bash "$SRC_DIR/scripts/post-create.sh"', text)
         self.assertIn('bash "$SRC_DIR/scripts/verify.sh"', text)
+        self.assertIn('exec bash /source/scripts/verify.sh "$@"', text)
+        self.assertIn('exec bash /source/scripts/summary.sh "$@"', text)
 
 
 if __name__ == "__main__":
