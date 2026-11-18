@@ -3,16 +3,21 @@ from __future__ import annotations
 
 import base64
 import copy
+import contextlib
+import io
 import json
 from pathlib import Path
 import sys
+import tempfile
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from verify_registry_arch_attestations import (  # noqa: E402
     RegistryProofError, IMAGE, SLSA, SPDX, TRIM_NOTE,
-    native_index, trim_spdx, verify,
+    native_index, trim_spdx, verify, run_cli, parse_verified_signature, main,
 )
 
 TAG = "v1.5.0"
@@ -104,6 +109,13 @@ class ReadOnlyRegistryProofTests(unittest.TestCase):
                 ):
                     if args[2] == IMAGE + "@" + digest(value):
                         return json.dumps({"predicateType": kind, "predicate": predicate})
+        if args[:2] == ["cosign", "verify"]:
+            self.assertIn("https://github.com/baobab-platform/baobab-dev/"
+                          ".github/workflows/publish.yml@refs/tags/" + self.signer_tag, args)
+            self.assertEqual(args[-1], REF)
+            return json.dumps([{"critical": {"image": {
+                "docker-manifest-digest": INDEX
+            }}}])
         if args[:2] == ["cosign", "verify-attestation"]:
             self.assertIn("https://github.com/baobab-platform/baobab-dev/"
                           ".github/workflows/publish.yml@refs/tags/" + self.signer_tag, args)
@@ -120,8 +132,12 @@ class ReadOnlyRegistryProofTests(unittest.TestCase):
         self.assertEqual(set(proof["native"]), {"amd64", "arm64"})
         for arch in self.child:
             self.assertEqual(proof["native"][arch]["revision"], SHA)
+        self.assertEqual(proof["image_signature_evidence"]["status"], "VERIFIED")
+        self.assertEqual(proof["image_signature_evidence"]["subject_digest"], INDEX)
         self.assertEqual(len([x for x in self.commands if x[:2] ==
                               ["cosign", "verify-attestation"]]), 2)
+        self.assertEqual(len([x for x in self.commands if x[:2] ==
+                              ["cosign", "verify"]]), 1)
         self.assertFalse(any("tag" in cmd or "push" in cmd or "sign" == cmd[1]
                              for cmd in self.commands))
 
@@ -155,6 +171,84 @@ class ReadOnlyRegistryProofTests(unittest.TestCase):
                 with self.assertRaises(RegistryProofError):
                     verify(REF, release_tag, SHA, self.runner,
                            signer_tag=signer_tag)
+
+    def test_cli_failure_diagnostics_are_classified_and_secret_safe(self):
+        cases = [
+            ("no matching signatures for digest; Bearer super-secret",
+             "signature_or_referrer_not_found"),
+            ("no matching certificates found for issuer https://private.example",
+             "oidc_identity_or_issuer_mismatch"),
+            ("unknown flag --type; token=secret-value",
+             "cosign_cli_or_predicate_incompatible"),
+            ("no matching attestations for predicate type https://private.example",
+             "cosign_predicate_type_mismatch"),
+            ("429 too many requests from ghcr.io/private/path",
+             "registry_rate_limited"),
+        ]
+        for stderr, expected in cases:
+            with self.subTest(expected=expected):
+                failed = SimpleNamespace(returncode=1, stdout="", stderr=stderr)
+                with patch("verify_registry_arch_attestations.subprocess.run", return_value=failed):
+                    with self.assertRaises(RegistryProofError) as raised:
+                        run_cli(["cosign", "verify-attestation", "--type", "slsaprovenance1"])
+                diagnostic = raised.exception.diagnostic
+                self.assertEqual(diagnostic["error_code"], expected)
+                self.assertEqual(diagnostic["command_category"], "cosign_verify_attestation")
+                self.assertEqual(diagnostic["exit_status"], 1)
+                rendered = json.dumps(diagnostic) + str(raised.exception)
+                self.assertNotIn("super-secret", rendered)
+                self.assertNotIn("secret-value", rendered)
+                self.assertNotIn("private.example", rendered)
+                self.assertNotIn("private/path", rendered)
+                self.assertNotIn("Bearer", rendered)
+
+    def test_cli_timeout_and_tool_errors_are_structured(self):
+        with patch("verify_registry_arch_attestations.subprocess.run",
+                   side_effect=__import__("subprocess").TimeoutExpired(["cosign", "verify"], 120)):
+            with self.assertRaises(RegistryProofError) as raised:
+                run_cli(["cosign", "verify"])
+        self.assertEqual(raised.exception.diagnostic["error_code"],
+                         "transient_registry_or_network_failure")
+        with patch("verify_registry_arch_attestations.subprocess.run",
+                   side_effect=FileNotFoundError("secret path /private/tool")):
+            with self.assertRaises(RegistryProofError) as raised:
+                run_cli(["cosign", "verify"])
+        self.assertEqual(raised.exception.diagnostic["error_code"], "verifier_tool_unavailable")
+        self.assertNotIn("/private/tool", str(raised.exception))
+
+    def test_signature_subject_digest_is_checked(self):
+        good = json.dumps([{"critical": {"image": {"docker-manifest-digest": INDEX}}}])
+        self.assertEqual(parse_verified_signature(good, INDEX)["status"], "VERIFIED")
+        bad = json.dumps([{"critical": {"image": {"docker-manifest-digest": digest("f")}}}])
+        with self.assertRaisesRegex(RegistryProofError, "subject differs"):
+            parse_verified_signature(bad, INDEX)
+        with self.assertRaisesRegex(RegistryProofError, "no verified signatures"):
+            parse_verified_signature("[]", INDEX)
+
+    def test_historical_ga_failure_is_named_and_does_not_become_strict(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            evidence = Path(tmp) / "evidence.json"
+            argv = [
+                "verify_registry_arch_attestations.py",
+                "--image", REF, "--tag", "v1.5.1",
+                "--signer-tag", "v1.5.1-rc.2", "--expected-sha", SHA,
+                "--evidence", str(evidence),
+            ]
+            with patch("sys.argv", argv), patch(
+                "verify_registry_arch_attestations.verify",
+                side_effect=RegistryProofError(
+                    "read-only remote verification failed: cosign_verify_attestation/signature_or_referrer_not_found (exit 1)",
+                    {"command_category": "cosign_verify_attestation",
+                     "command_operation": "verify-attestation", "exit_status": 1,
+                     "error_code": "signature_or_referrer_not_found",
+                     "safe_stderr": "Expected signature, attestation or registry referrer not found"},
+                )
+            ), contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(main(), 1)
+            report = json.loads(evidence.read_text())
+            self.assertEqual(report["status"], "HISTORICAL_BASELINE_UNQUALIFIED")
+            self.assertEqual(report["failure"]["error_code"], "signature_or_referrer_not_found")
+            self.assertNotIn("STRICT_SIGNED_NATIVE_CONTENT_VERIFIED", report["status"])
 
     def test_complete_index_required(self):
         self.assertEqual(len(native_index(self.index)), 2)

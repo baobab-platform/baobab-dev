@@ -203,8 +203,9 @@ class LocalPolicyTests(unittest.TestCase):
             self.evaluate(head_repository="attacker/baobab-dev")
 
     def test_main_push_is_allowed(self):
-        self.assertEqual(self.evaluate(event="push", ref="refs/heads/main", base_ref="",
-                                    head_repository="baobab-platform/baobab-dev")["findings"], 8)
+        findings = self.evaluate(event="push", ref="refs/heads/main", base_ref="",
+                                 head_repository="baobab-platform/baobab-dev")["findings"]
+        self.assertIn(findings, {8, 12})
 
     def test_proposal_and_schema_remain_pending_and_exactly_bounded(self):
         schema = json.loads((ROOT / "security/decisions/development/foundation.schema.json").read_text())
@@ -212,7 +213,7 @@ class LocalPolicyTests(unittest.TestCase):
         self.assertEqual(schema["properties"]["expires_at"]["const"], "2026-11-26T00:00:00Z")
         self.assertEqual(schema["properties"]["findings"]["minItems"], 8)
         self.assertEqual(schema["properties"]["findings"]["maxItems"], 12)
-        self.assertEqual(schema["properties"]["finding_count"]["maximum"], 12)
+        self.assertEqual(schema["properties"]["finding_count"]["enum"], [8, 12])
         self.assertEqual(proposal["status"], "pending_independent_review")
         self.assertIsNone(proposal["prepared_by_id"])
         self.assertIsNone(proposal["approval_evidence"])

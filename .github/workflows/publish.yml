@@ -96,12 +96,23 @@ on:
       - "!scripts/github_api_transport.py"
       - "tests/**"
       - ".github/workflows/publish.yml"
+      # Security inventory and policy-contract changes must requalify all
+      # eight profile/architecture image scans; they are not image rebuild
+      # inputs, but they can change whether an image is releasable.
+      - "docs/assessments/dev10-kernel-cves-298.tsv"
+      - "docs/assessments/dev10-canonical-cve-status-20261118.tsv"
+      - "security/evidence/**"
+      - "security/evidence/**"
+      - "security/decisions/development/foundation.schema.json"
+      - "security/decisions/development/foundation.json"
+      - "security/decisions/development/foundation.proposal.json"
+      - "scripts/evaluate_protected_risk_decision.py"
+      - "scripts/verify_protected_policy_hash.py"
 
   pull_request:
-    branches:
-      - main
-      # Stacked R5 review is based on the R4 candidate (#57), not main.
-      - feat/dev10-r4-lts-multiarch-candidate
+    # Run on every PR base branch. Release publication remains tag-gated in
+    # the jobs below; branch-name allowlists here otherwise strand stacked
+    # security integration branches when their base branch is renamed/merged.
     paths:
       - ".devcontainer/**"
       - "config/**"
@@ -111,6 +122,16 @@ on:
       - "!scripts/github_api_transport.py"
       - "tests/**"
       - ".github/workflows/publish.yml"
+      # Security inventory and policy-contract changes must requalify all
+      # eight profile/architecture image scans; they are not image rebuild
+      # inputs, but they can change whether an image is releasable.
+      - "docs/assessments/dev10-kernel-cves-298.tsv"
+      - "docs/assessments/dev10-canonical-cve-status-20261118.tsv"
+      - "security/decisions/development/foundation.schema.json"
+      - "security/decisions/development/foundation.json"
+      - "security/decisions/development/foundation.proposal.json"
+      - "scripts/evaluate_protected_risk_decision.py"
+      - "scripts/verify_protected_policy_hash.py"
 
   # Manual validation is main-only. Rebuilding an arbitrary tag in the
   # privileged dispatch context is forbidden; publishing requires a tag push.

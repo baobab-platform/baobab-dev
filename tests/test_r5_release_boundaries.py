@@ -164,6 +164,29 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
                       integrity)
         self.assertIn('STRICT_SIGNED_NATIVE_CONTENT_VERIFIED', integrity)
 
+    def test_dev10_inventory_and_policy_changes_trigger_full_image_matrix(self):
+        source = WORKFLOW.read_text()
+        for path in (
+            "docs/assessments/dev10-kernel-cves-298.tsv",
+            "docs/assessments/dev10-canonical-cve-status-20261118.tsv",
+            "security/decisions/development/foundation.schema.json",
+            "security/decisions/development/foundation.json",
+            "security/decisions/development/foundation.proposal.json",
+            "scripts/evaluate_protected_risk_decision.py",
+            "scripts/verify_protected_policy_hash.py",
+        ):
+            with self.subTest(path=path):
+                self.assertGreaterEqual(source.count(f'"{path}"'), 2,
+                                        "push and pull_request must both requalify")
+        build = active_yaml(jobs()["build"])
+        self.assertIn("matrix.target", build)
+        self.assertIn("matrix.platform", build)
+        self.assertIn("linux/amd64", build)
+        self.assertIn("linux/arm64", build)
+        for profile in ("final", "frontend", "frontend-e2e", "infra"):
+            with self.subTest(profile=profile):
+                self.assertIn(profile, build)
+
     def test_independent_integrity_monitor_is_read_only(self):
         source = INTEGRITY.read_text()
         self.assertIn("packages: read", source)
