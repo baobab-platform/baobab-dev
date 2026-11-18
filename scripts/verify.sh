@@ -11,6 +11,14 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_PNPM_CMD=""
+if [ -x "${SCRIPT_DIR}/project-pnpm.sh" ]; then
+    PROJECT_PNPM_CMD="${SCRIPT_DIR}/project-pnpm.sh"
+elif command -v baobab-project-pnpm >/dev/null 2>&1; then
+    PROJECT_PNPM_CMD="$(command -v baobab-project-pnpm)"
+fi
+
 ###############################################################################
 # Options
 ###############################################################################
@@ -236,6 +244,29 @@ check_exact_version() {
     fi
 }
 
+# check_project_pnpm: verify a consumer's exact packageManager pin using
+# the already-prepared per-user Corepack cache. This is deliberately offline:
+# verification must never bootstrap or mutate the developer's environment.
+check_project_pnpm() {
+    [[ -f package.json && -f pnpm-lock.yaml ]] || return
+    if [[ -z "${PROJECT_PNPM_CMD}" ]]; then
+        bad "Project pnpm — shared project-pnpm helper is unavailable"
+        return
+    fi
+    local expected actual stderr_out rc=0
+    expected="$("${PROJECT_PNPM_CMD}" pin 2>/dev/null)" || {
+        bad "Project pnpm — package.json must declare an exact pnpm packageManager"
+        return
+    }
+    run_version_cmd "\"${PROJECT_PNPM_CMD}\" --version" actual stderr_out || rc=$?
+    if [[ $rc -ne 0 || -z "$actual" ]]; then
+        bad "Project pnpm ${expected} — offline Corepack cache unavailable; run 'baobab-post-create'${stderr_out:+: ${stderr_out}}"
+    elif [[ "${actual#v}" != "$expected" ]]; then
+        bad "Project pnpm version mismatch — expected ${expected}, found ${actual#v}."
+    else
+        ok "Project pnpm (${actual})"
+    fi
+}
 # check_contract: validates the calling repo's own .baobab/environment.yaml
 # (if one exists) against this image's config/capabilities.yaml, per the
 # Development Environment Contract (baobab-platform/shared, ADR-0001).
@@ -409,7 +440,8 @@ if [[ "$BAOBAB_BUILD_PROFILE" != "infra" ]]; then
     check_exact_version "Node.js" node "${NODE_VERSION}"
     check_exact_version "npm" npm "${NPM_VERSION}"
     check_exact_version "Corepack" corepack "${COREPACK_VERSION}"
-    check_exact_version "pnpm" pnpm "${PNPM_VERSION}"
+    check_exact_version "Image pnpm" pnpm "${PNPM_VERSION}" 'cd / && pnpm --version'
+    check_project_pnpm
     check_exact_version "Yarn" yarn "${YARN_VERSION}"
 
 else

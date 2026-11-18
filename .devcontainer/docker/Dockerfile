@@ -551,6 +551,7 @@ COPY config/versions.yaml /usr/local/share/baobab/config/versions.yaml
 COPY config/versions.lock /usr/local/share/baobab/config/versions.lock
 COPY --chmod=0755 config/resolve.sh /usr/local/share/baobab/config/resolve.sh
 COPY --chmod=0755 scripts/npm-install-retry.sh /usr/local/share/baobab/config/npm-install-retry.sh
+COPY --chmod=0755 scripts/project-pnpm.sh /usr/local/bin/baobab-project-pnpm
 COPY config/npm-build-security.json /usr/local/share/baobab/config/npm-build-security.json
 
 ENV BAOBAB_CONFIG_DIR=/usr/local/share/baobab/config

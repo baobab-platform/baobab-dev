@@ -81,8 +81,6 @@ done
 
 WORKSPACE_DIR="${WORKSPACE_DIR:-$(pwd)}"
 CONFIG_DIR="${WORKSPACE_DIR}/config"
-: "${HOME:?HOME must be set for the user-owned Corepack cache}"
-PROJECT_COREPACK_HOME="${BAOBAB_COREPACK_PROJECT_HOME:-${HOME}/.cache/baobab-corepack}"
 
 log() {
     printf '\n\033[1;36m[post-create:%s]\033[0m %s\n' "$STAGE" "$1"
@@ -98,6 +96,14 @@ die() {
 }
 
 # -----------------------------------------------------------------------------
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_PNPM_CMD=""
+if [ -x "${SCRIPT_DIR}/project-pnpm.sh" ]; then
+    PROJECT_PNPM_CMD="${SCRIPT_DIR}/project-pnpm.sh"
+elif command -v baobab-project-pnpm >/dev/null 2>&1; then
+    PROJECT_PNPM_CMD="$(command -v baobab-project-pnpm)"
+fi
+
 # Validate configuration
 # -----------------------------------------------------------------------------
 
@@ -162,37 +168,6 @@ run_on_create() {
 # Consumer-pinned pnpm is hydrated separately into a writable user cache.
 # Only the one-time Corepack install gets network access; the package-manager
 # download must be signed by the registry or carry an explicit packageManager hash.
-prepare_project_pnpm() {
-    mkdir -p "${PROJECT_COREPACK_HOME}" \
-        || die "Project Corepack cache is not writable: ${PROJECT_COREPACK_HOME}"
-    [ -d "${PROJECT_COREPACK_HOME}" ] && [ -w "${PROJECT_COREPACK_HOME}" ] \
-        || die "Project Corepack cache is not writable: ${PROJECT_COREPACK_HOME}"
-    env -u COREPACK_INTEGRITY_KEYS \
-        COREPACK_HOME="${PROJECT_COREPACK_HOME}" \
-        COREPACK_ENABLE_NETWORK=1 \
-        COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-        COREPACK_ON_UNVERIFIED_DOWNLOAD=error \
-            corepack install
-    # Corepack installs pnpm's JavaScript wrapper, not its native executable.
-    # Run it once online so pnpm's own downloader can verify and cache that
-    # exact platform binary using the bundled npm signing keys and SRI checksum.
-    env -u COREPACK_INTEGRITY_KEYS \
-        COREPACK_HOME="${PROJECT_COREPACK_HOME}" \
-        COREPACK_ENABLE_NETWORK=1 \
-        COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-        COREPACK_ON_UNVERIFIED_DOWNLOAD=error \
-            corepack pnpm --version >/dev/null
-}
-
-run_project_pnpm() {
-    env -u COREPACK_INTEGRITY_KEYS \
-        COREPACK_HOME="${PROJECT_COREPACK_HOME}" \
-        COREPACK_ENABLE_NETWORK=0 \
-        COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
-        COREPACK_ON_UNVERIFIED_DOWNLOAD=error \
-            corepack pnpm "$@"
-}
-
 install_node_project() {
     command -v node >/dev/null 2>&1 || die "Node is required by package.json."
     if [ -f .node-version ]; then
@@ -209,15 +184,14 @@ install_node_project() {
     local manager
     manager=$(node -p 'JSON.parse(require("fs").readFileSync("package.json", "utf8")).packageManager || ""')
     if [ -f pnpm-lock.yaml ]; then
-        [[ "$manager" =~ ^pnpm@([0-9]+\.[0-9]+\.[0-9]+)(\+sha(224|512)\.[0-9a-f]+)?$ ]] \
-            || die "package.json must declare an exact pnpm packageManager."
-        local pin="${BASH_REMATCH[1]}"
-        command -v corepack >/dev/null 2>&1 || die "Corepack is required for project-pinned pnpm."
-        if ! prepare_project_pnpm; then
+        [ -n "$PROJECT_PNPM_CMD" ] || die "Shared project-pnpm helper is required."
+        local pin
+        pin="$("$PROJECT_PNPM_CMD" pin)" || die "package.json must declare an exact pnpm packageManager."
+        if ! "$PROJECT_PNPM_CMD" prepare; then
             die "Corepack could not securely prepare the exact project-pinned pnpm version."
         fi
-        [ "$(run_project_pnpm --version)" = "$pin" ] || die "Project pnpm version mismatch."
-        run_project_pnpm install --frozen-lockfile
+        [ "$("$PROJECT_PNPM_CMD" --version)" = "$pin" ] || die "Project pnpm version mismatch."
+        "$PROJECT_PNPM_CMD" install --frozen-lockfile
     elif [ -f yarn.lock ]; then
         [[ "$manager" =~ ^yarn@([0-9]+\.[0-9]+\.[0-9]+)$ ]] || die "Exact Yarn packageManager is required."
         local pin="${BASH_REMATCH[1]}"
@@ -310,7 +284,7 @@ run_post_create() {
         if [ -f package.json ] && [ -f pnpm-workspace.yaml ]; then
             [ -f pnpm-lock.yaml ] || die "Root pnpm workspace requires a committed pnpm-lock.yaml."
             command -v corepack >/dev/null 2>&1 || die "Corepack is required by the root workspace."
-            if ! { run_project_pnpm list -r --depth -1 --json | node -e '
+            if ! { "$PROJECT_PNPM_CMD" list -r --depth -1 --json | node -e '
                 const fs=require("fs");
                 try {
                     const rows=JSON.parse(fs.readFileSync(0,"utf8"));
