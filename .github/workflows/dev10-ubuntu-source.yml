@@ -65,7 +65,7 @@ jobs:
             echo "::error::Ubuntu base image did not resolve to an immutable digest: $UBUNTU_IMAGE_REF"
             exit 1
           }
-          printf '%s\\n' "$UBUNTU_IMAGE_REF" > "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-base-image.txt"
+          printf '%s\n' "$UBUNTU_IMAGE_REF" > "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-base-image.txt"
           docker run --rm --platform linux/amd64 \
             -e UBUNTU_KERNEL_RELEASE="$UBUNTU_KERNEL_RELEASE" \
             -v "$RUNNER_TEMP/dev10-ubuntu-source:/evidence" \
