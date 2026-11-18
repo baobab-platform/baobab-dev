@@ -122,15 +122,23 @@ read/write`, `Contents: read`, `Pull requests: read`, `Issues: read` and
 `Metadata: read`. Repository variables require the distinct `Variables`
 permission; the workflow `GITHUB_TOKEN` permission model does not provide
 that permission, so substituting `Actions: write` would not authorize this
-write. Ensure `DEV10_SECURITY_APPROVER_LOGINS` is available to the new
-provisioning job as a repository variable or as a variable on the dedicated
-provisioning environment; an environment-scoped variable on the approval-only
-environment is not inherited. The token is never printed or written to an artifact. A short-lived
-GitHub App installation token would be preferable, but no configured
-repository app/token issuer is part of this accepted implementation; that
-migration is deferred rather than represented as complete. The configured
-`DEV10_SECURITY_APPROVER_LOGINS` variable resolves trusted reviewer logins to
-immutable numeric GitHub IDs.
+write. Configure `DEV10_SECURITY_APPROVER_LOGINS` as a **repository-level Actions
+variable**. The Foundation and Publish scan jobs consume this value without
+selecting a GitHub environment, so an environment-scoped-only value is not
+available to them. The provisioning job must consume the same repository-level
+value; do not create an environment-level variable with the same name, which
+could shadow the repository value in the provisioning job. Do not attach the
+provisioning environment to PR scan jobs to make this value available.
+
+Keep `DEV10_POLICY_PROVISIONER_TOKEN` as a secret on the dedicated
+`dev10-security-policy-provision` environment only. The approval-only
+`dev10-security-policy-read` environment must not receive that credential.
+The token is never printed or written to an artifact. A short-lived GitHub App
+installation token would be preferable, but no configured repository
+app/token issuer is part of this accepted implementation; that migration is
+deferred rather than represented as complete. The configured
+`DEV10_SECURITY_APPROVER_LOGINS` repository variable resolves trusted
+reviewer logins to immutable numeric GitHub IDs.
 
 Before changing the repository variable, the provisioner verifies that the
 decision PR is merged into `main`, the PR head equals the explicitly supplied
