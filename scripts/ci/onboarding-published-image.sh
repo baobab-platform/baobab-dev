@@ -9,6 +9,7 @@ CONSUMER_DIR=/tmp/dev10-consumer
 TOOLS_DIR=/tmp/dev10-tools
 EVIDENCE_FILE=/evidence/onboarding-verification.json
 BUILD_PROFILE="${BAOBAB_BUILD_PROFILE:-full}"
+export BAOBAB_BUILD_PROFILE="$BUILD_PROFILE"
 
 require_source() {
   [[ -f "$SRC_DIR/scripts/post-create.sh" && -x "$SRC_DIR/scripts/project-pnpm.sh" ]] || {
@@ -19,6 +20,7 @@ require_source() {
 }
 
 require_source
+[[ "$(id -u)" -ne 0 ]] || { echo "Published image onboarding must run as its non-root runtime user" >&2; exit 2; }
 mkdir -p "$HOME" "$PROJECT_DIR" "$TOOLS_DIR" /evidence
 cp -a "$SRC_DIR/." "$PROJECT_DIR/"
 test -f "$PROJECT_DIR/scripts/post-create.sh"
@@ -122,4 +124,6 @@ evidence = {
 Path(evidence_path).write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
 if int(exit_status) != 0:
     print("::warning::Historical image verifier failed; evidence is HISTORICAL_BASELINE_UNQUALIFIED")
+if profile == "frontend-e2e" and not evidence["playwright_chromium_verified"]:
+    raise SystemExit("frontend-e2e requires a successful non-root Playwright Chromium launch")
 PY
