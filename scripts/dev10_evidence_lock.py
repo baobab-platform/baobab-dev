@@ -29,6 +29,7 @@ class EvidenceLock:
     canonical_count: int
     binary_manifest_sha256: str | None
     header_count: int
+    stable_profile_images: dict[str, dict]
 
     @classmethod
     def load(cls, root: Path | None = None) -> "EvidenceLock":
@@ -55,6 +56,7 @@ class EvidenceLock:
             canonical_count=canonical["count"],
             binary_manifest_sha256=manifest["sha256"],
             header_count=manifest["header_count"],
+            stable_profile_images=data.get("stable_profile_images", {}),
         )
         if (not SHA40.fullmatch(lock.ubuntu_tag_commit)
                 or not SHA40.fullmatch(lock.upstream_sha)
@@ -102,4 +104,25 @@ class EvidenceLock:
                 or stable.get("release_tag") != "v1.5.1"
                 or stable.get("signer_tag") != "v1.5.1-rc.2"):
             raise ValueError("historical GHCR base image digest or signer identity is not locked")
+        expected_profiles = {"final", "frontend", "frontend-e2e", "infra"}
+        if set(lock.stable_profile_images) != expected_profiles:
+            raise ValueError("historical GHCR image lock must cover all four profiles")
+        for profile, image in lock.stable_profile_images.items():
+            expected_tag = (
+                "ghcr.io/baobab-platform/baobab-dev:1.5.1"
+                if profile == "final"
+                else f"ghcr.io/baobab-platform/baobab-dev:1.5.1-{profile}"
+            )
+            if (image.get("image_tag") != expected_tag
+                    or not re.fullmatch(r"sha256:[a-f0-9]{64}", image.get("index_digest", ""))
+                    or image.get("release_tag") != "v1.5.1"
+                    or image.get("signer_tag") != "v1.5.1-rc.2"
+                    or image.get("source_sha") != stable.get("source_sha")
+                    or not isinstance(image.get("ga_reuse_run_id"), int)
+                    or not isinstance(image.get("signer_run_id"), int)):
+                raise ValueError(f"historical GHCR {profile} image digest or provenance identity is not locked")
+        final_image = lock.stable_profile_images["final"]
+        if (final_image["image_tag"] != stable["image_tag"]
+                or final_image["index_digest"] != stable["index_digest"]):
+            raise ValueError("final profile GHCR image lock differs from stable base image")
         return lock
