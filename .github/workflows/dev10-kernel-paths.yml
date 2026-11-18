@@ -19,6 +19,8 @@ jobs:
   upstream-evidence:
     runs-on: ubuntu-26.04
     timeout-minutes: 25
+    env:
+      UBUNTU_KERNEL_RELEASE: "7.0.0-43.43"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -34,12 +36,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/kernel-evidence"
-          docker run --rm --platform linux/amd64 ubuntu:26.04 bash -c '
+          docker run --rm --platform linux/amd64 -e UBUNTU_KERNEL_RELEASE="$UBUNTU_KERNEL_RELEASE" ubuntu:26.04 bash -c '
             set -euo pipefail
             export DEBIAN_FRONTEND=noninteractive
             apt-get update -qq >/dev/null
-            apt-get install -y -qq --no-install-recommends linux-libc-dev=7.0.0-42.42 >/dev/null
-            test "$(dpkg-query -W linux-libc-dev | awk "{print \$2}")" = "7.0.0-42.42"
+            apt-get install -y -qq --no-install-recommends linux-libc-dev=${UBUNTU_KERNEL_RELEASE} >/dev/null
+            test "$(dpkg-query -W linux-libc-dev | awk "{print \$2}")" = "${UBUNTU_KERNEL_RELEASE}"
             dpkg-query -L linux-libc-dev
           ' > "$RUNNER_TEMP/kernel-evidence/installed-paths.txt"
           grep -q '^/usr/include/linux/types.h$' "$RUNNER_TEMP/kernel-evidence/installed-paths.txt"
