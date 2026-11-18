@@ -74,13 +74,13 @@ jobs:
               # The published v1.5.1 image carries attested native pnpm 12.16.1.
               # Exercise consumer pins 12.16.1 and 11.24.0 through the Corepack path.
               test "$(pnpm --version)" = "12.16.1"
-              test -d tests/fixtures/pnpm-workspace
+              test -d /tmp/dev10-project/tests/fixtures/pnpm-workspace
               for pnpm_version in 12.16.1 11.24.0; do
                 rm -rf /tmp/dev10-workspace
-                cp -R tests/fixtures/pnpm-workspace /tmp/dev10-workspace
+                cp -R /tmp/dev10-project/tests/fixtures/pnpm-workspace /tmp/dev10-workspace
                 mv /tmp/dev10-workspace/package.json.fixture /tmp/dev10-workspace/package.json
                 mv /tmp/dev10-workspace/frontend/package.json.fixture /tmp/dev10-workspace/frontend/package.json
-                cp -R config /tmp/dev10-workspace/config
+                cp -R /tmp/dev10-project/config /tmp/dev10-workspace/config
                 sed -i "s/pnpm@12[.]16[.]1/pnpm@${pnpm_version}/" /tmp/dev10-workspace/package.json
                 export WORKSPACE_DIR=/tmp/dev10-workspace
                 cd "$WORKSPACE_DIR"
