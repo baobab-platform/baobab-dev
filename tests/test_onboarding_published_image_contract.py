@@ -40,7 +40,6 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         script = SCRIPT.read_text(encoding="utf-8")
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn('export BAOBAB_BUILD_PROFILE="$BUILD_PROFILE"', script)
-        self.assertIn('[["$(id -u)"', script) if False else None
         self.assertIn('[[ "$(id -u)" -ne 0 ]]', script)
         self.assertIn('profile == "frontend-e2e" and not evidence["playwright_chromium_verified"]', script)
         self.assertIn('-e BAOBAB_BUILD_PROFILE="${{ matrix.profile }}"', workflow)
