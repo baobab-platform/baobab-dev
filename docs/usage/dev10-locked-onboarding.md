@@ -10,7 +10,7 @@ Root and `frontend/` JavaScript projects use the same selection. Exactly one
 lockfile is required, pnpm/Yarn must match an exact `packageManager`, and installs
 are frozen/immutable. npm uses `npm ci`, with no unlocked fallback after a failed
 install. An exact `.node-version`, when supplied, is checked against the actual
-Node executable. Corepack download prompts are disabled for every stage.
+Node executable. Corepack download prompts are disabled for every stage. The project-pnpm helper disables `.corepack.env` overrides, forces strict project `packageManager` selection and prevents automatic manifest pinning; a consumer cannot silently switch the helper back to the image-global pnpm.
 
 Per-repository Node and package-manager pins remain repository-owned. The image
 provides a Node major baseline and a resolved pnpm version; it does not silently
