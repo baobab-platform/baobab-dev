@@ -136,12 +136,15 @@ fi
         self.assertNotIn('npm install',t)
 
     def test_pnpm_exact_project_pin_and_frozen_install(self):
+        for version in ('12.21.0', '12.16.1', '11.24.0'):
+            with self.subTest(version=version):
+                files={'package.json':json.dumps({'packageManager':f'pnpm@{version}'}),'pnpm-lock.yaml':''}
+                r,t=self.run_case(files,pnpm=version)
+                self.assertEqual(0,r.returncode,r.stdout+r.stderr)
+                self.assertIn('corepack install',t)
+                self.assertIn('corepack pnpm install --frozen-lockfile',t)
+                self.assertFalse(any(line.startswith('pnpm ') for line in t.splitlines()))
         files={'package.json':json.dumps({'packageManager':'pnpm@12.21.0'}),'pnpm-lock.yaml':''}
-        r,t=self.run_case(files)
-        self.assertEqual(0,r.returncode,r.stdout+r.stderr)
-        self.assertIn('corepack install',t)
-        self.assertIn('corepack pnpm install --frozen-lockfile',t)
-        self.assertFalse(any(line.startswith('pnpm ') for line in t.splitlines()))
         r,t=self.run_case(files,pnpm='12.20.0')
         self.assertNotEqual(0,r.returncode)
         self.assertNotIn('corepack pnpm install --frozen-lockfile',t)

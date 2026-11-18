@@ -71,17 +71,23 @@ jobs:
               bash scripts/post-create.sh --stage=post-create
               python3 -B -m unittest discover -s tests -v
 
-              # The published v1.5.1 image baseline is pnpm 12.16.1.
-              # Candidate pnpm 12.21.0 is qualified by source and candidate-image builds.
+              # The published v1.5.1 image carries attested native pnpm 12.16.1.
+              # Exercise consumer pins 12.16.1 and 11.24.0 through the Corepack path.
+              test "$(pnpm --version)" = "12.16.1"
               test -d tests/fixtures/pnpm-workspace
-              cp -R tests/fixtures/pnpm-workspace /tmp/dev10-workspace
-              mv /tmp/dev10-workspace/package.json.fixture /tmp/dev10-workspace/package.json
-              mv /tmp/dev10-workspace/frontend/package.json.fixture /tmp/dev10-workspace/frontend/package.json
-              cp -R config /tmp/dev10-workspace/config
-              export WORKSPACE_DIR=/tmp/dev10-workspace
-              cd "$WORKSPACE_DIR"
-              bash /tmp/dev10-project/scripts/post-create.sh --stage=post-create
-              test ! -f frontend/package-lock.json
+              for pnpm_version in 12.16.1 11.24.0; do
+                rm -rf /tmp/dev10-workspace
+                cp -R tests/fixtures/pnpm-workspace /tmp/dev10-workspace
+                mv /tmp/dev10-workspace/package.json.fixture /tmp/dev10-workspace/package.json
+                mv /tmp/dev10-workspace/frontend/package.json.fixture /tmp/dev10-workspace/frontend/package.json
+                cp -R config /tmp/dev10-workspace/config
+                sed -i "s/pnpm@12[.]16[.]1/pnpm@${pnpm_version}/" /tmp/dev10-workspace/package.json
+                export WORKSPACE_DIR=/tmp/dev10-workspace
+                cd "$WORKSPACE_DIR"
+                echo "Testing consumer packageManager pnpm@${pnpm_version}"
+                bash /tmp/dev10-project/scripts/post-create.sh --stage=post-create
+                test ! -f frontend/package-lock.json
+              done
             '
       - name: A failed final verifier must fail the actual container lifecycle
         env:
