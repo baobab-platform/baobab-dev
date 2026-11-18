@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-26.04
     outputs:
       container_scan: ${{ steps.detect.outputs.container_scan }}
+      image_41_evidence: ${{ steps.detect.outputs.image_41_evidence }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -36,6 +37,7 @@ jobs:
           set -euo pipefail
           if [[ "$EVENT_NAME" != "pull_request" ]]; then
             echo "container_scan=true" >> "$GITHUB_OUTPUT"
+            echo "image_41_evidence=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -48,9 +50,13 @@ jobs:
           }
           changed="$(git diff --name-only "${GITHUB_SHA}^1" "$GITHUB_SHA")"
           container_changed=false
+          image_41_evidence=false
           while IFS= read -r path; do
             [[ -n "$path" ]] || continue
             case "$path" in
+              docs/assessments/dev10-image-observed-cves-41.tsv|docs/assessments/dev10-image-observed-cves-41-canonical.tsv|security/evidence/dev10-image-observed-cves-41-canonical.lock.json|security/evidence/dev10-image-observed-cves-41-upstream.lock.json|scripts/audit_dev10_image_observed_41.py|scripts/verify_ubuntu_binary_package_arch.py|tests/test_dev10_image_observed_41_sources.py|tests/test_ubuntu_binary_package_arch.py|tests/test_kernel_cve_paths.py)
+                image_41_evidence=true
+                ;;
               # This custodian-only tool is not copied or executed by the
               # development image; its own policy-contract workflow tests it.
               scripts/provision_protected_risk_policy.py|scripts/custody_independence.py|scripts/github_api_transport.py|scripts/evaluate_protected_risk_decision.py|scripts/verify_protected_risk_custody.py|scripts/verify_protected_policy_hash.py|scripts/prepare_dev10_risk_inventory.py|scripts/audit_pr_reviewer_independence.py)
@@ -61,6 +67,7 @@ jobs:
             esac
           done <<< "$changed"
 
+          echo "image_41_evidence=$image_41_evidence" >> "$GITHUB_OUTPUT"
           if [[ "$container_changed" == "true" ]]; then
             echo "container_scan=true" >> "$GITHUB_OUTPUT"
           else
@@ -97,6 +104,96 @@ jobs:
 
   # Explicit replacement for Shared's temporary 'container-scan' exception.
   # Retain full Trivy coverage; only exact known CVEs can be risk accepted.
+
+  dev10-image-observed-41-source-evidence:
+    needs: scope
+    if: needs.scope.outputs.image_41_evidence == 'true'
+    name: DEV-10 supplemental 41-CVE upstream and Canonical evidence
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout immutable PR merge head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate supplemental source evidence and regression tests
+        run: |
+          set -euo pipefail
+          bash -n scripts/ci/checkout-linux-vulns.sh
+          python3 -B -m unittest discover -s tests -p test_kernel_cve_paths.py -v
+          python3 - <<'PY'
+          import json
+          with open("security/evidence/dev10-image-observed-cves-41-upstream.lock.json") as f:
+              upstream=json.load(f)
+          with open("security/evidence/dev10-image-observed-cves-41-canonical.lock.json") as f:
+              canonical=json.load(f)
+          assert upstream["record_count"] == 41
+          assert canonical["source"]["record_count"] == 41
+          assert len(set(upstream["cves"])) == 41
+          print("Validated 41 supplemental CVEs and immutable source pins.")
+          PY
+          echo "UPSTREAM_41_SHA=$(jq -r .commit security/evidence/dev10-image-observed-cves-41-upstream.lock.json)" >> "$GITHUB_ENV"
+      - name: Checkout pinned Canonical OSV snapshot
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/canonical-ubuntu-security-notices-41"
+          sha="$(jq -r .source.commit security/evidence/dev10-image-observed-cves-41-canonical.lock.json)"
+          git init -q "$root"
+          git -C "$root" remote add origin https://github.com/canonical/ubuntu-security-notices.git
+          git -C "$root" -c protocol.version=2 fetch --filter=blob:none --no-tags --depth=1 origin "$sha"
+          git -C "$root" sparse-checkout init --cone
+          git -C "$root" sparse-checkout set osv/cve/2026
+          git -C "$root" checkout --detach --quiet FETCH_HEAD
+          test "$(git -C "$root" rev-parse HEAD)" = "$sha"
+          echo "CANONICAL_41_ROOT=$root" >> "$GITHUB_ENV"
+      - name: Checkout pinned upstream Linux CNA records
+        uses: ./.github/actions/checkout-linux-vulns
+        with:
+          sha: ${{ env.UPSTREAM_41_SHA }}
+          inventory: docs/assessments/dev10-image-observed-cves-41.tsv
+      - name: Audit all 41 upstream paths and Canonical Resolute records
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/dev10-image-41-source-evidence"
+          mkdir -p "$evidence/upstream-records" "$evidence/canonical-records"
+          python3 -B scripts/audit_dev10_image_observed_41.py \
+            --inventory docs/assessments/dev10-image-observed-cves-41.tsv \
+            --canonical-tsv docs/assessments/dev10-image-observed-cves-41-canonical.tsv \
+            --canonical-lock security/evidence/dev10-image-observed-cves-41-canonical.lock.json \
+            --upstream-root "$UPSTREAM_ROOT" \
+            --canonical-root "$CANONICAL_41_ROOT" \
+            --upstream-sha "$UPSTREAM_41_SHA" \
+            --output "$evidence/upstream-canonical-reconciliation.json"
+          while read -r cve; do
+            [[ "$cve" =~ ^CVE-[0-9]{4}-[0-9]{4,}$ ]] || continue
+            year="$(printf '%s' "$cve" | cut -c5-8)"
+            cp "$UPSTREAM_ROOT/cve/published/$year/$cve.json" "$evidence/upstream-records/$cve.json"
+            cp "$CANONICAL_41_ROOT/osv/cve/2026/UBUNTU-$cve.json" "$evidence/canonical-records/$cve.json"
+          done < <(tail -n +2 docs/assessments/dev10-image-observed-cves-41.tsv | cut -f1)
+          python3 - "$evidence/upstream-canonical-reconciliation.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1]))
+          assert data["counts"]["records"] == 41
+          assert data["counts"]["records_with_affected_paths"] == 41
+          assert data["canonical"]["affected_version"] == "7.0.0-43.43"
+          print("### Supplemental 41-CVE source evidence")
+          print("Linux CNA revision:",data["upstream"]["commit"])
+          print("Canonical OSV revision:",data["canonical"]["commit"])
+          print("Verified records and affected paths:",data["counts"])
+          print("Resolute source package/version:",data["canonical"]["resolute_source_package"],data["canonical"]["affected_version"])
+          print("No binary non-applicability or VEX disposition inferred.")
+          PY
+      - name: Retain exact upstream and Canonical source records
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev10-image-observed-41-upstream-canonical-evidence
+          path: ${{ runner.temp }}/dev10-image-41-source-evidence/
+          if-no-files-found: error
+          retention-days: 30
+
   dev10-container-risk:
     needs: scope
     name: DEV-10 / Foundation container CVE gate
