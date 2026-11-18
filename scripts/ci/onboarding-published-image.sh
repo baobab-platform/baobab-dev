@@ -137,6 +137,65 @@ if (( verify_status == 0 )); then
 else
   verify_label="HISTORICAL_BASELINE_UNQUALIFIED"
 fi
+# Preserve the verifier's bounded check messages without depending on Python
+# (which the infra profile intentionally excludes).
+clean_verify_log=/tmp/dev10-verify-clean.log
+sed -E 's/\\x1B\\[[0-9;]*m//g' "$verify_log" > "$clean_verify_log"
+failed_checks_json='['
+while IFS= read -r failed_line; do
+  [[ "$failed_line" == *"✘"* ]] || continue
+  failed_line="${failed_line#*✘}"
+  failed_line="${failed_line#"\${failed_line%%[![:space:]]*}"}"
+  failed_line="${failed_line//{
+  "schema": "baobab.dev10.historical-onboarding-verification.v1",
+  "image_profile": "$EXPECTED_PROFILE",
+  "runtime_profile": "$BUILD_PROFILE",
+  "image_ref": "$IMAGE_REF",
+  "runtime_uid": $(id -u),
+  "runtime_user": "$(id -un)",
+  "verify_exit_status": $verify_status,
+  "verify_status": "$verify_label",
+  "playwright_chromium_verified": $playwright_verified,
+  "failed_checks": $failed_checks_json,
+  "release_qualification": false,
+  "note": "A historical 1.5.1 image verification result is diagnostic only and never qualifies a new release."
+}
+EOF
+if [[ "$EXPECTED_PROFILE" == "frontend-e2e" && "$playwright_verified" != true ]]; then
+  echo "frontend-e2e requires a successful non-root Playwright Chromium launch" >&2
+  exit 1
+fi
+if (( verify_status != 0 )); then
+  echo "::warning::Historical image verifier failed; evidence is HISTORICAL_BASELINE_UNQUALIFIED"
+fi\\r'/}"
+  failed_line="${failed_line//{
+  "schema": "baobab.dev10.historical-onboarding-verification.v1",
+  "image_profile": "$EXPECTED_PROFILE",
+  "runtime_profile": "$BUILD_PROFILE",
+  "image_ref": "$IMAGE_REF",
+  "runtime_uid": $(id -u),
+  "runtime_user": "$(id -un)",
+  "verify_exit_status": $verify_status,
+  "verify_status": "$verify_label",
+  "playwright_chromium_verified": $playwright_verified,
+  "failed_checks": [],
+  "release_qualification": false,
+  "note": "A historical 1.5.1 image verification result is diagnostic only and never qualifies a new release."
+}
+EOF
+if [[ "$EXPECTED_PROFILE" == "frontend-e2e" && "$playwright_verified" != true ]]; then
+  echo "frontend-e2e requires a successful non-root Playwright Chromium launch" >&2
+  exit 1
+fi
+if (( verify_status != 0 )); then
+  echo "::warning::Historical image verifier failed; evidence is HISTORICAL_BASELINE_UNQUALIFIED"
+fi\\t'/\\\\t}"
+  failed_line="${failed_line//\\\\/\\\\\\\\}"
+  failed_line="${failed_line//\"/\\\\\"}"
+  [[ "$failed_checks_json" == '[' ]] || failed_checks_json+=','
+  failed_checks_json+="\"$failed_line\""
+done < "$clean_verify_log"
+failed_checks_json+=']'
 # Keep evidence generation independent of the profile's installed language
 # runtimes: the infra image intentionally contains no Python interpreter.
 cat > "$EVIDENCE_FILE" <<EOF
