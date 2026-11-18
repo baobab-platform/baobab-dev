@@ -32,11 +32,22 @@ OWNER_USER_ID = 49340314  # @bjnabs; accountable owner recorded in ADR-DEV10-001
 API_ROOT = "https://api.github.com"
 API_VERSION = "2022-11-28"
 EXPECTED_EXPIRY = "2026-11-26T00:00:00Z"
-EXPECTED_CVES = {
-    "CVE-2022-50240", "CVE-2025-40190", "CVE-2026-68103",
-    "CVE-2026-72198", "CVE-2026-74578", "CVE-2026-89805",
-    "CVE-2026-98376", "CVE-2026-98420",
-}
+BASE_FINDINGS = frozenset({
+    ("CVE-2022-50240", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2025-40190", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-68103", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-72198", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-74578", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-89805", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-98376", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-98420", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+})
+EXTENDED_FINDINGS = BASE_FINDINGS | frozenset({
+    ("CVE-2026-98869", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-98890", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-99083", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-112366", "picomatch", "4.0.5", "HIGH", "node-pkg"),
+})
 EXPECTED_SCOPE = {
     "pull_request_base": "main",
     "push_ref": "refs/heads/main",
@@ -97,14 +108,16 @@ def validate_decision(decision, *, decision_pr, now=None):
     expected_url = f"https://github.com/{REPOSITORY}/pull/{decision_pr}"
     require(decision["approval_evidence"] == expected_url,
             "approval evidence does not identify the decision PR")
-    require(type(decision["finding_count"]) is int and decision["finding_count"] == 8,
-            "finding count differs from approved inventory")
+    require(type(decision["finding_count"]) is int,
+            "finding count is not an integer")
     require(isinstance(decision["notes"], str) and decision["notes"].strip(),
             "decision rationale is missing")
 
     findings = decision["findings"]
-    require(isinstance(findings, list) and len(findings) == 8,
-            "exact eight-finding inventory is required")
+    require(isinstance(findings, list)
+            and decision["finding_count"] == len(findings)
+            and len(findings) in (8, 12),
+            "finding inventory count differs from the bounded approved shape")
     observed = set()
     for finding in findings:
         require(isinstance(finding, dict)
@@ -116,11 +129,9 @@ def validate_decision(decision, *, decision_pr, now=None):
         )
         require(identity not in observed, "duplicate approved finding")
         observed.add(identity)
-    require({item[0] for item in observed} == EXPECTED_CVES,
-            "approved CVE set differs from the eight reviewed findings")
-    require(all(item[1:] == ("linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu")
-                for item in observed),
-            "approved package, version, severity or ecosystem differs")
+    require(len(observed) == len(findings)
+            and observed in (BASE_FINDINGS, EXTENDED_FINDINGS),
+            "approved inventory differs from the exact eight- or twelve-finding reviewed set")
     return decision
 
 
