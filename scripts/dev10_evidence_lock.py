@@ -105,7 +105,7 @@ class EvidenceLock:
         if hashlib.sha256(historical_raw).hexdigest() != lock.historical_inventory_sha256:
             raise ValueError("historical 295-CVE inventory digest differs from evidence lock")
         historical_rows = list(csv.DictReader(
-            historical_raw.decode("utf-8").splitlines(), delimiter="\\t"
+            historical_raw.decode("utf-8").splitlines(), delimiter="\t"
         ))
         current_rows = list(csv.DictReader(
             (root / lock.inventory_path).read_text(encoding="utf-8").splitlines(),
