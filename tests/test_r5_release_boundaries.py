@@ -42,8 +42,12 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
                 self.assertIn(path, push)
                 self.assertIn(path, pull_request)
         build = active_yaml(jobs()["build"])
-        self.assertIn("target: [final, frontend, frontend-e2e, infra]", build)
-        self.assertIn("platform: [linux/amd64, linux/arm64]", build)
+        for target in ("final", "frontend", "frontend-e2e", "infra"):
+            with self.subTest(target=target):
+                self.assertIn(f"- {target}", build)
+        for platform in ("linux/amd64", "linux/arm64"):
+            with self.subTest(platform=platform):
+                self.assertIn(f"- {platform}", build)
 
     def test_no_pr_or_main_registry_write_in_build(self):
         source = WORKFLOW.read_text()
@@ -177,7 +181,9 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
             "development-only acceptance is insufficient",
             release_scan,
         )
-        self.assertIn("any HIGH/CRITICAL or secret finding", release_scan)
+        self.assertIn("--scanners vuln,secret", release_scan)
+        self.assertIn("--severity CRITICAL,HIGH", release_scan)
+        self.assertIn("--exit-code 1", release_scan)
         self.assertIn(
             "Residual vulnerabilities in a tagged remote image require separately authenticated exact-digest release approval",
             release_scan,
