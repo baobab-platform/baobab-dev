@@ -23,6 +23,28 @@ def active_yaml(job: str) -> str:
 
 
 class R5ReleaseBoundaryTests(unittest.TestCase):
+    def test_policy_and_inventory_changes_trigger_all_profile_architecture_scans(self):
+        source = WORKFLOW.read_text()
+        push = source.split("  push:", 1)[1].split("  pull_request:", 1)[0]
+        pull_request = source.split("  pull_request:", 1)[1].split("  workflow_dispatch:", 1)[0]
+        required_paths = (
+            "docs/assessments/dev10-kernel-cves-298.tsv",
+            "docs/assessments/dev10-canonical-cve-status-20261118.tsv",
+            "security/evidence/**",
+            "security/decisions/development/foundation.schema.json",
+            "security/decisions/development/foundation.json",
+            "security/decisions/development/foundation.proposal.json",
+            "scripts/evaluate_protected_risk_decision.py",
+            "scripts/verify_protected_policy_hash.py",
+        )
+        for path in required_paths:
+            with self.subTest(path=path):
+                self.assertIn(path, push)
+                self.assertIn(path, pull_request)
+        build = active_yaml(jobs()["build"])
+        self.assertIn("target: [final, frontend, frontend-e2e, infra]", build)
+        self.assertIn("platform: [linux/amd64, linux/arm64]", build)
+
     def test_no_pr_or_main_registry_write_in_build(self):
         source = WORKFLOW.read_text()
         pull_request = source.split("  pull_request:", 1)[1].split("  workflow_dispatch:", 1)[0]
