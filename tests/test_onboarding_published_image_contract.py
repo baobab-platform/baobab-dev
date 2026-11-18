@@ -39,7 +39,7 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         self.assertIn('if [[ "$BUILD_PROFILE" != "infra" ]]', script)
         self.assertIn('"HISTORICAL_BASELINE_UNQUALIFIED"', script)
         self.assertIn('"playwright_chromium_verified"', script)
-        self.assertIn('"image_ref": __import__("os").environ.get("IMAGE_REF")', script)
+        self.assertIn('"image_ref": "$IMAGE_REF"', script)
         self.assertIn('baobab-dev@sha256:[a-f0-9]{64}', script)
         for profile in ("final", "frontend", "frontend-e2e", "infra"):
             self.assertIn("profile: " + profile, workflow)
@@ -59,7 +59,7 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         self.assertIn('-e EXPECTED_PROFILE="${{ matrix.profile }}" ', workflow)
         self.assertNotIn('-e BAOBAB_BUILD_PROFILE="${{ matrix.profile }}" ', workflow)
         self.assertIn('[[ "$(id -u)" -ne 0 ]]', script)
-        self.assertIn('expected_profile == "frontend-e2e" and not evidence["playwright_chromium_verified"]', script)
+        self.assertIn('[[ "$EXPECTED_PROFILE" == "frontend-e2e" && "$playwright_verified" != true ]]' , script)
         self.assertIn('stable_profile_images[$profile].signer_tag', workflow)
 
     def test_reviewed_code_runs_from_read_only_source_mount(self):
