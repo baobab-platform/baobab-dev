@@ -137,7 +137,7 @@ if (( verify_status == 0 )); then
 else
   verify_label="HISTORICAL_BASELINE_UNQUALIFIED"
 fi
-# Preserve the verifier's bounded check messages without depending on Python
+# Record verifier failure count without depending on Python
 # (which the infra profile intentionally excludes).
 failed_check_count="$(grep -c '✘' "$verify_log" || true)"
 # Evidence generation is shell-only because the infra profile excludes Python.
