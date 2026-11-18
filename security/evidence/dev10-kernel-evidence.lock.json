@@ -356,5 +356,13 @@
     "sha256": "d79f62e624091c24f0d3636a6bb6e6134f52502ff10d9959d43f12ca0f8047d0",
     "count": 295,
     "package_version": "7.0.0-42.42"
+  },
+  "binary_source": {
+    "binary_package": "linux-libc-dev",
+    "binary_version": "7.0.0-43.43",
+    "architecture": "amd64",
+    "source_package": "linux",
+    "source_version": "7.0.0-43.43",
+    "release_pocket": "resolute-updates"
   }
 }
