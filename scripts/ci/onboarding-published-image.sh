@@ -89,7 +89,11 @@ export PATH="$TOOLS_DIR:$PATH"
   cd "$PROJECT_DIR"
   WORKSPACE_DIR="$PROJECT_DIR" bash "$SRC_DIR/scripts/post-create.sh" --stage=post-create
 )
-python3 -B -m unittest discover -s "$PROJECT_DIR/tests" -v
+if [[ "$BUILD_PROFILE" == "infra" ]]; then
+  echo "Skipping in-image Python unit suite: infra profile intentionally excludes Python"
+else
+  python3 -B -m unittest discover -s "$PROJECT_DIR/tests" -v
+fi
 
 # The infra image intentionally has no Node/pnpm toolchain. Other profiles
 # exercise both the image-pinned pnpm and exact consumer packageManager pins.
