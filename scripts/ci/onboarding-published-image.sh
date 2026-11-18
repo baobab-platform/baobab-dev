@@ -81,7 +81,7 @@ cat > "$TOOLS_DIR/baobab-verify" <<'SH'
 set +e
 bash /source/scripts/verify.sh "$@" > /tmp/dev10-post-create-verify.log 2>&1
 status=$?
-printf '%s\\n' "$status" >> /tmp/dev10-post-create-verify-statuses
+printf '%s\n' "$status" >> /tmp/dev10-post-create-verify-statuses
 # The historical verifier result is retained below; it must not abort the
 # post-create lifecycle before the explicit verification evidence is written.
 exit 0
