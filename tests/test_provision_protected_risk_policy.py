@@ -344,7 +344,7 @@ class TrustedReviewerResolutionTests(unittest.TestCase):
         )
         for user in invalid:
             with self.subTest(user=user), self.assertRaisesRegex(
-                provisioner.ProvisioningError, "non-User or untyped reviewer identity"
+                provisioner.ProvisioningError, "typed GitHub User"
             ):
                 self.resolve([user])
 
