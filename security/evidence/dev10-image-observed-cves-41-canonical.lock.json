@@ -495,23 +495,53 @@
         "ubuntu_page_priority": "critical",
         "resolute_linux_status": "Vulnerable",
         "pinned_osv_ubuntu_severity": "critical",
-        "reconciliation": "consistent"
+        "reconciliation": "consistent",
+        "upstream_patch_details": {
+          "introduced_by": "2ac061c",
+          "fixed_by": "f96f165",
+          "upstream_fix_commit_references": [
+            "https://git.kernel.org/stable/c/87fd475dc4e354088f6534285388e7b061f54b35",
+            "https://git.kernel.org/stable/c/c5f54af611ff6fe1d53fa05d8e87b469dc56122b",
+            "https://git.kernel.org/stable/c/e7ba61734d6ad6adfd5bf617052e590743211669",
+            "https://git.kernel.org/stable/c/f96f16592a32430a0582309d73a873b6d3ee2bdb"
+          ]
+        }
       },
       {
         "cve": "CVE-2026-99306",
         "ubuntu_page_priority": "medium",
         "resolute_linux_status": "Needs evaluation",
         "pinned_osv_ubuntu_severity": "critical",
-        "reconciliation": "unresolved_discrepancy"
+        "reconciliation": "unresolved_discrepancy",
+        "upstream_patch_details": {
+          "introduced_by": "d517b39",
+          "fixed_by": "c174259",
+          "upstream_fix_commit_references": [
+            "https://git.kernel.org/stable/c/0574e4aff8e4b28e0d5636204ed4ba2350b8701a",
+            "https://git.kernel.org/stable/c/7931e6798f419bda9ac8cf0c095323eff90a7f52",
+            "https://git.kernel.org/stable/c/c1742590d2b2fc5fb217e1a9b520108f1fe282e5",
+            "https://git.kernel.org/stable/c/e9d72cf5d1bf5b4ddfe86707ada614973d75bf64"
+          ]
+        }
       },
       {
         "cve": "CVE-2026-99310",
         "ubuntu_page_priority": "medium",
         "resolute_linux_status": "Needs evaluation",
         "pinned_osv_ubuntu_severity": "critical",
-        "reconciliation": "unresolved_discrepancy"
+        "reconciliation": "unresolved_discrepancy",
+        "upstream_patch_details": {
+          "introduced_by": "4eaea13",
+          "fixed_by": "5336899",
+          "upstream_fix_commit_references": [
+            "https://git.kernel.org/stable/c/202b7a6c462daa55a9f4b01f0a25eca2b8d5f2e3",
+            "https://git.kernel.org/stable/c/5336899b5491eaa2ac22c2925d87daab2b140eb3",
+            "https://git.kernel.org/stable/c/540649cb8543472f6edfe9ae8b42c04aa3bd67e9",
+            "https://git.kernel.org/stable/c/a596d1979fcb4e5011d3d48ac4d927f81c9c9cab"
+          ]
+        }
       }
     ],
-    "note": "Public security-page priority/status is a separate evidence stream from the pinned OSV record. Do not silently substitute one for the other."
+    "note": "Ubuntu page patch details identify upstream introduced/fixed commits and explicitly warn against cherry-picking updates. These upstream fixes are candidate references only; they are not proof of Ubuntu backport ancestry in the Ubuntu-7.0.0-43.43 source tag. The Resolute page status and the pinned OSV affected-version/binary records remain separate evidence streams."
   }
 }
