@@ -300,6 +300,7 @@ jobs:
             --inventory docs/assessments/dev10-image-observed-cves-41.tsv \
             --canonical-tsv docs/assessments/dev10-image-observed-cves-41-canonical.tsv \
             --canonical-lock security/evidence/dev10-image-observed-cves-41-canonical.lock.json \
+            --upstream-lock security/evidence/dev10-image-observed-cves-41-upstream.lock.json \
             --upstream-root "$UPSTREAM_ROOT" \
             --canonical-root "$CANONICAL_41_ROOT" \
             --upstream-sha "$UPSTREAM_41_SHA" \
