@@ -11,7 +11,9 @@ EVIDENCE_FILE=/evidence/onboarding-verification.json
 EXPECTED_PROFILE="${EXPECTED_PROFILE:?expected matrix profile is required}"
 BUILD_PROFILE="${BAOBAB_BUILD_PROFILE:?published image must declare its baked profile}"
 EXPECTED_RUNTIME_PROFILE="$EXPECTED_PROFILE"
-[[ "$EXPECTED_PROFILE" == "final" ]] && EXPECTED_RUNTIME_PROFILE="full"
+if [[ "$EXPECTED_PROFILE" == "final" ]]; then
+  EXPECTED_RUNTIME_PROFILE="full"
+fi
 [[ "$BUILD_PROFILE" == "$EXPECTED_RUNTIME_PROFILE" ]] || {
   echo "Published image profile mismatch: expected $EXPECTED_RUNTIME_PROFILE for $EXPECTED_PROFILE, found $BUILD_PROFILE" >&2
   exit 2
