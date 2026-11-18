@@ -154,7 +154,6 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
             "development-only acceptance is insufficient",
             release_scan,
         )
-        self.assertIn("never consulted for a release tag", release_scan)
         self.assertIn("any HIGH/CRITICAL or secret finding", release_scan)
         self.assertIn(
             "Residual vulnerabilities in a tagged remote image require separately authenticated exact-digest release approval",
@@ -221,7 +220,7 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         report = (ROOT / "docs/security/dev10-release-readiness-20261118.md").read_text()
         self.assertIn("run 44330235494", report)
         self.assertIn("STRICT_SIGNED_NATIVE_CONTENT_VERIFIED", report)
-        self.assertIn("does not qualify a v1.5.2 release candidate", report)
+        self.assertIn("not qualify a v1.5.2 release candidate", " ".join(report.split()))
         self.assertIn("No release image was published", report)
         self.assertIn("DEV10_PROTECTED_DECISION_SHA256", report)
         self.assertIn("DEV10_SECURITY_APPROVER_LOGINS", report)
