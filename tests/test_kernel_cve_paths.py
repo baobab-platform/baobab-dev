@@ -74,7 +74,7 @@ class KernelPathTests(unittest.TestCase):
             self.assertEqual(row["classification"], "UPSTREAM_UNVERIFIED")
             self.assertIn("FileNotFoundError", row["error"])
 
-    def test_git_checkout_revision_mismatch_is_rejected(self):
+    def test_audit_records_exact_installed_binary_package_version(self):\n        ids = [f"CVE-2026-{i:05d}" for i in range(10000, 10295)]\n        trivy = [{"cve": cve, "severity": "HIGH"} for cve in ids]\n        vendor = [{"cve": cve, "ubuntu_linux_resolute_status": "pending"} for cve in ids]\n        with patch.object(module, "inspect", side_effect=lambda cve, sha, manifest, source_root: {"cve": cve}):\n            result = module.audit(trivy, vendor, {"/usr/include/linux/types.h"},\n                                  "a" * 40, "7.0.0-43.43")\n        self.assertEqual(result["package"], "linux-libc-dev=7.0.0-43.43")\n\n    def test_invalid_binary_package_version_is_rejected(self):\n        ids = [f"CVE-2026-{i:05d}" for i in range(10000, 10295)]\n        trivy = [{"cve": cve, "severity": "HIGH"} for cve in ids]\n        vendor = [{"cve": cve, "ubuntu_linux_resolute_status": "pending"} for cve in ids]\n        with self.assertRaisesRegex(ValueError, "binary package version"):\n            module.audit(trivy, vendor, {"/usr/include/linux/types.h"},\n                         "a" * 40, "7.0.0-42.42")\n\n    def test_git_checkout_revision_mismatch_is_rejected(self):
         with TemporaryDirectory() as tmp:
             ids = [f"CVE-2026-{i:05d}" for i in range(10000, 10295)]
             trivy = [{"cve": cve, "severity": "HIGH"} for cve in ids]
@@ -85,7 +85,7 @@ class KernelPathTests(unittest.TestCase):
             with patch.object(module.subprocess, "run", return_value=GitResult()):
                 with self.assertRaisesRegex(ValueError, "revision mismatch"):
                     module.audit(trivy, vendor, {"/usr/include/linux/types.h"},
-                                 "a"*40, Path(tmp))
+                                 "a"*40, "7.0.0-43.43", Path(tmp))
 
     def test_missing_upstream_evidence_rejected(self):
         with self.assertRaises(ValueError):
