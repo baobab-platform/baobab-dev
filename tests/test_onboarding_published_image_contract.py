@@ -33,6 +33,8 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         self.assertIn('if [[ "$BUILD_PROFILE" != "infra" ]]', script)
         self.assertIn('"HISTORICAL_BASELINE_UNQUALIFIED"', script)
         self.assertIn('"playwright_chromium_verified"', script)
+        self.assertIn('"image_ref": __import__("os").environ.get("IMAGE_REF")', script)
+        self.assertIn('[[ "$IMAGE_REF" == *@sha256:* ]]', script)
         for profile in ("final", "frontend", "frontend-e2e", "infra"):
             self.assertIn("profile: " + profile, workflow)
         self.assertIn('stable_profile_images[$profile].index_digest', workflow)
