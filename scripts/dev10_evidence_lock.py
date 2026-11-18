@@ -16,6 +16,7 @@ SHA256 = re.compile(r"^[a-f0-9]{64}$")
 @dataclass(frozen=True)
 class EvidenceLock:
     package_version: str
+    binary_source: dict[str, str]
     ubuntu_tag: str
     ubuntu_tag_commit: str
     upstream_sha: str
@@ -56,8 +57,18 @@ class EvidenceLock:
             data["inventory"], data["canonical_status"], data["binary_manifest"]
         )
         canonical_osv = data["canonical_osv"]
+        binary_source = data["binary_source"]
+        if binary_source != {
+            "binary_package": "linux-libc-dev",
+            "binary_version": data["package_version"],
+            "architecture": "amd64",
+            "source_package": "linux",
+            "source_version": data["package_version"],
+            "release_pocket": "resolute-updates",
+        }:
+            raise ValueError("Ubuntu binary-to-source package identity differs from reviewed lock")
         lock = cls(
-            package_version=data["package_version"],
+            package_version=data["package_version"], binary_source=binary_source,
             ubuntu_tag=ubuntu["name"], ubuntu_tag_commit=ubuntu["commit"],
             upstream_sha=upstream["sha"],
             canonical_osv_repository=canonical_osv["repository"],
