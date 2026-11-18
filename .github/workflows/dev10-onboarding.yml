@@ -174,7 +174,7 @@ jobs:
           docker image inspect --format '{{json .RepoDigests}}' "$IMAGE_REF"
           mkdir -p "$RUNNER_TEMP/dev10-evidence"
           chmod 0777 "$RUNNER_TEMP/dev10-evidence"
-          docker run --rm -e HOME=/tmp/dev10-home \
+          docker run --rm -e HOME=/tmp/dev10-home -e BAOBAB_BUILD_PROFILE="${{ matrix.profile }}" \
             -v "$GITHUB_WORKSPACE:/source:ro" \
             -v "$RUNNER_TEMP/dev10-evidence:/evidence" "$IMAGE_REF" \
             bash /source/scripts/ci/onboarding-published-image.sh
