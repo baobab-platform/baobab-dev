@@ -9,6 +9,7 @@ on:
       - docs/assessments/dev10-three-cve-source-path-review-20261118.md
       - scripts/build_dev10_applicability_register.py
       - tests/test_dev10_ubuntu_kernel_source.py
+      - tests/test_dev10_evidence_lock.py
       - tests/test_dev10_security_authorisation.py
       - tests/test_kernel_cve_paths.py
       - docs/assessments/dev10-kernel-cves-298.tsv
