@@ -8,12 +8,12 @@
     "retrieved_at": "2026-11-19",
     "record_format": "OSV 1.7.0",
     "record_inventory_path": "docs/assessments/dev10-image-observed-cves-41-canonical.tsv",
-    "record_inventory_blob_sha1": "6615aed79616bd3247de087453a5f8e8fbc0928e",
+    "record_inventory_blob_sha1": "8a355c92db7ac64b48d584ab3257a1d469aa885a",
     "record_count": 41,
     "source_package": "linux",
     "ubuntu_release": "26.04 LTS (resolute)",
     "package_version_observed_in_affected_versions": "7.0.0-43.43",
-    "interpretation": "All 41 exact Canonical OSV records have a Resolute linux source-package entry whose affected versions include 7.0.0-43.43 and whose ecosystem_specific.binaries lists linux-libc-dev 7.0.0-43.43. This establishes vendor source-to-binary association, not file-level inclusion of each affected source path in the package payload or runtime exploitability.",
+    "interpretation": "All 41 exact Canonical OSV records have a Resolute linux source-package entry whose affected versions include 7.0.0-43.43 and whose ecosystem_specific.binaries lists linux-libc-dev 7.0.0-43.43. This establishes vendor source-to-binary association, not file-level inclusion of each affected source path in the package payload or runtime exploitability. The OSV Ubuntu severity field is retained separately from the current ubuntu.com security-page priority/status; the two disagree for CVE-2026-99306 and CVE-2026-99310 and that discrepancy is unresolved.",
     "binary_package_mapping": {
       "binary_package": "linux-libc-dev",
       "binary_version": "7.0.0-43.43",
@@ -39,451 +39,479 @@
       "path": "osv/cve/2026/UBUNTU-CVE-2026-100081.json",
       "blob_sha1": "96cd52fc750c8940c9ecea576e05f9b3fdd3c497",
       "modified": "2026-11-18T11:14:26Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99109",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99109.json",
       "blob_sha1": "829812fcf07ad7f882460d008747f8895e47cf22",
       "modified": "2026-11-18T11:13:44Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99110",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99110.json",
       "blob_sha1": "c106d65fd2b1bdbf0fabf8719a4880fc004f69fc",
       "modified": "2026-11-18T11:13:44Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99116",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99116.json",
       "blob_sha1": "7e2d8558fa9d47abeaf769eafac035c61468a486",
       "modified": "2026-11-18T11:13:46Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99117",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99117.json",
       "blob_sha1": "1be103c8fddc7f3c57d914527f672513fea6de8f",
       "modified": "2026-11-18T11:13:46Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99126",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99126.json",
       "blob_sha1": "24adfc58302059669185bcdbbc212a8732b2d50b",
       "modified": "2026-11-18T11:13:48Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99128",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99128.json",
       "blob_sha1": "22aa79b4a6792fe8c20545632e016794e5292df9",
       "modified": "2026-11-18T11:13:48Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99138",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99138.json",
       "blob_sha1": "51ae7b969f85622d7c5ca9fd7c770038f2e5bf7c",
       "modified": "2026-11-18T11:13:50Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99147",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99147.json",
       "blob_sha1": "dec6184dfda9db359db45e2de74076470b679178",
       "modified": "2026-11-18T11:13:52Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99152",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99152.json",
       "blob_sha1": "8a566fee4c6b74b2a5a7fd9b81da486bf6457062",
       "modified": "2026-11-18T11:13:53Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99153",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99153.json",
       "blob_sha1": "75ab3befa93c14a204482e8afad12569e46ed109",
       "modified": "2026-11-18T11:13:53Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99154",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99154.json",
       "blob_sha1": "48ad45c8381b6ee15124472e4ad965ce27790a7b",
       "modified": "2026-11-18T11:13:53Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99164",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99164.json",
       "blob_sha1": "c79dacf0a1a9673fe4124dd2e74b726c60c17065",
       "modified": "2026-11-18T11:13:55Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99166",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99166.json",
       "blob_sha1": "03c843192cb42733ac16031e651ddf57c198af8b",
       "modified": "2026-11-18T11:13:56Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99167",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99167.json",
       "blob_sha1": "004caaa2bd10dd9cd8dee50b3944ac6ec518ec10",
       "modified": "2026-11-18T11:13:56Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99185",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99185.json",
       "blob_sha1": "9c26ee2e07328f0078ae39f337bffcd8ee80944d",
       "modified": "2026-11-18T11:14:00Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99203",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99203.json",
       "blob_sha1": "c543dfb10872654299d7d56a0f2fdf6eee5336db",
       "modified": "2026-11-18T11:14:03Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99212",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99212.json",
       "blob_sha1": "93d6db752e4ece3b8a71d163e414ff9ce3fe1249",
       "modified": "2026-11-18T11:14:05Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99213",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99213.json",
       "blob_sha1": "e9473736933070637cd322eac74088f924343342",
       "modified": "2026-11-18T11:14:05Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99218",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99218.json",
       "blob_sha1": "51a5a87f25aa71169288318092c6043835bc262c",
       "modified": "2026-11-18T11:14:06Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99227",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99227.json",
       "blob_sha1": "5b09ead16fc6f430e9fea35bca4b54a51e6ff864",
       "modified": "2026-11-18T11:14:08Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99231",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99231.json",
       "blob_sha1": "539ade8ec35410a2d4c1e0614d65fa5fcb466a7a",
       "modified": "2026-11-18T11:14:08Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99236",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99236.json",
       "blob_sha1": "928929996b720ea927c026c4c6929556d87277ab",
       "modified": "2026-11-18T11:14:09Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99239",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99239.json",
       "blob_sha1": "6b4c4e45e27018ccdb3f5191b3a34ecb8d298cb4",
       "modified": "2026-11-18T11:14:10Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99260",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99260.json",
       "blob_sha1": "dde8ccc884c4177aaf5625b908402bbe3a188ae3",
       "modified": "2026-11-18T11:14:14Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99270",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99270.json",
       "blob_sha1": "83bf34045678d79756548bcd371f7108039e6e2c",
       "modified": "2026-11-18T11:14:15Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99272",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99272.json",
       "blob_sha1": "9e0c56bd685c8efeb9e2bd5b565063eda85189f4",
       "modified": "2026-11-18T11:14:16Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99274",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99274.json",
       "blob_sha1": "9db7438bd083c8935c3ab8ca05bf8cf26d3584e9",
       "modified": "2026-11-18T11:14:16Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99275",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99275.json",
       "blob_sha1": "eb86c185ecd1857d4357850e28a922d63ec574a7",
       "modified": "2026-11-18T11:14:16Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99282",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99282.json",
       "blob_sha1": "871eb3232604dc1143b134c78bedb3ccbb306135",
       "modified": "2026-11-18T11:14:18Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99284",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99284.json",
       "blob_sha1": "4980bcf5e44086d48e2990eb10d26d9c4b885ad3",
       "modified": "2026-11-18T11:14:18Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99287",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99287.json",
       "blob_sha1": "7cfb6b6b0b53e564836b74ddf9f2d2eee4e11203",
       "modified": "2026-11-18T11:14:19Z",
-      "ubuntu_priority": "critical",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "critical"
     },
     {
       "cve": "CVE-2026-99288",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99288.json",
       "blob_sha1": "c2afc07317ed7153c00d314034d35501d8f6c355",
       "modified": "2026-11-18T11:14:19Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99290",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99290.json",
       "blob_sha1": "d3b9b93605c51e788d4bc9adb852cebdf548589b",
       "modified": "2026-11-18T11:14:19Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99292",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99292.json",
       "blob_sha1": "79634adac6fc2bc8d327e8ce4962d3f64c86e395",
       "modified": "2026-11-18T11:14:20Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99295",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99295.json",
       "blob_sha1": "dafa2124017e2c650958ab3850ea6c0f9d61f888",
       "modified": "2026-11-18T11:14:20Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99302",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99302.json",
       "blob_sha1": "3e8944d1e1e64b74e8f382ab40621a4ce80a7745",
       "modified": "2026-11-18T11:14:22Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99304",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99304.json",
       "blob_sha1": "ac3c61ba43e283e53d44bbaa1b46461307265af7",
       "modified": "2026-11-18T11:14:22Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     },
     {
       "cve": "CVE-2026-99306",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99306.json",
       "blob_sha1": "1fd4c554902dba2504e4beb973d5e9b6da0d533e",
       "modified": "2026-11-18T11:14:23Z",
-      "ubuntu_priority": "critical",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "critical"
     },
     {
       "cve": "CVE-2026-99310",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99310.json",
       "blob_sha1": "61992a6e23656283e4812174615adbec3c1bd0e6",
       "modified": "2026-11-18T11:14:24Z",
-      "ubuntu_priority": "critical",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "critical"
     },
     {
       "cve": "CVE-2026-99311",
       "path": "osv/cve/2026/UBUNTU-CVE-2026-99311.json",
       "blob_sha1": "4fd6c8927917f775b498e9854fe48e71974e336e",
       "modified": "2026-11-18T11:14:24Z",
-      "ubuntu_priority": "high",
       "resolute_7_0_0_43_43_affected": true,
       "canonical_linux_source_version_affected": true,
       "linux_libc_dev_binary_version": "7.0.0-43.43",
-      "linux_libc_dev_binary_listed_as_affected": true
+      "linux_libc_dev_binary_listed_as_affected": true,
+      "canonical_osv_ubuntu_severity": "high"
     }
-  ]
+  ],
+  "security_page_reconciliation": {
+    "observed_at": "2026-11-19",
+    "source": "https://ubuntu.com/security/CVE-2026-99287; https://ubuntu.com/security/CVE-2026-99306; https://ubuntu.com/security/CVE-2026-99310",
+    "records": [
+      {
+        "cve": "CVE-2026-99287",
+        "ubuntu_page_priority": "critical",
+        "resolute_linux_status": "Vulnerable",
+        "pinned_osv_ubuntu_severity": "critical",
+        "reconciliation": "consistent"
+      },
+      {
+        "cve": "CVE-2026-99306",
+        "ubuntu_page_priority": "medium",
+        "resolute_linux_status": "Needs evaluation",
+        "pinned_osv_ubuntu_severity": "critical",
+        "reconciliation": "unresolved_discrepancy"
+      },
+      {
+        "cve": "CVE-2026-99310",
+        "ubuntu_page_priority": "medium",
+        "resolute_linux_status": "Needs evaluation",
+        "pinned_osv_ubuntu_severity": "critical",
+        "reconciliation": "unresolved_discrepancy"
+      }
+    ],
+    "note": "Public security-page priority/status is a separate evidence stream from the pinned OSV record. Do not silently substitute one for the other."
+  }
 }
