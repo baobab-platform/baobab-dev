@@ -186,13 +186,12 @@ fi
         files = {
             'package.json': json.dumps({'packageManager': 'pnpm@12.21.0'}),
             'pnpm-lock.yaml': '',
-            '.corepack.env': (
-                'COREPACK_ENABLE_PROJECT_SPEC=0\\n'
-                'COREPACK_ENABLE_STRICT=0\\n'
-                'COREPACK_ENABLE_AUTO_PIN=1\\n'
-                'COREPACK_ENABLE_NETWORK=1\\n'
-                'COREPACK_ON_UNVERIFIED_DOWNLOAD=ignore\\n'
-            ),
+            '.corepack.env': """COREPACK_ENABLE_PROJECT_SPEC=0
+COREPACK_ENABLE_STRICT=0
+COREPACK_ENABLE_AUTO_PIN=1
+COREPACK_ENABLE_NETWORK=1
+COREPACK_ON_UNVERIFIED_DOWNLOAD=ignore
+""",
         }
         r, trace = self.run_case(files)
         self.assertEqual(0, r.returncode, r.stdout + r.stderr)
