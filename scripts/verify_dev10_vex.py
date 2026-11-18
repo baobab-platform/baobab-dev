@@ -161,7 +161,7 @@ def qualify(report: dict, signed: dict, trust: dict, *,
     }, "historical 295-CVE inventory provenance differs from reviewed lock")
     historical_path = Path(__file__).resolve().parents[1] / LOCK.historical_inventory_path
     with historical_path.open(encoding="utf-8", newline="") as stream:
-        historical_ids = {row["cve"] for row in csv.DictReader(stream, delimiter="\\t")}
+        historical_ids = {row["cve"] for row in csv.DictReader(stream, delimiter="\t")}
     require(len(historical_ids) == LOCK.historical_inventory_count,
             "historical 295-CVE inventory identity set is incomplete")
     for item in register["records"]:
