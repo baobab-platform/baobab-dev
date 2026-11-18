@@ -211,6 +211,26 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
             with self.subTest(profile=profile):
                 self.assertIn(profile, build)
 
+    def test_historical_ghcr_readback_is_not_v152_release_qualification(self):
+        report = (ROOT / "docs/security/dev10-release-readiness-20261118.md").read_text()
+        self.assertIn("run 44330235494", report)
+        self.assertIn("STRICT_SIGNED_NATIVE_CONTENT_VERIFIED", report)
+        self.assertIn("does not qualify a v1.5.2 release candidate", report)
+        self.assertIn("No release image was published", report)
+        self.assertIn("DEV10_PROTECTED_DECISION_SHA256", report)
+        self.assertIn("DEV10_SECURITY_APPROVER_LOGINS", report)
+        for profile in ("final", "frontend", "frontend-e2e", "infra"):
+            with self.subTest(profile=profile):
+                self.assertIn(f"`{profile}`", report)
+        for digest in (
+            "faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed",
+            "388d604293fc6a2046d1abb9c7b80b32e78c6003636b091d1e9c7c827e34766d",
+            "5b4a9ce1ac819a2b125f078fef4b14837b5b65b46527087a2bb8898b4811bb0b",
+            "5b39e71dd068da12e009421012d7c3620339746c2a39839182ea1f4fe788ffda",
+        ):
+            with self.subTest(digest=digest):
+                self.assertIn(digest, report)
+
     def test_independent_integrity_monitor_is_read_only(self):
         source = INTEGRITY.read_text()
         self.assertIn("packages: read", source)
