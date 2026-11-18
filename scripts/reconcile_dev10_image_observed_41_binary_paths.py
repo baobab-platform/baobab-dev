@@ -72,6 +72,9 @@ def compare(args: argparse.Namespace) -> dict:
     output_records = []
     for record in upstream["records"]:
         cve = record["cve"]
+        if (record.get("canonical_linux_libc_dev_binary_version") != "7.0.0-43.43"
+                or record.get("canonical_linux_libc_dev_binary_listed_as_affected") is not True):
+            raise ValueError(cve + ": Canonical OSV lacks the expected linux-libc-dev binary association")
         path_results = []
         for source_path in record.get("affected_source_paths", []):
             if not safe_source_path(source_path):
@@ -127,6 +130,8 @@ def compare(args: argparse.Namespace) -> dict:
             "cve": cve,
             "canonical_resolute_source_package": record["canonical_resolute_source_package"],
             "canonical_resolute_affected_version": record["canonical_resolute_affected_version"],
+            "canonical_linux_libc_dev_binary_version": record["canonical_linux_libc_dev_binary_version"],
+            "canonical_linux_libc_dev_binary_listed_as_affected": record["canonical_linux_libc_dev_binary_listed_as_affected"],
             "candidate_fix_commit_ids": record["candidate_fix_commit_ids"],
             "affected_source_paths": path_results,
             "binary_applicability": "under_investigation",
@@ -152,6 +157,9 @@ def compare(args: argparse.Namespace) -> dict:
         },
         "counts": {
             "cves": len(output_records),
+            "canonical_linux_libc_dev_binary_mappings": sum(
+                1 for row in output_records if row["canonical_linux_libc_dev_binary_listed_as_affected"]
+            ),
             "affected_source_paths": sum(len(row["affected_source_paths"]) for row in output_records),
             "source_paths_present_at_ubuntu_tag": sum(
                 1 for row in output_records for item in row["affected_source_paths"]
