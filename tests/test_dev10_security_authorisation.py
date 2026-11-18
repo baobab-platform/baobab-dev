@@ -330,9 +330,35 @@ class SignedVEXTests(unittest.TestCase):
                  "InstalledVersion": "7.0.0-43.43", "Severity": "CRITICAL",
                  "PkgIdentifier": {"PURL": self.package_purl}}]}]}
         scanner = builder.tsv(ROOT / "docs/assessments/dev10-kernel-cves-298.tsv")
+        ubuntu = {
+            "ubuntu_release_tag": builder.LOCK.ubuntu_tag,
+            "ubuntu_source_commit": builder.LOCK.ubuntu_tag_commit,
+            "binary_source": binary_source_fixture(),
+            "path_counts": {"PATHS_PRESENT_NONDISCRIMINATING": 298},
+            "binary_manifest": {
+                "package": "linux-libc-dev=" + builder.LOCK.package_version,
+                "sha256": builder.LOCK.binary_manifest_sha256,
+                "path_count": builder.LOCK.binary_manifest_path_count,
+                "header_count": builder.LOCK.header_count,
+            },
+            "records": [{
+                "cve": row["cve"],
+                "ubuntu_release_tag": builder.LOCK.ubuntu_tag,
+                "ubuntu_release_tag_commit": builder.LOCK.ubuntu_tag_commit,
+                "ubuntu_source_paths_present": [],
+                "upstream_paths_missing_from_ubuntu_snapshot": [],
+                "ubuntu_source_path_status": "PATHS_PRESENT_NONDISCRIMINATING",
+                "upstream_path_correspondence": [],
+                "direct_binary_manifest_uapi_path_matches": [],
+                "kernel_private_header_paths": [],
+                "upstream_candidate_fix_references": [],
+                "ubuntu_fix_commit_verified": False,
+            } for row in scanner],
+        }
         self.register = builder.build(
             scanner,
             builder.tsv(ROOT / "docs/assessments/dev10-canonical-cve-status-20261118.tsv"),
+            ubuntu_patches=ubuntu,
             canonical_osv=canonical_osv_fixture(scanner, "2026-10-30T11:00:00Z"),
             now=self.now)
         # Ephemeral test-only proof flags; no production evidence or approval.
@@ -429,6 +455,12 @@ class SignedVEXTests(unittest.TestCase):
         self.register["source_provenance"]["inventory_extension_cves"] = ["CVE-2026-98869"]
         self.refresh_register_digests()
         with self.assertRaisesRegex(ValueError, "inventory extension"):
+            self.check()
+
+    def test_signed_register_must_bind_binary_source_identity(self):
+        self.register["source_provenance"]["binary_source"]["source_package"] = "linux-raspi"
+        self.refresh_register_digests()
+        with self.assertRaisesRegex(ValueError, "binary/source identity differs"):
             self.check()
 
     def test_signed_register_must_preserve_historical_record_origin(self):
