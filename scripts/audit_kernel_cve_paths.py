@@ -21,7 +21,7 @@ from urllib import request
 
 CVE_RE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
-VERSION_RE = re.compile(r"^\\d+\\.\\d+\\.\\d+-\\d+\\.\\d+$")
+VERSION_RE = re.compile(r"^\d+\.\d+\.\d+-\d+\.\d+$")
 GITILES = "https://kernel.googlesource.com/pub/scm/linux/security/vulns"
 
 
