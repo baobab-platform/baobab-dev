@@ -4,6 +4,7 @@ import argparse
 import json
 import re
 import subprocess
+import urllib.parse
 from pathlib import Path
 try:
     from release_tag_policy import classify
@@ -215,9 +216,8 @@ def maintenance(family, previous):
         raise ReleaseEligibilityError("trusted maintenance approver allow-list is missing or duplicated")
     try:
         pr = json.loads(run("gh", "api", f"repos/{repo}/pulls/{decision['review_pr']}"))
-        reviews = json.loads(run("gh", "api", f"repos/{repo}/pulls/{decision['review_pr']}/reviews?per_page=100"))
     except (ValueError, ReleaseEligibilityError) as exc:
-        raise ReleaseEligibilityError("cannot verify independent maintenance approval") from exc
+        raise ReleaseEligibilityError("cannot verify maintenance exception PR metadata") from exc
     author = pr.get("user")
     if not isinstance(author, dict) or author.get("type") != "User":
         raise ReleaseEligibilityError("maintenance PR author is not a typed GitHub User")
@@ -261,7 +261,7 @@ def maintenance(family, previous):
         if reviewer_id not in trusted_ids:
             continue
         try:
-            require_independent(reviewer_id, set(trusted_ids.values()), author_id, contributors)
+            require_independent(reviewer_id, trusted_ids, author_id, contributors)
         except ValueError:
             continue
         return True
