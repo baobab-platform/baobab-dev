@@ -46,6 +46,23 @@ def canonical_osv_fixture(scanner, retrieved_at=None):
     }
 
 
+def binary_source_fixture():
+    return {
+        "schema": "baobab.dev10.ubuntu-binary-source-provenance.v1",
+        **builder.LOCK.binary_source,
+        "binary_status": "install ok installed",
+        "apt_candidate_version": builder.LOCK.package_version,
+        "apt_package_metadata_sha256": "a" * 64,
+        "apt_policy_sha256": "b" * 64,
+        "apt_madison_sha256": "c" * 64,
+        "apt_package_deb_sha256": "d" * 64,
+        "apt_package_deb_filename": f"linux-libc-dev_{builder.LOCK.package_version}_amd64.deb",
+        "apt_package_index_sha256": [{"sha256": "e" * 64, "index_name": "Packages"}],
+        "installed_package_metadata_sha256": "f" * 64,
+        "ubuntu_base_image": "ubuntu@sha256:" + "1" * 64,
+    }
+
+
 class ApplicabilityTests(unittest.TestCase):
     def test_historical_ghcr_profile_digests_and_signer_are_locked(self):
         images = builder.LOCK.stable_profile_images
@@ -151,6 +168,7 @@ class ApplicabilityTests(unittest.TestCase):
         ubuntu = {
             "ubuntu_release_tag": builder.LOCK.ubuntu_tag,
             "ubuntu_source_commit": tag_sha,
+            "binary_source": binary_source_fixture(),
             "path_counts": {"PATHS_PRESENT_NONDISCRIMINATING": 298},
             "binary_manifest": {
                 "package": "linux-libc-dev=7.0.0-43.43",
@@ -199,6 +217,7 @@ class ApplicabilityTests(unittest.TestCase):
         ubuntu = {
             "ubuntu_release_tag": "Ubuntu-7.0.0-43.43",
             "ubuntu_source_commit": builder.LOCK.ubuntu_tag_commit,
+            "binary_source": binary_source_fixture(),
             "path_counts": {"PATHS_PRESENT_NONDISCRIMINATING": 298},
             "binary_manifest": {
                 "package": "linux-libc-dev=7.0.0-43.43",
