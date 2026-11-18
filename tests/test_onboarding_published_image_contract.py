@@ -26,8 +26,6 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
     def test_profile_contracts_and_historical_verifier_status_are_explicit(self):
         script = SCRIPT.read_text(encoding="utf-8")
         workflow = WORKFLOW.read_text(encoding="utf-8")
-        self.assertIn('BUILD_PROFILE="${BAOBAB_BUILD_PROFILE:-full}"', script)
-        self.assertIn('EXPECTED_PROFILE="${EXPECTED_PROFILE:-}"', script)
         self.assertIn('-e EXPECTED_PROFILE="${{ matrix.profile }}"', workflow)
         self.assertNotIn('-e BAOBAB_BUILD_PROFILE=', workflow)
         self.assertIn('if [[ "$BUILD_PROFILE" != "infra" ]]', script)
@@ -45,9 +43,14 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         script = SCRIPT.read_text(encoding="utf-8")
         workflow = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn('export BAOBAB_BUILD_PROFILE="$BUILD_PROFILE"', script)
+        self.assertIn('EXPECTED_PROFILE="${EXPECTED_PROFILE:?expected matrix profile is required}"', script)
+        self.assertIn('BUILD_PROFILE="${BAOBAB_BUILD_PROFILE:?published image must declare its baked profile}"', script)
+        self.assertIn('[[ "$EXPECTED_PROFILE" == "final" ]] && EXPECTED_RUNTIME_PROFILE="full"', script)
+        self.assertIn('[[ "$BUILD_PROFILE" == "$EXPECTED_RUNTIME_PROFILE" ]] ', script)
+        self.assertIn('-e EXPECTED_PROFILE="${{ matrix.profile }}" ', workflow)
+        self.assertNotIn('-e BAOBAB_BUILD_PROFILE="${{ matrix.profile }}" ', workflow)
         self.assertIn('[[ "$(id -u)" -ne 0 ]]', script)
-        self.assertIn('profile == "frontend-e2e" and not evidence["playwright_chromium_verified"]', script)
-        self.assertIn('-e BAOBAB_BUILD_PROFILE="${{ matrix.profile }}"', workflow)
+        self.assertIn('expected_profile == "frontend-e2e" and not evidence["playwright_chromium_verified"]', script)
         self.assertIn('stable_profile_images[$profile].signer_tag', workflow)
 
     def test_reviewed_code_runs_from_read_only_source_mount(self):
