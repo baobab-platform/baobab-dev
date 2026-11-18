@@ -21,6 +21,8 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         self.assertNotIn("export WORKSPACE_DIR=", text)
         self.assertNotIn("assert_workspace", text)
         self.assertIn('if WORKSPACE_DIR="$PROJECT_DIR" bash "$SRC_DIR/scripts/verify.sh"', text)
+        self.assertIn('if [[ "$BUILD_PROFILE" == "infra" ]]; then', text)
+        self.assertIn('Skipping in-image Python unit suite: infra profile intentionally excludes Python', text)
 
     def test_workflow_passes_a_script_not_nested_container_shell_text(self):
         text = WORKFLOW.read_text(encoding="utf-8")
