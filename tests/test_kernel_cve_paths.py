@@ -89,7 +89,8 @@ class KernelPathTests(unittest.TestCase):
             stdout = "a" * 40 + "\\n"
         with patch.object(module.subprocess, "run", return_value=GitResult()), \\
              patch.object(module, "inspect",
-                          side_effect=lambda cve, sha, manifest, source_root: {"cve": cve, "classification": "KERNEL_IMPLEMENTATION_PATHS_REVIEW_REQUIRED"}):
+                          side_effect=lambda cve, sha, manifest, source_root: {"cve": cve, "classification": "KERNEL_IMPLEMENTATION_PATHS_REVIEW_REQUIRED"}),
+        ):
             result = module.audit(trivy, vendor, {"/usr/include/linux/types.h"},
                                   "a" * 40, "7.0.0-43.43", Path("."))
         self.assertEqual(result["package"], "linux-libc-dev=7.0.0-43.43")
