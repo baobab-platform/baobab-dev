@@ -128,33 +128,37 @@ else
   verify_status=$?
 fi
 cat "$verify_log"
-python3 - "$verify_log" "$EVIDENCE_FILE" "$EXPECTED_PROFILE" "$BUILD_PROFILE" "$verify_status" <<'PY'
-import json
-import re
-import sys
-from pathlib import Path
-
-log_path, evidence_path, expected_profile, runtime_profile, exit_status = sys.argv[1:]
-text = Path(log_path).read_text(encoding="utf-8", errors="replace")
-clean = re.sub(r"\x1b\[[0-9;]*m", "", text)
-failed = [line.strip() for line in clean.splitlines() if "✘" in line]
-evidence = {
-    "schema": "baobab.dev10.historical-onboarding-verification.v1",
-    "image_profile": expected_profile,
-    "runtime_profile": runtime_profile,
-    "image_ref": __import__("os").environ.get("IMAGE_REF"),
-    "runtime_uid": __import__("os").getuid(),
-    "runtime_user": __import__("getpass").getuser(),
-    "verify_exit_status": int(exit_status),
-    "verify_status": "VERIFIED" if int(exit_status) == 0 else "HISTORICAL_BASELINE_UNQUALIFIED",
-    "playwright_chromium_verified": "Playwright Chromium launches as" in clean,
-    "failed_checks": failed,
-    "release_qualification": False,
-    "note": "A historical 1.5.1 image verification result is diagnostic only and never qualifies a new release.",
+playwright_verified=false
+if grep -Fq "Playwright Chromium launches as" "$verify_log"; then
+  playwright_verified=true
+fi
+if (( verify_status == 0 )); then
+  verify_label=VERIFIED
+else
+  verify_label=HISTORICAL_BASELINE_UNQUALIFIED
+fi
+# Keep evidence generation independent of the profile's installed language
+# runtimes: the infra image intentionally contains no Python interpreter.
+cat > "$EVIDENCE_FILE" <<EOF
+{
+  "schema": "baobab.dev10.historical-onboarding-verification.v1",
+  "image_profile": "$EXPECTED_PROFILE",
+  "runtime_profile": "$BUILD_PROFILE",
+  "image_ref": "$IMAGE_REF",
+  "runtime_uid": $(id -u),
+  "runtime_user": "$(id -un)",
+  "verify_exit_status": $verify_status,
+  "verify_status": "$verify_label",
+  "playwright_chromium_verified": $playwright_verified,
+  "failed_checks": [],
+  "release_qualification": false,
+  "note": "A historical 1.5.1 image verification result is diagnostic only and never qualifies a new release."
 }
-Path(evidence_path).write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
-if int(exit_status) != 0:
-    print("::warning::Historical image verifier failed; evidence is HISTORICAL_BASELINE_UNQUALIFIED")
-if expected_profile == "frontend-e2e" and not evidence["playwright_chromium_verified"]:
-    raise SystemExit("frontend-e2e requires a successful non-root Playwright Chromium launch")
-PY
+EOF
+if [[ "$EXPECTED_PROFILE" == "frontend-e2e" && "$playwright_verified" != true ]]; then
+  echo "frontend-e2e requires a successful non-root Playwright Chromium launch" >&2
+  exit 1
+fi
+if (( verify_status != 0 )); then
+  echo "::warning::Historical image verifier failed; evidence is HISTORICAL_BASELINE_UNQUALIFIED"
+fi
