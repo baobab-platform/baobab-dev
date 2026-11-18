@@ -140,6 +140,7 @@ pnpm_display() {
     (cd / && version pnpm)
 }
 
+printf "  %-18s %s\n" "pnpm"     "$(pnpm_display)"
 printf "  %-18s %s\n" "Flutter"  "$(version flutter "flutter --version")"
 printf "  %-18s %s\n" "Expected" "${FLUTTER_VERSION}"
 

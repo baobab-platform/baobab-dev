@@ -350,7 +350,9 @@ run_post_create() {
 
     log "Post-create complete."
 
-    if command -v baobab-summary >/dev/null 2>&1; then
+    if [[ -n "${BAOBAB_SUMMARY_SCRIPT:-}" && -f "${BAOBAB_SUMMARY_SCRIPT}" ]]; then
+        bash "${BAOBAB_SUMMARY_SCRIPT}"
+    elif command -v baobab-summary >/dev/null 2>&1; then
         baobab-summary
     fi
 
@@ -358,7 +360,9 @@ run_post_create() {
     # Final verification
     # -------------------------------------------------------------------------
 
-    if command -v baobab-verify >/dev/null 2>&1; then
+    if [[ -n "${BAOBAB_VERIFY_SCRIPT:-}" && -f "${BAOBAB_VERIFY_SCRIPT}" ]]; then
+        bash "${BAOBAB_VERIFY_SCRIPT}" --quiet
+    elif command -v baobab-verify >/dev/null 2>&1; then
         baobab-verify --quiet
     fi
 }

@@ -62,6 +62,8 @@ jobs:
           set -euo pipefail
           docker image inspect --format '{{json .RepoDigests}}' "$IMAGE_REF"
           docker run --rm -e HOME=/tmp/dev10-home \
+            -e BAOBAB_SUMMARY_SCRIPT=/tmp/dev10-project/scripts/summary.sh \
+            -e BAOBAB_VERIFY_SCRIPT=/tmp/dev10-project/scripts/verify.sh \
             -v "$GITHUB_WORKSPACE:/source:ro" "$IMAGE_REF" bash -c '
               set -euo pipefail
               mkdir -p "$HOME" /tmp/dev10-project
