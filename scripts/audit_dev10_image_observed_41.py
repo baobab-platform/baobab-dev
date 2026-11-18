@@ -61,7 +61,13 @@ def validate_inputs(inventory: list[dict[str, str]], canonical: list[dict[str, s
             or source.get("record_count") != 41
             or source.get("record_inventory_blob_sha1") != "93e1e8b8b20579157234a9e040c1cfdcc1eabfcd"):
         raise ValueError("Canonical source pin or inventory blob differs from reviewed lock")
+    locked_by_id = {row["cve"]: row for row in lock_records}
     for row in canonical:
+        locked = locked_by_id[row["cve"]]
+        if (row.get("canonical_osv_blob_sha") != locked.get("blob_sha1")
+                or row.get("canonical_modified") != locked.get("modified")
+                or row.get("ubuntu_priority") != locked.get("ubuntu_priority")):
+            raise ValueError(row["cve"] + ": Canonical TSV does not match its pinned OSV blob metadata")
         if (row.get("installed_7_0_0_43_43_listed_as_affected") != "true"
                 or row.get("resolute_source_purl") != EXPECTED_SOURCE_PURL
                 or row.get("binary_disposition") != "under_investigation"):
@@ -85,9 +91,12 @@ def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
     if (upstream_lock.get("schema") != "baobab.dev10.image-observed-cve-upstream-source-lock.v1"
             or upstream_lock.get("commit") != upstream_sha
             or upstream_lock.get("record_count") != 41
+            or len(upstream_lock.get("cves", [])) != 41
             or set(upstream_lock.get("cves", [])) != ids
             or upstream_lock.get("record_inventory_blob_sha1") != git_blob_sha1(inventory_path.read_bytes())):
         raise ValueError("upstream CNA revision, CVE set or inventory blob differs from immutable source lock")
+    if upstream_lock.get("canonical_evidence_lock") != str(canonical_lock_path).replace("\\\\", "/"):
+        raise ValueError("upstream lock does not bind the Canonical evidence lock path")
     if git_blob_sha1(canonical_tsv.read_bytes()) != lock["source"]["record_inventory_blob_sha1"]:
         raise ValueError("Canonical OSV index TSV blob differs from immutable Canonical source lock")
     if git(upstream_root, "rev-parse", "HEAD") != upstream_sha:
