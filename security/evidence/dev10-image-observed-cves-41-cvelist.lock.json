@@ -698,6 +698,187 @@
         "e618d928ec7f88cbeadfa3542adcac40f474e629",
         "fabaff1c59ff2cc89cb7e5bd0186a5e15f0c73b2"
       ]
+    },
+    {
+      "cve": "CVE-2026-99260",
+      "path": "cves/2026/99xxx/CVE-2026-99260.json",
+      "blob_sha1": "8811494114c1c642b57684e2508c5c8100e34119",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-11-03T19:13:15.077Z",
+      "affected_source_paths": [
+        "fs/ntfs/ea.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/7ed0028126b5a19f278183abbae2b3166d3ca9ac",
+        "https://git.kernel.org/stable/c/c5434e86d6c5324990017ea043bc821d115132c8"
+      ],
+      "candidate_fix_commit_ids": [
+        "7ed0028126b5a19f278183abbae2b3166d3ca9ac",
+        "c5434e86d6c5324990017ea043bc821d115132c8"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99270",
+      "path": "cves/2026/99xxx/CVE-2026-99270.json",
+      "blob_sha1": "ae6470ecbc6717be73d0160202199342e955f06e",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-11-10T18:15:26.715Z",
+      "affected_source_paths": [
+        "net/ipv4/inet_connection_sock.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/97c8a3c1f73d828de43a5a88e8a9a143efb2b661",
+        "https://git.kernel.org/stable/c/b3b56e95f6fad7fa7281450b443e861d82616fdb",
+        "https://git.kernel.org/stable/c/f7fba81b00699360f96ed7d9a47b8c801e74c6f9"
+      ],
+      "candidate_fix_commit_ids": [
+        "97c8a3c1f73d828de43a5a88e8a9a143efb2b661",
+        "b3b56e95f6fad7fa7281450b443e861d82616fdb",
+        "f7fba81b00699360f96ed7d9a47b8c801e74c6f9"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99272",
+      "path": "cves/2026/99xxx/CVE-2026-99272.json",
+      "blob_sha1": "df99435f4ab618d77447491cf0b074d4ee5470f7",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-11-17T10:24:05.497Z",
+      "affected_source_paths": [
+        "fs/smb/client/smb2pdu.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/082ae8a34170b7388106aa0897f47405f0824946",
+        "https://git.kernel.org/stable/c/1ba1937de005e261a8858f45bfef5da7458df94c",
+        "https://git.kernel.org/stable/c/2ec9cdf469dd32bcf33073aeb30c08e9356e0ca1",
+        "https://git.kernel.org/stable/c/b949f6a0c08a57439334f39754ee7bd3c315d4a3"
+      ],
+      "candidate_fix_commit_ids": [
+        "082ae8a34170b7388106aa0897f47405f0824946",
+        "1ba1937de005e261a8858f45bfef5da7458df94c",
+        "2ec9cdf469dd32bcf33073aeb30c08e9356e0ca1",
+        "b949f6a0c08a57439334f39754ee7bd3c315d4a3"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99274",
+      "path": "cves/2026/99xxx/CVE-2026-99274.json",
+      "blob_sha1": "9783f6b0f992b7e3fb625b63121819a65fd5bccf",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-11-10T18:15:27.974Z",
+      "affected_source_paths": [
+        "fs/smb/client/smb2ops.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/31f6dbb29fe17fa9595c7e8b19fd92915b03a4ca",
+        "https://git.kernel.org/stable/c/4a426ca5be7e3dedbe76575b967db04fbf01136f",
+        "https://git.kernel.org/stable/c/8e0d425b808c367f5033eb72aa4528ae18473627",
+        "https://git.kernel.org/stable/c/f5baa17a0f316c235d61623ac8e8fb32c2b3c0cc"
+      ],
+      "candidate_fix_commit_ids": [
+        "31f6dbb29fe17fa9595c7e8b19fd92915b03a4ca",
+        "4a426ca5be7e3dedbe76575b967db04fbf01136f",
+        "8e0d425b808c367f5033eb72aa4528ae18473627",
+        "f5baa17a0f316c235d61623ac8e8fb32c2b3c0cc"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99275",
+      "path": "cves/2026/99xxx/CVE-2026-99275.json",
+      "blob_sha1": "5e40395827033691c4f5ccaa210ae72bfd3fa6fe",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-11-17T10:24:09.288Z",
+      "affected_source_paths": [
+        "fs/smb/client/smb2misc.c",
+        "fs/smb/client/smb2pdu.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/136128f84f13849b732ffabf24c5ee891a2033d4",
+        "https://git.kernel.org/stable/c/4d8930afa3446041358a7db33e7b23a0bb9459b5",
+        "https://git.kernel.org/stable/c/9a0b6567936c3f8fef34c4f4a995f0a1473af7d0",
+        "https://git.kernel.org/stable/c/df63e01933886153e40706483b9635b2456ad91f"
+      ],
+      "candidate_fix_commit_ids": [
+        "136128f84f13849b732ffabf24c5ee891a2033d4",
+        "4d8930afa3446041358a7db33e7b23a0bb9459b5",
+        "9a0b6567936c3f8fef34c4f4a995f0a1473af7d0",
+        "df63e01933886153e40706483b9635b2456ad91f"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99282",
+      "path": "cves/2026/99xxx/CVE-2026-99282.json",
+      "blob_sha1": "9fbe12c2856356524fca04d78d15151e9eaaf275",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-11-10T18:15:29.554Z",
+      "affected_source_paths": [
+        "net/sched/sch_teql.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/2702ae318630787c640ec0d0403ffd9d95c43e9e",
+        "https://git.kernel.org/stable/c/782d6bb8f9b8e9d8591181662222bf74cd3ecf79",
+        "https://git.kernel.org/stable/c/8d5f768780e26cb82c389219ae7fdb1cd7255421",
+        "https://git.kernel.org/stable/c/fc55d92ae6a4b2e7d062cad6d4c67f6b061d9cde"
+      ],
+      "candidate_fix_commit_ids": [
+        "2702ae318630787c640ec0d0403ffd9d95c43e9e",
+        "782d6bb8f9b8e9d8591181662222bf74cd3ecf79",
+        "8d5f768780e26cb82c389219ae7fdb1cd7255421",
+        "fc55d92ae6a4b2e7d062cad6d4c67f6b061d9cde"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99284",
+      "path": "cves/2026/99xxx/CVE-2026-99284.json",
+      "blob_sha1": "f7af6eb119dacc1eb72a1138195eace4d4caf441",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-11-10T18:15:30.724Z",
+      "affected_source_paths": [
+        "net/core/skbuff.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/1a9c180cd8435917b7516edfb1c9148032c28773",
+        "https://git.kernel.org/stable/c/1c623e3cbf43f12dd4a72712079bfa247a9b8ba3",
+        "https://git.kernel.org/stable/c/79dc34beb1fdb3da79753e51e15c68591a2561fe",
+        "https://git.kernel.org/stable/c/d7d6ff98d5d1b400f02211f962ac32cc0020aeab",
+        "https://git.kernel.org/stable/c/fe8477e23dd2ee6bce231d65f2586a333b211dc0"
+      ],
+      "candidate_fix_commit_ids": [
+        "1a9c180cd8435917b7516edfb1c9148032c28773",
+        "1c623e3cbf43f12dd4a72712079bfa247a9b8ba3",
+        "79dc34beb1fdb3da79753e51e15c68591a2561fe",
+        "d7d6ff98d5d1b400f02211f962ac32cc0020aeab",
+        "fe8477e23dd2ee6bce231d65f2586a333b211dc0"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99287",
+      "path": "cves/2026/99xxx/CVE-2026-99287.json",
+      "blob_sha1": "81d25d9351cf21deb8e666c5d7c706e6c63c041f",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-11-16T10:01:18.140Z",
+      "affected_source_paths": [
+        "drivers/net/xen-netback/netback.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/87fd475dc4e354088f6534285388e7b061f54b35",
+        "https://git.kernel.org/stable/c/c5f54af611ff6fe1d53fa05d8e87b469dc56122b",
+        "https://git.kernel.org/stable/c/e7ba61734d6ad6adfd5bf617052e590743211669",
+        "https://git.kernel.org/stable/c/f96f16592a32430a0582309d73a873b6d3ee2bdb"
+      ],
+      "candidate_fix_commit_ids": [
+        "87fd475dc4e354088f6534285388e7b061f54b35",
+        "c5f54af611ff6fe1d53fa05d8e87b469dc56122b",
+        "e7ba61734d6ad6adfd5bf617052e590743211669",
+        "f96f16592a32430a0582309d73a873b6d3ee2bdb"
+      ]
     }
   ]
 }
