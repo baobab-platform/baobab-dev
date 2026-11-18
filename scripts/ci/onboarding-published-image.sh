@@ -133,9 +133,9 @@ if grep -Fq "Playwright Chromium launches as" "$verify_log"; then
   playwright_verified=true
 fi
 if (( verify_status == 0 )); then
-  verify_label=VERIFIED
+  verify_label="VERIFIED"
 else
-  verify_label=HISTORICAL_BASELINE_UNQUALIFIED
+  verify_label="HISTORICAL_BASELINE_UNQUALIFIED"
 fi
 # Keep evidence generation independent of the profile's installed language
 # runtimes: the infra image intentionally contains no Python interpreter.
