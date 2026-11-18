@@ -19,10 +19,10 @@
     "count": 298
   },
   "binary_manifest": {
-    "sha256": null,
+    "sha256": "688453ae46c07ec19b3bf6734eb2f23b0dfe5625c16d76d75149b8194da91fa3",
     "header_count": 1039,
     "package": "linux-libc-dev=7.0.0-43.43",
-    "digest_policy": "computed from exact captured manifest and retained in the workflow artifact; not pre-pinned until independently reviewed"
+    "digest_policy": "SHA-256 computed from installed-paths.txt in the retained Ubuntu source audit artifact and rechecked on every subsequent register build"
   },
   "evidence_runs": [
     {
