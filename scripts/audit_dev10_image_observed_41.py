@@ -31,6 +31,10 @@ def read_tsv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(stream, delimiter="\t"))
 
 
+def git_blob_sha1(raw: bytes) -> str:
+    return hashlib.sha1(b"blob " + str(len(raw)).encode("ascii") + b"\\0" + raw).hexdigest()
+
+
 def git(repo: Path, *args: str) -> str:
     result = subprocess.run(
         ["git", "-C", str(repo), *args], text=True, capture_output=True,
@@ -69,13 +73,23 @@ def validate_inputs(inventory: list[dict[str, str]], canonical: list[dict[str, s
 
 
 def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
-          upstream_root: Path, canonical_root: Path, upstream_sha: str) -> dict:
+          upstream_lock_path: Path, upstream_root: Path, canonical_root: Path,
+          upstream_sha: str) -> dict:
     if not SHA_RE.fullmatch(upstream_sha):
         raise ValueError("upstream CNA revision must be an immutable 40-character SHA")
     inventory = read_tsv(inventory_path)
     canonical = read_tsv(canonical_tsv)
     lock = json.loads(canonical_lock_path.read_text(encoding="utf-8"))
+    upstream_lock = json.loads(upstream_lock_path.read_text(encoding="utf-8"))
     ids = validate_inputs(inventory, canonical, lock)
+    if (upstream_lock.get("schema") != "baobab.dev10.image-observed-cve-upstream-source-lock.v1"
+            or upstream_lock.get("commit") != upstream_sha
+            or upstream_lock.get("record_count") != 41
+            or set(upstream_lock.get("cves", [])) != ids
+            or upstream_lock.get("record_inventory_blob_sha1") != git_blob_sha1(inventory_path.read_bytes())):
+        raise ValueError("upstream CNA revision, CVE set or inventory blob differs from immutable source lock")
+    if git_blob_sha1(canonical_tsv.read_bytes()) != lock["source"]["record_inventory_blob_sha1"]:
+        raise ValueError("Canonical OSV index TSV blob differs from immutable Canonical source lock")
     if git(upstream_root, "rev-parse", "HEAD") != upstream_sha:
         raise ValueError("upstream CNA checkout does not match pinned revision")
     canonical_source = lock["source"]
@@ -155,6 +169,7 @@ def main() -> int:
     parser.add_argument("--inventory", type=Path, required=True)
     parser.add_argument("--canonical-tsv", type=Path, required=True)
     parser.add_argument("--canonical-lock", type=Path, required=True)
+    parser.add_argument("--upstream-lock", type=Path, required=True)
     parser.add_argument("--upstream-root", type=Path, required=True)
     parser.add_argument("--canonical-root", type=Path, required=True)
     parser.add_argument("--upstream-sha", required=True)
@@ -162,7 +177,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         result = audit(args.inventory, args.canonical_tsv, args.canonical_lock,
-                       args.upstream_root, args.canonical_root, args.upstream_sha)
+                       args.upstream_lock, args.upstream_root, args.canonical_root, args.upstream_sha)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         print("Verified supplemental upstream/CNA + Canonical records:", result["counts"])
