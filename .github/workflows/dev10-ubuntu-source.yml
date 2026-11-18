@@ -22,6 +22,12 @@ on:
       - tests/test_canonical_osv_evidence.py
       - .github/actions/checkout-linux-vulns/action.yml
       - scripts/ci/checkout-linux-vulns.sh
+      - scripts/audit_dev10_image_observed_41.py
+      - docs/assessments/dev10-image-observed-cves-41.tsv
+      - docs/assessments/dev10-image-observed-cves-41-canonical.tsv
+      - security/evidence/dev10-image-observed-cves-41-canonical.lock.json
+      - security/evidence/dev10-image-observed-cves-41-upstream.lock.json
+      - tests/test_dev10_image_observed_41_sources.py
 
 permissions:
   contents: read
@@ -44,6 +50,7 @@ jobs:
           echo "UBUNTU_SOURCE_TAG=$(jq -r .ubuntu_tag.name security/evidence/dev10-kernel-evidence.lock.json)" >> "$GITHUB_ENV"
           echo "UBUNTU_TAG_COMMIT=$(jq -r .ubuntu_tag.commit security/evidence/dev10-kernel-evidence.lock.json)" >> "$GITHUB_ENV"
           echo "UPSTREAM_SHA=$(jq -r .upstream_cna.sha security/evidence/dev10-kernel-evidence.lock.json)" >> "$GITHUB_ENV"
+          echo "UPSTREAM_41_SHA=$(jq -r .commit security/evidence/dev10-image-observed-cves-41-upstream.lock.json)" >> "$GITHUB_ENV"
           echo "EXPECTED_CVE_COUNT=$(jq -r .inventory.count security/evidence/dev10-kernel-evidence.lock.json)" >> "$GITHUB_ENV"
           echo "CANONICAL_OSV_SHA=$(jq -r .canonical_osv.commit security/evidence/dev10-kernel-evidence.lock.json)" >> "$GITHUB_ENV"
       - name: Test offline Ubuntu source-path verifier
@@ -55,6 +62,7 @@ jobs:
           python3 -B -m unittest discover -s tests -p test_dev10_ubuntu_kernel_source.py -v
           python3 -B -m unittest discover -s tests -p test_ubuntu_binary_source.py -v
           python3 -B -m unittest discover -s tests -p test_kernel_cve_paths.py -v
+          python3 -B -m unittest discover -s tests -p test_dev10_image_observed_41_sources.py -v
       - name: Capture exact installed binary manifest
         run: |
           set -euo pipefail
@@ -157,6 +165,136 @@ jobs:
             --binary-package-version "$UBUNTU_KERNEL_RELEASE" \
             --upstream-root "$UPSTREAM_ROOT" \
             --output "$RUNNER_TEMP/dev10-ubuntu-source/affected-source-files.json"
+      - name: Checkout pinned Canonical OSV snapshot for supplemental 41 CVEs
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/canonical-ubuntu-security-notices-41"
+          sha="$(jq -r .source.commit security/evidence/dev10-image-observed-cves-41-canonical.lock.json)"
+          git init -q "$root"
+          git -C "$root" remote add origin https://github.com/canonical/ubuntu-security-notices.git
+          git -C "$root" -c protocol.version=2 fetch --filter=blob:none --no-tags --depth=1 origin "$sha"
+          git -C "$root" sparse-checkout init --cone
+          git -C "$root" sparse-checkout set osv/cve/2026
+          git -C "$root" checkout --detach --quiet FETCH_HEAD
+          test "$(git -C "$root" rev-parse HEAD)" = "$sha"
+          echo "CANONICAL_41_ROOT=$root" >> "$GITHUB_ENV"
+      - name: Checkout pinned upstream Linux CNA records for supplemental 41 CVEs
+        uses: ./.github/actions/checkout-linux-vulns
+        with:
+          sha: \${{ env.UPSTREAM_41_SHA }}
+          inventory: docs/assessments/dev10-image-observed-cves-41.tsv
+      - name: Verify supplemental 41 upstream paths and Canonical source-package records
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/dev10-image-41-source-evidence/upstream-records"
+          mkdir -p "$RUNNER_TEMP/dev10-image-41-source-evidence/canonical-records"
+          python3 -B scripts/audit_dev10_image_observed_41.py \
+            --inventory docs/assessments/dev10-image-observed-cves-41.tsv \
+            --canonical-tsv docs/assessments/dev10-image-observed-cves-41-canonical.tsv \
+            --canonical-lock security/evidence/dev10-image-observed-cves-41-canonical.lock.json \
+            --upstream-root "$UPSTREAM_ROOT" \
+            --canonical-root "$CANONICAL_41_ROOT" \
+            --upstream-sha "$UPSTREAM_41_SHA" \
+            --output "$RUNNER_TEMP/dev10-image-41-source-evidence/upstream-canonical-reconciliation.json"
+          while IFS=        run: |
+          set -euo pipefail
+          git clone --depth 1 --filter=blob:none --single-branch \
+            --branch "$UBUNTU_SOURCE_TAG" \
+            https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute \
+            "$RUNNER_TEMP/ubuntu-linux-resolute"
+          actual="$(git -C "$RUNNER_TEMP/ubuntu-linux-resolute" rev-parse --verify "refs/tags/${UBUNTU_SOURCE_TAG}^{commit}")"
+          expected="$UBUNTU_TAG_COMMIT"
+          [[ "$actual" == "$expected" ]] || {
+            echo "::error::Ubuntu source tag commit mismatch: expected $expected, got $actual"
+            exit 1
+          }
+      - name: Corroborate each CVE source path without inferring a fix
+        run: |
+          set -euo pipefail
+          python3 -B scripts/audit_ubuntu_kernel_git_paths.py \
+            --upstream "$RUNNER_TEMP/dev10-ubuntu-source/affected-source-files.json" \
+            --ubuntu-checkout "$RUNNER_TEMP/ubuntu-linux-resolute" \
+            --installed-manifest "$RUNNER_TEMP/dev10-ubuntu-source/installed-paths.txt" \
+            --binary-source "$RUNNER_TEMP/dev10-ubuntu-source/binary-source-corroboration.json" \
+            --expected-commit "$UBUNTU_TAG_COMMIT" \
+            --output "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-source-paths.json"
+          python3 - "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-source-paths.json" "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-base-image.txt" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          report=json.load(open(sys.argv[1]))
+          expected=int(__import__("os").environ["EXPECTED_CVE_COUNT"])
+          assert len(report["records"]) == expected
+          assert report["counts"] == {"under_investigation":expected}
+          print("### Ubuntu 26.04 source-tag path corroboration")
+          print("Exact tag:",report["ubuntu_release_tag"])
+          print("Immutable tag commit:",report["ubuntu_source_commit"])
+          print("Captured binary manifest SHA-256:",report["binary_manifest"]["sha256"])
+          print("Captured package:",report["binary_manifest"]["package"])
+          print("Ubuntu base image:",open(sys.argv[2]).read().strip())
+          print(f"All {expected} remain under investigation; fix/backport/UAPI binary analysis NOT complete.")
+          PY
+      - name: Join the exact upstream and Ubuntu-tag records
+        run: |
+          set -euo pipefail
+          python3 -B scripts/build_dev10_applicability_register.py \
+            --trivy docs/assessments/dev10-kernel-cves-298.tsv \
+            --canonical docs/assessments/dev10-canonical-cve-status-20261118.tsv \
+            --upstream "$RUNNER_TEMP/dev10-ubuntu-source/affected-source-files.json" \
+            --ubuntu-patches "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-source-paths.json" \
+            --canonical-osv "$RUNNER_TEMP/dev10-ubuntu-source/canonical-osv-evidence.json" \
+            --output "$RUNNER_TEMP/dev10-ubuntu-source/dev10-cve-applicability-register.json"
+          python3 - "$RUNNER_TEMP/dev10-ubuntu-source/dev10-cve-applicability-register.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1]))
+          expected=int(__import__("os").environ["EXPECTED_CVE_COUNT"])
+          assert data["advisory_count"] == expected
+          assert data["source_provenance"]["ubuntu_source_tag"] == __import__("os").environ["UBUNTU_SOURCE_TAG"]
+          assert len(data["records"]) == expected
+          print(f"{expected}-CVE register joined with per-CVE Ubuntu tag paths; all dispositions remain under investigation.")
+          print("Ubuntu source-path correspondence counts:", data["source_provenance"]["ubuntu_source_path_counts"])
+          PY
+      - name: Validate final joined applicability register schema
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --no-cache-dir check-jsonschema==0.38.0
+          check-jsonschema --schemafile security/evidence/dev10-cve-applicability.schema.json \
+            "$RUNNER_TEMP/dev10-ubuntu-source/dev10-cve-applicability-register.json"
+      - name: Retain actual Ubuntu source path correspondence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev10-ubuntu-release-tag-source-evidence
+          path: ${{ runner.temp }}/dev10-ubuntu-source/
+          if-no-files-found: warn
+          retention-days: 30
+\t' read -r cve _; do
+            [[ "$cve" =~ ^CVE-[0-9]{4}-[0-9]{4,}$ ]] || continue
+            year="$(printf '%s' "$cve" | cut -c5-8)"
+            cp "$UPSTREAM_ROOT/cve/published/$year/$cve.json" \
+              "$RUNNER_TEMP/dev10-image-41-source-evidence/upstream-records/$cve.json"
+            cp "$CANONICAL_41_ROOT/osv/cve/2026/UBUNTU-$cve.json" \
+              "$RUNNER_TEMP/dev10-image-41-source-evidence/canonical-records/$cve.json"
+          done < docs/assessments/dev10-image-observed-cves-41.tsv
+          python3 - "$RUNNER_TEMP/dev10-image-41-source-evidence/upstream-canonical-reconciliation.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1]))
+          assert data["counts"]["records"] == 41
+          assert data["counts"]["records_with_affected_paths"] == 41
+          assert data["canonical"]["affected_version"] == "7.0.0-43.43"
+          print("### Supplemental 41-CVE source evidence")
+          print("Pinned Linux CNA revision:", data["upstream"]["commit"])
+          print("Pinned Canonical OSV revision:", data["canonical"]["commit"])
+          print("Verified records and affected paths:", data["counts"])
+          print("Canonical Resolute source package/version:", data["canonical"]["resolute_source_package"], data["canonical"]["affected_version"])
+          print("Binary applicability, VEX and release dispositions remain under investigation.")
+          PY
+      - name: Retain supplemental 41-CVE upstream and Canonical records
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev10-image-observed-41-upstream-canonical-evidence
+          path: \${{ runner.temp }}/dev10-image-41-source-evidence/
+          if-no-files-found: error
+          retention-days: 30
       - name: Checkout authoritative Ubuntu 26.04 exact source release tag
         run: |
           set -euo pipefail
