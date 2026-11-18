@@ -70,8 +70,8 @@ jobs:
               # Route only this test container's lifecycle calls to the current
               # checkout scripts; production images keep their installed commands.
               mkdir -p /tmp/dev10-project/bin
-              printf "%s\\n" "#!/usr/bin/env bash" "exec bash /tmp/dev10-project/scripts/summary.sh \\"\\$@\\"" > /tmp/dev10-project/bin/baobab-summary
-              printf "%s\\n" "#!/usr/bin/env bash" "exec bash /tmp/dev10-project/scripts/verify.sh \\"\\$@\\"" > /tmp/dev10-project/bin/baobab-verify
+              printf "%s\n" "#!/usr/bin/env bash" "exec bash /tmp/dev10-project/scripts/summary.sh \"\$@\"" > /tmp/dev10-project/bin/baobab-summary
+              printf "%s\n" "#!/usr/bin/env bash" "exec bash /tmp/dev10-project/scripts/verify.sh \"\$@\"" > /tmp/dev10-project/bin/baobab-verify
               chmod +x /tmp/dev10-project/bin/baobab-summary /tmp/dev10-project/bin/baobab-verify
               export PATH=/tmp/dev10-project/bin:$PATH WORKSPACE_DIR=/tmp/dev10-project
               cd "$WORKSPACE_DIR"
