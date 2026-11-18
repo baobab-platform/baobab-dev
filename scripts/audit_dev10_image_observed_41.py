@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Reconcile the supplemental 41 image CVEs against pinned Linux CNA and Canonical OSV records.
+"""Reconcile supplemental 41 image CVEs against pinned Linux CNA and Canonical OSV records.
 
-This is evidence capture only. It does not determine runtime exploitability, binary
-applicability, VEX status, or release authorization.
+Evidence capture only: no runtime exploitability, binary applicability, VEX, or
+release authorization is inferred.
 """
 from __future__ import annotations
 
@@ -17,19 +17,18 @@ import subprocess
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from audit_kernel_cve_paths import CVE_RE, SHA_RE, parse_upstream_details
+from audit_kernel_cve_paths import SHA_RE, parse_upstream_details
 
-EXPECTED_PACKAGE = "linux-libc-dev"
 EXPECTED_VERSION = "7.0.0-43.43"
 EXPECTED_SOURCE_PURL = "pkg:deb/ubuntu/linux@7.0.0-43.43?arch=source&distro=resolute"
 COMMIT_URL_RE = re.compile(
-    r"https://git\\.kernel\\.org/(?:stable|linus)/c/([a-f0-9]{40})(?:[/?#]|$)"
+    r"https://git\.kernel\.org/(?:stable|linus)/c/([a-f0-9]{40})(?:[/?#]|$)"
 )
 
 
 def read_tsv(path: Path) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as stream:
-        return list(csv.DictReader(stream, delimiter="\\t"))
+        return list(csv.DictReader(stream, delimiter="\t"))
 
 
 def git(repo: Path, *args: str) -> str:
@@ -70,21 +69,19 @@ def validate_inputs(inventory: list[dict[str, str]], canonical: list[dict[str, s
 
 
 def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
-          upstream_root: Path, upstream_sha: str) -> dict:
+          upstream_root: Path, canonical_root: Path, upstream_sha: str) -> dict:
     if not SHA_RE.fullmatch(upstream_sha):
         raise ValueError("upstream CNA revision must be an immutable 40-character SHA")
     inventory = read_tsv(inventory_path)
     canonical = read_tsv(canonical_tsv)
     lock = json.loads(canonical_lock_path.read_text(encoding="utf-8"))
     ids = validate_inputs(inventory, canonical, lock)
-    checked = git(upstream_root, "rev-parse", "HEAD")
-    if checked != upstream_sha:
+    if git(upstream_root, "rev-parse", "HEAD") != upstream_sha:
         raise ValueError("upstream CNA checkout does not match pinned revision")
-    canonical_root = Path(lock["source"]["snapshot_path"])
-    # Verify each Canonical OSV record's immutable Git blob identity in the
-    # repository snapshot; the TSV stores only a compact index, not copied data.
     canonical_source = lock["source"]
     canonical_commit = canonical_source["commit"]
+    if git(canonical_root, "rev-parse", "HEAD") != canonical_commit:
+        raise ValueError("Canonical OSV checkout does not match pinned revision")
     canonical_records = {row["cve"]: row for row in lock["records"]}
     upstream_records = []
     for cve in sorted(ids):
@@ -96,6 +93,11 @@ def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
         if (data.get("dataType") != "CVE_RECORD"
                 or data.get("cveMetadata", {}).get("cveId") != cve):
             raise ValueError(cve + ": upstream CNA record identity mismatch")
+        canonical_record = canonical_records[cve]
+        actual_blob = git(canonical_root, "rev-parse",
+                          f"{canonical_commit}:{canonical_record['path']}")
+        if actual_blob != canonical_record["blob_sha1"]:
+            raise ValueError(cve + ": Canonical OSV blob SHA differs from pinned lock")
         paths, references = parse_upstream_details(base64.b64encode(raw))
         candidate_commits = sorted({
             match.group(1) for url in references
@@ -110,10 +112,10 @@ def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
             "affected_source_paths": paths,
             "candidate_fix_references": references,
             "candidate_fix_commit_ids": candidate_commits,
-            "canonical_osv_record_path": canonical_records[cve]["path"],
-            "canonical_osv_blob_sha1": canonical_records[cve]["blob_sha1"],
-            "canonical_modified": canonical_records[cve]["modified"],
-            "canonical_ubuntu_priority": canonical_records[cve]["ubuntu_priority"],
+            "canonical_osv_record_path": canonical_record["path"],
+            "canonical_osv_blob_sha1": canonical_record["blob_sha1"],
+            "canonical_modified": canonical_record["modified"],
+            "canonical_ubuntu_priority": canonical_record["ubuntu_priority"],
             "canonical_resolute_source_package": "linux",
             "canonical_resolute_affected_version": EXPECTED_VERSION,
             "ubuntu_binary_applicability": "under_investigation",
@@ -150,14 +152,15 @@ def main() -> int:
     parser.add_argument("--canonical-tsv", type=Path, required=True)
     parser.add_argument("--canonical-lock", type=Path, required=True)
     parser.add_argument("--upstream-root", type=Path, required=True)
+    parser.add_argument("--canonical-root", type=Path, required=True)
     parser.add_argument("--upstream-sha", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
         result = audit(args.inventory, args.canonical_tsv, args.canonical_lock,
-                       args.upstream_root, args.upstream_sha)
+                       args.upstream_root, args.canonical_root, args.upstream_sha)
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\\n", encoding="utf-8")
+        args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         print("Verified supplemental upstream/CNA + Canonical records:", result["counts"])
         print("All binary and VEX dispositions remain under investigation.")
         return 0
