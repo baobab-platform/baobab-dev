@@ -16,7 +16,7 @@
     "linux/arm64"
   ],
   "prepared_by": "wekhason",
-  "approval_evidence": "https://github.com/baobab-platform/baobab-dev/pull/76",
+  "approval_evidence": "https://github.com/baobab-platform/baobab-dev/pull/91",
   "expires_at": "2026-11-26T00:00:00Z",
   "findings": [
     {
@@ -74,10 +74,38 @@
       "version": "7.0.0-43.43",
       "severity": "HIGH",
       "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-98869",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-98890",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99083",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-112366",
+      "package": "picomatch",
+      "version": "4.0.5",
+      "severity": "HIGH",
+      "type": "node-pkg"
     }
   ],
-  "finding_count": 8,
-  "notes": "PROPOSED FINAL DECISION RECORD. It becomes effective only after this exact decision PR is approved by a current trusted independent reviewer, merged into main, custody-verified, and the exact merged bytes are provisioned as DEV10_PROTECTED_DECISION_SHA256 by the authorized custodian. The 12 November issue #54 amendment names PR #62 for the eight HIGH findings on linux-libc-dev=7.0.0-43.43; @sknabusiu's 16 November review confirms #62, not #71, and supersedes the earlier #71 statement in #54. PR #71's v1.5.1 exact-digest verifier scope is not eight-CVE authority. PR #74's scans are inventory evidence only and do not create a PR-number exception. This decision is reusable across same-repository PRs targeting main and pushes to refs/heads/main only, for exactly the eight findings, four profiles and two architectures, until 2026-11-26T00:00:00Z. Fork PRs, other base branches, tags, releases, workflow_dispatch, schedules, deployments, staging and production are excluded. Partial remediation may reduce the observed findings to a subset of this exact inventory; it cannot add or redefine findings. Any fixed-version signal, secret, missing inventory, malformed report, scanner error or scope mismatch remains blocking. The actual trusted reviewer numeric ID, GitHub review ID and submitted_at timestamp are derived from the current effective GitHub review at runtime and are not embedded in these policy bytes. Owner concurrence on this new reusable decision is a required, separate attributable PR comment; it is not inferred from issue #54's 12 November amendment or from the preparer's role. The recognized accountable owner must post concurrence on this exact decision PR before merge. Issue #54's amendment was authored by @bjnabs, and issue #54 separately designates @wekhason as responsible for security-related tasks; neither historical record expressly approves this reusable decision. The PR author/preparer @wekhason cannot approve this PR. No VEX not_affected claim, Trivy suppression, remediation claim, release waiver, release-tag, publication, signing, promotion, staging or production authority is granted.",
+  "finding_count": 12,
+  "notes": "PROPOSED APPROVED-FORM AMENDMENT — NOT ACTIVE. This candidate amends the existing development-only residual-risk decision from the exact eight-finding inventory to the exact twelve-finding inventory: the eight existing linux-libc-dev=7.0.0-43.43 HIGH Ubuntu findings, three additional linux-libc-dev=7.0.0-43.43 HIGH Ubuntu kernel findings (CVE-2026-98869, CVE-2026-98890, CVE-2026-99083), and one HIGH node-pkg finding for picomatch=4.0.5 (CVE-2026-112366). The decision remains limited to this repository, development environment, four existing image profiles, linux/amd64 and linux/arm64, with the unchanged expiry 2026-11-26T00:00:00Z. It is effective only after this exact decision PR receives approval from a current trusted independent reviewer on its final head, the accountable owner posts attributable pre-merge concurrence, the PR is merged into main, merged custody is verified, and the exact merged bytes are provisioned as DEV10_PROTECTED_DECISION_SHA256 by the authorized custodian. The preparer @wekhason cannot approve this PR. Source-path evidence is being supplied separately by PR #91; the 298-record kernel source audit is distinct from this twelve-finding scanner acceptance. Upstream/Ubuntu source-path presence is not a fix, backport, binary applicability determination or VEX not_affected conclusion. The picomatch finding is an exact nested dependency inventory item, not a remediation claim. No release tags, publication, signing, promotion, staging, production, deployment or release authorization is granted. Fork PRs, other repositories, other base branches, workflow_dispatch and scheduled runs remain excluded. Any new CVE, severity, package/version, secret, missing finding, malformed report, fixed-version signal or scope mismatch remains blocking. The existing November 26 expiry and all existing deny rules are unchanged. The owner concurrence must be posted by numeric owner ID 49340314 and include the phrases 'owner concurrence is hereby recorded' and 'new reusable policy' before merge.",
   "execution_scope": {
     "pull_request_base": "main",
     "push_ref": "refs/heads/main",
