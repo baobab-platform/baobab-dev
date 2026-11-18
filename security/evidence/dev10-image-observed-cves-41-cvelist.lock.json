@@ -1069,6 +1069,29 @@
         "540649cb8543472f6edfe9ae8b42c04aa3bd67e9",
         "a596d1979fcb4e5011d3d48ac4d927f81c9c9cab"
       ]
+    },
+    {
+      "cve": "CVE-2026-99311",
+      "path": "cves/2026/99xxx/CVE-2026-99311.json",
+      "blob_sha1": "6b14dde2f5c029104871b20f72808b47c5f6c175",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-11-16T09:59:33.978Z",
+      "affected_source_paths": [
+        "fs/udf/inode.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/0d7f6c2b3c07fa239ebc169280eba9932cc56f46",
+        "https://git.kernel.org/stable/c/0f242ca0878896df30292f4922700a32e8fdd039",
+        "https://git.kernel.org/stable/c/df713b82b4b9671c16b52b60f3412c677719e2b8",
+        "https://git.kernel.org/stable/c/f022984a4a1c18aa9c506790eb47da000dce95a7"
+      ],
+      "candidate_fix_commit_ids": [
+        "0d7f6c2b3c07fa239ebc169280eba9932cc56f46",
+        "0f242ca0878896df30292f4922700a32e8fdd039",
+        "df713b82b4b9671c16b52b60f3412c677719e2b8",
+        "f022984a4a1c18aa9c506790eb47da000dce95a7"
+      ]
     }
   ]
 }
