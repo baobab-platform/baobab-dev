@@ -87,12 +87,21 @@ class KernelPathTests(unittest.TestCase):
         class GitResult:
             returncode = 0
             stdout = "a" * 40 + "\\n"
-        with patch.object(module.subprocess, "run", return_value=GitResult()), \\
-             patch.object(module, "inspect",
-                          side_effect=lambda cve, sha, manifest, source_root: {"cve": cve, "classification": "KERNEL_IMPLEMENTATION_PATHS_REVIEW_REQUIRED"}),
+        with (
+            patch.object(module.subprocess, "run", return_value=GitResult()),
+            patch.object(
+                module,
+                "inspect",
+                side_effect=lambda cve, sha, manifest, source_root: {
+                    "cve": cve,
+                    "classification": "KERNEL_IMPLEMENTATION_PATHS_REVIEW_REQUIRED",
+                },
+            ),
         ):
-            result = module.audit(trivy, vendor, {"/usr/include/linux/types.h"},
-                                  "a" * 40, "7.0.0-43.43", Path("."))
+            result = module.audit(
+                trivy, vendor, {"/usr/include/linux/types.h"},
+                "a" * 40, "7.0.0-43.43", Path("."),
+            )
         self.assertEqual(result["package"], "linux-libc-dev=7.0.0-43.43")
         self.assertEqual(len(result["records"]), 298)
 
@@ -111,7 +120,7 @@ class KernelPathTests(unittest.TestCase):
             vendor = [{"cve": cve, "ubuntu_linux_resolute_status": "pending"} for cve in ids]
             class GitResult:
                 returncode = 0
-                stdout = "b"*40 + "\\n"
+                stdout = "b" * 40 + "\\n"
             with patch.object(module.subprocess, "run", return_value=GitResult()):
                 with self.assertRaisesRegex(ValueError, "revision mismatch"):
                     module.audit(trivy, vendor, {"/usr/include/linux/types.h"},
