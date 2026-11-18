@@ -181,7 +181,27 @@ jobs:
           docker image inspect --format '{{json .RepoDigests}}' "$IMAGE_REF"
           mkdir -p "$RUNNER_TEMP/dev10-evidence"
           chmod 0777 "$RUNNER_TEMP/dev10-evidence"
+          if [[ "${{ matrix.profile }}" == "frontend-e2e" ]]; then
+            # Historical v1.5.1 installed Playwright's browser cache as root.
+            # Copy those exact immutable-image binaries into the shared evidence
+            # volume with read/execute access, then launch them as vscode.
+            docker run --rm --user 0:0 \
+              -v "$RUNNER_TEMP/dev10-evidence:/evidence" "$IMAGE_REF" bash -c '
+                set -euo pipefail
+                browser_source=""
+                for candidate in "${PLAYWRIGHT_BROWSERS_PATH:-}" /opt/ms-playwright /root/.cache/ms-playwright /home/vscode/.cache/ms-playwright; do
+                  [[ -n "$candidate" && -d "$candidate" ]] || continue
+                  browser_source="$candidate"
+                  break
+                done
+                [[ -n "$browser_source" ]] || { echo "No Playwright browser cache exists in the immutable image" >&2; exit 1; }
+                mkdir -p /evidence/browser-cache
+                cp -a "$browser_source/." /evidence/browser-cache/
+                chmod -R a+rX /evidence/browser-cache
+              '
+          fi
           docker run --rm -e EXPECTED_PROFILE="${{ matrix.profile }}" -e IMAGE_REF="$IMAGE_REF" \
+            -e PLAYWRIGHT_BROWSERS_PATH=/evidence/browser-cache \
             -v "$GITHUB_WORKSPACE:/source:ro" \
             -v "$RUNNER_TEMP/dev10-evidence:/evidence" "$IMAGE_REF" \
             bash /source/scripts/ci/onboarding-published-image.sh
