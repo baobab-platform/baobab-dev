@@ -117,7 +117,7 @@ def audit(trivy: list[dict[str, str]], vendor: list[dict[str, str]],
     if len(trivy) != 295 or len(ids) != 295 or ids != set(vendors) or len(vendor) != 295:
         raise ValueError("Trivy and Canonical evidence must contain the same 295 unique CVEs")
     if not all(CVE_RE.fullmatch(x) for x in ids) or not SHA_RE.fullmatch(sha):
-        raise ValueError("invalid CVE or upstream commit")
+        raise ValueError("invalid CVE or upstream commit")\n    if not isinstance(package_version, str) or not VERSION_RE.fullmatch(package_version):\n        raise ValueError("invalid installed linux-libc-dev binary package version")
     if not any(p.endswith(".h") for p in manifest):
         raise ValueError("exact binary manifest has no development headers")
     if source_root is not None:
