@@ -122,6 +122,7 @@ evidence = {
     "schema": "baobab.dev10.historical-onboarding-verification.v1",
     "image_profile": expected_profile,
     "runtime_profile": runtime_profile,
+    "image_ref": __import__("os").environ.get("IMAGE_REF"),
     "runtime_uid": __import__("os").getuid(),
     "runtime_user": __import__("getpass").getuser(),
     "verify_exit_status": int(exit_status),
