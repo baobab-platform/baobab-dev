@@ -15,8 +15,8 @@ from collections import Counter
 from pathlib import Path
 
 SOURCE_REPO = "https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute"
-RELEASE_TAG = "Ubuntu-7.0.0-42.42"
-RELEASE_VERSION = "7.0.0-42.42"
+RELEASE_TAG = "Ubuntu-7.0.0-43.43"
+RELEASE_VERSION = "7.0.0-43.43"
 SHA40 = re.compile(r"^[a-f0-9]{40}$")
 EXPECTED = 295
 
