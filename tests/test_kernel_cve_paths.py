@@ -89,7 +89,7 @@ class KernelPathTests(unittest.TestCase):
         vendor = [{"cve": cve, "ubuntu_linux_resolute_status": "pending"} for cve in ids]
         with self.assertRaisesRegex(ValueError, "binary package version"):
             module.audit(trivy, vendor, {"/usr/include/linux/types.h"},
-                         "a" * 40, "7.0.0-42.42")
+                         "a" * 40, "not-a-version")
 
     def test_git_checkout_revision_mismatch_is_rejected(self):
         with TemporaryDirectory() as tmp:
