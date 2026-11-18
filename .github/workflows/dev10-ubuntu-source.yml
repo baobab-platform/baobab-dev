@@ -54,7 +54,7 @@ jobs:
             --branch "Ubuntu-${UBUNTU_KERNEL_RELEASE}" \
             https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute \
             "$RUNNER_TEMP/ubuntu-linux-resolute"
-          git -C "$RUNNER_TEMP/ubuntu-linux-resolute" rev-parse --verify 'Ubuntu-${UBUNTU_KERNEL_RELEASE}^{commit}'
+          git -C "$RUNNER_TEMP/ubuntu-linux-resolute" rev-parse --verify "Ubuntu-${UBUNTU_KERNEL_RELEASE}^{commit}"
       - name: Corroborate each CVE source path without inferring a fix
         run: |
           set -euo pipefail
