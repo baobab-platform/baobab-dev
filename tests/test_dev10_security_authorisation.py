@@ -154,7 +154,7 @@ class ApplicabilityTests(unittest.TestCase):
             "path_counts": {"PATHS_PRESENT_NONDISCRIMINATING": 298},
             "binary_manifest": {
                 "package": "linux-libc-dev=7.0.0-43.43",
-                "sha256": "a" * 64, "path_count": 1300, "header_count": 1039,
+                "sha256": builder.LOCK.binary_manifest_sha256, "path_count": 1102, "header_count": 1039,
             },
             "records": [{
                 "cve": row["cve"],
@@ -202,7 +202,7 @@ class ApplicabilityTests(unittest.TestCase):
             "path_counts": {"PATHS_PRESENT_NONDISCRIMINATING": 298},
             "binary_manifest": {
                 "package": "linux-libc-dev=7.0.0-43.43",
-                "sha256": "b" * 64, "path_count": 1300, "header_count": 1039,
+                "sha256": builder.LOCK.binary_manifest_sha256, "path_count": 1102, "header_count": 1039,
             },
             "records": [{
                 "cve": row["cve"], "ubuntu_release_tag": "Ubuntu-7.0.0-43.43",
@@ -218,9 +218,14 @@ class ApplicabilityTests(unittest.TestCase):
         }
         report = builder.build(scanner, canonical, None, ubuntu, canonical_osv_fixture(scanner))
         self.assertEqual(
-            report["source_provenance"]["binary_manifest"]["sha256"], "b" * 64
+            report["source_provenance"]["binary_manifest"]["sha256"], builder.LOCK.binary_manifest_sha256
         )
         self.assertNotIn("manifest_sha256", report["records"][0]["binary_exposure"])
+
+        wrong = copy.deepcopy(ubuntu)
+        wrong["binary_manifest"]["sha256"] = "b" * 64
+        with self.assertRaisesRegex(ValueError, "manifest digest differs"):
+            builder.build(scanner, canonical, None, wrong, canonical_osv_fixture(scanner))
 
     def test_fresh_canonical_osv_join_is_digested_and_not_a_disposition(self):
         scanner = builder.tsv(ROOT / "docs/assessments/dev10-kernel-cves-298.tsv")
