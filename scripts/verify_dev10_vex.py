@@ -10,6 +10,7 @@ No trusted authority or missing evidence => fail closed.
 from __future__ import annotations
 
 import argparse
+import csv
 import base64
 import datetime as dt
 import hashlib
@@ -146,7 +147,36 @@ def qualify(report: dict, signed: dict, trust: dict, *,
             and len(register.get("records", [])) == LOCK.inventory_count,
             "incomplete canonical applicability register")
     by_cve = {x["cve"]: x for x in register["records"]}
-    osv_snapshot = register.get("source_provenance", {}).get("canonical_osv_snapshot") or {}
+    provenance = register.get("source_provenance") or {}
+    require(provenance.get("evidence_lock_sha256") == LOCK.evidence_lock_sha256,
+            "applicability register evidence-lock digest differs from reviewed lock")
+    require(provenance.get("inventory_extension_cves") == sorted(LOCK.extension_cves),
+            "applicability register inventory extension differs from reviewed lock")
+    historical = provenance.get("historical_295_inventory") or {}
+    require(historical == {
+        "path": LOCK.historical_inventory_path,
+        "sha256": LOCK.historical_inventory_sha256,
+        "package_version": LOCK.historical_package_version,
+        "count": LOCK.historical_inventory_count,
+    }, "historical 295-CVE inventory provenance differs from reviewed lock")
+    historical_path = Path(__file__).resolve().parents[1] / LOCK.historical_inventory_path
+    with historical_path.open(encoding="utf-8", newline="") as stream:
+        historical_ids = {row["cve"] for row in csv.DictReader(stream, delimiter="\\t")}
+    require(len(historical_ids) == LOCK.historical_inventory_count,
+            "historical 295-CVE inventory identity set is incomplete")
+    for item in register["records"]:
+        inventory = item.get("inventory_provenance") or {}
+        if item["cve"] in historical_ids:
+            require(inventory.get("origin") == "historical_295_cve_inventory"
+                    and inventory.get("historical_inventory_package_version")
+                    == LOCK.historical_package_version,
+                    "historical inventory record origin or package version is incorrect")
+        else:
+            require(item["cve"] in LOCK.extension_cves
+                    and inventory.get("origin") == "new_298_cve_extension"
+                    and inventory.get("historical_inventory_package_version") is None,
+                    "new inventory extension record origin is incorrect")
+    osv_snapshot = provenance.get("canonical_osv_snapshot") or {}
     require(osv_snapshot.get("source_commit") == LOCK.canonical_osv_commit,
             "Canonical OSV source commit differs from reviewed evidence lock")
     osv_retrieved = time_utc(osv_snapshot.get("retrieved_at", ""))
