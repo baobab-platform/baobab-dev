@@ -406,6 +406,20 @@ class SignedVEXTests(unittest.TestCase):
         self.assertEqual(vex["statements"][0]["products"][0]["@id"], self.purl)
         self.assertEqual(vex["statements"][0]["products"][0]["subcomponents"][0]["@id"], self.package_purl)
 
+    def test_signed_register_must_bind_exact_inventory_extension_and_lock(self):
+        self.register["source_provenance"]["inventory_extension_cves"] = ["CVE-2026-98869"]
+        self.refresh_register_digests()
+        with self.assertRaisesRegex(ValueError, "inventory extension"):
+            self.check()
+
+    def test_signed_register_must_preserve_historical_record_origin(self):
+        reviewed = next(row for row in self.register["records"]
+                        if row["cve"] == "CVE-2026-89530")
+        reviewed["inventory_provenance"]["origin"] = "new_298_cve_extension"
+        self.refresh_register_digests()
+        with self.assertRaisesRegex(ValueError, "historical inventory record origin"):
+            self.check()
+
     def test_missing_or_unsigned_approval_fails(self):
         with self.assertRaises(policy.PolicyError):
             self.check({"decision": self.decision})
