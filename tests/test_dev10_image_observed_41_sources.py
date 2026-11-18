@@ -46,6 +46,14 @@ class Supplemental41SourceEvidenceTests(unittest.TestCase):
         self.assertEqual(lock["source"]["binary_package_mapping"]["binary_package"], "linux-libc-dev")
         self.assertEqual(lock["source"]["binary_package_mapping"]["binary_version"], "7.0.0-43.43")
         self.assertEqual(lock["source"]["binary_package_mapping"]["records_listed_as_affected"], 41)
+        page_records = {row["cve"]: row for row in lock["security_page_reconciliation"]["records"]}
+        self.assertEqual(page_records["CVE-2026-99287"]["ubuntu_page_priority"], "critical")
+        self.assertEqual(page_records["CVE-2026-99287"]["resolute_linux_status"], "Vulnerable")
+        for cve in ("CVE-2026-99306", "CVE-2026-99310"):
+            self.assertEqual(page_records[cve]["ubuntu_page_priority"], "medium")
+            self.assertEqual(page_records[cve]["resolute_linux_status"], "Needs evaluation")
+            self.assertEqual(page_records[cve]["pinned_osv_ubuntu_severity"], "critical")
+            self.assertEqual(page_records[cve]["reconciliation"], "unresolved_discrepancy")
         self.assertEqual(len(rows), 41)
         self.assertEqual(len(lock["records"]), 41)
         self.assertEqual({row["cve"] for row in rows},
