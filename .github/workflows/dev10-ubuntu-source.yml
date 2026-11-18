@@ -25,7 +25,10 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Test offline Ubuntu source-path verifier
-        run: python3 -B -m unittest discover -s tests -p test_dev10_ubuntu_kernel_source.py -v
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s tests -p test_dev10_ubuntu_kernel_source.py -v
+          python3 -B -m unittest discover -s tests -p test_kernel_cve_paths.py -v
       - name: Capture exact installed binary manifest
         run: |
           set -euo pipefail
