@@ -191,6 +191,8 @@ class EvidenceLock:
                     or not isinstance(image.get("signer_run_id"), int)):
                 raise ValueError(f"historical GHCR {profile} image digest or provenance identity is not locked")
         readback = lock.stable_image_readback
+        if not isinstance(readback, dict):
+            raise ValueError("historical GHCR independent readback is missing")
         if (readback.get("status") != "STRICT_SIGNED_NATIVE_CONTENT_VERIFIED"
                 or readback.get("release_tag") != stable.get("release_tag")
                 or readback.get("signer_tag") != stable.get("signer_tag")
@@ -202,14 +204,17 @@ class EvidenceLock:
                 or readback.get("signed_spdx_statements") != 2):
             raise ValueError("historical GHCR independent readback is incomplete or over-claims qualification")
         readback_profiles = readback.get("profiles", {})
-        if set(readback_profiles) != expected_profiles:
+        if not isinstance(readback_profiles, dict) or set(readback_profiles) != expected_profiles:
             raise ValueError("historical GHCR readback must cover all four profiles")
         for profile, proof in readback_profiles.items():
             image = lock.stable_profile_images[profile]
+            if not isinstance(proof, dict):
+                raise ValueError(f"historical GHCR {profile} readback is malformed")
             children = proof.get("native_child_digests", {})
             if (proof.get("index_digest") != image.get("index_digest")
                     or not isinstance(proof.get("artifact_id"), int)
                     or not SHA256.fullmatch(proof.get("artifact_sha256", ""))
+                    or not isinstance(children, dict)
                     or set(children) != {"linux/amd64", "linux/arm64"}
                     or any(not re.fullmatch(r"sha256:[a-f0-9]{64}", digest)
                            for digest in children.values())):
