@@ -183,8 +183,10 @@ def main() -> int:
     manifest_bytes = a.installed_manifest.read_bytes()
     installed = set(manifest_bytes.decode("utf-8").splitlines())
     header_count = sum(p.endswith(".h") for p in installed)
-    if header_count != 1039:
-        raise SystemExit("Exact binary manifest version/header count mismatch")
+    if (header_count != LOCK.header_count
+            or len(installed) != LOCK.binary_manifest_path_count
+            or hashlib.sha256(manifest_bytes).hexdigest() != LOCK.binary_manifest_sha256):
+        raise SystemExit("Exact binary manifest digest/path/header count differs from evidence lock")
     report = inspect(upstream, a.ubuntu_checkout, installed,
                      expected_commit=a.expected_commit)
     report["binary_manifest"] = {
