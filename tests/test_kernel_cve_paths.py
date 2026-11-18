@@ -86,7 +86,7 @@ class KernelPathTests(unittest.TestCase):
         vendor = [{"cve": cve, "ubuntu_linux_resolute_status": "pending"} for cve in ids]
         class GitResult:
             returncode = 0
-            stdout = "a" * 40 + "\\n"
+            stdout = "a" * 40 + "\n"
         with (
             patch.object(module.subprocess, "run", return_value=GitResult()),
             patch.object(
@@ -120,7 +120,7 @@ class KernelPathTests(unittest.TestCase):
             vendor = [{"cve": cve, "ubuntu_linux_resolute_status": "pending"} for cve in ids]
             class GitResult:
                 returncode = 0
-                stdout = "b" * 40 + "\\n"
+                stdout = "b" * 40 + "\n"
             with patch.object(module.subprocess, "run", return_value=GitResult()):
                 with self.assertRaisesRegex(ValueError, "revision mismatch"):
                     module.audit(trivy, vendor, {"/usr/include/linux/types.h"},
