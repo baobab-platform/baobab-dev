@@ -194,6 +194,126 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+
+  dev10-image-observed-41-binary-manifests:
+    needs: scope
+    if: needs.scope.outputs.image_41_evidence == 'true'
+    name: DEV-10 supplemental 41-CVE binary package evidence
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        architecture: [amd64, arm64]
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout immutable PR merge head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Enable native arm64 package execution
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
+        with:
+          platforms: arm64
+      - name: Resolve immutable Ubuntu base image and package version
+        env:
+          TARGET_ARCH: ${{ matrix.architecture }}
+        run: |
+          set -euo pipefail
+          version="$(jq -r .package_version security/evidence/dev10-kernel-evidence.lock.json)"
+          test "$version" = "7.0.0-43.43"
+          docker pull --platform "linux/$TARGET_ARCH" ubuntu:26.04
+          image_ref="$(docker image inspect --format '{{index .RepoDigests 0}}' ubuntu:26.04)"
+          [[ "$image_ref" =~ ^ubuntu@sha256:[a-f0-9]{64}$ ]]
+          evidence="$RUNNER_TEMP/dev10-image-41-binary/$TARGET_ARCH"
+          mkdir -p "$evidence"
+          printf '%s\n' "$image_ref" > "$evidence/ubuntu-base-image.txt"
+          echo "UBUNTU_KERNEL_RELEASE=$version" >> "$GITHUB_ENV"
+          echo "UBUNTU_IMAGE_REF=$image_ref" >> "$GITHUB_ENV"
+          echo "TARGET_ARCH=$TARGET_ARCH" >> "$GITHUB_ENV"
+      - name: Install and capture exact architecture package
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/dev10-image-41-binary/$TARGET_ARCH"
+          docker run --rm --platform "linux/$TARGET_ARCH" \
+            -e UBUNTU_KERNEL_RELEASE="$UBUNTU_KERNEL_RELEASE" \
+            -e TARGET_ARCH="$TARGET_ARCH" \
+            -v "$evidence:/evidence" \
+            "$UBUNTU_IMAGE_REF" bash -c '
+              set -euo pipefail
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update -qq >/dev/null
+              apt-get install -qq -y --no-install-recommends linux-libc-dev=$UBUNTU_KERNEL_RELEASE >/dev/null
+              test "$(dpkg-query -W linux-libc-dev | cut -f2)" = "$UBUNTU_KERNEL_RELEASE"
+              dpkg-query -L linux-libc-dev > /evidence/installed-paths.txt
+              dpkg-query -W -f="\${Package}\t\${Version}\t\${Architecture}\t\${Status}\t\${source:Package}\t\${source:Version}\n" linux-libc-dev > /evidence/installed-package.txt
+              apt-cache show "linux-libc-dev=$UBUNTU_KERNEL_RELEASE" > /evidence/apt-package-metadata.txt
+              apt-cache policy linux-libc-dev > /evidence/apt-policy.txt
+              apt-cache madison linux-libc-dev > /evidence/apt-madison.txt
+              mkdir -p /tmp/apt-package-download
+              chmod 0777 /tmp/apt-package-download
+              cd /tmp/apt-package-download
+              apt-get download "linux-libc-dev=$UBUNTU_KERNEL_RELEASE"
+              package_deb="$(find . -maxdepth 1 -type f -name "linux-libc-dev_*_$TARGET_ARCH.deb" -print -quit)"
+              test -n "$package_deb"
+              sha256sum "$(basename "$package_deb")" > /evidence/apt-package-deb-sha256.txt
+              cp "$package_deb" /evidence/
+              find /var/lib/apt/lists -type f -name "*_Packages*" -print0 | sort -z | xargs -0 -r sha256sum > /evidence/apt-package-index-sha256.txt
+              find /var/lib/apt/lists -type f -name "*InRelease" -print0 | sort -z | xargs -0 -r sha256sum > /evidence/apt-inrelease-sha256.txt
+              {
+                while IFS= read -r package_path; do
+                  if [ -L "$package_path" ]; then
+                    printf "symlink\t%s\t%s\n" "$package_path" "$(readlink "$package_path")"
+                  elif [ -d "$package_path" ]; then
+                    printf "dir\t%s\t\n" "$package_path"
+                  elif [ -f "$package_path" ]; then
+                    printf "file\t%s\t%s\n" "$package_path" "$(sha256sum -- "$package_path" | cut -d" " -f1)"
+                  else
+                    echo "Installed package path is missing: $package_path" >&2
+                    exit 3
+                  fi
+                done < /evidence/installed-paths.txt
+              } | LC_ALL=C sort -t "$(printf "\t")" -k2,2 > /evidence/installed-content-manifest.tsv
+              test -s /evidence/installed-content-manifest.tsv
+              test -s /evidence/apt-package-index-sha256.txt
+              test -s /evidence/apt-inrelease-sha256.txt
+            '
+          deb="$(find "$evidence" -maxdepth 1 -type f -name "linux-libc-dev_*_$TARGET_ARCH.deb" -print -quit)"
+          test -n "$deb"
+          python3 -B scripts/verify_ubuntu_binary_package_arch.py \
+            --architecture "$TARGET_ARCH" \
+            --installed-package "$evidence/installed-package.txt" \
+            --installed-content-manifest "$evidence/installed-content-manifest.tsv" \
+            --apt-package-metadata "$evidence/apt-package-metadata.txt" \
+            --apt-policy "$evidence/apt-policy.txt" \
+            --apt-madison "$evidence/apt-madison.txt" \
+            --deb "$deb" \
+            --index-sha256 "$evidence/apt-package-index-sha256.txt" \
+            --release-sha256 "$evidence/apt-inrelease-sha256.txt" \
+            --base-image "$evidence/ubuntu-base-image.txt" \
+            --output "$evidence/binary-package-provenance.json"
+          python3 - "$evidence/binary-package-provenance.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          item=json.load(open(sys.argv[1]))
+          assert item["binary_version"] == "7.0.0-43.43"
+          assert item["source_package"] == "linux"
+          assert item["package_path_count"] > 0
+          print("Architecture:",item["architecture"])
+          print("Binary/source:",item["binary_package"],item["binary_version"],"=>",item["source_package"],item["source_version"])
+          print("Package payload paths:",item["package_path_count"])
+          print("Manifest SHA-256:",item["package_content_manifest_sha256"])
+          print("CVE applicability and VEX remain under investigation.")
+          PY
+      - name: Retain architecture-specific binary package evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev10-image-observed-41-binary-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/dev10-image-41-binary/${{ matrix.architecture }}/
+          if-no-files-found: error
+          retention-days: 30
+
   dev10-container-risk:
     needs: scope
     name: DEV-10 / Foundation container CVE gate
