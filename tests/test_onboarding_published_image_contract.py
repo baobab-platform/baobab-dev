@@ -68,6 +68,17 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         self.assertIn('[[ "$EXPECTED_PROFILE" == "frontend-e2e" && "$playwright_verified" != true ]]' , script)
         self.assertIn('stable_profile_images[$profile].signer_tag', workflow)
 
+    def test_container_workspace_variables_are_not_expanded_by_host_shell(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        step = workflow.split("      - name: A failed final verifier", 1)[1]
+        self.assertIn("bash -c '", step)
+        container_script = step.split("bash -c '", 1)[1].split("\n            ' || result=$?", 1)[0]
+        host_command = step.split("bash -c '", 1)[0]
+        self.assertIn('export PATH=/tmp/dev10-fail/bin:$PATH WORKSPACE_DIR=/tmp/dev10-fail', container_script)
+        self.assertIn('cd "$WORKSPACE_DIR"', container_script)
+        self.assertNotIn("$WORKSPACE_DIR", host_command)
+        self.assertNotIn('bash -c "', step)
+
     def test_reviewed_code_runs_from_read_only_source_mount(self):
         text = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('bash "$SRC_DIR/scripts/post-create.sh"', text)
