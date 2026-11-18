@@ -1,4 +1,4 @@
-"""Negative tests for digest-bound, time-limited DEV-10 security exceptions."""
+"""Release-only exact-digest gate tests; development decisions are never accepted."""
 import datetime as dt
 import importlib.util
 import unittest
@@ -8,6 +8,7 @@ spec=importlib.util.spec_from_file_location("security_decision",p)
 m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 NOW=dt.datetime(2026,11,14,tzinfo=dt.timezone.utc)
 DIGEST="sha256:"+"a"*64
+OTHER_DIGEST="sha256:"+"b"*64
 PKG={"name":"openssl","version":"1.2.3","type":"os"}
 REPORT={
     "SchemaVersion":2,"ArtifactType":"container_image","Trivy":{"Version":m.TRIVY_VERSION},
@@ -62,16 +63,16 @@ class SecurityDecisionTests(unittest.TestCase):
         with self.assertRaises(ValueError):verify(decision(),digest="sha256:"+"b"*64)
     def test_new_release_not_inherited(self):
         with self.assertRaises(ValueError):verify(decision(),tag="v1.5.2-rc.2")
-    def test_expired(self):
-        d=decision();d["expires_at"]="2026-11-01T00:00:00Z"
-        with self.assertRaises(ValueError):verify(d)
-    def test_missing_cve(self):
-        d=decision();d["exceptions"]=[]
-        with self.assertRaises(ValueError):verify(d)
-    def test_inventory_tamper(self):
-        d=decision();d["package_inventory"][0]["version"]="9.9.9"
-        with self.assertRaises(ValueError):verify(d)
-    def test_missing_approver(self):
-        d=decision();d["approver"]=""
-        with self.assertRaises(ValueError):verify(d)
+    def test_release_exception_is_denied_even_when_legacy_record_is_complete(self):
+        d=decision()
+        with self.assertRaisesRegex(ValueError,"legacy free-text release decisions are not authenticated"):
+            verify(d)
+    def test_invalid_release_tag_is_rejected(self):
+        with self.assertRaisesRegex(ValueError,"invalid release target/digest/repository/architecture"):
+            verify(None,tag="refs/heads/main")
+    def test_invalid_trivy_version_is_rejected(self):
+        report = dict(REPORT)
+        report["Trivy"] = {"Version":"0.74.0"}
+        with self.assertRaisesRegex(ValueError,"scanner version is not qualified"):
+            verify(None,report)
 if __name__=="__main__":unittest.main()
