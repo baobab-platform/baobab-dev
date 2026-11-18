@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from audit_kernel_cve_paths import SHA_RE, parse_upstream_details
 
 EXPECTED_VERSION = "7.0.0-43.43"
+EXPECTED_BINARY_PACKAGE = "linux-libc-dev"
 EXPECTED_SOURCE_PURL = "pkg:deb/ubuntu/linux@7.0.0-43.43?arch=source&distro=resolute"
 COMMIT_URL_RE = re.compile(
     r"https://git\.kernel\.org/(?:stable|linus)/c/([a-f0-9]{40})(?:[/?#]|$)"
@@ -66,12 +67,23 @@ def validate_inputs(inventory: list[dict[str, str]], canonical: list[dict[str, s
         locked = locked_by_id[row["cve"]]
         if (row.get("canonical_osv_blob_sha") != locked.get("blob_sha1")
                 or row.get("canonical_modified") != locked.get("modified")
-                or row.get("ubuntu_priority") != locked.get("ubuntu_priority")):
+                or row.get("ubuntu_priority") != locked.get("ubuntu_priority")
+                or row.get("canonical_linux_source_version_7_0_0_43_43_affected") != "true"
+                or row.get("canonical_linux_libc_dev_binary_version") != EXPECTED_VERSION
+                or row.get("canonical_linux_libc_dev_binary_listed_as_affected") != "true"
+                or locked.get("canonical_linux_source_version_affected") is not True
+                or locked.get("linux_libc_dev_binary_version") != EXPECTED_VERSION
+                or locked.get("linux_libc_dev_binary_listed_as_affected") is not True):
             raise ValueError(row["cve"] + ": Canonical TSV does not match its pinned OSV blob metadata")
         if (row.get("installed_7_0_0_43_43_listed_as_affected") != "true"
                 or row.get("resolute_source_purl") != EXPECTED_SOURCE_PURL
                 or row.get("binary_disposition") != "under_investigation"):
             raise ValueError(row.get("cve", "unknown") + ": Canonical Resolute evidence or disposition is invalid")
+    binary_mapping = lock.get("source", {}).get("binary_package_mapping", {})
+    if (binary_mapping.get("binary_package") != EXPECTED_BINARY_PACKAGE
+            or binary_mapping.get("binary_version") != EXPECTED_VERSION
+            or binary_mapping.get("records_listed_as_affected") != 41):
+        raise ValueError("Canonical lock does not pin all 41 linux-libc-dev binary associations")
     for row in lock_records:
         if row.get("resolute_7_0_0_43_43_affected") is not True:
             raise ValueError(row.get("cve", "unknown") + ": Canonical OSV does not establish 7.0.0-43.43 as affected")
@@ -121,6 +133,29 @@ def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
                           f"{canonical_commit}:{canonical_record['path']}")
         if actual_blob != canonical_record["blob_sha1"]:
             raise ValueError(cve + ": Canonical OSV blob SHA differs from pinned lock")
+        canonical_data = json.loads(
+            (canonical_root / canonical_record["path"]).read_text(encoding="utf-8")
+        )
+        if canonical_data.get("id") != "UBUNTU-" + cve or canonical_data.get("modified") != canonical_record["modified"]:
+            raise ValueError(cve + ": Canonical OSV identity or modified timestamp differs from lock")
+        ubuntu_severity = next(
+            (item.get("score") for item in canonical_data.get("severity", [])
+             if item.get("type") == "Ubuntu"), None
+        )
+        if ubuntu_severity != canonical_record["ubuntu_priority"]:
+            raise ValueError(cve + ": Canonical Ubuntu priority differs from pinned OSV record")
+        resolute_linux = [
+            item for item in canonical_data.get("affected", [])
+            if item.get("package", {}).get("name") == "linux"
+            and item.get("package", {}).get("purl") == EXPECTED_SOURCE_PURL
+            and EXPECTED_VERSION in item.get("versions", [])
+        ]
+        if len(resolute_linux) != 1:
+            raise ValueError(cve + ": Canonical OSV does not list the exact Resolute linux source version as affected")
+        binaries = resolute_linux[0].get("ecosystem_specific", {}).get("binaries", [])
+        if not any(item.get("binary_name") == EXPECTED_BINARY_PACKAGE
+                   and item.get("binary_version") == EXPECTED_VERSION for item in binaries):
+            raise ValueError(cve + ": Canonical OSV does not list linux-libc-dev 7.0.0-43.43 as affected")
         try:
             paths, references = parse_upstream_details(base64.b64encode(raw))
             path_status = "AFFECTED_SOURCE_PATHS_VALIDATED"
@@ -157,6 +192,8 @@ def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
             "canonical_ubuntu_priority": canonical_record["ubuntu_priority"],
             "canonical_resolute_source_package": "linux",
             "canonical_resolute_affected_version": EXPECTED_VERSION,
+            "canonical_linux_libc_dev_binary_version": EXPECTED_VERSION,
+            "canonical_linux_libc_dev_binary_listed_as_affected": True,
             "ubuntu_binary_applicability": "under_investigation",
             "vex_disposition": "under_investigation",
         })
@@ -174,6 +211,9 @@ def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
             "record_count": len(canonical_records),
             "resolute_source_package": "linux",
             "affected_version": EXPECTED_VERSION,
+            "binary_package": EXPECTED_BINARY_PACKAGE,
+            "binary_version": EXPECTED_VERSION,
+            "binary_records_listed_as_affected": 41,
         },
         "counts": {
             "records": len(upstream_records),
