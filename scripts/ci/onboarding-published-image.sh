@@ -8,7 +8,14 @@ PROJECT_DIR=/tmp/dev10-project
 CONSUMER_DIR=/tmp/dev10-consumer
 TOOLS_DIR=/tmp/dev10-tools
 EVIDENCE_FILE=/evidence/onboarding-verification.json
-BUILD_PROFILE="${BAOBAB_BUILD_PROFILE:-full}"
+EXPECTED_PROFILE="${EXPECTED_PROFILE:?expected matrix profile is required}"
+BUILD_PROFILE="${BAOBAB_BUILD_PROFILE:?published image must declare its baked profile}"
+EXPECTED_RUNTIME_PROFILE="$EXPECTED_PROFILE"
+[[ "$EXPECTED_PROFILE" == "final" ]] && EXPECTED_RUNTIME_PROFILE="full"
+[[ "$BUILD_PROFILE" == "$EXPECTED_RUNTIME_PROFILE" ]] || {
+  echo "Published image profile mismatch: expected $EXPECTED_RUNTIME_PROFILE for $EXPECTED_PROFILE, found $BUILD_PROFILE" >&2
+  exit 2
+}
 export BAOBAB_BUILD_PROFILE="$BUILD_PROFILE"
 
 require_source() {
@@ -135,6 +142,6 @@ evidence = {
 Path(evidence_path).write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
 if int(exit_status) != 0:
     print("::warning::Historical image verifier failed; evidence is HISTORICAL_BASELINE_UNQUALIFIED")
-if profile == "frontend-e2e" and not evidence["playwright_chromium_verified"]:
+if expected_profile == "frontend-e2e" and not evidence["playwright_chromium_verified"]:
     raise SystemExit("frontend-e2e requires a successful non-root Playwright Chromium launch")
 PY
