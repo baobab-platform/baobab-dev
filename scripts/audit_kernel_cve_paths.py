@@ -117,7 +117,9 @@ def audit(trivy: list[dict[str, str]], vendor: list[dict[str, str]],
     if len(trivy) != 295 or len(ids) != 295 or ids != set(vendors) or len(vendor) != 295:
         raise ValueError("Trivy and Canonical evidence must contain the same 295 unique CVEs")
     if not all(CVE_RE.fullmatch(x) for x in ids) or not SHA_RE.fullmatch(sha):
-        raise ValueError("invalid CVE or upstream commit")\n    if not isinstance(package_version, str) or not VERSION_RE.fullmatch(package_version):\n        raise ValueError("invalid installed linux-libc-dev binary package version")
+        raise ValueError("invalid CVE or upstream commit")
+    if not isinstance(package_version, str) or not VERSION_RE.fullmatch(package_version):
+        raise ValueError("invalid installed linux-libc-dev binary package version")
     if not any(p.endswith(".h") for p in manifest):
         raise ValueError("exact binary manifest has no development headers")
     if source_root is not None:
@@ -147,7 +149,9 @@ def main() -> int:
     p.add_argument("--trivy", type=Path, required=True)
     p.add_argument("--vendor", type=Path, required=True)
     p.add_argument("--manifest", type=Path, required=True)
-    p.add_argument("--upstream-sha", required=True)\n    p.add_argument("--binary-package-version", required=True,\n                   help="exact linux-libc-dev version installed from the configured Ubuntu pockets")
+    p.add_argument("--upstream-sha", required=True)
+    p.add_argument("--binary-package-version", required=True,
+                   help="exact linux-libc-dev version installed from the configured Ubuntu pockets")
     p.add_argument("--upstream-root", type=Path, help="immutable Git checkout; preferred to individual HTTP CVE fetches")
     p.add_argument("--output", type=Path, required=True)
     a = p.parse_args()
