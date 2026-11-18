@@ -137,6 +137,25 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("name: dev10-release-promotion", promote)
         self.assertIn("environment:", promote)
 
+    def test_release_publication_and_promotion_never_consume_dev10_risk_authority(self):
+        release_scan = active_yaml(jobs()["release-digests"])
+        publish = active_yaml(jobs()["publish"])
+        promote = active_yaml(jobs()["promote"])
+        for workflow_job in (release_scan, publish, promote):
+            self.assertNotIn("DEV10_PROTECTED_DECISION_SHA256", workflow_job)
+            self.assertNotIn("DEV10_SECURITY_APPROVER_LOGINS", workflow_job)
+            self.assertNotIn("verify_protected_policy_hash.py", workflow_job)
+        self.assertIn(
+            "development-only acceptance is insufficient",
+            release_scan,
+        )
+        self.assertIn(
+            "Residual vulnerabilities in a tagged remote image require separately authenticated exact-digest release approval",
+            release_scan,
+        )
+        self.assertIn("verify_digest_security_decision.py", promote)
+        self.assertIn("verify_release_environment.py", promote)
+
     def test_release_promotion_never_reuses_development_risk_authority(self):
         promote = active_yaml(jobs()["promote"])
         self.assertNotIn("DEV10_PROTECTED_DECISION_SHA256", promote)
