@@ -68,40 +68,33 @@ jobs:
               mkdir -p "$HOME" /tmp/dev10-project
               test -f /source/scripts/post-create.sh || { echo "Missing /source/scripts/post-create.sh"; ls -la /source; exit 2; }
               cp -R /source/. /tmp/dev10-project/
-              test -f /tmp/dev10-project/scripts/post-create.sh || { echo "Checkout copy omitted scripts/post-create.sh"; find /tmp/dev10-project -maxdepth 3 -type f | head -80; exit 3; }
-              ls -ld /tmp/dev10-project/scripts
-              ls -l /tmp/dev10-project/scripts/post-create.sh
-              bash -n /tmp/dev10-project/scripts/post-create.sh
+              # Execute reviewed checkout scripts from the read-only mount;
+              # keep the workspace copy writable for lifecycle and fixture installs.
               # The published v1.5.1 image has older summary/verify commands.
-              # Route only this test container's lifecycle calls to the current
-              # checkout scripts; production images keep their installed commands.
-              mkdir -p /tmp/dev10-project/bin
-              printf "%s\n" "#!/usr/bin/env bash" "exec bash /tmp/dev10-project/scripts/summary.sh \"\$@\"" > /tmp/dev10-project/bin/baobab-summary
-              printf "%s\n" "#!/usr/bin/env bash" "exec bash /tmp/dev10-project/scripts/verify.sh \"\$@\"" > /tmp/dev10-project/bin/baobab-verify
-              chmod +x /tmp/dev10-project/bin/baobab-summary /tmp/dev10-project/bin/baobab-verify
-              export PATH=/tmp/dev10-project/bin:$PATH WORKSPACE_DIR=/tmp/dev10-project
+              mkdir -p /tmp/dev10-tools
+              printf "%s\\n" "#!/usr/bin/env bash" "exec bash /source/scripts/summary.sh \\"\\$@\\"" > /tmp/dev10-tools/baobab-summary
+              printf "%s\\n" "#!/usr/bin/env bash" "exec bash /source/scripts/verify.sh \\"\\$@\\"" > /tmp/dev10-tools/baobab-verify
+              chmod +x /tmp/dev10-tools/baobab-summary /tmp/dev10-tools/baobab-verify
+              export PATH=/tmp/dev10-tools:$PATH WORKSPACE_DIR=/tmp/dev10-project
               cd "$WORKSPACE_DIR"
-              echo "BASH_ENV=${BASH_ENV:-unset}"
-              ls -l /tmp/dev10-project/scripts/post-create.sh
-              cat /tmp/dev10-project/scripts/post-create.sh >/dev/null
-              bash -c "source /tmp/dev10-project/scripts/post-create.sh --stage=post-create"
-              python3 -B -m unittest discover -s tests -v
+              bash /source/scripts/post-create.sh --stage=post-create
+              python3 -B -m unittest discover -s /source/tests -v
 
               # The published v1.5.1 image carries attested native pnpm 12.16.1.
               # Exercise consumer pins 12.16.1 and 11.24.0 through the Corepack path.
               test "$(cd / && pnpm --version)" = "12.16.1"
-              test -d /tmp/dev10-project/tests/fixtures/pnpm-workspace
+              test -d /source/tests/fixtures/pnpm-workspace
               for pnpm_version in 12.16.1 11.24.0; do
                 rm -rf /tmp/dev10-workspace
-                cp -R /tmp/dev10-project/tests/fixtures/pnpm-workspace /tmp/dev10-workspace
+                cp -R /source/tests/fixtures/pnpm-workspace /tmp/dev10-workspace
                 mv /tmp/dev10-workspace/package.json.fixture /tmp/dev10-workspace/package.json
                 mv /tmp/dev10-workspace/frontend/package.json.fixture /tmp/dev10-workspace/frontend/package.json
-                cp -R /tmp/dev10-project/config /tmp/dev10-workspace/config
+                cp -R /source/config /tmp/dev10-workspace/config
                 sed -i "s/pnpm@12[.]16[.]1/pnpm@${pnpm_version}/" /tmp/dev10-workspace/package.json
                 export WORKSPACE_DIR=/tmp/dev10-workspace
                 cd "$WORKSPACE_DIR"
                 echo "Testing consumer packageManager pnpm@${pnpm_version}"
-                bash /tmp/dev10-project/scripts/post-create.sh --stage=post-create
+                bash /source/scripts/post-create.sh --stage=post-create
                 test ! -f frontend/package-lock.json
               done
             '
