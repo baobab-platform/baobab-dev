@@ -13,15 +13,20 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         subprocess.run(["bash", "-n", str(SCRIPT)], check=True)
         text = SCRIPT.read_text(encoding="utf-8")
         self.assertIn("SRC_DIR=/source", text)
+        self.assertIn('IMAGE_REF="${IMAGE_REF:?immutable image reference is required}"', text)
+        self.assertIn('ghcr\\.io/baobab-platform/baobab-dev@sha256:', text)
+        self.assertIn('getent passwd "$(id -u)"', text)
         self.assertIn("CONSUMER_DIR=/tmp/dev10-consumer", text)
         self.assertIn('bash "$SRC_DIR/scripts/post-create.sh"', text)
         self.assertNotIn("export WORKSPACE_DIR=", text)
         self.assertNotIn("assert_workspace", text)
+        self.assertIn('if WORKSPACE_DIR="$PROJECT_DIR" bash "$SRC_DIR/scripts/verify.sh"', text)
 
     def test_workflow_passes_a_script_not_nested_container_shell_text(self):
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("bash /source/scripts/ci/onboarding-published-image.sh", text)
-        self.assertNotIn('docker run --rm -e HOME=/tmp/dev10-home \\\n            -v "$GITHUB_WORKSPACE:/source:ro" "$IMAGE_REF" bash -c', text)
+        self.assertNotIn("-e HOME=/tmp/dev10-home", text)
+        self.assertIn('docker run --rm -e EXPECTED_PROFILE=', text)
 
     def test_profile_contracts_and_historical_verifier_status_are_explicit(self):
         script = SCRIPT.read_text(encoding="utf-8")
