@@ -344,7 +344,7 @@ class TrustedReviewerResolutionTests(unittest.TestCase):
         )
         for user in invalid:
             with self.subTest(user=user), self.assertRaisesRegex(
-                provisioner.ProvisioningError, "typed GitHub User"
+                provisioner.ProvisioningError, "non-User or untyped reviewer identity"
             ):
                 self.resolve([user])
 
@@ -407,7 +407,7 @@ class IndependentApprovalTests(unittest.TestCase):
             else:
                 review["user"]["type"] = account_type
             with self.subTest(account_type=account_type), self.assertRaisesRegex(
-                provisioner.ProvisioningError, "typed GitHub User"
+                provisioner.ProvisioningError, "non-User or untyped reviewer identity"
             ):
                 self.select([review])
 
