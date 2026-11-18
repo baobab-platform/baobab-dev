@@ -16,6 +16,7 @@ spec.loader.exec_module(module)
 # Keep the established source-evidence workflow responsible for the supplemental
 # 41-CVE source pins and both architecture package-manifest regression tests.
 from test_dev10_image_observed_41_sources import Supplemental41SourceEvidenceTests
+from test_dev10_image_observed_41_cvelist import Supplemental41CveListMirrorTests
 from test_ubuntu_binary_package_arch import UbuntuBinaryPackageArchitectureTests
 from test_reconcile_dev10_image_observed_41_binary_paths import Supplemental41BinaryPathMappingTests
 
