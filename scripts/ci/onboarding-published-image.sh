@@ -108,19 +108,20 @@ WORKSPACE_DIR="$PROJECT_DIR" bash "$SRC_DIR/scripts/verify.sh" >"$verify_log" 2>
 verify_status=$?
 set -e
 cat "$verify_log"
-python3 - "$verify_log" "$EVIDENCE_FILE" "$BUILD_PROFILE" "$verify_status" <<'PY'
+python3 - "$verify_log" "$EVIDENCE_FILE" "$EXPECTED_PROFILE" "$BUILD_PROFILE" "$verify_status" <<'PY'
 import json
 import re
 import sys
 from pathlib import Path
 
-log_path, evidence_path, profile, exit_status = sys.argv[1:]
+log_path, evidence_path, expected_profile, runtime_profile, exit_status = sys.argv[1:]
 text = Path(log_path).read_text(encoding="utf-8", errors="replace")
 clean = re.sub(r"\x1b\[[0-9;]*m", "", text)
 failed = [line.strip() for line in clean.splitlines() if "✘" in line]
 evidence = {
     "schema": "baobab.dev10.historical-onboarding-verification.v1",
-    "image_profile": profile,
+    "image_profile": expected_profile,
+    "runtime_profile": runtime_profile,
     "runtime_uid": __import__("os").getuid(),
     "runtime_user": __import__("getpass").getuser(),
     "verify_exit_status": int(exit_status),
