@@ -178,12 +178,16 @@ class ReadOnlyRegistryProofTests(unittest.TestCase):
              "signature_or_referrer_not_found"),
             ("no matching certificates found for issuer https://private.example",
              "oidc_identity_or_issuer_mismatch"),
+            ("certificate identity mismatch for https://private.example",
+             "oidc_identity_or_issuer_mismatch"),
             ("unknown flag --type; token=secret-value",
              "cosign_cli_or_predicate_incompatible"),
             ("no matching attestations for predicate type https://private.example",
              "cosign_predicate_type_mismatch"),
             ("429 too many requests from ghcr.io/private/path",
              "registry_rate_limited"),
+            ("connection reset by peer while fetching private registry referrer",
+             "transient_registry_or_network_failure"),
         ]
         for stderr, expected in cases:
             with self.subTest(expected=expected):
