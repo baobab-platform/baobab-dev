@@ -90,6 +90,31 @@ class ApplicabilityTests(unittest.TestCase):
         self.assertNotIn("manifest_sha256", records["CVE-2026-89530"]["binary_exposure"])
         self.assertNotIn("binary_manifest_sha256", report["source_provenance"])
 
+    def test_each_cve_scan_provenance_names_only_evidenced_package_versions(self):
+        scanner = builder.tsv(ROOT / "docs/assessments/dev10-kernel-cves-298.tsv")
+        canonical = builder.tsv(ROOT / "docs/assessments/dev10-canonical-cve-status-20261118.tsv")
+        report = builder.build(scanner, canonical)
+        records = {row["cve"]: row for row in report["records"]}
+        def versions(cve):
+            return {item["package_version"] for item in records[cve]["scan_provenance"]}
+        self.assertEqual(versions("CVE-2026-89530"), {"7.0.0-42.42"})
+        self.assertEqual(
+            versions("CVE-2022-50240"),
+            {"7.0.0-42.42", "7.0.0-43.43"},
+        )
+        self.assertEqual(versions("CVE-2026-98869"), {"7.0.0-43.43"})
+        for cve, record in records.items():
+            claimed_43 = any(
+                item["package_version"] == "7.0.0-43.43"
+                for item in record["scan_provenance"]
+            )
+            self.assertEqual(claimed_43, cve in builder.LOCK.observed_kernel_cves)
+            for item in record["scan_provenance"]:
+                if item["package_version"] == "7.0.0-43.43":
+                    self.assertEqual(item["run_id"], builder.LOCK.profile_scan_run_id)
+                    self.assertEqual(item["profile_architecture_artifact_count"], 8)
+                    self.assertTrue(item["observed_on_43_43"])
+
     def test_three_new_kernel_advisories_are_in_the_canonical_join(self):
         scanner = builder.tsv(ROOT / "docs/assessments/dev10-kernel-cves-298.tsv")
         canonical = builder.tsv(ROOT / "docs/assessments/dev10-canonical-cve-status-20261118.tsv")
