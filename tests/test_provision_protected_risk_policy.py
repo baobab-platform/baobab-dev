@@ -19,6 +19,9 @@ SPEC.loader.exec_module(provisioner)
 DECISION = provisioner.json.loads(
     (ROOT / "security/decisions/development/foundation.json").read_text()
 )
+PROPOSAL = provisioner.json.loads(
+    (ROOT / "security/decisions/development/foundation.proposal.json").read_text()
+)
 NOW = dt.datetime(2026, 11, 17, tzinfo=dt.timezone.utc)
 HEAD = "a" * 40
 TRUSTED = {356890520: "sknabusiu"}
@@ -221,6 +224,20 @@ class DecisionContractTests(unittest.TestCase):
             copy.deepcopy(DECISION), decision_pr=76, now=NOW
         )
         self.assertEqual(result["status"], "approved")
+
+    def test_accepts_exact_twelve_finding_amendment_candidate_shape(self):
+        candidate = copy.deepcopy(PROPOSAL)
+        candidate.update(
+            status="approved",
+            prepared_by="wekhason",
+            prepared_by_id=350241706,
+            approval_evidence="https://github.com/baobab-platform/baobab-dev/pull/85",
+        )
+        result = provisioner.validate_decision(
+            candidate, decision_pr=85, now=NOW
+        )
+        self.assertEqual(result["finding_count"], 12)
+        self.assertEqual(len(result["findings"]), 12)
 
     def test_rejects_nonapproved_revoked_or_wrong_record_type(self):
         mutations = (
