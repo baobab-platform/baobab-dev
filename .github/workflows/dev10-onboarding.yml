@@ -81,7 +81,7 @@ jobs:
               chmod +x /tmp/dev10-project/bin/baobab-summary /tmp/dev10-project/bin/baobab-verify
               export PATH=/tmp/dev10-project/bin:$PATH WORKSPACE_DIR=/tmp/dev10-project
               cd "$WORKSPACE_DIR"
-              printf 'BASH_ENV=%s\\n' "${BASH_ENV:-unset}"
+              echo "BASH_ENV=${BASH_ENV:-unset}"
               ls -l /tmp/dev10-project/scripts/post-create.sh
               cat /tmp/dev10-project/scripts/post-create.sh >/dev/null
               bash -c "source /tmp/dev10-project/scripts/post-create.sh --stage=post-create"
