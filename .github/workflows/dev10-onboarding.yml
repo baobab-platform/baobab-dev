@@ -72,8 +72,8 @@ jobs:
               # keep the workspace copy writable for lifecycle and fixture installs.
               # The published v1.5.1 image has older summary/verify commands.
               mkdir -p /tmp/dev10-tools
-              printf "%s\\n" "#!/usr/bin/env bash" "exec bash /source/scripts/summary.sh \\"\\$@\\"" > /tmp/dev10-tools/baobab-summary
-              printf "%s\\n" "#!/usr/bin/env bash" "exec bash /source/scripts/verify.sh \\"\\$@\\"" > /tmp/dev10-tools/baobab-verify
+              printf "%s\n" "#!/usr/bin/env bash" "exec bash /source/scripts/summary.sh \"\$@\"" > /tmp/dev10-tools/baobab-summary
+              printf "%s\n" "#!/usr/bin/env bash" "exec bash /source/scripts/verify.sh \"\$@\"" > /tmp/dev10-tools/baobab-verify
               chmod +x /tmp/dev10-tools/baobab-summary /tmp/dev10-tools/baobab-verify
               export PATH=/tmp/dev10-tools:$PATH WORKSPACE_DIR=/tmp/dev10-project
               cd "$WORKSPACE_DIR"
