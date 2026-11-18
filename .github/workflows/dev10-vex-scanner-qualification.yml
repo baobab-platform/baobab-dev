@@ -28,8 +28,8 @@ jobs:
           docker build --pull --tag baobab-dev10-vex-fixture:local - <<'DOCKER'
           FROM ubuntu:26.04
           ENV DEBIAN_FRONTEND=noninteractive
-          RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends linux-libc-dev=7.0.0-42.42 && \
-              dpkg-query -W -f='${Version}' linux-libc-dev | grep -Fx '7.0.0-42.42' && \
+          RUN apt-get update -qq && apt-get install -y -qq --no-install-recommends linux-libc-dev=7.0.0-43.43 && \
+              dpkg-query -W -f='${Version}' linux-libc-dev | grep -Fx '7.0.0-43.43' && \
               rm -rf /var/lib/apt/lists/*
           DOCKER
       - name: Install exact checksum-verified Trivy
@@ -65,7 +65,7 @@ jobs:
           folder=Path(sys.argv[1])
           data=json.loads((folder/"raw.json").read_text())
           vulns=[v for r in data.get("Results",[]) for v in r.get("Vulnerabilities",[])
-                 if v.get("PkgName")=="linux-libc-dev" and v.get("InstalledVersion")=="7.0.0-42.42"
+                 if v.get("PkgName")=="linux-libc-dev" and v.get("InstalledVersion")=="7.0.0-43.43"
                  and v.get("Severity") in ("HIGH","CRITICAL")]
           if not vulns: raise SystemExit("No exact-package CVE in unfiltered Trivy report")
           v=vulns[0]
