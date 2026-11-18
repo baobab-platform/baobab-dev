@@ -147,6 +147,9 @@ def verify(args: argparse.Namespace) -> dict:
     deb_hash = digest(args.deb)
     if not SHA256.fullmatch(deb_hash):
         raise ValueError("invalid downloaded .deb digest")
+    index_package_hash = matches[0].get("SHA256", "")
+    if not SHA256.fullmatch(index_package_hash) or index_package_hash != deb_hash:
+        raise ValueError("downloaded .deb SHA-256 does not match the signed apt package index record")
     control = run("dpkg-deb", "-f", str(args.deb), "Package", "Version", "Architecture", "Source").splitlines()
     if len(control) != 4 or control[:3] != [PACKAGE, VERSION, args.architecture]:
         raise ValueError("downloaded .deb control identity differs from expected package/version/architecture")
@@ -212,6 +215,7 @@ def verify(args: argparse.Namespace) -> dict:
         "apt_policy_sha256": digest(args.apt_policy),
         "apt_madison_sha256": digest(args.apt_madison),
         "apt_package_deb_sha256": deb_hash,
+        "apt_index_package_sha256": index_package_hash,
         "apt_package_deb_filename": args.deb.name,
         "apt_package_index_sha256": sorted(index_records, key=lambda item: item["index_name"]),
         "apt_inrelease_sha256": sorted(release_records, key=lambda item: item["release_name"]),
