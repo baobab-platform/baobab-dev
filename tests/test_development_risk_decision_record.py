@@ -1,5 +1,6 @@
 """Contract tests for the reusable DEV-10 development-risk decision record."""
 import json
+import hashlib
 import shutil
 import subprocess
 import tempfile
@@ -72,7 +73,11 @@ class DevelopmentRiskDecisionRecordTests(unittest.TestCase):
             {"linux/amd64", "linux/arm64"},
         )
         self.assertEqual(proposal["expires_at"], "2026-11-26T00:00:00Z")
-        self.assertEqual(proposal["evidence_lock_sha256"], "d0ea5dd7b2901d05d2504301f88db69f0c3fe46d52ac9465c51da2549eeab812")
+        lock_path = ROOT / "security/evidence/dev10-kernel-evidence.lock.json"
+        self.assertEqual(
+            proposal["evidence_lock_sha256"],
+            hashlib.sha256(lock_path.read_bytes()).hexdigest(),
+        )
         self.assertNotIn("44297169413", proposal["notes"])
         self.assertNotIn("14424421569", proposal["notes"])
         self.assertIsNone(proposal["prepared_by"])
