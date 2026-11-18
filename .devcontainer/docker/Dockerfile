@@ -570,7 +570,7 @@ FROM base AS with-node
 
 # COREPACK_HOME fixed to an absolute, user-independent path — set BEFORE the
 # `corepack prepare` calls below run (as root, during this stage) so the
-# prepared pnpm/yarn releases land here rather than at Corepack's own
+# prepared Yarn release lands here rather than at Corepack's own
 # default of "$HOME/.cache/node/corepack". That default resolves per
 # invoking user: `corepack prepare --activate` here runs as root
 # (HOME=/root), but every downstream consumer of this image — `RUN

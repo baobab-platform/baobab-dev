@@ -56,6 +56,9 @@ if [ "$1" = "pnpm" ]; then
     printf '%s\\n' 'VERSION_PIN'
     exit 0
   fi
+  if [ "$1" = "install" ]; then
+    exit 0
+  fi
   if [ "$1" = "list" ]; then
     if [ "$PNPM_MEMBERS" = "yes" ]; then
       printf '[{"path":"%s/frontend"}]\\n' "$WORKSPACE_DIR"
@@ -127,7 +130,7 @@ fi
         self.assertEqual(0,r.returncode,r.stdout+r.stderr)
         self.assertIn('corepack install',t)
         self.assertIn('corepack pnpm install --frozen-lockfile',t)
-        self.assertNotIn('\\npnpm install --frozen-lockfile',t)
+        self.assertFalse(any(line.startswith('pnpm ') for line in t.splitlines()))
         r,t=self.run_case(files,pnpm='12.20.0')
         self.assertNotEqual(0,r.returncode)
         self.assertNotIn('corepack pnpm install --frozen-lockfile',t)
