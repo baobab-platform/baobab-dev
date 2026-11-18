@@ -248,7 +248,11 @@ check_exact_version() {
 # the already-prepared per-user Corepack cache. This is deliberately offline:
 # verification must never bootstrap or mutate the developer's environment.
 check_project_pnpm() {
-    [[ -f package.json && -f pnpm-lock.yaml ]] || return
+    # This verifier also runs in repositories without a root pnpm project.
+    # A missing manifest/lock is an intentional no-op, not a failed check.
+    if [[ ! -f package.json || ! -f pnpm-lock.yaml ]]; then
+        return 0
+    fi
     if [[ -z "${PROJECT_PNPM_CMD}" ]]; then
         bad "Project pnpm — shared project-pnpm helper is unavailable"
         return
