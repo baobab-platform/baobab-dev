@@ -140,5 +140,26 @@ class ToolchainVersionPinTests(unittest.TestCase):
         )
 
 
+    def test_docs_workflow_uses_locked_yq_and_uv_versions(self):
+        lock = read("config/versions.lock")
+        pyproject = read("pyproject.toml")
+        pages = read(".github/workflows/pages.yml")
+
+        uv_version = re.search(r"(?m)^export UV_VERSION=([0-9.]+)$", lock)
+        self.assertIsNotNone(uv_version)
+        self.assertIn(
+            f'required-version = "=={uv_version.group(1)}"',
+            pyproject,
+        )
+        self.assertIn("Install locked yq", pages)
+        self.assertIn("source config/versions.lock", pages)
+        self.assertIn("YQ_ASSET_AMD64", pages)
+        self.assertIn("YQ_SHA256_AMD64", pages)
+        self.assertIn("YQ_ASSET_ARM64", pages)
+        self.assertIn("YQ_SHA256_ARM64", pages)
+        self.assertIn("sha256sum -c -", pages)
+        self.assertIn('echo "${install_dir}" >> "${GITHUB_PATH}"', pages)
+
+
 if __name__ == "__main__":
     unittest.main()

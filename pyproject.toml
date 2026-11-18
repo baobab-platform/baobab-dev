@@ -164,3 +164,4 @@ addopts = "-ra -q"
 
 # This repository is infrastructure rather than a distributable Python package.
 package = false
+required-version = "==0.13.5"
