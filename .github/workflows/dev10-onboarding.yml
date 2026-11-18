@@ -100,6 +100,8 @@ jobs:
                 -o /tmp/dev10-uv/uv.tar.gz
               echo "$uv_sha  /tmp/dev10-uv/uv.tar.gz" | sha256sum --check --strict
               tar -xzf /tmp/dev10-uv/uv.tar.gz -C /tmp/dev10-uv
+              mkdir -p /tmp/dev10-tools
+              test -x "/tmp/dev10-uv/$uv_dir/uv"
               install "/tmp/dev10-uv/$uv_dir/uv" /tmp/dev10-tools/uv
               test "$(uv --version)" = "uv 0.13.9"
               export PATH=/tmp/dev10-tools:$PATH WORKSPACE_DIR=/tmp/dev10-project
