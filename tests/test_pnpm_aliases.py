@@ -25,22 +25,24 @@ class PnpmAliasTests(unittest.TestCase):
 
             helper = bin_dir / "baobab-project-pnpm"
             helper.write_text(
-                "#!/usr/bin/env bash\\n"
-                "if [[ \\"$1\\" == pin ]]; then\\n"
-                "  printf 'pin\\\\n' >> \\"$TRACE\\"\\n"
-                "  [[ \\"${PIN_OK:-1}\\" == 1 ]] || exit 3\\n"
-                "  printf '11.24.0\\\\n'\\n"
-                "else\\n"
-                "  printf 'helper:%s\\\\n' \\"$*\\" >> \\"$TRACE\\"\\n"
-                "fi\\n",
+                r"""#!/usr/bin/env bash
+if [[ "$1" == pin ]]; then
+  printf 'pin\n' >> "$TRACE"
+  [[ "${PIN_OK:-1}" == 1 ]] || exit 3
+  printf '11.24.0\n'
+else
+  printf 'helper:%s\n' "$*" >> "$TRACE"
+fi
+""",
                 encoding="utf-8",
             )
             helper.chmod(0o755)
 
             native = bin_dir / "pnpm"
             native.write_text(
-                "#!/usr/bin/env bash\\n"
-                "printf 'native:%s\\\\n' \\"$*\\" >> \\"$TRACE\\"\\n",
+                r"""#!/usr/bin/env bash
+printf 'native:%s\n' "$*" >> "$TRACE"
+""",
                 encoding="utf-8",
             )
             native.chmod(0o755)
