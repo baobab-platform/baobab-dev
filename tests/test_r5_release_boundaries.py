@@ -223,6 +223,9 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("No release image was published", report)
         self.assertIn("DEV10_PROTECTED_DECISION_SHA256", report)
         self.assertIn("DEV10_SECURITY_APPROVER_LOGINS", report)
+        self.assertIn("scripts/verify_digest_security_decision.py", report)
+        self.assertIn("release promotion is CLEAN-only", report)
+        self.assertNotIn("scripts/evaluate_protected_risk_decision.py", report)
         for profile in ("final", "frontend", "frontend-e2e", "infra"):
             with self.subTest(profile=profile):
                 self.assertIn(f"`{profile}`", report)
