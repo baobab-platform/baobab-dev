@@ -1036,11 +1036,11 @@ jobs:
             "$RUNNER_TEMP/trivy-exact-raw.json" \
             "$RUNNER_TEMP/trivy-exact-evidence/findings.json" \
             "${{ matrix.target }}" "${{ matrix.platform }}"
-          # Trivy is NEVER bypassed for tagged images. A real finding (rc=1)
-          # can only be accepted by the same independent exact-CVE gate as
-          # local PR scans, bounded to the owner-approved v1.5.0/v1.5.1
-          # development-image allow-list and expiring 2026-11-26 UTC. Different versions,
-          # vulnerabilities, available fixes, secrets, or tool failures deny.
+          # Trivy is NEVER bypassed for tagged images. DEV-10's development-only
+          # policy applies only to PRs targeting main and pushes to main; it is
+          # never consulted for a release tag. No protected release-specific
+          # exception custody is enabled, so any HIGH/CRITICAL or secret finding
+          # on this exact registry digest blocks publication.
           if (( rc != 0 )); then
             if (( rc != 1 )); then
               echo "::error::Exact remote-digest Trivy tool failed (rc=$rc); cannot publish."
