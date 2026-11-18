@@ -70,8 +70,8 @@ jobs:
               # Route only this test container's lifecycle calls to the current
               # checkout scripts; production images keep their installed commands.
               mkdir -p /tmp/dev10-project/bin
-              printf '#!/usr/bin/env bash\\nexec bash /tmp/dev10-project/scripts/summary.sh "$@"\\n' > /tmp/dev10-project/bin/baobab-summary
-              printf '#!/usr/bin/env bash\\nexec bash /tmp/dev10-project/scripts/verify.sh "$@"\\n' > /tmp/dev10-project/bin/baobab-verify
+              printf "%s\\n" "#!/usr/bin/env bash" "exec bash /tmp/dev10-project/scripts/summary.sh \"\\$@\"" > /tmp/dev10-project/bin/baobab-summary
+              printf "%s\\n" "#!/usr/bin/env bash" "exec bash /tmp/dev10-project/scripts/verify.sh \"\\$@\"" > /tmp/dev10-project/bin/baobab-verify
               chmod +x /tmp/dev10-project/bin/baobab-summary /tmp/dev10-project/bin/baobab-verify
               export PATH=/tmp/dev10-project/bin:$PATH WORKSPACE_DIR=/tmp/dev10-project
               cd "$WORKSPACE_DIR"
@@ -80,7 +80,7 @@ jobs:
 
               # The published v1.5.1 image carries attested native pnpm 12.16.1.
               # Exercise consumer pins 12.16.1 and 11.24.0 through the Corepack path.
-              test "$(pnpm --version)" = "12.16.1"
+              test "$(cd / && pnpm --version)" = "12.16.1"
               test -d /tmp/dev10-project/tests/fixtures/pnpm-workspace
               for pnpm_version in 12.16.1 11.24.0; do
                 rm -rf /tmp/dev10-workspace
