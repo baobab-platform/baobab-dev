@@ -13,7 +13,7 @@
     "source_package": "linux",
     "ubuntu_release": "26.04 LTS (resolute)",
     "package_version_observed_in_affected_versions": "7.0.0-43.43",
-    "interpretation": "All 41 exact Canonical OSV records have a resolute linux source-package entry whose affected versions include 7.0.0-43.43. This establishes vendor source-package affected status for that version, not runtime exploitability or a disposition for the linux-libc-dev binary.",
+    "interpretation": "All 41 exact Canonical OSV records have a Resolute linux source-package entry whose affected versions include 7.0.0-43.43 and whose ecosystem_specific.binaries lists linux-libc-dev 7.0.0-43.43. This establishes vendor source-to-binary association, not file-level inclusion of each affected source path in the package payload or runtime exploitability.",
     "binary_package_mapping": {
       "binary_package": "linux-libc-dev",
       "binary_version": "7.0.0-43.43",
