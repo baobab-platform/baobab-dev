@@ -19,7 +19,7 @@ from dev10_evidence_lock import EvidenceLock
 
 LOCK = EvidenceLock.load()
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
-SOURCE_FIELD = re.compile(r"^([a-z0-9+.-]+)(?:\\s+\\(([^)]+)\\))?$")
+SOURCE_FIELD = re.compile(r"^([a-z0-9+.-]+)(?:\s+\(([^)]+)\))?$")
 
 
 def digest(path: Path) -> str:
@@ -30,7 +30,7 @@ def installed_fields(path: Path) -> dict[str, str]:
     lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line]
     if len(lines) != 1:
         raise ValueError("installed dpkg package metadata must contain exactly one record")
-    values = lines[0].split("\\t")
+    values = lines[0].split("\t")
     names = ("binary_package", "binary_version", "architecture", "status",
              "source_package", "source_version")
     if len(values) != len(names):
@@ -40,7 +40,7 @@ def installed_fields(path: Path) -> dict[str, str]:
 
 def apt_records(path: Path) -> list[dict[str, str]]:
     records = []
-    for paragraph in re.split(r"\\n\\s*\\n", path.read_text(encoding="utf-8").strip()):
+    for paragraph in re.split(r"\n\s*\n", path.read_text(encoding="utf-8").strip()):
         fields: dict[str, str] = {}
         for line in paragraph.splitlines():
             if line[:1].isspace() or ":" not in line:
@@ -87,7 +87,7 @@ def verify(args: argparse.Namespace) -> dict:
         raise ValueError("apt package metadata does not corroborate the locked source package/version")
 
     policy = args.apt_policy.read_text(encoding="utf-8")
-    candidate = re.search(r"(?m)^\\s*Candidate:\\s*(\\S+)\\s*$", policy)
+    candidate = re.search(r"(?m)^\s*Candidate:\s*(\S+)\s*$", policy)
     if not candidate or candidate.group(1) != expected["binary_version"]:
         raise ValueError("apt candidate version differs from the installed binary version")
     pocket = expected["release_pocket"]
@@ -152,7 +152,7 @@ def main() -> int:
     try:
         evidence = verify(args)
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\\n",
+        args.output.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n",
                                encoding="utf-8")
         print("Ubuntu binary/source package identity verified:",
               evidence["binary_package"], "=>", evidence["source_package"],
