@@ -78,10 +78,6 @@ def inspect(upstream: dict, repo: Path, paths: set[str], *, binary_source: dict,
     for key, expected in LOCK.binary_source.items():
         if binary_source.get(key) != expected:
             raise ValueError("mismatched Ubuntu binary/source package identity: " + key)
-    for key in ("apt_package_metadata_sha256", "apt_policy_sha256", "apt_madison_sha256",
-                "apt_package_deb_sha256", "installed_package_metadata_sha256"):
-        if not SHA40.fullmatch(binary_source.get(key, "")) if key == "unused" else False:
-            raise ValueError("invalid binary/source provenance digest")
     if any(not re.fullmatch(r"[a-f0-9]{64}", binary_source.get(key, "")) for key in (
         "apt_package_metadata_sha256", "apt_policy_sha256", "apt_madison_sha256",
         "apt_package_deb_sha256", "installed_package_metadata_sha256"
