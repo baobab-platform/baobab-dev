@@ -97,6 +97,23 @@ def build(scanner: list[dict], canonical: list[dict],
             raise ValueError("captured binary manifest has no computed SHA-256")
         if LOCK.binary_manifest_sha256 and digest != LOCK.binary_manifest_sha256:
             raise ValueError("captured binary manifest digest differs from reviewed evidence lock")
+        binary_source = ubuntu_patches.get("binary_source")
+        if not isinstance(binary_source, dict) or binary_source.get(
+            "schema"
+        ) != "baobab.dev10.ubuntu-binary-source-provenance.v1":
+            raise ValueError("Ubuntu binary/source package provenance is missing")
+        for key, expected in LOCK.binary_source.items():
+            if binary_source.get(key) != expected:
+                raise ValueError("Ubuntu binary/source package identity differs from evidence lock")
+        for key in ("apt_package_metadata_sha256", "apt_policy_sha256", "apt_madison_sha256",
+                    "apt_package_deb_sha256", "installed_package_metadata_sha256"):
+            if not re.fullmatch(r"[a-f0-9]{64}", binary_source.get(key, "")):
+                raise ValueError("Ubuntu binary/source package evidence has an invalid digest")
+        if (binary_source.get("apt_candidate_version") != LOCK.package_version
+                or not binary_source.get("apt_package_index_sha256")
+                or not re.fullmatch(r"ubuntu@sha256:[a-f0-9]{64}",
+                                    binary_source.get("ubuntu_base_image", ""))):
+            raise ValueError("Ubuntu binary/source package evidence is incomplete")
         patch_rows = unique(ubuntu_patches["records"], "Ubuntu source")
         if set(patch_rows) != set(by_scanner):
             raise ValueError("Ubuntu patch input is incomplete")
@@ -228,6 +245,7 @@ def build(scanner: list[dict], canonical: list[dict],
                               "ubuntu_source_commit": (ubuntu_patches or {}).get("ubuntu_source_commit"),
                               "ubuntu_source_path_counts": (ubuntu_patches or {}).get("path_counts"),
                               "binary_manifest": (ubuntu_patches or {}).get("binary_manifest"),
+                               "binary_source": (ubuntu_patches or {}).get("binary_source"),
                               "canonical_osv_snapshot": ({
                                   "source_commit": canonical_osv.get("source_commit"),
                                   "retrieved_at": canonical_osv.get("retrieved_at"),
