@@ -22,7 +22,7 @@ class PostCreateTests(unittest.TestCase):
             for name, data in files.items():
                 p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(data)
             binpath=root/'bin';binpath.mkdir()
-            for tool in ['uv','poetry','npm','pnpm','node']:
+            for tool in ['uv','poetry','npm','pnpm','corepack','yarn','node']:
                 body='#!/bin/sh\nprintf "%s\\n" "'+tool+' $*" >> "$TRACE"\n'
                 if tool=='node':
                     body += """if [ "$1" = "--version" ]; then
@@ -33,23 +33,60 @@ else
   /usr/bin/python3 -c 'import json; print(json.load(open("package.json")).get("packageManager", ""))'
 fi
 """
-                elif tool=='pnpm':
-                    body += """if [ "$1" = "--version" ]; then
-  printf '%s\\n' 'VERSION_PIN'
+                elif tool=='corepack':
+                    body += """if [ "$1" = "install" ]; then
+  [ "$COREPACK_HOME" = "$PROJECT_COREPACK_HOME_EXPECTED" ] || exit 41
+  [ -d "$COREPACK_HOME" ] || exit 42
+  [ "$COREPACK_ENABLE_NETWORK" = "1" ] || exit 43
+  [ "$COREPACK_ON_UNVERIFIED_DOWNLOAD" = "error" ] || exit 44
+  [ "$COREPACK_ENABLE_DOWNLOAD_PROMPT" = "0" ] || exit 45
+  [ "$COREPACK_ENV_FILE" = "0" ] || exit 46
+  [ "$FAIL_TOOL" != "corepack" ] || exit 47
   exit 0
 fi
-if [ "$1" = "list" ]; then
-  if [ "$PNPM_MEMBERS" = "yes" ]; then
-    printf '[{"path":"%s/frontend"}]\\n' "$WORKSPACE_DIR"
-  else
-    printf '[{"path":"%s"}]\\n' "$WORKSPACE_DIR"
+if [ "$1" = "pnpm" ]; then
+  shift
+  [ "$COREPACK_HOME" = "$PROJECT_COREPACK_HOME_EXPECTED" ] || exit 48
+  [ -d "$COREPACK_HOME" ] || exit 49
+  [ "$COREPACK_ENABLE_NETWORK" = "0" ] || exit 50
+  [ "$COREPACK_ON_UNVERIFIED_DOWNLOAD" = "error" ] || exit 51
+  [ "$COREPACK_ENABLE_DOWNLOAD_PROMPT" = "0" ] || exit 52
+  [ "$COREPACK_ENV_FILE" = "0" ] || exit 53
+  if [ "$1" = "--version" ]; then
+    printf '%s\\n' 'VERSION_PIN'
+    exit 0
   fi
+  if [ "$1" = "list" ]; then
+    if [ "$PNPM_MEMBERS" = "yes" ]; then
+      printf '[{"path":"%s/frontend"}]\\n' "$WORKSPACE_DIR"
+    else
+      printf '[{"path":"%s"}]\\n' "$WORKSPACE_DIR"
+    fi
+    exit 0
+  fi
+fi
+exit 54
+""".replace("VERSION_PIN", pnpm)
+                elif tool=='yarn':
+                    body += """[ "$COREPACK_HOME" = "$IMAGE_COREPACK_HOME_EXPECTED" ] || exit 55
+[ "$COREPACK_ENABLE_NETWORK" = "0" ] || exit 56
+[ "$COREPACK_ENV_FILE" = "0" ] || exit 57
+if [ "$1" = "--version" ]; then
+  printf '4.18.1\\n'
   exit 0
 fi
-""".replace("VERSION_PIN", pnpm)
+"""
                 body+='[ "$FAIL_TOOL" != "'+tool+'" ]\n'
                 (binpath/tool).write_text(body);(binpath/tool).chmod(0o755)
+            project_corepack_home = root/'home'/'.cache'/'baobab-corepack'
             env={**os.environ,'PATH':str(binpath)+':/usr/bin:/bin','WORKSPACE_DIR':str(root),
+                 'HOME':str(root/'home'),
+                 'COREPACK_HOME':'/usr/local/share/baobab/corepack',
+                 'COREPACK_ENABLE_NETWORK':'0','COREPACK_ENABLE_DOWNLOAD_PROMPT':'0',
+                 'COREPACK_ENV_FILE':'0',
+                 'BAOBAB_COREPACK_PROJECT_HOME':str(project_corepack_home),
+                 'PROJECT_COREPACK_HOME_EXPECTED':str(project_corepack_home),
+                 'IMAGE_COREPACK_HOME_EXPECTED':'/usr/local/share/baobab/corepack',
                  'TRACE':str(root/'trace'),'FAIL_TOOL':fail,'PNPM_MEMBERS':members,
                  'REAL_NODE':shutil.which('node') or '/usr/bin/node'}
             result=subprocess.run(['bash',str(SCRIPT),'--stage=post-create'],cwd=root,env=env,
@@ -88,15 +125,37 @@ fi
         files={'package.json':json.dumps({'packageManager':'pnpm@12.21.0'}),'pnpm-lock.yaml':''}
         r,t=self.run_case(files)
         self.assertEqual(0,r.returncode,r.stdout+r.stderr)
-        self.assertIn('pnpm install --frozen-lockfile',t)
+        self.assertIn('corepack install',t)
+        self.assertIn('corepack pnpm install --frozen-lockfile',t)
+        self.assertNotIn('\\npnpm install --frozen-lockfile',t)
         r,t=self.run_case(files,pnpm='12.20.0')
         self.assertNotEqual(0,r.returncode)
-        self.assertNotIn('pnpm install',t)
+        self.assertNotIn('corepack pnpm install --frozen-lockfile',t)
 
     def test_frontend_uses_same_frozen_failure_path(self):
         r,t=self.run_case({'frontend/package.json':'{}','frontend/package-lock.json':'{}'},fail='npm')
         self.assertNotEqual(0,r.returncode)
         self.assertNotIn('npm install',t)
+
+    def test_yarn_uses_the_preloaded_image_corepack_cache(self):
+        files = {
+            'package.json': json.dumps({'packageManager': 'yarn@4.18.1'}),
+            'yarn.lock': '# yarn lockfile',
+        }
+        r, trace = self.run_case(files)
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+        self.assertIn('yarn install --immutable', trace)
+        self.assertNotIn('corepack install', trace)
+
+    def test_corepack_prepare_failure_never_falls_back_to_native_pnpm(self):
+        files = {
+            'package.json': json.dumps({'packageManager': 'pnpm@12.21.0'}),
+            'pnpm-lock.yaml': '',
+        }
+        r, trace = self.run_case(files, fail='corepack')
+        self.assertNotEqual(0, r.returncode)
+        self.assertNotIn('corepack pnpm install --frozen-lockfile', trace)
+        self.assertNotIn('pnpm install --frozen-lockfile', trace)
 
     def test_root_pnpm_workspace_requires_declared_frontend_membership(self):
         files = {
@@ -108,13 +167,13 @@ fi
         r, trace = self.run_case(files, members='no')
         self.assertNotEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn('not a declared member', r.stderr)
-        self.assertIn('pnpm list -r --depth -1 --json', trace)
+        self.assertIn('corepack pnpm list -r --depth -1 --json', trace)
         self.assertNotIn('npm ci', trace)
-        self.assertEqual(1, trace.count('pnpm install --frozen-lockfile'))
+        self.assertEqual(1, trace.count('corepack pnpm install --frozen-lockfile'))
         r, trace = self.run_case(files, members='yes')
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         self.assertIn('Frontend covered by the root frozen pnpm workspace lock', r.stdout)
-        self.assertEqual(1, trace.count('pnpm install --frozen-lockfile'))
+        self.assertEqual(1, trace.count('corepack pnpm install --frozen-lockfile'))
 
     def test_root_pnpm_workspace_without_lock_fails_closed(self):
         r, trace = self.run_case({

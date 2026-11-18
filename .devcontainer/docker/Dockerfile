@@ -584,11 +584,10 @@ FROM base AS with-node
 # hard, diagnosable "Corepack is about to download pnpm-11.24.0.tgz;
 # Network access disabled" error inside this Dockerfile's own build. A
 # fixed, absolute COREPACK_HOME sidesteps per-user cache resolution
-# entirely: whichever user invokes pnpm/yarn, Corepack looks in the same
-# place it was populated during this stage's own RUN. World-readable
-# (chmod after the prepare calls, once populated) since `vscode` never
-# needs to WRITE here — every version this image promises is already
-# resident by the time `USER vscode` takes effect further down.
+# entirely for the image-preloaded Yarn release. World-readable (chmod
+# after the prepare calls, once populated) since `vscode` never needs to
+# WRITE here. The lifecycle's consumer-pinned pnpm path uses a separate
+# writable per-user cache and never replaces this image-owned Yarn cache.
 ENV COREPACK_HOME=/usr/local/share/baobab/corepack
 
 # -----------------------------------------------------------------------------
@@ -777,15 +776,18 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     chmod -R a+rX "${COREPACK_HOME}"
 
 # Two distinct package-manager authorities live in this image:
-# - The pinned native pnpm 12 binary /usr/local/bin/pnpm is the only pnpm
-#   executor. pnpm 12 defaults to downloading the project's packageManager
-#   version on a mismatch (pmOnFail=download); that defeats the reproducible,
-#   SHA-256 verified release binary and can hang Codespaces lifecycle scripts.
-#   The supported pnpm 11/12 setting pmOnFail=error rejects a mismatch while
-#   retaining exact-version verification (NOT pmOnFail=ignore/warn).
-# - Corepack 0.36 is independently installed for Yarn only. Its offline and
-#   Known Good Release controls remain fail-closed; they do not configure
-#   pnpm 12's separate package-manager bootstrap metadata resolver.
+# - The pinned native pnpm 12 binary /usr/local/bin/pnpm remains the
+#   image-wide default. pnpm 12's pmOnFail=error prevents it from silently
+#   downloading a consumer's packageManager version and replacing the
+#   SHA-256-verified publisher binary.
+# - Corepack 0.36 retains the image-owned, offline cache for preloaded Yarn.
+#   The Codespaces lifecycle invokes Corepack explicitly for a consumer's
+#   exact pnpm packageManager pin, hydrates that pin into a separate writable
+#   user cache with COREPACK_ON_UNVERIFIED_DOWNLOAD=error, then disables
+#   Corepack networking for version checks and execution. COREPACK_ENABLE_NETWORK
+#   remains 0 globally; only the one project-scoped Corepack install overrides
+#   it. COREPACK_ENV_FILE=0 prevents a workspace .corepack.env from weakening
+#   the image's network, cache or download-verification controls.
 #
 # A FRESH pnpm 12 lockfile containing packageManager: pnpm@12.x needs registry
 # metadata once to record its configuration dependency and its integrity.
@@ -795,6 +797,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 # that an empty cache resolve an unrecorded package offline.
 ENV COREPACK_ENABLE_NETWORK=0 \
     COREPACK_DEFAULT_TO_LATEST=0 \
+    COREPACK_ENV_FILE=0 \
     pnpm_config_pm_on_fail=error
 
 # -----------------------------------------------------------------------------

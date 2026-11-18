@@ -81,6 +81,8 @@ done
 
 WORKSPACE_DIR="${WORKSPACE_DIR:-$(pwd)}"
 CONFIG_DIR="${WORKSPACE_DIR}/config"
+: "${HOME:?HOME must be set for the user-owned Corepack cache}"
+PROJECT_COREPACK_HOME="${BAOBAB_COREPACK_PROJECT_HOME:-${HOME}/.cache/baobab-corepack}"
 
 log() {
     printf '\n\033[1;36m[post-create:%s]\033[0m %s\n' "$STAGE" "$1"
@@ -156,6 +158,32 @@ run_on_create() {
 # Stage: post-create (and update-content — see CHANGE LOG above)
 # -----------------------------------------------------------------------------
 
+# Keep the image-owned COREPACK_HOME as the read-only cache for preloaded Yarn.
+# Consumer-pinned pnpm is hydrated separately into a writable user cache.
+# Only the one-time Corepack install gets network access; the package-manager
+# download must be signed by the registry or carry an explicit packageManager hash.
+prepare_project_pnpm() {
+    mkdir -p "${PROJECT_COREPACK_HOME}" \
+        || die "Project Corepack cache is not writable: ${PROJECT_COREPACK_HOME}"
+    [ -d "${PROJECT_COREPACK_HOME}" ] && [ -w "${PROJECT_COREPACK_HOME}" ] \
+        || die "Project Corepack cache is not writable: ${PROJECT_COREPACK_HOME}"
+    COREPACK_HOME="${PROJECT_COREPACK_HOME}" \
+    COREPACK_ENABLE_NETWORK=1 \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    COREPACK_ON_UNVERIFIED_DOWNLOAD=error \
+    COREPACK_ENV_FILE=0 \
+        corepack install
+}
+
+run_project_pnpm() {
+    COREPACK_HOME="${PROJECT_COREPACK_HOME}" \
+    COREPACK_ENABLE_NETWORK=0 \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    COREPACK_ON_UNVERIFIED_DOWNLOAD=error \
+    COREPACK_ENV_FILE=0 \
+        corepack pnpm "$@"
+}
+
 install_node_project() {
     command -v node >/dev/null 2>&1 || die "Node is required by package.json."
     if [ -f .node-version ]; then
@@ -175,9 +203,12 @@ install_node_project() {
         [[ "$manager" =~ ^pnpm@([0-9]+\.[0-9]+\.[0-9]+)(\+sha(224|512)\.[0-9a-f]+)?$ ]] \
             || die "package.json must declare an exact pnpm packageManager."
         local pin="${BASH_REMATCH[1]}"
-        command -v pnpm >/dev/null 2>&1 || die "pnpm is required."
-        [ "$(pnpm --version)" = "$pin" ] || die "Project pnpm version mismatch."
-        pnpm install --frozen-lockfile
+        command -v corepack >/dev/null 2>&1 || die "Corepack is required for project-pinned pnpm."
+        if ! prepare_project_pnpm; then
+            die "Corepack could not securely prepare the exact project-pinned pnpm version."
+        fi
+        [ "$(run_project_pnpm --version)" = "$pin" ] || die "Project pnpm version mismatch."
+        run_project_pnpm install --frozen-lockfile
     elif [ -f yarn.lock ]; then
         [[ "$manager" =~ ^yarn@([0-9]+\.[0-9]+\.[0-9]+)$ ]] || die "Exact Yarn packageManager is required."
         local pin="${BASH_REMATCH[1]}"
@@ -269,8 +300,8 @@ run_post_create() {
         # that would bypass the root's committed lock and workspace policy.
         if [ -f package.json ] && [ -f pnpm-workspace.yaml ]; then
             [ -f pnpm-lock.yaml ] || die "Root pnpm workspace requires a committed pnpm-lock.yaml."
-            command -v pnpm >/dev/null 2>&1 || die "pnpm is required by the root workspace."
-            if ! { pnpm list -r --depth -1 --json | node -e '
+            command -v corepack >/dev/null 2>&1 || die "Corepack is required by the root workspace."
+            if ! { run_project_pnpm list -r --depth -1 --json | node -e '
                 const fs=require("fs");
                 try {
                     const rows=JSON.parse(fs.readFileSync(0,"utf8"));
