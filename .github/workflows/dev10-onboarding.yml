@@ -60,12 +60,15 @@ jobs:
           IMAGE_REF: ${{ steps.stable-image.outputs.image_ref }}
         run: |
           set -euo pipefail
+          test -f "$GITHUB_WORKSPACE/scripts/post-create.sh"
           docker image inspect --format '{{json .RepoDigests}}' "$IMAGE_REF"
           docker run --rm -e HOME=/tmp/dev10-home \
             -v "$GITHUB_WORKSPACE:/source:ro" "$IMAGE_REF" bash -c '
               set -euo pipefail
               mkdir -p "$HOME" /tmp/dev10-project
+              test -f /source/scripts/post-create.sh || { echo "Missing /source/scripts/post-create.sh"; ls -la /source; exit 2; }
               cp -R /source/. /tmp/dev10-project/
+              test -f /tmp/dev10-project/scripts/post-create.sh || { echo "Checkout copy omitted scripts/post-create.sh"; find /tmp/dev10-project -maxdepth 3 -type f | head -80; exit 3; }
               # The published v1.5.1 image has older summary/verify commands.
               # Route only this test container's lifecycle calls to the current
               # checkout scripts; production images keep their installed commands.
@@ -75,7 +78,7 @@ jobs:
               chmod +x /tmp/dev10-project/bin/baobab-summary /tmp/dev10-project/bin/baobab-verify
               export PATH=/tmp/dev10-project/bin:$PATH WORKSPACE_DIR=/tmp/dev10-project
               cd "$WORKSPACE_DIR"
-              bash scripts/post-create.sh --stage=post-create
+              bash /tmp/dev10-project/scripts/post-create.sh --stage=post-create
               python3 -B -m unittest discover -s tests -v
 
               # The published v1.5.1 image carries attested native pnpm 12.16.1.
