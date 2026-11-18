@@ -99,6 +99,11 @@ def build(scanner: list[dict], canonical: list[dict],
         patch_rows = unique(ubuntu_patches["records"], "Ubuntu source")
         if set(patch_rows) != set(by_scanner):
             raise ValueError("Ubuntu patch input is incomplete")
+    historical_inventory = tsv(Path(__file__).resolve().parents[1] / LOCK.historical_inventory_path)
+    historical_ids = {row["cve"] for row in historical_inventory}
+    if len(historical_inventory) != LOCK.historical_inventory_count or len(historical_ids) != LOCK.historical_inventory_count:
+        raise ValueError("historical 295-CVE inventory is incomplete")
+    observed_43_43 = LOCK.observed_kernel_cves
     records = []
     for cve in sorted(by_scanner):
         t, v = by_scanner[cve], by_vendor[cve]
@@ -109,19 +114,34 @@ def build(scanner: list[dict], canonical: list[dict],
         paths = u.get("upstream_paths", [])
         internal = u.get("affected_headers", [])
         matched = u.get("matching_shipped_uapi_headers", [])
+        scan_provenance = []
+        if cve in historical_ids:
+            scan_provenance.append({
+                "package_version": LOCK.historical_package_version,
+                "source": "historical_295_cve_inventory",
+                "inventory_path": LOCK.historical_inventory_path,
+                "inventory_sha256": LOCK.historical_inventory_sha256,
+            })
+        if cve in observed_43_43:
+            scan_provenance.append({
+                "package_version": LOCK.profile_scan_package_version,
+                "source": "PR74_multi_profile_trivy_scan",
+                "run_id": LOCK.profile_scan_run_id,
+                "artifact_set": "security/evidence/dev10-kernel-evidence.lock.json#profile_scan_run.artifacts",
+                "profile_architecture_artifact_count": len(LOCK.profile_scan_artifacts),
+                "observed_on_43_43": True,
+            })
         records.append({
             "cve": cve, "severity": t["severity"], "original_scanner_title": t["trivy_title"],
             "inventory_provenance": {
                 "origin": ("new_298_cve_extension" if cve in {
                     "CVE-2026-98869", "CVE-2026-98890", "CVE-2026-99083"
                 } else "historical_295_cve_inventory"),
-                "scan_observation": "not_asserted_by_source_path_audit",
                 "historical_inventory_package_version": (
-                    "7.0.0-42.42" if cve not in {
-                        "CVE-2026-98869", "CVE-2026-98890", "CVE-2026-99083"
-                    } else None
+                    LOCK.historical_package_version if cve in historical_ids else None
                 ),
             },
+            "scan_provenance": scan_provenance,
             "canonical": {"status": v["ubuntu_linux_resolute_status"],
                           "pending_version_or_detail": v["canonical_pending_version_or_detail"],
                           "last_updated": v["canonical_updated_at"], "url": v["vendor_url"],
@@ -189,7 +209,20 @@ def build(scanner: list[dict], canonical: list[dict],
         "schema": "baobab.dev10.cve-applicability-register.v1",
         "decision": "SECURITY_HELD_NO_EXCEPTION_APPROVED",
         "advisory_count": COUNT,
-        "source_provenance": {"upstream_linux_cna_revision": source_sha,
+        "source_provenance": {"evidence_lock_sha256": LOCK.evidence_lock_sha256,
+                              "historical_295_inventory": {
+                                  "path": LOCK.historical_inventory_path,
+                                  "sha256": LOCK.historical_inventory_sha256,
+                                  "package_version": LOCK.historical_package_version,
+                                  "count": LOCK.historical_inventory_count,
+                              },
+                              "profile_scan_run": {
+                                  "run_id": LOCK.profile_scan_run_id,
+                                  "package_version": LOCK.profile_scan_package_version,
+                                  "observed_kernel_cves": sorted(LOCK.observed_kernel_cves),
+                                  "artifacts": list(LOCK.profile_scan_artifacts),
+                              },
+                              "upstream_linux_cna_revision": source_sha,
                               "ubuntu_source_tag": (ubuntu_patches or {}).get("ubuntu_release_tag"),
                               "ubuntu_source_commit": (ubuntu_patches or {}).get("ubuntu_source_commit"),
                               "ubuntu_source_path_counts": (ubuntu_patches or {}).get("path_counts"),
