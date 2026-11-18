@@ -1,0 +1,246 @@
+{
+  "schema": "baobab.dev10.image-observed-41-cvelist-upstream-lock.v1",
+  "status": "CVE_LIST_LINUX_CNA_RECORDS_PINNED_KERNEL_CNA_REPOSITORY_CROSS_CHECK_PENDING",
+  "source": {
+    "repository": "CVEProject/cvelistV5",
+    "commit": "4c07c147c7a7132e0228ab8bf6fb8b411b256e13",
+    "commit_date": "2026-11-18T23:37:56Z",
+    "record_inventory_path": "docs/assessments/dev10-image-observed-cves-41-upstream.tsv",
+    "record_count": 41,
+    "provider_short_name": "Linux",
+    "record_format": "CVE_RECORD 5.2"
+  },
+  "kernel_cna_repository_pin": {
+    "repository": "kernel.org/pub/scm/linux/security/vulns",
+    "commit": "f418c1116f2ec1940e27ae4a38dbf42a0be719a8",
+    "status": "immutable_revision_pinned_direct_record_fetch_and_mirror_comparison_pending"
+  },
+  "records": [
+    {
+      "cve": "CVE-2026-100081",
+      "path": "cves/2026/100xxx/CVE-2026-100081.json",
+      "blob_sha1": "d9a318bed5bab98bded778e4fbd545e3d068be03",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-11-13T14:17:19.978Z",
+      "affected_source_paths": [
+        "drivers/net/xen-netback/interface.c",
+        "drivers/net/xen-netback/xenbus.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/0d515c409033c8e2a645a781be3ca76ab825fc8c",
+        "https://git.kernel.org/stable/c/0e786123e46d08d2247ce93a5435e45ed9f4c5d1",
+        "https://git.kernel.org/stable/c/34f0f63dc6dc11895a17bb5672451b6b11622c99",
+        "https://git.kernel.org/stable/c/96e05a8ce243e2207704e2e7a6e7d1172730f515",
+        "https://git.kernel.org/stable/c/990d123d9eaa3ac6c979eed245658676d65ce0db",
+        "https://git.kernel.org/stable/c/a6bb2f1fa62c56279bdcdadce28d1310c5e12b62",
+        "https://git.kernel.org/stable/c/bfddc420afe827d9f06458cdf8087cd602f8c9cb",
+        "https://git.kernel.org/stable/c/fb38fc58acb26d74fe8f7b19621fafaae3c040ff"
+      ],
+      "candidate_fix_commit_ids": [
+        "0d515c409033c8e2a645a781be3ca76ab825fc8c",
+        "0e786123e46d08d2247ce93a5435e45ed9f4c5d1",
+        "34f0f63dc6dc11895a17bb5672451b6b11622c99",
+        "96e05a8ce243e2207704e2e7a6e7d1172730f515",
+        "990d123d9eaa3ac6c979eed245658676d65ce0db",
+        "a6bb2f1fa62c56279bdcdadce28d1310c5e12b62",
+        "bfddc420afe827d9f06458cdf8087cd602f8c9cb",
+        "fb38fc58acb26d74fe8f7b19621fafaae3c040ff"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99109",
+      "path": "cves/2026/99xxx/CVE-2026-99109.json",
+      "blob_sha1": "ef810635665919fd3840b39f3bd7417ced887f58",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-11-10T18:15:24.796Z",
+      "affected_source_paths": [
+        "fs/smb/client/cifssmb.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/4aa2c106aef4bf3dfd97c30842db0767b26e8428",
+        "https://git.kernel.org/stable/c/79345a5d14b851e9ed28d3a9fe53301661dbcf11",
+        "https://git.kernel.org/stable/c/9efbd764ab80fa86d2258550877a74d78a25e855",
+        "https://git.kernel.org/stable/c/bc737f5f5cc3fcd10bd919527cacc0efd703c30b"
+      ],
+      "candidate_fix_commit_ids": [
+        "4aa2c106aef4bf3dfd97c30842db0767b26e8428",
+        "79345a5d14b851e9ed28d3a9fe53301661dbcf11",
+        "9efbd764ab80fa86d2258550877a74d78a25e855",
+        "bc737f5f5cc3fcd10bd919527cacc0efd703c30b"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99110",
+      "path": "cves/2026/99xxx/CVE-2026-99110.json",
+      "blob_sha1": "e95a76a6b17219b415737f19b4f10544900bad6f",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-31T12:43:03.377Z",
+      "affected_source_paths": [
+        "fs/smb/client/cifssmb.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/1dac61e2c29d1a71784604b48cf3b1234a65ec29",
+        "https://git.kernel.org/stable/c/596b4062e6c75bdd85a7f2b7f2087a872dc420ac",
+        "https://git.kernel.org/stable/c/68652afb9b9adf70125971abee9b95341e042249",
+        "https://git.kernel.org/stable/c/9312a00215602ba028495ef3fa00fb84af0478e0",
+        "https://git.kernel.org/stable/c/d96f3365ce61c5f39602955af43c8174548dee98"
+      ],
+      "candidate_fix_commit_ids": [
+        "1dac61e2c29d1a71784604b48cf3b1234a65ec29",
+        "596b4062e6c75bdd85a7f2b7f2087a872dc420ac",
+        "68652afb9b9adf70125971abee9b95341e042249",
+        "9312a00215602ba028495ef3fa00fb84af0478e0",
+        "d96f3365ce61c5f39602955af43c8174548dee98"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99116",
+      "path": "cves/2026/99xxx/CVE-2026-99116.json",
+      "blob_sha1": "8f18f71ad2396d7e5709bd0dc73e597549bd6253",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-31T12:43:13.361Z",
+      "affected_source_paths": [
+        "net/core/sock.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/1d2929d0850fff683b8aff051275945e65f082c8",
+        "https://git.kernel.org/stable/c/a9f14ea73e82db743f0acf4219f499d594589288",
+        "https://git.kernel.org/stable/c/c962695467d3ab9738a6508279827ec33a7d2bdf"
+      ],
+      "candidate_fix_commit_ids": [
+        "1d2929d0850fff683b8aff051275945e65f082c8",
+        "a9f14ea73e82db743f0acf4219f499d594589288",
+        "c962695467d3ab9738a6508279827ec33a7d2bdf"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99117",
+      "path": "cves/2026/99xxx/CVE-2026-99117.json",
+      "blob_sha1": "79f6cd611e81fe5e9f94a7549ad5f053369038b6",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-31T12:43:18.238Z",
+      "affected_source_paths": [
+        "net/bridge/br_multicast.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/025c25ad73323c7dc5af4ee97fe0a2c0b3c177c8",
+        "https://git.kernel.org/stable/c/5a3f7a683aee56e1f15c9d53041f3236767eaae7",
+        "https://git.kernel.org/stable/c/8243d587a081e790ad96e80d48eef44d9f7ef005",
+        "https://git.kernel.org/stable/c/ab836d56ff43f2e7927e88c83cd02c47a98a672e",
+        "https://git.kernel.org/stable/c/b0db9f4ff402becff710ab27dbd9f6fe4850b47e",
+        "https://git.kernel.org/stable/c/b45e8c24608c992d1e2cea047eb5bcbfa537f86b",
+        "https://git.kernel.org/stable/c/be331b23c650de9518f8266b901d8abb9b36af77",
+        "https://git.kernel.org/stable/c/e69d4927dacd6ddaff09777a89efc0d3143d3b0d"
+      ],
+      "candidate_fix_commit_ids": [
+        "025c25ad73323c7dc5af4ee97fe0a2c0b3c177c8",
+        "5a3f7a683aee56e1f15c9d53041f3236767eaae7",
+        "8243d587a081e790ad96e80d48eef44d9f7ef005",
+        "ab836d56ff43f2e7927e88c83cd02c47a98a672e",
+        "b0db9f4ff402becff710ab27dbd9f6fe4850b47e",
+        "b45e8c24608c992d1e2cea047eb5bcbfa537f86b",
+        "be331b23c650de9518f8266b901d8abb9b36af77",
+        "e69d4927dacd6ddaff09777a89efc0d3143d3b0d"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99126",
+      "path": "cves/2026/99xxx/CVE-2026-99126.json",
+      "blob_sha1": "e1f7d92e9a6f6ab51794e66bd57b11525d9d9904",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-30T12:41:59.971Z",
+      "affected_source_paths": [
+        "drivers/s390/net/ctcm_mpc.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/1525fb6e2f9f9a2c8c8723ee0959b1130a6b8213",
+        "https://git.kernel.org/stable/c/34fa3607b7604b3052b19cec8b0ad644818cdd2a",
+        "https://git.kernel.org/stable/c/8a2f7a4ad1d81612fa65bfa4d392ba1bb2f5eeab",
+        "https://git.kernel.org/stable/c/977dac6cc5531a8e058df05b6af94406b940cb9e",
+        "https://git.kernel.org/stable/c/a7c3e1795e4fe5e6680cab7cd7eee0503b00a248",
+        "https://git.kernel.org/stable/c/b264d8422779d69febce914efc47a92a85cc382c",
+        "https://git.kernel.org/stable/c/c11e435d334e4c311eaaf721e179a5ca6852c221",
+        "https://git.kernel.org/stable/c/f9d9e2dadc9fbdfe01aeb6581978c3b59092919e"
+      ],
+      "candidate_fix_commit_ids": [
+        "1525fb6e2f9f9a2c8c8723ee0959b1130a6b8213",
+        "34fa3607b7604b3052b19cec8b0ad644818cdd2a",
+        "8a2f7a4ad1d81612fa65bfa4d392ba1bb2f5eeab",
+        "977dac6cc5531a8e058df05b6af94406b940cb9e",
+        "a7c3e1795e4fe5e6680cab7cd7eee0503b00a248",
+        "b264d8422779d69febce914efc47a92a85cc382c",
+        "c11e435d334e4c311eaaf721e179a5ca6852c221",
+        "f9d9e2dadc9fbdfe01aeb6581978c3b59092919e"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99128",
+      "path": "cves/2026/99xxx/CVE-2026-99128.json",
+      "blob_sha1": "be3b333cb352272fcd789c8249476c400418ef1b",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-30T12:42:02.124Z",
+      "affected_source_paths": [
+        "net/sctp/inqueue.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/40507f59f230dcf60ae13cb48d34f8c6e9f40659",
+        "https://git.kernel.org/stable/c/5a7ee52589dae36c93dc64d7a97c5ded84618572",
+        "https://git.kernel.org/stable/c/6cfc1b90cb86f4aabc69fb8e30128e07e2cdfa3a",
+        "https://git.kernel.org/stable/c/9ac57e4c62e93c287b36080e5da3645690549990",
+        "https://git.kernel.org/stable/c/b0dbd53b242609c88e81b0a49093bdbef5d5a418",
+        "https://git.kernel.org/stable/c/cc4a4f1d6b6d725438dc37b97f03d95ed9feb63f",
+        "https://git.kernel.org/stable/c/d28ea1a62e27210d8ea3cf496dfae85dbdd7b84f",
+        "https://git.kernel.org/stable/c/e0fb7fe180488a5afa2e91509ea838e8df8cb771"
+      ],
+      "candidate_fix_commit_ids": [
+        "40507f59f230dcf60ae13cb48d34f8c6e9f40659",
+        "5a7ee52589dae36c93dc64d7a97c5ded84618572",
+        "6cfc1b90cb86f4aabc69fb8e30128e07e2cdfa3a",
+        "9ac57e4c62e93c287b36080e5da3645690549990",
+        "b0dbd53b242609c88e81b0a49093bdbef5d5a418",
+        "cc4a4f1d6b6d725438dc37b97f03d95ed9feb63f",
+        "d28ea1a62e27210d8ea3cf496dfae85dbdd7b84f",
+        "e0fb7fe180488a5afa2e91509ea838e8df8cb771"
+      ]
+    },
+    {
+      "cve": "CVE-2026-99138",
+      "path": "cves/2026/99xxx/CVE-2026-99138.json",
+      "blob_sha1": "f6591042d6cc1af44367defff99771bac543633a",
+      "provider_short_name": "Linux",
+      "assigner_short_name": "Linux",
+      "record_updated": "2026-10-30T12:42:10.759Z",
+      "affected_source_paths": [
+        "net/ipv4/tcp.c",
+        "net/ipv4/tcp_dctcp.c"
+      ],
+      "candidate_fix_commit_references": [
+        "https://git.kernel.org/stable/c/385e474086c2e7e29e2dded690be40dc273e20ee",
+        "https://git.kernel.org/stable/c/39aa489e85752f9de214edb0f85e4d578e57af29",
+        "https://git.kernel.org/stable/c/66b831b427301a9c3e485564009d476631413103",
+        "https://git.kernel.org/stable/c/7c312f17917455eedcea29735fa302ebb93cb9b9",
+        "https://git.kernel.org/stable/c/86814e5370068ec2bf0caa6e6d55c3e5bfc6c324",
+        "https://git.kernel.org/stable/c/8d5fc9e6dc09174d0da6e59678eb8e01a890cbd3",
+        "https://git.kernel.org/stable/c/a8b024cbf62b497062c86995737fc303e4cc384e",
+        "https://git.kernel.org/stable/c/e057d201640eebb8ed47ec924872c41570a3bd28"
+      ],
+      "candidate_fix_commit_ids": [
+        "385e474086c2e7e29e2dded690be40dc273e20ee",
+        "39aa489e85752f9de214edb0f85e4d578e57af29",
+        "66b831b427301a9c3e485564009d476631413103",
+        "7c312f17917455eedcea29735fa302ebb93cb9b9",
+        "86814e5370068ec2bf0caa6e6d55c3e5bfc6c324",
+        "8d5fc9e6dc09174d0da6e59678eb8e01a890cbd3",
+        "a8b024cbf62b497062c86995737fc303e4cc384e",
+        "e057d201640eebb8ed47ec924872c41570a3bd28"
+      ]
+    }
+  ]
+}
