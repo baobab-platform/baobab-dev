@@ -27,9 +27,29 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - architecture: amd64
+          - profile: final
+            architecture: amd64
             runner: ubuntu-26.04
-          - architecture: arm64
+          - profile: final
+            architecture: arm64
+            runner: ubuntu-26.04-arm
+          - profile: frontend
+            architecture: amd64
+            runner: ubuntu-26.04
+          - profile: frontend
+            architecture: arm64
+            runner: ubuntu-26.04-arm
+          - profile: frontend-e2e
+            architecture: amd64
+            runner: ubuntu-26.04
+          - profile: frontend-e2e
+            architecture: arm64
+            runner: ubuntu-26.04-arm
+          - profile: infra
+            architecture: amd64
+            runner: ubuntu-26.04
+          - profile: infra
+            architecture: arm64
             runner: ubuntu-26.04-arm
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
@@ -62,8 +82,10 @@ jobs:
         id: stable-image
         run: |
           set -euo pipefail
-          IMAGE_TAG="$(jq -r '.stable_base_image.image_tag' security/evidence/dev10-kernel-evidence.lock.json)"
-          EXPECTED_INDEX_DIGEST="$(jq -r '.stable_base_image.index_digest' security/evidence/dev10-kernel-evidence.lock.json)"
+          PROFILE="${{ matrix.profile }}"
+          IMAGE_TAG="$(jq -r --arg profile "$PROFILE" '.stable_profile_images[$profile].image_tag' security/evidence/dev10-kernel-evidence.lock.json)"
+          EXPECTED_INDEX_DIGEST="$(jq -r --arg profile "$PROFILE" '.stable_profile_images[$profile].index_digest' security/evidence/dev10-kernel-evidence.lock.json)"
+          test -n "$IMAGE_TAG" && test "$EXPECTED_INDEX_DIGEST" != "null"
           docker buildx imagetools inspect --raw "$IMAGE_TAG" > "$RUNNER_TEMP/baobab-dev-index.json"
           jq -e '
             (.mediaType == "application/vnd.oci.image.index.v1+json" or
@@ -87,7 +109,7 @@ jobs:
           }
           docker pull "$image_ref"
           echo "image_ref=$image_ref" >> "$GITHUB_OUTPUT"
-          echo "Onboarding base: $image_ref (${{ matrix.architecture }} native runner)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Onboarding base: $PROFILE / $image_ref (${{ matrix.architecture }} native runner)" >> "$GITHUB_STEP_SUMMARY"
       - name: Install Cosign CLI for independent GHCR verification
         uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: Independently verify stable GHCR digest, native signatures, SBOM and SLSA provenance
@@ -97,9 +119,10 @@ jobs:
           IMAGE_REF: ${{ steps.stable-image.outputs.image_ref }}
         run: |
           set -euo pipefail
-          RELEASE_TAG="$(jq -r '.stable_base_image.release_tag' security/evidence/dev10-kernel-evidence.lock.json)"
-          SIGNER_TAG="$(jq -r '.stable_base_image.signer_tag' security/evidence/dev10-kernel-evidence.lock.json)"
-          expected_sha="$(jq -r '.stable_base_image.source_sha' security/evidence/dev10-kernel-evidence.lock.json)"
+          PROFILE="${{ matrix.profile }}"
+          RELEASE_TAG="$(jq -r --arg profile "$PROFILE" '.stable_profile_images[$profile].release_tag' security/evidence/dev10-kernel-evidence.lock.json)"
+          SIGNER_TAG="$(jq -r --arg profile "$PROFILE" '.stable_profile_images[$profile].signer_tag' security/evidence/dev10-kernel-evidence.lock.json)"
+          expected_sha="$(jq -r --arg profile "$PROFILE" '.stable_profile_images[$profile].source_sha' security/evidence/dev10-kernel-evidence.lock.json)"
           git fetch --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
           observed_sha="$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
           test "$observed_sha" = "$expected_sha"
@@ -137,7 +160,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: dev10-ghcr-provenance-${{ matrix.architecture }}
+          name: dev10-ghcr-provenance-${{ matrix.profile }}-${{ matrix.architecture }}
           path: ${{ runner.temp }}/ghcr-native-provenance-evidence.json
           if-no-files-found: warn
           retention-days: 30
@@ -149,9 +172,20 @@ jobs:
           test -f "$GITHUB_WORKSPACE/scripts/ci/onboarding-published-image.sh"
           bash -n "$GITHUB_WORKSPACE/scripts/ci/onboarding-published-image.sh"
           docker image inspect --format '{{json .RepoDigests}}' "$IMAGE_REF"
+          mkdir -p "$RUNNER_TEMP/dev10-evidence"
+          chmod 0777 "$RUNNER_TEMP/dev10-evidence"
           docker run --rm -e HOME=/tmp/dev10-home \
-            -v "$GITHUB_WORKSPACE:/source:ro" "$IMAGE_REF" \
+            -v "$GITHUB_WORKSPACE:/source:ro" \
+            -v "$RUNNER_TEMP/dev10-evidence:/evidence" "$IMAGE_REF" \
             bash /source/scripts/ci/onboarding-published-image.sh
+      - name: Retain immutable-image onboarding verification evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev10-onboarding-verification-${{ matrix.profile }}-${{ matrix.architecture }}
+          path: ${{ runner.temp }}/dev10-evidence/onboarding-verification.json
+          if-no-files-found: warn
+          retention-days: 30
       - name: A failed final verifier must fail the actual container lifecycle
         env:
           IMAGE_REF: ${{ steps.stable-image.outputs.image_ref }}
