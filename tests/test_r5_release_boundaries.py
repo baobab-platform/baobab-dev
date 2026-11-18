@@ -24,6 +24,9 @@ def active_yaml(job: str) -> str:
 
 class R5ReleaseBoundaryTests(unittest.TestCase):
     def test_no_pr_or_main_registry_write_in_build(self):
+        pull_request = source.split("  pull_request:", 1)[1].split("  workflow_dispatch:", 1)[0]
+        self.assertNotIn("branches:", pull_request,
+                         "stacked security PRs must not be stranded by transient base-branch allowlists")
         build = active_yaml(jobs()["build"])
         self.assertRegex(build, r"(?m)^\s+permissions:\s*\n\s+contents: read\s*$")
         self.assertNotIn("packages: write", build)
