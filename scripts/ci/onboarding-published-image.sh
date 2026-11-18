@@ -9,6 +9,11 @@ CONSUMER_DIR=/tmp/dev10-consumer
 TOOLS_DIR=/tmp/dev10-tools
 EVIDENCE_FILE=/evidence/onboarding-verification.json
 EXPECTED_PROFILE="${EXPECTED_PROFILE:?expected matrix profile is required}"
+IMAGE_REF="${IMAGE_REF:?immutable image reference is required}"
+[[ "$IMAGE_REF" =~ ^ghcr\\.io/baobab-platform/baobab-dev@sha256:[a-f0-9]{64}$ ]] || {
+  echo "Onboarding requires the exact immutable Baobab GHCR index digest" >&2
+  exit 2
+}
 BUILD_PROFILE="${BAOBAB_BUILD_PROFILE:?published image must declare its baked profile}"
 EXPECTED_RUNTIME_PROFILE="$EXPECTED_PROFILE"
 if [[ "$EXPECTED_PROFILE" == "final" ]]; then
@@ -30,6 +35,7 @@ require_source() {
 
 require_source
 [[ "$(id -u)" -ne 0 ]] || { echo "Published image onboarding must run as its non-root runtime user" >&2; exit 2; }
+[[ "$(getent passwd "$(id -u)" | cut -d: -f6)" == "$HOME" ]] || { echo "Container HOME must remain the image runtime user home" >&2; exit 2; }
 mkdir -p "$HOME" "$PROJECT_DIR" "$TOOLS_DIR" /evidence
 cp -a "$SRC_DIR/." "$PROJECT_DIR/"
 test -f "$PROJECT_DIR/scripts/post-create.sh"
@@ -112,10 +118,11 @@ fi
 # historical image may fail newer tool-version checks; retain that outcome as
 # an explicit unqualified baseline instead of suppressing it or calling it green.
 verify_log=/tmp/dev10-verify.log
-set +e
-WORKSPACE_DIR="$PROJECT_DIR" bash "$SRC_DIR/scripts/verify.sh" >"$verify_log" 2>&1
-verify_status=$?
-set -e
+if WORKSPACE_DIR="$PROJECT_DIR" bash "$SRC_DIR/scripts/verify.sh" >"$verify_log" 2>&1; then
+  verify_status=0
+else
+  verify_status=$?
+fi
 cat "$verify_log"
 python3 - "$verify_log" "$EVIDENCE_FILE" "$EXPECTED_PROFILE" "$BUILD_PROFILE" "$verify_status" <<'PY'
 import json
