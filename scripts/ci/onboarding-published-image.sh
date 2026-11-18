@@ -57,6 +57,15 @@ uv_version="$("$TOOLS_DIR/uv" --version)"
   echo "Expected uv 0.13.9, got: $uv_version" >&2
   exit 2
 }
+cat > "$TOOLS_DIR/baobab-summary" <<'SH'
+#!/usr/bin/env bash
+exec bash /source/scripts/summary.sh "$@"
+SH
+cat > "$TOOLS_DIR/baobab-verify" <<'SH'
+#!/usr/bin/env bash
+exec bash /source/scripts/verify.sh "$@"
+SH
+chmod +x "$TOOLS_DIR/baobab-summary" "$TOOLS_DIR/baobab-verify"
 export PATH="$TOOLS_DIR:$PATH"
 
 # Lifecycle scripts are executed from the read-only checkout while WORKSPACE_DIR
