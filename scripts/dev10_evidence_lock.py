@@ -1,6 +1,7 @@
 """Validated, single source of truth for DEV-10 kernel evidence inputs."""
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import re
@@ -30,6 +31,16 @@ class EvidenceLock:
     binary_manifest_sha256: str | None
     header_count: int
     stable_profile_images: dict[str, dict]
+    historical_inventory_path: str
+    historical_inventory_sha256: str
+    historical_inventory_count: int
+    historical_package_version: str
+    profile_scan_run_id: int
+    profile_scan_package_version: str
+    observed_kernel_cves: frozenset[str]
+    observed_node_cves: frozenset[str]
+    profile_scan_artifacts: tuple[dict, ...]
+    evidence_lock_sha256: str
 
     @classmethod
     def load(cls, root: Path | None = None) -> "EvidenceLock":
@@ -57,6 +68,16 @@ class EvidenceLock:
             binary_manifest_sha256=manifest["sha256"],
             header_count=manifest["header_count"],
             stable_profile_images=data.get("stable_profile_images", {}),
+            historical_inventory_path=data["historical_295_inventory"]["path"],
+            historical_inventory_sha256=data["historical_295_inventory"]["sha256"],
+            historical_inventory_count=data["historical_295_inventory"]["count"],
+            historical_package_version=data["historical_295_inventory"]["package_version"],
+            profile_scan_run_id=data["profile_scan_run"]["run_id"],
+            profile_scan_package_version=data["profile_scan_run"]["package_version"],
+            observed_kernel_cves=frozenset(data["profile_scan_run"]["observed_kernel_cves"]),
+            observed_node_cves=frozenset(data["profile_scan_run"]["observed_node_cves"]),
+            profile_scan_artifacts=tuple(data["profile_scan_run"]["artifacts"]),
+            evidence_lock_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
         )
         if (not SHA40.fullmatch(lock.ubuntu_tag_commit)
                 or not SHA40.fullmatch(lock.upstream_sha)
@@ -79,6 +100,35 @@ class EvidenceLock:
                 raise ValueError(f"{label} row count differs from reviewed evidence lock")
         if lock.inventory_count != lock.canonical_count:
             raise ValueError("CVE inventory and Canonical status counts differ")
+        historical = root / lock.historical_inventory_path
+        historical_raw = historical.read_bytes()
+        if hashlib.sha256(historical_raw).hexdigest() != lock.historical_inventory_sha256:
+            raise ValueError("historical 295-CVE inventory digest differs from evidence lock")
+        historical_rows = list(csv.DictReader(
+            historical_raw.decode("utf-8").splitlines(), delimiter="\\t"
+        ))
+        current_rows = list(csv.DictReader(
+            (root / lock.inventory_path).read_text(encoding="utf-8").splitlines(),
+            delimiter="\\t",
+        ))
+        historical_ids = {row.get("cve") for row in historical_rows}
+        current_ids = {row.get("cve") for row in current_rows}
+        if (len(historical_rows) != lock.historical_inventory_count
+                or len(historical_ids) != lock.historical_inventory_count
+                or lock.historical_inventory_count != 295
+                or lock.historical_package_version != "7.0.0-42.42"
+                or current_ids - historical_ids != {
+                    "CVE-2026-98869", "CVE-2026-98890", "CVE-2026-99083"
+                }
+                or not historical_ids.issubset(current_ids)):
+            raise ValueError("historical 295-CVE inventory is not an exact subset of the expanded 298 inventory")
+        if (lock.profile_scan_package_version != lock.package_version
+                or len(lock.observed_kernel_cves) != 11
+                or not lock.observed_kernel_cves.issubset(current_ids)
+                or lock.observed_node_cves != {"CVE-2026-112366"}
+                or not isinstance(lock.profile_scan_run_id, int)
+                or len(lock.profile_scan_artifacts) != 8):
+            raise ValueError("43.43 profile scan provenance differs from the reviewed 11-kernel/one-node set")
         scan = data.get("profile_scan_run", {})
         artifacts = scan.get("artifacts", [])
         expected_pairs = {
