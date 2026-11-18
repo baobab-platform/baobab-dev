@@ -66,7 +66,7 @@ class ReleaseEligibilityTests(unittest.TestCase):
         approval = {"id": 1, "user": {"login": "checker", "id": 201, "type": "User"},
                     "state": "APPROVED", "commit_id": head,
                     "submitted_at": "2026-11-15T09:00:00Z"}
-        superseding = {"id": 2, "user": {"login": "checker", "id": 201},
+        superseding = {"id": 2, "user": {"type": "User", "login": "checker", "id": 201},
                        "state": "COMMENTED", "commit_id": head,
                        "submitted_at": "2026-11-15T10:00:00Z"}
         with self.assertRaises(mod.ReleaseEligibilityError):
