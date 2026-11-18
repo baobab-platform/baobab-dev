@@ -47,6 +47,8 @@ class Supplemental41SourceEvidenceTests(unittest.TestCase):
         self.assertEqual(lock["source"]["binary_package_mapping"]["binary_version"], "7.0.0-43.43")
         self.assertEqual(lock["source"]["binary_package_mapping"]["records_listed_as_affected"], 41)
         page_records = {row["cve"]: row for row in lock["security_page_reconciliation"]["records"]}
+        cvelist_lock = json.loads((ROOT / "security/evidence/dev10-image-observed-cves-41-cvelist.lock.json").read_text(encoding="utf-8"))
+        cvelist_by_id = {row["cve"]: row for row in cvelist_lock["records"]}
         self.assertEqual(page_records["CVE-2026-99287"]["ubuntu_page_priority"], "critical")
         self.assertEqual(page_records["CVE-2026-99287"]["resolute_linux_status"], "Vulnerable")
         for cve in ("CVE-2026-99306", "CVE-2026-99310"):
@@ -54,6 +56,12 @@ class Supplemental41SourceEvidenceTests(unittest.TestCase):
             self.assertEqual(page_records[cve]["resolute_linux_status"], "Needs evaluation")
             self.assertEqual(page_records[cve]["pinned_osv_ubuntu_severity"], "critical")
             self.assertEqual(page_records[cve]["reconciliation"], "unresolved_discrepancy")
+        for cve, page in page_records.items():
+            fixed_by = page["upstream_patch_details"]["fixed_by"]
+            full_ref = next(ref for ref in page["upstream_patch_details"]["upstream_fix_commit_references"]
+                            if ref.endswith("/" + next(commit for commit in cvelist_by_id[cve]["candidate_fix_commit_ids"]
+                                                       if commit.startswith(fixed_by))))
+            self.assertIn(full_ref, cvelist_by_id[cve]["candidate_fix_commit_references"])
         self.assertEqual(len(rows), 41)
         self.assertEqual(len(lock["records"]), 41)
         self.assertEqual({row["cve"] for row in rows},
