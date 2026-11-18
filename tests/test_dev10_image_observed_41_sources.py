@@ -17,11 +17,11 @@ SOURCE_PURL = "pkg:deb/ubuntu/linux@7.0.0-43.43?arch=source&distro=resolute"
 
 def read_rows(path: Path) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as stream:
-        return list(csv.DictReader(stream, delimiter="\\t"))
+        return list(csv.DictReader(stream, delimiter="\t"))
 
 
 def git_blob_sha1(raw: bytes) -> str:
-    return hashlib.sha1(b"blob " + str(len(raw)).encode("ascii") + b"\\0" + raw).hexdigest()
+    return hashlib.sha1(b"blob " + str(len(raw)).encode("ascii") + b"\0" + raw).hexdigest()
 
 
 class Supplemental41SourceEvidenceTests(unittest.TestCase):
