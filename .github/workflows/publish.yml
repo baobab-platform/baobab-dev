@@ -2007,7 +2007,7 @@ jobs:
             echo "### Security & Hygiene Controls Applied"
             echo "- ✅ **Pinned GitHub Actions:** Immutable 40-character commit SHAs"
             echo "- ✅ **Concurrency Control:** Auto-cancels obsolete build runs on PRs"
-            echo "- ✅ **Exact remote digest Trivy:** Both architectures scanned; CLEAN or an exact, independently authorised DEV-only residual-risk decision for this ref, package, CVE set and digest"
+            echo "- ✅ **Exact remote digest Trivy:** Both architectures scanned; release publication requires CLEAN results. Development-only risk acceptance never authorizes release publication or promotion."
             echo "- ✅ **SBOM & SLSA Attestations:** Embedded directly into OCI index"
             echo "- ✅ **Keyless Cosign Signature:** Signed via GitHub Actions OIDC identity"
             echo "- ✅ **Post-Publish Verification:** Signature and attestations independently re-verified against the published digest (scripts/verify-image.sh)"
@@ -2230,12 +2230,9 @@ jobs:
               trivy image --scanners vuln,secret --pkg-types os,library \
                 --severity HIGH,CRITICAL --ignorefile /dev/null --format json \
                 --output "$RUNNER_TEMP/security-$target-${architecture#linux/}.json" "$image@$child"
-              python3 scripts/evaluate_protected_risk_decision.py \
+              python3 scripts/verify_digest_security_decision.py \
                 --report "$RUNNER_TEMP/security-$target-${architecture#linux/}.json" \
-                --image-repository "$image" --digest "$child" \
-                --profile "$target" --architecture "$architecture" \
-                --environment development \
-                --result-output "$RUNNER_TEMP/security-decision-$target-${architecture#linux/}.json"
+                --target "$target" --digest "$child" --release-tag "$RELEASE_TAG"
             done
             bash scripts/verify-image.sh "$image@$digest" "$verification_tag"
             echo "::notice::Promotion precheck: $target digest $digest verified"
