@@ -210,6 +210,7 @@ def build(scanner: list[dict], canonical: list[dict],
         "decision": "SECURITY_HELD_NO_EXCEPTION_APPROVED",
         "advisory_count": COUNT,
         "source_provenance": {"evidence_lock_sha256": LOCK.evidence_lock_sha256,
+                              "inventory_extension_cves": sorted(LOCK.extension_cves),
                               "historical_295_inventory": {
                                   "path": LOCK.historical_inventory_path,
                                   "sha256": LOCK.historical_inventory_sha256,
