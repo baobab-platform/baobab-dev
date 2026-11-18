@@ -188,6 +188,7 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         for path in (
             "docs/assessments/dev10-kernel-cves-298.tsv",
             "docs/assessments/dev10-canonical-cve-status-20261118.tsv",
+            "security/evidence/**",
             "security/decisions/development/foundation.schema.json",
             "security/decisions/development/foundation.json",
             "security/decisions/development/foundation.proposal.json",
