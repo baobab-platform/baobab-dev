@@ -133,6 +133,11 @@ def compare(args: argparse.Namespace) -> dict:
             "canonical_linux_libc_dev_binary_version": record["canonical_linux_libc_dev_binary_version"],
             "canonical_linux_libc_dev_binary_listed_as_affected": record["canonical_linux_libc_dev_binary_listed_as_affected"],
             "candidate_fix_commit_ids": record["candidate_fix_commit_ids"],
+            "candidate_fix_commit_references": record["candidate_fix_commit_references"],
+            "candidate_fix_commit_ancestry": {
+                "status": "NOT_ASSESSED_NO_NON_APPLICABLE_DISPOSITION_CONSIDERED",
+                "reason": "Canonical OSV lists the exact Resolute source and linux-libc-dev versions as affected. Upstream candidate fix references are not proof of an Ubuntu backport or fix; no not_affected disposition is permitted without exact Ubuntu ancestry or patch-equivalence evidence.",
+            },
             "affected_source_paths": path_results,
             "binary_applicability": "under_investigation",
             "vex_disposition": "under_investigation",
