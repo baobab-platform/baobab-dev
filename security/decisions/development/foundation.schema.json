@@ -321,6 +321,23 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "finding_count": {
+            "const": 12
+          }
+        },
+        "required": [
+          "finding_count"
+        ]
+      },
+      "then": {
+        "required": [
+          "evidence_lock_sha256"
+        ]
+      }
     }
   ]
 }
