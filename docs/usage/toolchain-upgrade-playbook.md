@@ -77,7 +77,7 @@ Use the checked-out lifecycle code, the actual non-root Dev Container user, froz
 - `uv sync --locked --no-managed-python` / exact Python lock selection, or the adopted locked equivalent.
 - JavaScript `pnpm install --frozen-lockfile`, `npm ci` or immutable Yarn as dictated by the consumer, **never unlocked fallback**.
 - Root workspace membership checks really run; a missing frontend entry fails rather than accidentally installing a nested package.
-- `COREPACK_ENABLE_NETWORK=0` **and** `COREPACK_DEFAULT_TO_LATEST=0`; exact baked and project pnpm versions match. Version mismatch returns a bounded error, never a prompt.
+- `COREPACK_ENABLE_NETWORK=0` **and** `COREPACK_DEFAULT_TO_LATEST=0` after preparation; `COREPACK_ENV_FILE=0`, `COREPACK_ENABLE_PROJECT_SPEC=1`, `COREPACK_ENABLE_STRICT=1` and `COREPACK_ENABLE_AUTO_PIN=0` keep project selection fail-closed. Exact baked and project pnpm versions match. Version mismatch returns a bounded error, never a prompt.
 - `baobab-verify` checks exact pnpm and the Node major; failure at any late lifecycle stage propagates the original nonzero exit code. Use a known fault-injection case such as exit 42.
 - Actual Playwright browser launch with the consumer's exact test-runner version (where relevant).
 - Native compiler/UAPI, Terraform, Java, Rust, Go and Docker/Compose smoke checks appropriate to the changed stage; no fictional missing toolchains.
