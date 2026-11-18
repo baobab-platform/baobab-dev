@@ -293,5 +293,43 @@
         }
       ]
     }
+  },
+  "stable_profile_images": {
+    "final": {
+      "release_tag": "v1.5.1",
+      "source_sha": "13493b24d6af1a9e7bddf7df9be555d1c06a635d",
+      "signer_tag": "v1.5.1-rc.2",
+      "ga_reuse_run_id": 43559737080,
+      "signer_run_id": 43493272371,
+      "image_tag": "ghcr.io/baobab-platform/baobab-dev:1.5.1",
+      "index_digest": "sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed"
+    },
+    "frontend": {
+      "release_tag": "v1.5.1",
+      "source_sha": "13493b24d6af1a9e7bddf7df9be555d1c06a635d",
+      "signer_tag": "v1.5.1-rc.2",
+      "ga_reuse_run_id": 43559737080,
+      "signer_run_id": 43493272371,
+      "image_tag": "ghcr.io/baobab-platform/baobab-dev:1.5.1-frontend",
+      "index_digest": "sha256:388d604293fc6a2046d1abb9c7b80b32e78c6003636b091d1e9c7c827e34766d"
+    },
+    "frontend-e2e": {
+      "release_tag": "v1.5.1",
+      "source_sha": "13493b24d6af1a9e7bddf7df9be555d1c06a635d",
+      "signer_tag": "v1.5.1-rc.2",
+      "ga_reuse_run_id": 43559737080,
+      "signer_run_id": 43493272371,
+      "image_tag": "ghcr.io/baobab-platform/baobab-dev:1.5.1-frontend-e2e",
+      "index_digest": "sha256:5b4a9ce1ac819a2b125f078fef4b14837b5b65b46527087a2bb8898b4811bb0b"
+    },
+    "infra": {
+      "release_tag": "v1.5.1",
+      "source_sha": "13493b24d6af1a9e7bddf7df9be555d1c06a635d",
+      "signer_tag": "v1.5.1-rc.2",
+      "ga_reuse_run_id": 43559737080,
+      "signer_run_id": 43493272371,
+      "image_tag": "ghcr.io/baobab-platform/baobab-dev:1.5.1-infra",
+      "index_digest": "sha256:5b39e71dd068da12e009421012d7c3620339746c2a39839182ea1f4fe788ffda"
+    }
   }
 }
