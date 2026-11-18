@@ -77,9 +77,7 @@ def _rest_commit_committer_user_id(token, oid, graphql_committer):
     except urllib.error.HTTPError as exc:
         raise CustodyError(_http_error_summary(exc, "REST committer lookup")) from exc
     except urllib.error.URLError as exc:
-        reason = _safe_detail(str(getattr(exc, "reason", "")), 120)
-        suffix = f": {reason}" if reason else ""
-        raise CustodyError(f"REST committer lookup transport failure{suffix}") from exc
+        raise CustodyError("REST committer lookup transport failure") from exc
     except TimeoutError as exc:
         raise CustodyError("REST committer lookup timed out") from exc
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
@@ -229,7 +227,7 @@ def _http_error_summary(exc, context="GitHub API"):
     if oversized:
         message = "error response exceeded the 1 MiB safety limit"
     elif isinstance(payload, dict):
-        message = _safe_detail(payload.get("message"), 240)
+        message = _safe_github_message(payload.get("message"))
         errors = payload.get("errors")
         if isinstance(errors, list):
             messages = [
