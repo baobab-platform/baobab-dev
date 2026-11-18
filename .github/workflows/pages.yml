@@ -65,13 +65,11 @@ jobs:
       version: ${{ steps.resolve.outputs.value }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # SHA is baobab-platform/shared's v1.0.0 tag (annotated — this is the
-      # peeled commit, not the tag object's own SHA), verified live via
-      # `git ls-remote --tags https://github.com/baobab-platform/shared.git
-      # v1.0.0` on 2026-08-25. See the same note in greetings.yml above
-      # re: Dependabot and dependabot-core#14716.
+      # Both Shared references use the v2.3.0 lightweight tag's commit,
+      # verified against the GitHub tag ref on 2026-11-18: 31de2bc3dcd56128c019c640dc7e12c10ae9ca69.
+      # The tag resolves directly to this commit; it is not annotated.
       - id: resolve
-        uses: baobab-platform/shared/.github/actions/derive-value-from-yaml@f7466cc89a17c0b6e02b5a1e5fce3ce76073a718 # v1.1.0
+        uses: baobab-platform/shared/.github/actions/derive-value-from-yaml@31de2bc3dcd56128c019c640dc7e12c10ae9ca69 # v2.3.0
         with:
           manifest-path: config/versions.yaml   # TODO: adjust if this repo's manifest differs
           query: ".languages.python.version"    # TODO: adjust query path if schema differs
@@ -83,6 +81,6 @@ jobs:
       pages: write
       id-token: write
     # Same pin/rationale as resolve-python-version's step above.
-    uses: baobab-platform/shared/.github/workflows/pages-zensical.yml@f7466cc89a17c0b6e02b5a1e5fce3ce76073a718 # v1.1.0
+    uses: baobab-platform/shared/.github/workflows/pages-zensical.yml@31de2bc3dcd56128c019c640dc7e12c10ae9ca69 # v2.3.0
     with:
       python-version: ${{ needs.resolve-python-version.outputs.version }}
