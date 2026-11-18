@@ -67,7 +67,7 @@ def validate_inputs(inventory: list[dict[str, str]], canonical: list[dict[str, s
         locked = locked_by_id[row["cve"]]
         if (row.get("canonical_osv_blob_sha") != locked.get("blob_sha1")
                 or row.get("canonical_modified") != locked.get("modified")
-                or row.get("ubuntu_priority") != locked.get("ubuntu_priority")
+                or row.get("canonical_osv_ubuntu_severity") != locked.get("canonical_osv_ubuntu_severity")
                 or row.get("canonical_linux_source_version_7_0_0_43_43_affected") != "true"
                 or row.get("canonical_linux_libc_dev_binary_version") != EXPECTED_VERSION
                 or row.get("canonical_linux_libc_dev_binary_listed_as_affected") != "true"
@@ -142,7 +142,7 @@ def audit(inventory_path: Path, canonical_tsv: Path, canonical_lock_path: Path,
             (item.get("score") for item in canonical_data.get("severity", [])
              if item.get("type") == "Ubuntu"), None
         )
-        if ubuntu_severity != canonical_record["ubuntu_priority"]:
+        if ubuntu_severity != canonical_record["canonical_osv_ubuntu_severity"]:
             raise ValueError(cve + ": Canonical Ubuntu priority differs from pinned OSV record")
         resolute_linux = [
             item for item in canonical_data.get("affected", [])
