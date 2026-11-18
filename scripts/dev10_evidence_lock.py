@@ -75,6 +75,7 @@ class EvidenceLock:
             historical_inventory_sha256=data["historical_295_inventory"]["sha256"],
             historical_inventory_count=data["historical_295_inventory"]["count"],
             historical_package_version=data["historical_295_inventory"]["package_version"],
+            extension_cves=frozenset(),
             profile_scan_run_id=data["profile_scan_run"]["run_id"],
             profile_scan_package_version=data["profile_scan_run"]["package_version"],
             observed_kernel_cves=frozenset(data["profile_scan_run"]["observed_kernel_cves"]),
