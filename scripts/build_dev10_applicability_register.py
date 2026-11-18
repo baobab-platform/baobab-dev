@@ -135,9 +135,8 @@ def build(scanner: list[dict], canonical: list[dict],
         records.append({
             "cve": cve, "severity": t["severity"], "original_scanner_title": t["trivy_title"],
             "inventory_provenance": {
-                "origin": ("new_298_cve_extension" if cve in {
-                    "CVE-2026-98869", "CVE-2026-98890", "CVE-2026-99083"
-                } else "historical_295_cve_inventory"),
+                "origin": ("historical_295_cve_inventory" if cve in historical_ids
+                           else "new_298_cve_extension"),
                 "historical_inventory_package_version": (
                     LOCK.historical_package_version if cve in historical_ids else None
                 ),
