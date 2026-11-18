@@ -389,7 +389,7 @@ class IndependentApprovalTests(unittest.TestCase):
 
     def test_bot_approval_never_qualifies_even_when_numeric_id_is_allowlisted(self):
         bot = self.review(10, "APPROVED", "2026-11-17T01:00:00Z")
-        bot["user"] = {"id": 356900102, "login": "sdnabusiu[bot]", "type": "Bot"}
+        bot["user"] = {"id": 356890520, "login": "sknabusiu[bot]", "type": "Bot"}
         with self.assertRaisesRegex(
             provisioner.ProvisioningError, "no current-head APPROVED review"
         ):
