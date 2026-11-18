@@ -133,7 +133,7 @@ class KernelPathTests(unittest.TestCase):
     def test_upstream_audit_requires_local_checkout_without_network_fallback(self):
         source = Path(module.__file__).read_text(encoding="utf-8")
         self.assertNotIn("urllib.request", source)
-        self.assertIn('parser.add_argument("--upstream-root", required=True)', source)
+        self.assertIn('p.add_argument("--upstream-root", type=Path, required=True', source)
 
     def test_unsafe_upstream_paths_are_rejected(self):
         for path in ("kernel/a\nb.c", "kernel/a\\\\b.c", "kernel/../escape.c"):
