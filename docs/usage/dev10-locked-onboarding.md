@@ -82,9 +82,12 @@ internally vendored msgpack 1.1.2 (CVE-2026-114613 /
 GHSA-6v7p-g79w-8964) and setuptools 70.3.0 (CVE-2025-47273).
 This is observed scan evidence, not an inference from upstream release notes.
 
-The published v1.5.1 baseline is Python 3.14.10 / Node 26.13.1 / pnpm 12.21.0 /
-PostgreSQL 17. Consumer projects must pin the matching Node and pnpm versions and
-retain frozen-lockfile onboarding behavior:
+The published v1.5.1 baseline is Python 3.14.10 / Node 26.13.1 / pnpm 12.16.1 /
+PostgreSQL 17 (with Corepack 0.36.0 and Playwright 1.64.1 in its tagged lock).
+The current PR #74 source lock proposes pnpm 12.21.0 and Playwright 1.65.0 for a
+candidate next image; these are not evidence about the already-published v1.5.1
+image. Consumer projects must pin their own exact Node and package-manager
+versions and retain frozen-lockfile onboarding behavior:
 
 - Terraform upgrades to vendor release 1.17.1 on the infra profile, with
   its amd64/arm64 SHA-256 digests pinned from HashiCorp's official
