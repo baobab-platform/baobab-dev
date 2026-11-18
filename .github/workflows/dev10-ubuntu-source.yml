@@ -319,11 +319,14 @@ jobs:
           assert data["counts"]["records"] == 41
           assert data["counts"]["records_with_affected_paths"] == 41
           assert data["canonical"]["affected_version"] == "7.0.0-43.43"
+          assert data["canonical"]["binary_records_listed_as_affected"] == 41
+          assert data["canonical"]["binary_records_listed_as_affected"] == 41
           print("### Supplemental 41-CVE source evidence")
           print("Pinned Linux CNA revision:", data["upstream"]["commit"])
           print("Pinned Canonical OSV revision:", data["canonical"]["commit"])
           print("Verified records and affected paths:", data["counts"])
           print("Canonical Resolute source package/version:", data["canonical"]["resolute_source_package"], data["canonical"]["affected_version"])
+          print("Canonical binary package/version listed affected:", data["canonical"]["binary_package"], data["canonical"]["binary_version"], "records:", data["canonical"]["binary_records_listed_as_affected"])
           print("Binary applicability, VEX and release dispositions remain under investigation.")
           PY
       - name: Retain supplemental 41-CVE upstream and Canonical records
