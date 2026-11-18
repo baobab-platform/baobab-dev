@@ -119,9 +119,9 @@ class ToolchainVersionPinTests(unittest.TestCase):
         self.assertIn("check_project_pnpm", verifier)
         self.assertIn("offline Corepack cache unavailable", verifier)
         self.assertIn(
-            "if [[ ! -f package.json || ! -f pnpm-lock.yaml ]]; then\\n"
-            "        return 0\\n"
-            "    fi",
+            """if [[ ! -f package.json || ! -f pnpm-lock.yaml ]]; then
+        return 0
+    fi""",
             verifier,
         )
         helper = read("scripts/project-pnpm.sh")
