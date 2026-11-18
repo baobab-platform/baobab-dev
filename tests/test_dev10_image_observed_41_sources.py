@@ -39,7 +39,7 @@ class Supplemental41SourceEvidenceTests(unittest.TestCase):
         rows = read_rows(CANONICAL_TSV)
         lock = json.loads(CANONICAL_LOCK.read_text(encoding="utf-8"))
         self.assertEqual(git_blob_sha1(CANONICAL_TSV.read_bytes()),
-                         "6615aed79616bd3247de087453a5f8e8fbc0928e")
+                         "8a355c92db7ac64b48d584ab3257a1d469aa885a")
         self.assertEqual(lock["source"]["commit"],
                          "a64faad6c6b5b52353b7300d278e501c0ca75d21")
         self.assertEqual(lock["source"]["record_count"], 41)
