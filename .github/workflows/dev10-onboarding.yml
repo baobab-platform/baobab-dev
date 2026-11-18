@@ -174,7 +174,7 @@ jobs:
           docker image inspect --format '{{json .RepoDigests}}' "$IMAGE_REF"
           mkdir -p "$RUNNER_TEMP/dev10-evidence"
           chmod 0777 "$RUNNER_TEMP/dev10-evidence"
-          docker run --rm -e HOME=/tmp/dev10-home -e EXPECTED_PROFILE="${{ matrix.profile }}" -e IMAGE_REF="$IMAGE_REF" \
+          docker run --rm -e EXPECTED_PROFILE="${{ matrix.profile }}" -e IMAGE_REF="$IMAGE_REF" \
             -v "$GITHUB_WORKSPACE:/source:ro" \
             -v "$RUNNER_TEMP/dev10-evidence:/evidence" "$IMAGE_REF" \
             bash /source/scripts/ci/onboarding-published-image.sh
@@ -193,7 +193,7 @@ jobs:
         run: |
           set -euo pipefail
           result=0
-          docker run --rm -e HOME=/tmp/dev10-home -v "$GITHUB_WORKSPACE:/source:ro" \
+          docker run --rm -v "$GITHUB_WORKSPACE:/source:ro" \
             "$IMAGE_REF" bash -c '
               set -euo pipefail
               mkdir -p "$HOME" /tmp/dev10-fail/config /tmp/dev10-fail/bin
