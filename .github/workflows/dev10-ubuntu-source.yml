@@ -46,6 +46,7 @@ jobs:
             --vendor docs/assessments/dev10-canonical-cve-status-20261030.tsv \
             --manifest "$RUNNER_TEMP/dev10-ubuntu-source/installed-paths.txt" \
             --upstream-sha 604accad567eb6e7fb4c7fdc422470c25f35f467 \
+            --binary-package-version "$UBUNTU_KERNEL_RELEASE" \
             --output "$RUNNER_TEMP/dev10-ubuntu-source/affected-source-files.json"
       - name: Checkout authoritative Ubuntu 26.04 exact source release tag
         run: |
