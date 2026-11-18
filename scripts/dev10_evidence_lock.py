@@ -28,7 +28,7 @@ class EvidenceLock:
     canonical_path: str
     canonical_sha256: str
     canonical_count: int
-    binary_manifest_sha256: str | None
+    binary_manifest_sha256: str
     header_count: int
     binary_manifest_path_count: int
     stable_profile_images: dict[str, dict]
