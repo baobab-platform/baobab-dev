@@ -202,7 +202,7 @@ class ApplicabilityTests(unittest.TestCase):
             "path_counts": {"PATHS_PRESENT_NONDISCRIMINATING": 298},
             "binary_manifest": {
                 "package": "linux-libc-dev=7.0.0-43.43",
-                "sha256": builder.LOCK.binary_manifest_sha256, "path_count": 1102, "header_count": 1039,
+                "sha256": builder.LOCK.binary_manifest_sha256, "path_count": builder.LOCK.binary_manifest_path_count, "header_count": builder.LOCK.header_count,
             },
             "records": [{
                 "cve": row["cve"], "ubuntu_release_tag": "Ubuntu-7.0.0-43.43",
