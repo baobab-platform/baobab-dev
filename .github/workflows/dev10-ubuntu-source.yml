@@ -77,8 +77,18 @@ jobs:
               apt-cache policy linux-libc-dev > /evidence/apt-policy.txt
               apt-cache madison linux-libc-dev > /evidence/apt-madison.txt
               dpkg-query -W -f="${Package} ${Version} ${Architecture} ${Status}\\n" linux-libc-dev > /evidence/installed-package.txt
+              cd /evidence
+              apt-get download "linux-libc-dev=${UBUNTU_KERNEL_RELEASE}"
+              mapfile -t package_debs < <(find . -maxdepth 1 -type f -name 'linux-libc-dev_*.deb' -print)
+              if (( ${#package_debs[@]} != 1 )); then
+                echo "Expected exactly one downloaded linux-libc-dev package archive" >&2
+                ls -la >&2
+                exit 2
+              fi
+              sha256sum "${package_debs[0]}" > /evidence/apt-package-deb-sha256.txt
               find /var/lib/apt/lists -type f -name '*_Packages*' -print0 | sort -z | xargs -0 -r sha256sum > /evidence/apt-package-index-sha256.txt
               test -s /evidence/apt-package-index-sha256.txt
+              test -s /evidence/apt-package-deb-sha256.txt
             '
       - name: Checkout pinned Canonical Ubuntu OSV snapshot
         run: |
