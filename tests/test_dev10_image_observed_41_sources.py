@@ -59,8 +59,8 @@ class Supplemental41SourceEvidenceTests(unittest.TestCase):
             self.assertEqual(row["canonical_linux_libc_dev_binary_listed_as_affected"], "true")
             self.assertEqual(row["binary_disposition"], "under_investigation")
             self.assertEqual(len(row["canonical_osv_blob_sha"]), 40)
-        self.assertEqual(sum(row["ubuntu_priority"] == "high" for row in rows), 38)
-        self.assertEqual(sum(row["ubuntu_priority"] == "critical" for row in rows), 3)
+        self.assertEqual(sum(row["canonical_osv_ubuntu_severity"] == "high" for row in rows), 38)
+        self.assertEqual(sum(row["canonical_osv_ubuntu_severity"] == "critical" for row in rows), 3)
         self.assertTrue(all(row["resolute_7_0_0_43_43_affected"] is True
                             for row in lock["records"]))
         self.assertTrue(all(row["canonical_linux_source_version_affected"] is True
