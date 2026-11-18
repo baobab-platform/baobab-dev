@@ -62,13 +62,18 @@ jobs:
           set -euo pipefail
           docker image inspect --format '{{json .RepoDigests}}' "$IMAGE_REF"
           docker run --rm -e HOME=/tmp/dev10-home \
-            -e BAOBAB_SUMMARY_SCRIPT=/tmp/dev10-project/scripts/summary.sh \
-            -e BAOBAB_VERIFY_SCRIPT=/tmp/dev10-project/scripts/verify.sh \
             -v "$GITHUB_WORKSPACE:/source:ro" "$IMAGE_REF" bash -c '
               set -euo pipefail
               mkdir -p "$HOME" /tmp/dev10-project
               cp -R /source/. /tmp/dev10-project/
-              export WORKSPACE_DIR=/tmp/dev10-project
+              # The published v1.5.1 image has older summary/verify commands.
+              # Route only this test container's lifecycle calls to the current
+              # checkout scripts; production images keep their installed commands.
+              mkdir -p /tmp/dev10-project/bin
+              printf '#!/usr/bin/env bash\\nexec bash /tmp/dev10-project/scripts/summary.sh "$@"\\n' > /tmp/dev10-project/bin/baobab-summary
+              printf '#!/usr/bin/env bash\\nexec bash /tmp/dev10-project/scripts/verify.sh "$@"\\n' > /tmp/dev10-project/bin/baobab-verify
+              chmod +x /tmp/dev10-project/bin/baobab-summary /tmp/dev10-project/bin/baobab-verify
+              export PATH=/tmp/dev10-project/bin:$PATH WORKSPACE_DIR=/tmp/dev10-project
               cd "$WORKSPACE_DIR"
               bash scripts/post-create.sh --stage=post-create
               python3 -B -m unittest discover -s tests -v
