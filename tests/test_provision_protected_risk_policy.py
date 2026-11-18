@@ -66,6 +66,47 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
         self.assertNotIn("documentation_url", str(caught.exception))
         self.assertNotIn("not-a-real-token", str(caught.exception))
 
+    def test_provisioner_http_error_reports_status_request_id_and_safe_message(self):
+        import io
+        from email.message import Message
+        headers = Message()
+        headers["x-github-request-id"] = "REQ123-ABC456"
+        body = provisioner.json.dumps({
+            "message": "Resource not accessible by integration",
+            "documentation_url": "https://example.invalid/private",
+            "secret": "do-not-disclose",
+        }).encode()
+        error = provisioner.urllib.error.HTTPError(
+            "https://api.github.com/repos/baobab-platform/baobab-dev",
+            403, "Forbidden", headers, io.BytesIO(body),
+        )
+        with patch.object(provisioner, "open_github", side_effect=error):
+            with self.assertRaises(provisioner.ProvisioningError) as caught:
+                provisioner.api_request(
+                    "not-a-real-token", "GET", "/repos/baobab-platform/baobab-dev"
+                )
+        message = str(caught.exception)
+        self.assertIn("HTTP 403", message)
+        self.assertIn("REQ123-ABC456", message)
+        self.assertIn("Resource not accessible by integration", message)
+        self.assertNotIn("documentation_url", message)
+        self.assertNotIn("do-not-disclose", message)
+        self.assertNotIn("not-a-real-token", message)
+
+    def test_provisioner_transport_error_is_distinct_and_sanitized(self):
+        import urllib.error
+        with patch.object(
+            provisioner, "open_github",
+            side_effect=urllib.error.URLError("temporary DNS failure"),
+        ):
+            with self.assertRaisesRegex(
+                provisioner.ProvisioningError,
+                "GitHub API GET transport failed: temporary DNS failure",
+            ):
+                provisioner.api_request(
+                    "not-a-real-token", "GET", "/repos/baobab-platform/baobab-dev"
+                )
+
     def test_sanitizer_redacts_github_token_formats(self):
         from custody_independence import _safe_detail
         bearer_value = "sample" + "credential" + "value"

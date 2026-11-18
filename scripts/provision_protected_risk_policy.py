@@ -20,7 +20,9 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from custody_independence import _safe_detail, collect_pr, require_independent
+from custody_independence import (
+    _http_error_summary, _safe_detail, collect_pr, require_independent,
+)
 from github_api_transport import open_github, read_bounded
 
 REPOSITORY = "baobab-platform/baobab-dev"
@@ -152,12 +154,17 @@ def api_request(token, method, path, payload=None, allowed_status=()):
     except urllib.error.HTTPError as exc:
         if exc.code in allowed_status:
             return exc.code, None
-        # Never include response bodies, which may contain sensitive metadata.
-        raise ProvisioningError(f"GitHub API {method} returned HTTP {exc.code}") from exc
+        raise ProvisioningError(
+            _http_error_summary(exc, f"GitHub API {method}")
+        ) from exc
     except ValueError as exc:
         raise ProvisioningError(_safe_detail(str(exc), 180)) from exc
     except urllib.error.URLError as exc:
-        raise ProvisioningError(f"GitHub API {method} transport failed") from exc
+        reason = _safe_detail(str(getattr(exc, "reason", "")), 120)
+        suffix = f": {reason}" if reason else ""
+        raise ProvisioningError(
+            f"GitHub API {method} transport failed{suffix}"
+        ) from exc
     except TimeoutError as exc:
         raise ProvisioningError(f"GitHub API {method} request timed out") from exc
     if status not in (200, 201, 204) and status not in allowed_status:

@@ -284,19 +284,28 @@ class CompleteHistoryTests(unittest.TestCase):
             ), self.assertRaisesRegex(custody.CustodyError, expected):
                 custody._rest_commit_committer_user_id("token", "d" * 40, {"name": "GitHub", "email": "noreply@github.com", "date": "2026-11-17T01:29:58Z"})
 
-    def test_rest_http_error_reports_status_and_request_id_without_body(self):
+    def test_rest_http_error_reports_status_request_id_and_safe_message(self):
+        import io
         from email.message import Message
         headers = Message()
         headers["x-github-request-id"] = "ABC123-DEF456"
+        body = json.dumps({
+            "message": "Resource not accessible by integration",
+            "documentation_url": "https://example.invalid/private",
+            "secret": "must-not-be-disclosed",
+        }).encode()
         error = urllib.error.HTTPError(
             "https://api.github.com/repos/baobab-platform/baobab-dev/commits/" + "d" * 40,
-            403, "Forbidden", headers, None,
+            403, "Forbidden", headers, io.BytesIO(body),
         )
         with patch.object(custody, "open_github", side_effect=error):
             with self.assertRaisesRegex(
                 custody.CustodyError, "HTTP 403.*ABC123-DEF456"
             ) as caught:
                 custody._rest_commit_committer_user_id("token", "d" * 40, {"name": "GitHub", "email": "noreply@github.com", "date": "2026-11-17T01:29:58Z"})
+        self.assertIn("Resource not accessible by integration", str(caught.exception))
+        self.assertNotIn("documentation_url", str(caught.exception))
+        self.assertNotIn("must-not-be-disclosed", str(caught.exception))
         self.assertNotIn("Forbidden", str(caught.exception))
 
     def test_collect_pr_adds_rest_reconciled_committer_to_contributor_set(self):

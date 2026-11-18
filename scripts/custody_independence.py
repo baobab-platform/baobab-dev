@@ -75,13 +75,7 @@ def _rest_commit_committer_user_id(token, oid, graphql_committer):
         with open_github(request, timeout=30) as response:
             payload = json.loads(read_bounded(response))
     except urllib.error.HTTPError as exc:
-        request_id = ""
-        if exc.headers is not None:
-            candidate = exc.headers.get("x-github-request-id", "")
-            if isinstance(candidate, str) and re.fullmatch(r"[A-Za-z0-9-]{1,80}", candidate):
-                request_id = candidate
-        detail = f" (GitHub request ID {request_id})" if request_id else ""
-        raise CustodyError(f"REST committer lookup failed with HTTP {exc.code}{detail}") from exc
+        raise CustodyError(_http_error_summary(exc, "REST committer lookup")) from exc
     except urllib.error.URLError as exc:
         reason = _safe_detail(str(getattr(exc, "reason", "")), 120)
         suffix = f": {reason}" if reason else ""
@@ -218,26 +212,45 @@ def _graphql_error_summary(errors):
     return "; ".join(details)
 
 
-def _http_error_summary(exc):
-    """Extract only GitHub's bounded message fields; never expose raw response data."""
+def _http_error_summary(exc, context="GitHub API"):
+    """Return bounded HTTP diagnostics without exposing raw response data."""
+    payload = None
+    oversized = False
     try:
         raw = exc.read(1_048_577)
         if len(raw) > 1_048_576:
-            return f"GitHub GraphQL HTTP {exc.code}: error response exceeded the 1 MiB safety limit"
-        payload = json.loads(raw)
-    except (OSError, ValueError, json.JSONDecodeError):
+            oversized = True
+        elif raw:
+            payload = json.loads(raw)
+    except (AttributeError, OSError, ValueError, TypeError):
         payload = None
-    message = _safe_detail(payload.get("message")) if isinstance(payload, dict) else ""
-    errors = payload.get("errors") if isinstance(payload, dict) else None
-    if isinstance(errors, list):
-        messages = [
-            _safe_github_message(item.get("message")) for item in errors[:5]
-            if isinstance(item, dict) and item.get("message")
-        ]
-        if messages:
-            message = "; ".join(([message] if message else []) + messages)[:600]
-    suffix = f": {message}" if message else ""
-    return f"GitHub GraphQL HTTP {exc.code}{suffix}"
+
+    message = ""
+    if oversized:
+        message = "error response exceeded the 1 MiB safety limit"
+    elif isinstance(payload, dict):
+        message = _safe_detail(payload.get("message"), 240)
+        errors = payload.get("errors")
+        if isinstance(errors, list):
+            messages = [
+                _safe_github_message(item.get("message")) for item in errors[:5]
+                if isinstance(item, dict) and item.get("message")
+            ]
+            if messages:
+                message = "; ".join(([message] if message else []) + messages)[:600]
+
+    request_id = ""
+    headers = getattr(exc, "headers", None)
+    candidate = headers.get("x-github-request-id", "") if headers is not None else ""
+    if isinstance(candidate, str) and re.fullmatch(r"[A-Za-z0-9-]{1,80}", candidate):
+        request_id = candidate
+
+    parts = [f"{context} HTTP {exc.code}"]
+    if message:
+        parts.append(message)
+    if request_id:
+        parts.append(f"GitHub request ID {request_id}")
+    return ": ".join(parts)
 
 
 def _graphql(token, query, variables):
@@ -258,7 +271,7 @@ def _graphql(token, query, variables):
         with open_github(request, timeout=30) as response:
             payload = json.loads(read_bounded(response))
     except urllib.error.HTTPError as exc:
-        raise CustodyError(_http_error_summary(exc)) from exc
+        raise CustodyError(_http_error_summary(exc, "GitHub GraphQL")) from exc
     except json.JSONDecodeError as exc:
         raise CustodyError("GitHub GraphQL returned invalid JSON") from exc
     except UnicodeDecodeError as exc:
