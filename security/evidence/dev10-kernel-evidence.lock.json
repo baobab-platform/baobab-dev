@@ -106,6 +106,192 @@
     "signer_run_id": 43493272371,
     "signer_job_id": 132138775423,
     "signer_job_name": "Publish Multi-Arch Manifest & Cosign Sign (final)",
-    "qualification": "historical baseline; independent strict re-verification required"
+    "qualification": "historical R5 publish succeeded; independent strict readback pending",
+    "release_qualification": {
+      "rc_run_id": 43493272371,
+      "ga_reuse_run_id": 43559737080,
+      "release_digest_jobs": [
+        {
+          "profile": "frontend",
+          "architecture": "linux/amd64",
+          "job_id": 132129392902
+        },
+        {
+          "profile": "final",
+          "architecture": "linux/arm64",
+          "job_id": 132129392910
+        },
+        {
+          "profile": "final",
+          "architecture": "linux/amd64",
+          "job_id": 132129392965
+        },
+        {
+          "profile": "infra",
+          "architecture": "linux/amd64",
+          "job_id": 132129392995
+        },
+        {
+          "profile": "infra",
+          "architecture": "linux/arm64",
+          "job_id": 132129393017
+        },
+        {
+          "profile": "frontend",
+          "architecture": "linux/arm64",
+          "job_id": 132129393054
+        },
+        {
+          "profile": "frontend-e2e",
+          "architecture": "linux/amd64",
+          "job_id": 132129393214
+        },
+        {
+          "profile": "frontend-e2e",
+          "architecture": "linux/arm64",
+          "job_id": 132129393366
+        }
+      ],
+      "exact_release_artifacts": [
+        {
+          "profile": "final",
+          "architecture": "linux/arm64",
+          "artifact_id": 14073500151,
+          "artifact_sha256": "f81702149bd770734ced178534a379a3187d275c210b64197cd4301e0e61ba90"
+        },
+        {
+          "profile": "final",
+          "architecture": "linux/amd64",
+          "artifact_id": 14073426222,
+          "artifact_sha256": "7498e3a6febb50ede9d93685d5afca21bca6be4fca587ecbe1e79a99dcc657eb"
+        },
+        {
+          "profile": "frontend",
+          "architecture": "linux/arm64",
+          "artifact_id": 14073015534,
+          "artifact_sha256": "8fd630a368465ef1cc2cc9cff33ddefecf3e6fa58671c12685fdd8f65337833f"
+        },
+        {
+          "profile": "frontend",
+          "architecture": "linux/amd64",
+          "artifact_id": 14071904607,
+          "artifact_sha256": "21449c21079266658977b614262b91e69aa351c5f8a2c098d2e40ba9a6de794f"
+        },
+        {
+          "profile": "frontend-e2e",
+          "architecture": "linux/arm64",
+          "artifact_id": 14072846477,
+          "artifact_sha256": "445ee669dbee50b219775d793be85a6ba9413f3e4e9aff628954fc76996786d5"
+        },
+        {
+          "profile": "frontend-e2e",
+          "architecture": "linux/amd64",
+          "artifact_id": 14072272493,
+          "artifact_sha256": "3d768abffb96d5cb134b918d90e75639afc9aa211a904b5710906a88a9daa4ae"
+        },
+        {
+          "profile": "infra",
+          "architecture": "linux/amd64",
+          "artifact_id": 14072920956,
+          "artifact_sha256": "a7c2d79fe53f976c3660b767fe3431fb9dcc28208f6c91dccad9942a15d17901"
+        },
+        {
+          "profile": "infra",
+          "architecture": "linux/arm64",
+          "artifact_id": 14071598503,
+          "artifact_sha256": "f3306bc5aaf06ef6ff3a99c0dd8a136e918d5905c763e8cac2737419c2e626d6"
+        }
+      ],
+      "trivy_scan_artifacts": [
+        {
+          "profile": "final",
+          "architecture": "linux/arm64",
+          "artifact_id": 14071951194,
+          "artifact_sha256": "a72116307419bd36ff577bd7205ad301183ad8c83ebc17c2f3bd9fc78d679785"
+        },
+        {
+          "profile": "final",
+          "architecture": "linux/amd64",
+          "artifact_id": 14070604834,
+          "artifact_sha256": "d2a03534bf090fb9d9c3522bf5cfd5d045835e329e26a91b3a8887bd167da316"
+        },
+        {
+          "profile": "frontend-e2e",
+          "architecture": "linux/arm64",
+          "artifact_id": 14070629054,
+          "artifact_sha256": "7892a6f14d6695507ceb711edd939fd4d2be2fa39592c93e61dc1accf575ec9c"
+        },
+        {
+          "profile": "infra",
+          "architecture": "linux/arm64",
+          "artifact_id": 14070533474,
+          "artifact_sha256": "b3923cb04f07bb77db0bdcf8f46b7f7ca24fe1443dff4da58f445790fe7d7599"
+        },
+        {
+          "profile": "infra",
+          "architecture": "linux/amd64",
+          "artifact_id": 14071316387,
+          "artifact_sha256": "5ae9cd4f7b70a906cf1e9563ca6da1fef1f0914f7bda6fd1ffd79191c8ace110"
+        },
+        {
+          "profile": "frontend",
+          "architecture": "linux/amd64",
+          "artifact_id": 14071187073,
+          "artifact_sha256": "d47e3acfc68b8fdc89f29698690e15175911ec4e7cfdbbfc5792ebfcb843c784"
+        },
+        {
+          "profile": "frontend-e2e",
+          "architecture": "linux/amd64",
+          "artifact_id": 14069919842,
+          "artifact_sha256": "e909c79f0100788c95d7ba2d6a8b05f551fdd20eaeca11745a6ba82d0e0ccea6"
+        },
+        {
+          "profile": "frontend",
+          "architecture": "linux/arm64",
+          "artifact_id": 14069903575,
+          "artifact_sha256": "e2fd1460c06bc02d27d147c39c8687e0154cd915afa480e27458cf6fb689392a"
+        }
+      ],
+      "signed_predicate_artifacts": [
+        {
+          "profile": "frontend-e2e",
+          "artifact_id": 14073710893,
+          "artifact_sha256": "b75e1754dc9101ded25002edf8117162f2a28aec89987693f065ac9f9f82ddf4"
+        },
+        {
+          "profile": "final",
+          "artifact_id": 14073566181,
+          "artifact_sha256": "0782a71dd6b123f0e8ba6a338a39038bd3187d6f12049b48f6e4e5b90e562c0c"
+        },
+        {
+          "profile": "frontend",
+          "artifact_id": 14073136800,
+          "artifact_sha256": "4eaf5371446d380a5e8b10a4e5c3317886216904192f24cd9609dc802d71f742"
+        },
+        {
+          "profile": "infra",
+          "artifact_id": 14072657857,
+          "artifact_sha256": "1f818c8d405cbb28eee47a029fb322229621ac2eea283ea16f61162d3a047cc5"
+        }
+      ],
+      "publish_jobs": [
+        {
+          "profile": "final",
+          "job_id": 132138775423
+        },
+        {
+          "profile": "frontend",
+          "job_id": 132138775454
+        },
+        {
+          "profile": "frontend-e2e",
+          "job_id": 132138775472
+        },
+        {
+          "profile": "infra",
+          "job_id": 132138775502
+        }
+      ]
+    }
   }
 }
