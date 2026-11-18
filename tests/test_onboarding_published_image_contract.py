@@ -83,7 +83,9 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         text = SCRIPT.read_text(encoding="utf-8")
         self.assertIn('bash "$SRC_DIR/scripts/post-create.sh"', text)
         self.assertIn('bash "$SRC_DIR/scripts/verify.sh"', text)
-        self.assertIn('exec bash /source/scripts/verify.sh "$@"', text)
+        self.assertIn('bash /source/scripts/verify.sh "$@" > /tmp/dev10-post-create-verify.log 2>&1', text)
+        self.assertIn('printf \'%s\\\\n\' "$status" >> /tmp/dev10-post-create-verify-statuses', text)
+        self.assertIn('post_create_verify_status="$(tail -n 1 /tmp/dev10-post-create-verify-statuses', text)
         self.assertIn('exec bash /source/scripts/summary.sh "$@"', text)
 
 
