@@ -179,11 +179,14 @@ jobs:
           assert data["counts"]["records"] == 41
           assert data["counts"]["records_with_affected_paths"] == 41
           assert data["canonical"]["affected_version"] == "7.0.0-43.43"
+          assert data["canonical"]["binary_records_listed_as_affected"] == 41
+          assert data["canonical"]["binary_records_listed_as_affected"] == 41
           print("### Supplemental 41-CVE source evidence")
           print("Linux CNA revision:",data["upstream"]["commit"])
           print("Canonical OSV revision:",data["canonical"]["commit"])
           print("Verified records and affected paths:",data["counts"])
           print("Resolute source package/version:",data["canonical"]["resolute_source_package"],data["canonical"]["affected_version"])
+          print("Canonical binary package/version listed affected:",data["canonical"]["binary_package"],data["canonical"]["binary_version"],"records:",data["canonical"]["binary_records_listed_as_affected"])
           print("No binary non-applicability or VEX disposition inferred.")
           PY
       - name: Retain exact upstream and Canonical source records
