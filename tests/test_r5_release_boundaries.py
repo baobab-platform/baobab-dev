@@ -149,6 +149,7 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
             self.assertNotIn("DEV10_PROTECTED_DECISION_SHA256", workflow_job)
             self.assertNotIn("DEV10_SECURITY_APPROVER_LOGINS", workflow_job)
             self.assertNotIn("verify_protected_policy_hash.py", workflow_job)
+            self.assertNotIn("scripts/evaluate_protected_risk_decision.py", workflow_job)
         self.assertIn(
             "development-only acceptance is insufficient",
             release_scan,
@@ -166,9 +167,12 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertNotIn("DEV10_SECURITY_APPROVER_LOGINS", promote)
         self.assertNotIn("verify_protected_risk_custody.py", promote)
         self.assertNotIn('decision_file="security/decisions/$RELEASE_TAG', promote)
-        self.assertIn("scripts/evaluate_protected_risk_decision.py", promote)
-        self.assertNotIn("decision_args", promote)
+        self.assertNotIn("scripts/evaluate_protected_risk_decision.py", promote)
+        self.assertNotIn("--environment development", promote)
+        self.assertIn("scripts/verify_digest_security_decision.py", promote)
+        self.assertIn('--release-tag "$RELEASE_TAG"', promote)
         evaluator = (ROOT / "scripts/verify_digest_security_decision.py").read_text()
+        self.assertIn("Release-only exact-digest security decision gate", evaluator)
         self.assertIn("legacy free-text release decisions are not authenticated", evaluator)
         self.assertIn("protected custody required", evaluator)
 
