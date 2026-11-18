@@ -55,6 +55,17 @@ BuildKit SLSA blob digest, BuildKit SPDX blob digest, and verified signed
 predicate digests. The artifacts are the machine-readable evidence; the
 profile index and child digests above are copied from those exact outputs.
 
+## Release promotion boundary
+
+The protected promotion job re-scans each exact native child digest and invokes
+`scripts/verify_digest_security_decision.py`, not the development-policy
+evaluator. The release verifier binds the Trivy report to the exact GHCR
+repository/digest, architecture and pinned scanner version; rejects secret
+findings and missing scan inventories; and fails closed on any HIGH/CRITICAL
+finding. It does not read the DEV-10 decision, development trust anchor or
+development reviewer list. No protected release-specific custody implementation
+is active for residual-risk exceptions, so release promotion is CLEAN-only.
+
 ## Qualification limits and remaining release gates
 
 - This is an independent readback of the existing v1.5.1 images. It is not a
