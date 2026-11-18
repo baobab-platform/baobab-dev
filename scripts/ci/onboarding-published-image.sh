@@ -19,7 +19,7 @@ require_source() {
 }
 
 require_source
-mkdir -p "$PROJECT_DIR" "$TOOLS_DIR" /evidence
+mkdir -p "$HOME" "$PROJECT_DIR" "$TOOLS_DIR" /evidence
 cp -a "$SRC_DIR/." "$PROJECT_DIR/"
 test -f "$PROJECT_DIR/scripts/post-create.sh"
 
