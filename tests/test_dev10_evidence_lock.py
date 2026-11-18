@@ -42,6 +42,44 @@ class EvidenceLockTests(unittest.TestCase):
         self.assertEqual(len(lock.profile_scan_artifacts), 8)
         self.assertEqual(set(lock.stable_profile_images), {"final", "frontend", "frontend-e2e", "infra"})
 
+    def test_strict_historical_ghcr_readback_is_bound_to_all_four_locked_indexes(self):
+        lock = module.EvidenceLock.load(ROOT)
+        proof = lock.stable_image_readback
+        self.assertEqual(proof["run_id"], 44330235494)
+        self.assertEqual(proof["status"], "STRICT_SIGNED_NATIVE_CONTENT_VERIFIED")
+        self.assertIs(proof["release_qualification"], False)
+        self.assertEqual(set(proof["profiles"]), {"final", "frontend", "frontend-e2e", "infra"})
+        for profile, evidence in proof["profiles"].items():
+            with self.subTest(profile=profile):
+                self.assertEqual(
+                    evidence["index_digest"],
+                    lock.stable_profile_images[profile]["index_digest"],
+                )
+                self.assertEqual(
+                    set(evidence["native_child_digests"]),
+                    {"linux/amd64", "linux/arm64"},
+                )
+                self.assertEqual(len(evidence["artifact_sha256"]), 64)
+
+    def test_historical_ghcr_readback_index_mismatch_fails_closed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "security/evidence").mkdir(parents=True)
+            (root / "docs/assessments").mkdir(parents=True)
+            shutil.copy2(ROOT / module.LOCK_PATH, root / module.LOCK_PATH)
+            for name in (
+                "dev10-kernel-cves-298.tsv",
+                "dev10-kernel-cves.tsv",
+                "dev10-canonical-cve-status-20261118.tsv",
+            ):
+                shutil.copy2(ROOT / "docs/assessments" / name, root / "docs/assessments" / name)
+            lock_path = root / module.LOCK_PATH
+            data = json.loads(lock_path.read_text())
+            data["stable_base_image"]["independent_readback"]["profiles"]["final"]["index_digest"] = "sha256:" + "0" * 64
+            lock_path.write_text(json.dumps(data))
+            with self.assertRaisesRegex(ValueError, "not bound to its locked index"):
+                module.EvidenceLock.load(root)
+
     def test_inventory_digest_tampering_fails_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
