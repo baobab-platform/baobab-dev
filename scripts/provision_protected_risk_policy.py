@@ -11,6 +11,7 @@ import argparse
 import base64
 import datetime as dt
 import hashlib
+import hashlib
 import json
 import os
 import re
@@ -27,6 +28,7 @@ from github_api_transport import open_github, read_bounded
 
 REPOSITORY = "baobab-platform/baobab-dev"
 DECISION_PATH = "security/decisions/development/foundation.json"
+EVIDENCE_LOCK_PATH = "security/evidence/dev10-kernel-evidence.lock.json"
 VARIABLE_NAME = "DEV10_PROTECTED_DECISION_SHA256"
 OWNER_USER_ID = 49340314  # @bjnabs; accountable owner recorded in ADR-DEV10-001
 API_ROOT = "https://api.github.com"
@@ -94,6 +96,13 @@ def validate_decision(decision, *, decision_pr, now=None):
             isinstance(decision["evidence_lock_sha256"], str)
             and re.fullmatch(r"[a-f0-9]{64}", decision["evidence_lock_sha256"]) is not None,
             "evidence lock SHA-256 is missing or malformed",
+        )
+        lock_path = Path(__file__).resolve().parents[1] / EVIDENCE_LOCK_PATH
+        require(lock_path.is_file(), "reviewed evidence lock file is missing")
+        actual_lock_sha256 = hashlib.sha256(lock_path.read_bytes()).hexdigest()
+        require(
+            decision["evidence_lock_sha256"] == actual_lock_sha256,
+            "decision evidence-lock SHA-256 differs from the exact repository lock bytes",
         )
     require(decision["schema_version"] == 2, "unsupported decision schema version")
     require(decision["record_type"] == "proposed_approved_form",
