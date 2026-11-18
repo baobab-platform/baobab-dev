@@ -40,7 +40,7 @@ class Supplemental41BinaryPathMappingTests(unittest.TestCase):
         self.assertEqual(MODULE.candidate_binary_paths("fs/smb/client/cifssmb.c", "arm64"), ())
 
     def test_unsafe_source_paths_are_rejected(self):
-        for value in ("../drivers/net/foo.c", "/etc/passwd", "include\\linux\\bad.h", "include//linux/x.h"):
+        for value in ("../drivers/net/foo.c", "/etc/passwd", r"include\\linux\\bad.h", "include//linux/x.h"):
             self.assertFalse(MODULE.safe_source_path(value))
         self.assertTrue(MODULE.safe_source_path("include/uapi/linux/cifs/cifs_mount.h"))
 
