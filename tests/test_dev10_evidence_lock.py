@@ -30,7 +30,12 @@ class EvidenceLockTests(unittest.TestCase):
         stable = json.loads((ROOT / module.LOCK_PATH).read_text())["stable_base_image"]
         self.assertEqual(stable["index_digest"], "sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed")
         self.assertEqual(stable["signer_tag"], "v1.5.1-rc.2")
-        self.assertIsNone(lock.binary_manifest_sha256)
+        self.assertEqual(lock.binary_manifest_sha256, "688453ae46c07ec19b3bf6734eb2f23b0dfe5625c16d76d75149b8194da91fa3")
+        self.assertEqual(lock.historical_inventory_count, 295)
+        self.assertEqual(lock.historical_package_version, "7.0.0-42.42")
+        self.assertEqual(len(lock.observed_kernel_cves), 11)
+        self.assertEqual(len(lock.profile_scan_artifacts), 8)
+        self.assertEqual(set(lock.stable_profile_images), {"final", "frontend", "frontend-e2e", "infra"})
 
     def test_inventory_digest_tampering_fails_closed(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -41,6 +46,8 @@ class EvidenceLockTests(unittest.TestCase):
                          root / module.LOCK_PATH)
             shutil.copy2(ROOT / "docs/assessments/dev10-kernel-cves-298.tsv",
                          root / "docs/assessments/dev10-kernel-cves-298.tsv")
+            shutil.copy2(ROOT / "docs/assessments/dev10-kernel-cves.tsv",
+                         root / "docs/assessments/dev10-kernel-cves.tsv")
             shutil.copy2(ROOT / "docs/assessments/dev10-canonical-cve-status-20261118.tsv",
                          root / "docs/assessments/dev10-canonical-cve-status-20261118.tsv")
             with (root / "docs/assessments/dev10-kernel-cves-298.tsv").open("a") as stream:
@@ -48,10 +55,13 @@ class EvidenceLockTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "digest differs"):
                 module.EvidenceLock.load(root)
 
-    def test_manifest_pin_is_optional_only_until_first_captured_digest_review(self):
+    def test_manifest_digest_is_pinned_to_the_retained_capture(self):
         data = json.loads((ROOT / module.LOCK_PATH).read_text())
-        self.assertIsNone(data["binary_manifest"]["sha256"])
-        self.assertIn("not pre-pinned until independently reviewed",
+        self.assertEqual(
+            data["binary_manifest"]["sha256"],
+            "688453ae46c07ec19b3bf6734eb2f23b0dfe5625c16d76d75149b8194da91fa3",
+        )
+        self.assertIn("computed from installed-paths.txt",
                       data["binary_manifest"]["digest_policy"])
 
 
