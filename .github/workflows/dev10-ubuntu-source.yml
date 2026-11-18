@@ -53,6 +53,7 @@ jobs:
           python3 -B -m unittest discover -s tests -p test_dev10_evidence_lock.py -v
           python3 -B -m unittest discover -s tests -p test_canonical_osv_evidence.py -v
           python3 -B -m unittest discover -s tests -p test_dev10_ubuntu_kernel_source.py -v
+          python3 -B -m unittest discover -s tests -p test_ubuntu_binary_source.py -v
           python3 -B -m unittest discover -s tests -p test_kernel_cve_paths.py -v
       - name: Capture exact installed binary manifest
         run: |
@@ -79,7 +80,9 @@ jobs:
               apt-cache madison linux-libc-dev > /evidence/apt-madison.txt
               dpkg-query -W -f="\${Package}\t\${Version}\t\${Architecture}\t\${Status}\t\${source:Package}\t\${source:Version}\n" linux-libc-dev > /evidence/installed-package.txt
               apt-cache show "linux-libc-dev=${UBUNTU_KERNEL_RELEASE}" > /evidence/apt-package-metadata.txt
-              cd /evidence
+              mkdir -p /tmp/apt-package-download
+              chmod 0777 /tmp/apt-package-download
+              cd /tmp/apt-package-download
               apt-get download "linux-libc-dev=${UBUNTU_KERNEL_RELEASE}"
               mapfile -t package_debs < <(find . -maxdepth 1 -type f -name 'linux-libc-dev_*.deb' -print)
               if (( ${#package_debs[@]} != 1 )); then
@@ -87,7 +90,9 @@ jobs:
                 ls -la >&2
                 exit 2
               fi
-              sha256sum "${package_debs[0]}" > /evidence/apt-package-deb-sha256.txt
+              package_deb="${package_debs[0]}"
+              sha256sum "$(basename "$package_deb")" > /evidence/apt-package-deb-sha256.txt
+              cp "$package_deb" /evidence/
               find /var/lib/apt/lists -type f -name '*_Packages*' -print0 | sort -z | xargs -0 -r sha256sum > /evidence/apt-package-index-sha256.txt
               test -s /evidence/apt-package-index-sha256.txt
               test -s /evidence/apt-package-deb-sha256.txt
