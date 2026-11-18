@@ -115,7 +115,7 @@ class EvidenceLock:
         ))
         current_rows = list(csv.DictReader(
             (root / lock.inventory_path).read_text(encoding="utf-8").splitlines(),
-            delimiter="\\t",
+            delimiter="\t",
         ))
         historical_ids = {row.get("cve") for row in historical_rows}
         current_ids = {row.get("cve") for row in current_rows}
