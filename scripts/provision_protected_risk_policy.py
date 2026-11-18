@@ -59,6 +59,8 @@ EXPECTED_FIELDS = {
     "architectures", "prepared_by", "prepared_by_id", "approval_evidence",
     "expires_at", "findings", "finding_count", "notes",
 }
+EXPECTED_FIELDS_WITH_EVIDENCE_LOCK = EXPECTED_FIELDS | {"evidence_lock_sha256"}
+
 
 
 class ProvisioningError(RuntimeError):
@@ -83,7 +85,16 @@ def parse_utc(value, label):
 def validate_decision(decision, *, decision_pr, now=None):
     """Validate the exact approved policy contract before any API mutation."""
     require(isinstance(decision, dict), "decision must be a JSON object")
-    require(set(decision) == EXPECTED_FIELDS, "decision fields differ from the approved schema")
+    require(
+        set(decision) in (EXPECTED_FIELDS, EXPECTED_FIELDS_WITH_EVIDENCE_LOCK),
+        "decision fields differ from the approved schema",
+    )
+    if "evidence_lock_sha256" in decision:
+        require(
+            isinstance(decision["evidence_lock_sha256"], str)
+            and re.fullmatch(r"[a-f0-9]{64}", decision["evidence_lock_sha256"]) is not None,
+            "evidence lock SHA-256 is missing or malformed",
+        )
     require(decision["schema_version"] == 2, "unsupported decision schema version")
     require(decision["record_type"] == "proposed_approved_form",
             "decision record type is not the approved-form candidate")
@@ -132,6 +143,9 @@ def validate_decision(decision, *, decision_pr, now=None):
     require(len(observed) == len(findings)
             and observed in (BASE_FINDINGS, EXTENDED_FINDINGS),
             "approved inventory differs from the exact eight- or twelve-finding reviewed set")
+    if observed == EXTENDED_FINDINGS:
+        require("evidence_lock_sha256" in decision,
+                "twelve-finding decision must bind the reviewed evidence lock")
     return decision
 
 
