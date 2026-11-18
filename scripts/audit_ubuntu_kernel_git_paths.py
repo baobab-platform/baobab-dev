@@ -98,7 +98,7 @@ def inspect(upstream: dict, repo: Path, paths: set[str], *,
         raise ValueError("Ubuntu source tree enumeration failed")
     # -z preserves unusual Git paths without C-style quoting or line splitting.
     ubuntu_tree_paths = {item.decode("utf-8", "surrogateescape")
-                         for item in tree.stdout.split(b"\\0") if item}
+                         for item in tree.stdout.split(b"\0") if item}
     by_basename = candidate_index(ubuntu_tree_paths)
     result = []
     for row in rows:
