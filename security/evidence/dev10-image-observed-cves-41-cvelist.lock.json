@@ -1,6 +1,6 @@
 {
   "schema": "baobab.dev10.image-observed-41-cvelist-upstream-lock.v1",
-  "status": "CVE_LIST_LINUX_CNA_RECORDS_PINNED_KERNEL_CNA_REPOSITORY_CROSS_CHECK_PENDING",
+  "status": "CVE_LIST_LINUX_CNA_RECORDS_RETRIEVED_AND_PINNED_KERNEL_CNA_REPOSITORY_CROSS_CHECK_PENDING",
   "source": {
     "repository": "CVEProject/cvelistV5",
     "commit": "4c07c147c7a7132e0228ab8bf6fb8b411b256e13",
@@ -8,7 +8,12 @@
     "record_inventory_path": "docs/assessments/dev10-image-observed-cves-41-upstream.tsv",
     "record_count": 41,
     "provider_short_name": "Linux",
-    "record_format": "CVE_RECORD 5.2"
+    "record_format": "CVE_RECORD 5.2",
+    "record_inventory_blob_sha1": "6a8953adfe3545ede30ea8390e2c66ee6f2870a2",
+    "records_with_affected_paths": 41,
+    "total_affected_source_paths": 53,
+    "records_with_candidate_fix_commits": 41,
+    "total_candidate_fix_commits": 225
   },
   "kernel_cna_repository_pin": {
     "repository": "kernel.org/pub/scm/linux/security/vulns",
