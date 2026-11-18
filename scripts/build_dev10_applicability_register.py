@@ -89,8 +89,9 @@ def build(scanner: list[dict], canonical: list[dict],
         manifest = ubuntu_patches.get("binary_manifest") or {}
         if manifest.get("package") != "linux-libc-dev=" + LOCK.package_version:
             raise ValueError("captured binary manifest package differs from reviewed evidence lock")
-        if manifest.get("header_count") != LOCK.header_count:
-            raise ValueError("captured binary manifest header count differs from reviewed evidence lock")
+        if (manifest.get("header_count") != LOCK.header_count
+                or manifest.get("path_count") != LOCK.binary_manifest_path_count):
+            raise ValueError("captured binary manifest path/header counts differ from reviewed evidence lock")
         digest = manifest.get("sha256")
         if not isinstance(digest, str) or not re.fullmatch(r"[a-f0-9]{64}", digest):
             raise ValueError("captured binary manifest has no computed SHA-256")
