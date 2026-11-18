@@ -30,7 +30,7 @@ class ObservedImageCveReconciliationTests(unittest.TestCase):
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(set(ids), set(lock["additional_41_cves"]))
         blob = TSV_PATH.read_bytes()
-        git_blob = hashlib.sha1(b"blob " + str(len(blob)).encode("ascii") + b"\\0" + blob).hexdigest()
+        git_blob = hashlib.sha1(b"blob " + str(len(blob)).encode("ascii") + b"\0" + blob).hexdigest()
         self.assertEqual(git_blob, extra["git_blob_sha1"])
         self.assertEqual(extra["count"], 41)
         self.assertEqual(extra["all_binary_applicability"], "under_investigation")
