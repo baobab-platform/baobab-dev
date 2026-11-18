@@ -88,6 +88,9 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         self.assertIn('>> /tmp/dev10-post-create-verify-statuses', text)
         self.assertIn('exit 0', text)
         self.assertIn('post_create_verify_status="$(tail -n 1 /tmp/dev10-post-create-verify-statuses', text)
+        self.assertIn('playwright_package="$(npm root -g)/playwright"', text)
+        self.assertIn('chromium.launch({ headless: true })', text)
+        self.assertIn('Playwright Chromium launches as $(id -un)', text)
         self.assertIn('exec bash /source/scripts/summary.sh "$@"', text)
 
 
