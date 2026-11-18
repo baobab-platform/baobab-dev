@@ -10,7 +10,7 @@ TOOLS_DIR=/tmp/dev10-tools
 EVIDENCE_FILE=/evidence/onboarding-verification.json
 EXPECTED_PROFILE="${EXPECTED_PROFILE:?expected matrix profile is required}"
 IMAGE_REF="${IMAGE_REF:?immutable image reference is required}"
-[[ "$IMAGE_REF" =~ ^ghcr\\.io/baobab-platform/baobab-dev@sha256:[a-f0-9]{64}$ ]] || {
+[[ "$IMAGE_REF" =~ ^ghcr\.io/baobab-platform/baobab-dev@sha256:[a-f0-9]{64}$ ]] || {
   echo "Onboarding requires the exact immutable Baobab GHCR index digest" >&2
   exit 2
 }
