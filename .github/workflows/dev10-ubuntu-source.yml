@@ -23,11 +23,13 @@ on:
       - .github/actions/checkout-linux-vulns/action.yml
       - scripts/ci/checkout-linux-vulns.sh
       - scripts/audit_dev10_image_observed_41.py
+      - scripts/verify_ubuntu_binary_package_arch.py
       - docs/assessments/dev10-image-observed-cves-41.tsv
       - docs/assessments/dev10-image-observed-cves-41-canonical.tsv
       - security/evidence/dev10-image-observed-cves-41-canonical.lock.json
       - security/evidence/dev10-image-observed-cves-41-upstream.lock.json
       - tests/test_dev10_image_observed_41_sources.py
+      - tests/test_ubuntu_binary_package_arch.py
 
 permissions:
   contents: read
@@ -63,6 +65,11 @@ jobs:
           python3 -B -m unittest discover -s tests -p test_ubuntu_binary_source.py -v
           python3 -B -m unittest discover -s tests -p test_kernel_cve_paths.py -v
           python3 -B -m unittest discover -s tests -p test_dev10_image_observed_41_sources.py -v
+          python3 -B -m unittest discover -s tests -p test_ubuntu_binary_package_arch.py -v
+      - name: Enable arm64 package execution for native architecture verification
+        uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
+        with:
+          platforms: arm64
       - name: Capture exact installed binary manifest
         run: |
           set -euo pipefail
@@ -101,6 +108,23 @@ jobs:
               package_deb="${package_debs[0]}"
               sha256sum "$(basename "$package_deb")" > /evidence/apt-package-deb-sha256.txt
               cp "$package_deb" /evidence/
+              {
+                while IFS= read -r package_path; do
+                  if [ -L "$package_path" ]; then
+                    printf 'symlink\t%s\t%s\n' "$package_path" "$(readlink "$package_path")"
+                  elif [ -d "$package_path" ]; then
+                    printf 'dir\t%s\t\n' "$package_path"
+                  elif [ -f "$package_path" ]; then
+                    printf 'file\t%s\t%s\n' "$package_path" "$(sha256sum -- "$package_path" | cut -d' ' -f1)"
+                  else
+                    echo "Installed package path is missing: $package_path" >&2
+                    exit 3
+                  fi
+                done < /evidence/installed-paths.txt
+              } | LC_ALL=C sort -t "$(printf '\t')" -k2,2 > /evidence/installed-content-manifest.tsv
+              find /var/lib/apt/lists -type f -name '*InRelease' -print0 | sort -z | xargs -0 -r sha256sum > /evidence/apt-inrelease-sha256.txt
+              test -s /evidence/installed-content-manifest.tsv
+              test -s /evidence/apt-inrelease-sha256.txt
               find /var/lib/apt/lists -type f -name '*_Packages*' -print0 | sort -z | xargs -0 -r sha256sum > /evidence/apt-package-index-sha256.txt
               test -s /evidence/apt-package-index-sha256.txt
               test -s /evidence/apt-package-deb-sha256.txt
@@ -117,6 +141,90 @@ jobs:
             --index-sha256 "$RUNNER_TEMP/dev10-ubuntu-source/apt-package-index-sha256.txt" \
             --base-image "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-base-image.txt" \
             --output "$RUNNER_TEMP/dev10-ubuntu-source/binary-source-corroboration.json"
+      - name: Capture and verify native arm64 linux-libc-dev package payload
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/dev10-ubuntu-source/arm64"
+          docker run --rm --platform linux/arm64 \
+            -e UBUNTU_KERNEL_RELEASE="$UBUNTU_KERNEL_RELEASE" \
+            -v "$RUNNER_TEMP/dev10-ubuntu-source/arm64:/evidence" \
+            "$UBUNTU_IMAGE_REF" bash -c '
+              set -euo pipefail
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update -qq >/dev/null
+              apt-get install -qq -y --no-install-recommends linux-libc-dev=$UBUNTU_KERNEL_RELEASE >/dev/null
+              test "$(dpkg-query -W linux-libc-dev | cut -f 2)" = "$UBUNTU_KERNEL_RELEASE"
+              dpkg-query -L linux-libc-dev > /evidence/installed-paths.txt
+              apt-cache policy linux-libc-dev > /evidence/apt-policy.txt
+              apt-cache madison linux-libc-dev > /evidence/apt-madison.txt
+              dpkg-query -W -f="\${Package}\t\${Version}\t\${Architecture}\t\${Status}\t\${source:Package}\t\${source:Version}\n" linux-libc-dev > /evidence/installed-package.txt
+              apt-cache show "linux-libc-dev=$UBUNTU_KERNEL_RELEASE" > /evidence/apt-package-metadata.txt
+              mkdir -p /tmp/apt-package-download
+              chmod 0777 /tmp/apt-package-download
+              cd /tmp/apt-package-download
+              apt-get download "linux-libc-dev=$UBUNTU_KERNEL_RELEASE"
+              package_deb="$(find . -maxdepth 1 -type f -name "linux-libc-dev_*_arm64.deb" -print -quit)"
+              test -n "$package_deb"
+              sha256sum "$(basename "$package_deb")" > /evidence/apt-package-deb-sha256.txt
+              cp "$package_deb" /evidence/
+              find /var/lib/apt/lists -type f -name "*_Packages*" -print0 | sort -z | xargs -0 -r sha256sum > /evidence/apt-package-index-sha256.txt
+              find /var/lib/apt/lists -type f -name "*InRelease" -print0 | sort -z | xargs -0 -r sha256sum > /evidence/apt-inrelease-sha256.txt
+              {
+                while IFS= read -r package_path; do
+                  if [ -L "$package_path" ]; then
+                    printf "symlink\t%s\t%s\n" "$package_path" "$(readlink "$package_path")"
+                  elif [ -d "$package_path" ]; then
+                    printf "dir\t%s\t\n" "$package_path"
+                  elif [ -f "$package_path" ]; then
+                    printf "file\t%s\t%s\n" "$package_path" "$(sha256sum -- "$package_path" | cut -d" " -f1)"
+                  else
+                    echo "Installed package path is missing: $package_path" >&2
+                    exit 3
+                  fi
+                done < /evidence/installed-paths.txt
+              } | LC_ALL=C sort -t "$(printf "\t")" -k2,2 > /evidence/installed-content-manifest.tsv
+              test -s /evidence/installed-content-manifest.tsv
+              test -s /evidence/apt-package-index-sha256.txt
+              test -s /evidence/apt-inrelease-sha256.txt
+            '
+          arm64_deb="$(find "$RUNNER_TEMP/dev10-ubuntu-source/arm64" -maxdepth 1 -type f -name 'linux-libc-dev_*.deb' -print -quit)"
+          test -n "$arm64_deb"
+          python3 -B scripts/verify_ubuntu_binary_package_arch.py \
+            --architecture arm64 \
+            --installed-package "$RUNNER_TEMP/dev10-ubuntu-source/arm64/installed-package.txt" \
+            --installed-content-manifest "$RUNNER_TEMP/dev10-ubuntu-source/arm64/installed-content-manifest.tsv" \
+            --apt-package-metadata "$RUNNER_TEMP/dev10-ubuntu-source/arm64/apt-package-metadata.txt" \
+            --apt-policy "$RUNNER_TEMP/dev10-ubuntu-source/arm64/apt-policy.txt" \
+            --apt-madison "$RUNNER_TEMP/dev10-ubuntu-source/arm64/apt-madison.txt" \
+            --deb "$arm64_deb" \
+            --index-sha256 "$RUNNER_TEMP/dev10-ubuntu-source/arm64/apt-package-index-sha256.txt" \
+            --release-sha256 "$RUNNER_TEMP/dev10-ubuntu-source/arm64/apt-inrelease-sha256.txt" \
+            --base-image "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-base-image.txt" \
+            --output "$RUNNER_TEMP/dev10-ubuntu-source/arm64/binary-package-provenance.json"
+          amd64_deb="$(find "$RUNNER_TEMP/dev10-ubuntu-source" -maxdepth 1 -type f -name 'linux-libc-dev_*_amd64.deb' -print -quit)"
+          test -n "$amd64_deb"
+          python3 -B scripts/verify_ubuntu_binary_package_arch.py \
+            --architecture amd64 \
+            --installed-package "$RUNNER_TEMP/dev10-ubuntu-source/installed-package.txt" \
+            --installed-content-manifest "$RUNNER_TEMP/dev10-ubuntu-source/installed-content-manifest.tsv" \
+            --apt-package-metadata "$RUNNER_TEMP/dev10-ubuntu-source/apt-package-metadata.txt" \
+            --apt-policy "$RUNNER_TEMP/dev10-ubuntu-source/apt-policy.txt" \
+            --apt-madison "$RUNNER_TEMP/dev10-ubuntu-source/apt-madison.txt" \
+            --deb "$amd64_deb" \
+            --index-sha256 "$RUNNER_TEMP/dev10-ubuntu-source/apt-package-index-sha256.txt" \
+            --release-sha256 "$RUNNER_TEMP/dev10-ubuntu-source/apt-inrelease-sha256.txt" \
+            --base-image "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-base-image.txt" \
+            --output "$RUNNER_TEMP/dev10-ubuntu-source/amd64-binary-package-provenance.json"
+          python3 - "$RUNNER_TEMP/dev10-ubuntu-source/amd64-binary-package-provenance.json" "$RUNNER_TEMP/dev10-ubuntu-source/arm64/binary-package-provenance.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          for path in sys.argv[1:]:
+              item=json.load(open(path))
+              assert item["binary_version"] == "7.0.0-43.43"
+              assert item["source_package"] == "linux"
+              assert item["package_path_count"] > 0
+              print(f"{item['architecture']}: {item['binary_package']} {item['binary_version']} from {item['source_package']} {item['source_version']}; {item['package_path_count']} payload paths; manifest SHA-256 {item['package_content_manifest_sha256']}")
+          print("Package provenance and payload manifests are verified for both architectures; CVE applicability remains under investigation.")
+          PY
       - name: Checkout pinned Canonical Ubuntu OSV snapshot
         run: |
           set -euo pipefail
