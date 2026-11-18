@@ -20,7 +20,7 @@ TARGETS = {"final", "frontend", "frontend-e2e", "infra"}
 ARCHITECTURES = {"linux/amd64", "linux/arm64"}
 IMAGE_REPOSITORY = "ghcr.io/baobab-platform/baobab-dev"
 TRIVY_VERSION = "0.73.0"
-RELEASE_TAG = re.compile(r"v[0-9]+\\.[0-9]+\\.[0-9]+(?:-rc\\.[1-9][0-9]*)?\\Z")
+RELEASE_TAG = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[1-9][0-9]*)?\Z")
 
 def inventory_hash(packages):
     if not isinstance(packages, list) or not packages:
@@ -72,8 +72,10 @@ def findings(report):
 def validate(decision, report, *, target, digest, release_tag,
              image_repository=IMAGE_REPOSITORY, architecture="linux/amd64",
              expected_trivy_version=TRIVY_VERSION, now):
-    if (target not in TARGETS or not DIGEST.fullmatch(digest)
-            or not RELEASE_TAG.fullmatch(release_tag)
+    if not isinstance(report, dict):
+        raise ValueError("invalid Trivy report")
+    if (target not in TARGETS or not isinstance(digest, str) or not DIGEST.fullmatch(digest)
+            or not isinstance(release_tag, str) or not RELEASE_TAG.fullmatch(release_tag)
             or image_repository != IMAGE_REPOSITORY
             or architecture not in ARCHITECTURES
             or expected_trivy_version != TRIVY_VERSION):
@@ -86,7 +88,9 @@ def validate(decision, report, *, target, digest, release_tag,
     metadata = report.get("Metadata")
     if not isinstance(metadata, dict):
         raise ValueError("Trivy image metadata is missing")
-    if f"{image_repository}@{digest}" not in (metadata.get("RepoDigests") or []):
+    repo_digests = metadata.get("RepoDigests")
+    if (not isinstance(repo_digests, list)
+            or f"{image_repository}@{digest}" not in repo_digests):
         raise ValueError("Trivy report does not identify the exact release child digest")
     image_config = metadata.get("ImageConfig")
     if (not isinstance(image_config, dict) or image_config.get("os") != "linux"
