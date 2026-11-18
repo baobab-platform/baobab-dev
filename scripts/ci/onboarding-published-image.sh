@@ -78,7 +78,13 @@ exec bash /source/scripts/summary.sh "$@"
 SH
 cat > "$TOOLS_DIR/baobab-verify" <<'SH'
 #!/usr/bin/env bash
-exec bash /source/scripts/verify.sh "$@"
+set +e
+bash /source/scripts/verify.sh "$@" > /tmp/dev10-post-create-verify.log 2>&1
+status=$?
+printf '%s\\n' "$status" >> /tmp/dev10-post-create-verify-statuses
+# The historical verifier result is retained below; it must not abort the
+# post-create lifecycle before the explicit verification evidence is written.
+exit 0
 SH
 chmod +x "$TOOLS_DIR/baobab-summary" "$TOOLS_DIR/baobab-verify"
 export PATH="$TOOLS_DIR:$PATH"
@@ -140,6 +146,7 @@ fi
 # Record verifier failure count without depending on Python
 # (which the infra profile intentionally excludes).
 failed_check_count="$(grep -c '✘' "$verify_log" || true)"
+post_create_verify_status="$(tail -n 1 /tmp/dev10-post-create-verify-statuses 2>/dev/null || printf 127)"
 # Evidence generation is shell-only because the infra profile excludes Python.
 cat > "$EVIDENCE_FILE" <<EOF
 {
@@ -150,6 +157,7 @@ cat > "$EVIDENCE_FILE" <<EOF
   "runtime_uid": $(id -u),
   "runtime_user": "$(id -un)",
   "verify_exit_status": $verify_status,
+  "post_create_verify_exit_status": $post_create_verify_status,
   "verify_status": "$verify_label",
   "playwright_chromium_verified": $playwright_verified,
   "failed_check_count": $failed_check_count,
