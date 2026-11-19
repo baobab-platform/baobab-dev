@@ -123,6 +123,15 @@ class ManifestWritebackTests(unittest.TestCase):
             with self.subTest(files=files), self.assertRaises(resolver.ResolutionError):
                 resolver.validate_resolution(files, self.lock)
 
+    def test_generated_source_pin_requires_the_full_commit(self):
+        pin = b"export GH_SOURCE_COMMIT=" + b"a" * 40 + b"\n"
+        expected_lock = self.lock + pin
+        files = dict(self.files, **{"config/versions.lock": expected_lock})
+        resolver.validate_resolution(files, expected_lock)
+        files["config/versions.lock"] = self.lock + b"export GH_SOURCE_COMMIT=abcdef\n"
+        with self.assertRaisesRegex(resolver.ResolutionError, "malformed source commit"):
+            resolver.validate_resolution(files, expected_lock)
+
 
 class ManifestResolverFailureTests(unittest.TestCase):
     def test_unavailable_and_mismatched_python_sources_leave_existing_files_intact(self):

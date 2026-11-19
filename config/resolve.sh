@@ -18,6 +18,7 @@
 #   - yq v4+
 #   - curl
 #   - GitHub CLI >= 2.102.0 (exact publisher-attestation identity verification)
+#   - Git and Python 3 (immutable source tag resolution)
 #   - coreutils (sha256sum, sort)
 #
 # Usage:
@@ -153,6 +154,19 @@ locked_version() {
 
 yaml() {
     yq -r "$1" "$MANIFEST"
+}
+
+github_source_commit() {
+    local repository="$1" version="$2" tool="$3" observed
+    local version_key="${tool}_VERSION" source_key="${tool}_SOURCE_COMMIT"
+    observed=$(GIT_TERMINAL_PROMPT=0 python3 -B "$REPO_ROOT/scripts/verify_remote_release_tag.py" \
+        --tag "v$version" --remote "https://github.com/$repository.git" --print-commit) ||
+        die "Unable to resolve exact $repository source tag v$version"
+    if $LOCKED_MODE && [[ "${LOCKED_VALUES[$version_key]:-}" == "$version" &&
+                          "${LOCKED_VALUES[$source_key]:-}" != "$observed" ]]; then
+        die "Upstream $repository v$version source no longer matches the reviewed commit lock"
+    fi
+    printf '%s' "$observed"
 }
 
 github_latest() {
@@ -669,12 +683,14 @@ UV_ASSET_ARM64="uv-aarch64-unknown-linux-gnu.tar.gz"
 UV_SHA256_ARM64=$(github_asset_digest "astral-sh/uv" "${UV_VERSION}" "${UV_ASSET_ARM64}")
 
 info "Fetching gh checksums..."
+GH_SOURCE_COMMIT=$(github_source_commit "cli/cli" "$GH_VERSION" GH)
 GH_ASSET_AMD64="gh_${GH_VERSION}_linux_amd64.tar.gz"
 GH_SHA256_AMD64=$(github_asset_digest "cli/cli" "v${GH_VERSION}" "${GH_ASSET_AMD64}")
 GH_ASSET_ARM64="gh_${GH_VERSION}_linux_arm64.tar.gz"
 GH_SHA256_ARM64=$(github_asset_digest "cli/cli" "v${GH_VERSION}" "${GH_ASSET_ARM64}")
 
 info "Fetching cosign checksums..."
+COSIGN_SOURCE_COMMIT=$(github_source_commit "sigstore/cosign" "$COSIGN_VERSION" COSIGN)
 COSIGN_ASSET_AMD64="cosign-linux-amd64"
 COSIGN_SHA256_AMD64=$(github_asset_digest "sigstore/cosign" "v${COSIGN_VERSION}" "${COSIGN_ASSET_AMD64}")
 COSIGN_ASSET_ARM64="cosign-linux-arm64"
@@ -726,6 +742,7 @@ require_resolved "$TERRAFORM_VERSION" "versions.yaml key '.infra.terraform.versi
 is_exact_version "$TERRAFORM_VERSION" || die "TERRAFORM_VERSION requires an exact version"
 
 info "Fetching Terraform checksums for ${TERRAFORM_VERSION}..."
+TERRAFORM_SOURCE_COMMIT=$(github_source_commit "hashicorp/terraform" "$TERRAFORM_VERSION" TERRAFORM)
 TERRAFORM_ASSET_AMD64="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
 TERRAFORM_SHA256_AMD64=$(terraform_sha256_for_asset "${TERRAFORM_VERSION}" "${TERRAFORM_ASSET_AMD64}")
 require_resolved "$TERRAFORM_SHA256_AMD64" "HashiCorp SHA256SUMS lookup for ${TERRAFORM_ASSET_AMD64}"
@@ -898,12 +915,14 @@ export YQ_ASSET_ARM64=${YQ_ASSET_ARM64}
 export YQ_SHA256_ARM64=${YQ_SHA256_ARM64}
 
 export GH_VERSION=${GH_VERSION}
+export GH_SOURCE_COMMIT=${GH_SOURCE_COMMIT}
 export GH_ASSET_AMD64=${GH_ASSET_AMD64}
 export GH_SHA256_AMD64=${GH_SHA256_AMD64}
 export GH_ASSET_ARM64=${GH_ASSET_ARM64}
 export GH_SHA256_ARM64=${GH_SHA256_ARM64}
 
 export COSIGN_VERSION=${COSIGN_VERSION}
+export COSIGN_SOURCE_COMMIT=${COSIGN_SOURCE_COMMIT}
 export COSIGN_ASSET_AMD64=${COSIGN_ASSET_AMD64}
 export COSIGN_SHA256_AMD64=${COSIGN_SHA256_AMD64}
 export COSIGN_ASSET_ARM64=${COSIGN_ASSET_ARM64}
@@ -913,6 +932,7 @@ export MAVEN_VERSION=${MAVEN_VERSION}
 export MAVEN_SHA512=${MAVEN_SHA512}
 
 export TERRAFORM_VERSION=${TERRAFORM_VERSION}
+export TERRAFORM_SOURCE_COMMIT=${TERRAFORM_SOURCE_COMMIT}
 export TERRAFORM_ASSET_AMD64=${TERRAFORM_ASSET_AMD64}
 export TERRAFORM_SHA256_AMD64=${TERRAFORM_SHA256_AMD64}
 export TERRAFORM_ASSET_ARM64=${TERRAFORM_ASSET_ARM64}

@@ -140,3 +140,25 @@ GitHub rejected `11ba46570ed32b7db0808c10104a1f56bac02310` before Publish starte
 At `2350868fc598c20391ded422d662ad6f41866fbe`, hosted locked onboarding passed lint and source tests and skipped the historical GHCR and supplemental kernel jobs. Frozen Lockfile Integrity also passed. [Onboarding run](https://github.com/baobab-platform/baobab-dev/actions/runs/44506061191) · [Publish run](https://github.com/baobab-platform/baobab-dev/actions/runs/44506061158)
 
 The tagged preflight now binds the source to its exact canonical PR merge, a typed trusted reviewer who approved the PR head before merge and is independent of its complete contributor set, and the immutable bytes of all three toolchain inputs. It records the numeric review IDs and file digests. Tag governance checks active creation, update and deletion rules. An administrator may enforce creation separately from immutability to limit the scope of a release creator's bypass. Protected promotions queue on a shared group, and rollback refuses to overwrite a live alias changed by another writer. A local rollback regression covers that refusal. A qualified prior release and a newly qualified candidate are needed for the live rollback exercise.
+
+At `cf09aabcdabb0deadbb639a0d5132fe84ca377a7`, the hosted policy contract verified the exact #76 main merge, reviewer numeric ID 356900102 and all three toolchain input digests. The downloaded receipt archive matched `sha256:0d5887c860bfe32d67ea5d50a72664b515bd879bdc515b056c8e445a87a96d5d`. Independent download of the Publish frozen-lock archive found that it omitted `.python-version`, despite the checkout passing the drift check. The upload now explicitly includes the two tracked files. Build, signing and release consume the exact verified checkout and need no lock artifact downloads. [Policy receipt 14519853751](https://github.com/baobab-platform/baobab-dev/actions/runs/44507511663/artifacts/14519853751) · [Original lock artifact 14520416160](https://github.com/baobab-platform/baobab-dev/actions/runs/44507511920/artifacts/14520416160)
+
+GitHub reports the #55 prerequisite PRs #48 and #50 merged at `eb9fb92f043c782acff5d87c77301d9a9e8b80dd`. The current reader checks found these adoption prerequisites:
+
+| Consumer | Current container pin | Node and package-manager requirements |
+| --- | --- | --- |
+| Nabhold | `1.4.4-frontend` by digest | Node 24, pnpm 11.24.0, Playwright 1.64.1 |
+| ZuriBeans | `1.5.1-frontend` by digest | Node 24, pnpm 11.24.0, Playwright 1.63.0 |
+| Thamani | `1.4.4-frontend` by digest | Node 24, pnpm 11.24.0, Playwright 1.62.1 |
+| Baobab CP | `1.5.1` by digest | Node 26 engine range, exact `v26.13.0` bootstrap check, pnpm 12.16.1 |
+
+The #74 candidate pins Node `26.13.1`, pnpm `12.21.0` and Playwright `1.65.0`. Actual compatibility, private-package access, browser execution, rollback and teardown remain **BLOCKED** pending a qualified candidate and live consumer evidence. [#55 consumer acceptance](https://github.com/baobab-platform/baobab-dev/issues/55)
+
+The version resolver now records upstream Git source commits for GitHub CLI,
+Cosign and Terraform in the generated lock. It handles annotated and
+lightweight tags and refuses a source move for an unchanged version. The
+builder fetches the exact commit and separately checks the upstream tag before
+building against the existing security module constraints. All three current
+upstream tags resolved to the same commits already used in the builder. Direct
+resolver tests with a mismatched Python publisher checksum and an unavailable
+Python version refused both inputs before any generated lock was written.

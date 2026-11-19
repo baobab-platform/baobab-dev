@@ -308,10 +308,8 @@ jobs:
           echo "::error::Check DEV-10 manifest lock resolution. Forks retain both files for maintainer follow-up."
           exit 1
 
-      # Hand off the upstream-verified committed resolution via artifact.
-      # Both verification and build check out the same immutable event SHA. Uploaded
-      # unconditionally — pull_request and non-release builds alike still
-      # need a lockfile.
+      # Retain the inputs verified on the immutable event SHA. Downstream jobs
+      # use their checkout of those same bytes.
       - name: Upload resolved lockfile
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -319,8 +317,9 @@ jobs:
           path: |
             config/versions.lock
             .python-version
+          include-hidden-files: true
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 30
 
   # Job 2: Multi-Arch Container Build & Vulnerability Scan Gate
   # Builds amd64/arm64 images and runs the Trivy CVE/secret gate on every
@@ -387,15 +386,6 @@ jobs:
     runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
     timeout-minutes: 120
 
-    # `packages: write` — needed to push image layers/metadata by digest.
-    # Granted job-wide (GitHub Actions has no per-step scoping); only
-    # exercised on tag pushes. CORRECTED (was stale): this used to say only
-    # `final` pushed and frontend/frontend-e2e "never push in this job yet"
-    # — that was true during the TIER 1 rollout but is no longer accurate.
-    # All three targets now push on tag pushes (see the real build step's
-    # `push:` logic and outputs below); PR/main runs still never push, so
-    # this permission remains unused (but present, since GitHub Actions has
-    # no per-step scoping) outside tag pushes.
     permissions:
       contents: read
       pull-requests: read
@@ -463,15 +453,6 @@ jobs:
           set -x
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
           df -h /
-
-      # Overwrites whatever versions.lock the checkout brought in with the
-      # exact one sanity-check resolved earlier in THIS run (see "Upload
-      # resolved lockfile" in sanity-check for why).
-      - name: Download resolved lockfile
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: resolved-lockfile
-          path: .
 
       # - name: Setup QEMU Emulation
       # uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
@@ -826,11 +807,6 @@ jobs:
           echo "Disk space after cleanup:"
           df -h /
 
-      - name: Download exact locked tools
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: resolved-lockfile
-          path: .
       - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Authenticate to GitHub Container Registry (GHCR)
@@ -1142,14 +1118,6 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-
-      # Release jobs check out the immutable tag-push event commit only.
-      # No independently selected ref can be substituted at dispatch time.
-      - name: Download resolved lockfile
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: resolved-lockfile
-          path: .
 
       - name: Authenticate to GHCR
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
@@ -2267,14 +2235,6 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-
-      # Needed so the release can attach versions.lock as a release asset,
-      # same as the old single-job version did.
-      - name: Download resolved lockfile
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: resolved-lockfile
-          path: .
 
       # RC builds publish published-info-* records; GA reuses the exact
       # qualified RC digests in ga-reused-candidates. Both channels must

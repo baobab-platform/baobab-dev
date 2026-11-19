@@ -95,6 +95,8 @@ def validate_resolution(files, contract):
     if set(assignments) != expected:
         raise ResolutionError("generated lock is missing a required key or contains an unexpected key")
     for key, value in assignments.items():
+        if key.endswith("_SOURCE_COMMIT") and not SHA.fullmatch(value):
+            raise ResolutionError(f"generated lock contains a malformed source commit for {key}")
         if "_SHA256" in key and not re.fullmatch(r"[a-f0-9]{64}", value):
             raise ResolutionError(f"generated lock contains a malformed SHA-256 for {key}")
         if key.endswith("_SHA512") and not re.fullmatch(r"[a-f0-9]{128}", value):

@@ -5,8 +5,8 @@ set -euo pipefail
 export PATH="/build/go/bin:$PATH" GOTOOLCHAIN=local CGO_ENABLED=0
 export GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org
 
-# The lock is the sole version source. The pinned source commits below are
-# independently checked against the corresponding upstream release tags.
+# The lock supplies both versions and source commits. Verify each
+# commit independently against the corresponding upstream release tag.
 # shellcheck disable=SC1091
 . /build/versions.lock
 : "$GH_VERSION" "$COSIGN_VERSION"
@@ -20,6 +20,10 @@ prepare_source() {
   local tool="$1" repo="$2" commit="$3" version="$4"
   local dest="/build/upstream-$tool" tag_commit source_date_epoch
 
+  [[ "$commit" =~ ^[a-f0-9]{40}$ ]] || {
+    echo "::error::Invalid locked source commit for $tool" >&2
+    return 1
+  }
   mkdir -p "$dest"
   git -C "$dest" init -q
   git -C "$dest" remote add origin "$repo"
@@ -63,7 +67,7 @@ verify_fixed_xnet() {
 
 build_gh() {
   local repo="https://github.com/cli/cli.git"
-  local commit="89d7dcec017194af1d6f8853176b2dae9c1da762"
+  local commit="${GH_SOURCE_COMMIT:?missing GitHub CLI source pin}"
   local dest="/build/upstream-gh" source_date_epoch
 
   source_date_epoch="$(prepare_source gh "$repo" "$commit" "$GH_VERSION")"
@@ -90,7 +94,7 @@ build_gh() {
 
 build_cosign() {
   local repo="https://github.com/sigstore/cosign.git"
-  local commit="0e48502cf5ef34e2e60bbd3617aa19945712f705"
+  local commit="${COSIGN_SOURCE_COMMIT:?missing Cosign source pin}"
   local dest="/build/upstream-cosign" source_date_epoch
 
   source_date_epoch="$(prepare_source cosign "$repo" "$commit" "$COSIGN_VERSION")"
@@ -143,7 +147,7 @@ build_cosign() {
 
 build_terraform() {
   local repo="https://github.com/hashicorp/terraform.git"
-  local commit="ff6329e4c2a159b46ec2b73d36bfa3d0ef6560c9"
+  local commit="${TERRAFORM_SOURCE_COMMIT:?missing Terraform source pin}"
   local dest="/build/upstream-terraform"
   : "${TERRAFORM_VERSION:?expected Terraform version lock}"
   prepare_source terraform "$repo" "$commit" "$TERRAFORM_VERSION" >/dev/null

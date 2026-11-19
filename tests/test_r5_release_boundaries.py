@@ -62,6 +62,19 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("Scan built container with Trivy", build)
         self.assertIn("needs.sanity-check.outputs.is_release != 'true'", build)
 
+    def test_frozen_lock_evidence_contains_both_files_and_jobs_use_the_exact_checkout(self):
+        workflow_jobs = jobs()
+        evidence = active_yaml(workflow_jobs["sanity-check"])
+        self.assertIn("git diff --quiet -- config/versions.lock .python-version", evidence)
+        self.assertIn("name: resolved-lockfile", evidence)
+        self.assertIn("config/versions.lock\n            .python-version\n          include-hidden-files: true", evidence)
+        for name in ("build", "release-digests", "publish", "release"):
+            with self.subTest(job=name):
+                consumer = active_yaml(workflow_jobs[name])
+                self.assertIn("ref: ${{ github.sha }}", consumer)
+                self.assertRegex(consumer, r"(?m)^    needs: .*\bsanity-check\b")
+                self.assertNotIn("name: resolved-lockfile", consumer)
+
     def test_local_runtime_qualification_runs_after_scan_denial_when_build_succeeded(self):
         build = active_yaml(jobs()["build"])
         self.assertIn("id: build-local-image", build)
