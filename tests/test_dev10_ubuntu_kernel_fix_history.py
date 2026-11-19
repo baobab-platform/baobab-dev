@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import types
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location(
@@ -39,22 +40,15 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         git(self.ubuntu, "commit", "-qm", "Ubuntu source base")
         git(self.ubuntu, "remote", "add", "origin", m.SOURCE_REPO)
 
-        self.upstream_repo = root / "upstream"
-        self.upstream_repo.mkdir()
-        git(self.upstream_repo, "init", "-q")
-        git(self.upstream_repo, "config", "user.name", "Upstream Test")
-        git(self.upstream_repo, "config", "user.email", "upstream@example.invalid")
-        (self.upstream_repo / "drivers").mkdir()
-        (self.upstream_repo / "drivers/example.c").write_text(
-            "int example(void) { return 0; }\n", encoding="utf-8"
-        )
-        git(self.upstream_repo, "add", ".")
-        git(self.upstream_repo, "commit", "-qm", "Upstream source base")
         self.bare = root / "stable.git"
         subprocess.run(["git", "init", "--bare", "-q", str(self.bare)], check=True)
-        git(self.upstream_repo, "remote", "add", "origin", str(self.bare))
-        git(self.upstream_repo, "push", "-q", "origin", "HEAD")
-
+        git(self.ubuntu, "remote", "add", "stable", str(self.bare))
+        git(self.ubuntu, "push", "-q", "stable", "HEAD:refs/heads/main")
+        self.upstream_repo = root / "upstream"
+        subprocess.run(["git", "clone", "-q", str(self.ubuntu), str(self.upstream_repo)], check=True)
+        git(self.upstream_repo, "config", "user.name", "Upstream Test")
+        git(self.upstream_repo, "config", "user.email", "upstream@example.invalid")
+        git(self.upstream_repo, "remote", "set-url", "origin", str(self.bare))
         self.candidate_root = root / "candidate-objects"
         self.candidate_root.mkdir()
         git(self.candidate_root, "init", "-q")
@@ -122,7 +116,7 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         self.tag_commit = git(self.ubuntu, "rev-parse", "HEAD")
         self.lock.ubuntu_tag_commit = self.tag_commit
         upstream, ubuntu_paths = self.records(reference)
-        with unittest.mock.patch.object(m, "LOCK", self.lock):
+        with mock.patch.object(m, "LOCK", self.lock):
             return m.audit(
                 upstream, ubuntu_paths, self.ubuntu, self.candidate_root,
                 self.binary_source, expected_commit or self.tag_commit,
@@ -131,7 +125,8 @@ class UbuntuFixHistoryTests(unittest.TestCase):
 
     def test_exact_upstream_commit_ancestor_is_recorded_without_fix_disposition(self):
         sha = self.candidate()
-        git(self.ubuntu, "cherry-pick", "-q", sha)
+        git(self.ubuntu, "fetch", "-q", "stable", sha)
+        git(self.ubuntu, "merge", "--ff-only", sha)
         report = self.run_audit("https://git.kernel.org/stable/c/" + sha)
         candidate = report["records"][0]["candidates"][0]
         self.assertTrue(candidate["exact_commit_ancestor_of_ubuntu_tag"])
@@ -141,6 +136,7 @@ class UbuntuFixHistoryTests(unittest.TestCase):
 
     def test_cherry_pick_with_trailer_and_matching_patch_id_is_reported(self):
         sha = self.candidate()
+        git(self.ubuntu, "fetch", "-q", "stable", sha)
         git(self.ubuntu, "cherry-pick", "-q", "-x", sha)
         report = self.run_audit("https://git.kernel.org/stable/c/" + sha)
         candidate = report["records"][0]["candidates"][0]
@@ -200,6 +196,8 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         self.tag_commit = git(self.ubuntu, "rev-parse", "HEAD")
         self.lock.ubuntu_tag_commit = self.tag_commit
         with unittest.mock.patch.object(m, "LOCK", self.lock):
+            self.lock.ubuntu_tag_commit = "0" * 40
+        with mock.patch.object(m, "LOCK", self.lock):
             with self.assertRaisesRegex(m.EvidenceError, "do not match"):
                 m.audit(
                     upstream, ubuntu_paths, self.ubuntu, self.candidate_root,
