@@ -13,8 +13,8 @@ an unsuccessful candidate, not permission to rewrite its source.
    numbered RC tag at that commit, then push without `--force`.
 5. Run the entire tagged pipeline again: all target builds/scans, exact digest
    signing, SBOM/provenance, protected human approval, and promotion.
-6. Only a successful qualified RC may supply `DEV10_QUALIFIED_RC_RUN_ID`
-   for GA. GA must reuse the RC OCI digests, not rebuild.
+6. GA discovers a successful qualified RC for the exact same source and
+   version family. It reuses that RC's OCI digests.
 
 **Prohibited:** `git tag -f`, `git push --force` to release refs,
 deleting/recreating published tags, silently treating a rerun of an old
