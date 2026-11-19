@@ -191,7 +191,7 @@ jobs:
             --candidate-root "$RUNNER_TEMP/kernel-fix-candidate-objects" \
             --binary-source "$RUNNER_TEMP/dev10-ubuntu-source/binary-source-corroboration.json" \
             --expected-commit "$UBUNTU_TAG_COMMIT" \
-            --analysis-seconds 1200 \
+            --analysis-seconds 3300 \
             --output "$output"
           python3 - "$output" >> "$GITHUB_STEP_SUMMARY" <<'PY'
           import json,sys
