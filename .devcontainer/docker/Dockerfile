@@ -470,7 +470,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 ENV BAOBAB_CONFIG_DIR=/usr/local/share/baobab/config
 COPY config/versions.lock /usr/local/share/baobab/config/versions.lock
-COPY scripts/install-locked-apt.sh /usr/local/share/baobab/config/install-locked-apt.sh
+COPY scripts/locked-apt.sh /usr/local/share/baobab/config/locked-apt.sh
 RUN set -euo pipefail; \
     image_series="$UBUNTU_VERSION"; image_digest="$UBUNTU_BASE_SHA256"; \
     . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
@@ -490,12 +490,16 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean; \
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && apt-get update && \
-    bash "${BAOBAB_CONFIG_DIR}/install-locked-apt.sh" linux-libc-dev "$LINUX_LIBC_DEV_APT_VERSION" "" \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    headers="linux-libc-dev=${LINUX_LIBC_DEV_APT_VERSION}" && \
+    headers_sha="LINUX_LIBC_DEV_APT_SHA256_$(dpkg --print-architecture | tr '[:lower:]' '[:upper:]')" && \
+    verify_locked_apt_index "$headers" "${!headers_sha:?missing native kernel header SHA-256}" && \
+    apt-get install -y --no-install-recommends "$headers" \
       sudo curl wget git unzip zip tar jq tree nano vim less htop procps \
       ca-certificates gnupg build-essential \
       pkg-config locales tzdata xz-utils apt-transport-https \
       openssh-client dnsutils iproute2 \
-    && \
+    && verify_installed_apt_version "$headers" && \
     locale-gen en_US.UTF-8 && \
     update-locale LANG=en_US.UTF-8 LANGUAGE=en_US:en && \
     ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime && \
@@ -727,7 +731,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       > /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
     node_sha="NODE_APT_SHA256_${TARGETARCH^^}" && \
-    bash "${BAOBAB_CONFIG_DIR}/install-locked-apt.sh" nodejs "${NODE_VERSION}-1nodesource1" "${!node_sha:?missing native Node SHA-256}" libatomic1 && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    node_package="nodejs=${NODE_VERSION}-1nodesource1" && \
+    verify_locked_apt_index "$node_package" "${!node_sha:?missing native Node SHA-256}" && \
+    apt-get install -y --no-install-recommends "$node_package" libatomic1 && \
+    verify_installed_apt_version "$node_package" && \
     test "$(node --version)" = "v${NODE_VERSION}" && \
     \
     # npm_install_retry() wraps the two npm-registry-published installs
@@ -1343,39 +1351,28 @@ https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CO
       > /etc/apt/sources.list.d/pgdg.list && \
     apt-get update && \
     postgres_sha="POSTGRES_APT_SHA256_${TARGETARCH^^}" && \
-    bash "${BAOBAB_CONFIG_DIR}/install-locked-apt.sh" "postgresql-client-${POSTGRES_MAJOR}" \
-      "$POSTGRES_APT_VERSION" "${!postgres_sha:?missing native PostgreSQL SHA-256}" redis-tools
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    postgres_package="postgresql-client-${POSTGRES_MAJOR}=${POSTGRES_APT_VERSION}" && \
+    verify_locked_apt_index "$postgres_package" "${!postgres_sha:?missing native PostgreSQL SHA-256}" && \
+    apt-get install -y --no-install-recommends "$postgres_package" redis-tools && \
+    verify_installed_apt_version "$postgres_package"
 
 # -----------------------------------------------------------------------------
 # 6b. Java (Eclipse Temurin JDK) + Apache Maven
 # -----------------------------------------------------------------------------
 # Needed for baobab-erp's iDempiere ERP engine migration
-# (github.com/baobab-platform/baobab-erp) — not needed by any other BAOBAB engine
-# today. iDempiere's own docs (wiki.idempiere.org/en/Install_Prerequisites,
-# live-verified 2026-09-01) require a full JDK, explicitly not JRE-only
-# ("openjdk-17-jre is not sufficient because it doesn't have the jar command
-# used in some scripts"), OpenJDK 17+ LTS preferred, plus Maven 3.9.x.
+# (github.com/baobab-platform/baobab-erp). The image supplies a full JDK and
+# an exact Maven release. Consumer builds qualify their own compatibility.
 #
 # JDK: installed from Eclipse Temurin's own apt repository (Adoptium), not
 # Ubuntu's native openjdk-17-jdk package — same reasoning already applied to
 # PostgreSQL/Docker above: an upstream-maintained repo keeps the exact
-# vendor/build consistent across Ubuntu base-image upgrades. Confirmed
-# multi-arch (amd64 + arm64) via Adoptium's own official multi-arch Docker
-# images — no per-arch checksum pair needed here, unlike the GitHub-release
-# binaries in the cli-tools stage.
+# vendor/build consistent across Ubuntu base-image upgrades. Resolve and
+# verify each native package against Adoptium's authenticated APT index.
 #
 # Maven: Apache's distribution is a pure-Java, architecture-independent
-# tarball — one asset, not a per-arch pair. Fetched from archive.apache.org
-# (not dlcdn.apache.org, which only mirrors the current release and would
-# break reproducibility once 3.9.16 is superseded) and verified via
-# sha512sum -c against MAVEN_SHA512 (Apache publishes a `.sha512` sidecar for
-# Maven releases, not `.sha256` — the one place in this Dockerfile that
-# checks a SHA-512 rather than a SHA-256, since the upstream project itself
-# only publishes the former). Pinned explicitly to 3.9.16 rather than
-# "latest" — see config/versions.yaml's development.maven comment: Maven
-# Central's own metadata currently resolves latest/release to a 4.0.0
-# pre-release, which would be incompatible with iDempiere's documented
-# Maven 3.9.x requirement.
+# tarball from archive.apache.org. Verify the exact release selected by
+# config/versions.yaml against the locked vendor SHA-512.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     install -m 0755 -d /etc/apt/keyrings && \
@@ -1389,7 +1386,11 @@ https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSI
     apt-get update && \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
     java_pkg="JAVA_APT_VERSION_${ARCH^^}" && \
-    bash "${BAOBAB_CONFIG_DIR}/install-locked-apt.sh" "temurin-${JAVA_MAJOR}-jdk" "${!java_pkg:?missing native Java package version}" ""
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    java_package="temurin-${JAVA_MAJOR}-jdk=${!java_pkg:?missing native Java package version}" && \
+    verify_locked_apt_index "$java_package" && \
+    apt-get install -y --no-install-recommends "$java_package" && \
+    verify_installed_apt_version "$java_package"
 
 # Adoptium's package installs under a version- and arch-suffixed path
 # (/usr/lib/jvm/temurin-${JAVA_MAJOR}-jdk-<arch>) rather than a stable one.
@@ -1417,8 +1418,8 @@ RUN set -euo pipefail; \
 # Trivy's secret scanner does raw pattern matching over file bytes, not
 # XML-comment-aware parsing, so it flags these three inert, never-executed
 # example values as HIGH-severity "Maven settings.xml password/passphrase"
-# secrets. This is the file Apache ships verbatim in every 3.9.16
-# distribution — already verified byte-for-byte via MAVEN_SHA512 below,
+# secrets. This is the file Apache ships in the Maven distribution,
+# already verified byte-for-byte via MAVEN_SHA512 below,
 # before this step ever touches it — not something this project introduced.
 #
 # Fix: strip every XML comment from settings.xml immediately after
@@ -1478,7 +1479,11 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CO
     apt-get update && \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
     docker_sha="DOCKER_APT_SHA256_${ARCH^^}" && \
-    bash "${BAOBAB_CONFIG_DIR}/install-locked-apt.sh" docker-ce-cli "$DOCKER_APT_VERSION" "${!docker_sha:?missing native Docker SHA-256}" && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    docker_package="docker-ce-cli=${DOCKER_APT_VERSION}" && \
+    verify_locked_apt_index "$docker_package" "${!docker_sha:?missing native Docker SHA-256}" && \
+    apt-get install -y --no-install-recommends "$docker_package" && \
+    verify_installed_apt_version "$docker_package" && \
     install -d -m 0755 /usr/libexec/docker/cli-plugins
 
 # Install ONLY our source-pinned, security-rebuilt CLI plugin binaries.
@@ -1697,7 +1702,11 @@ https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CO
     apt-get update && \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
     docker_sha="DOCKER_APT_SHA256_${ARCH^^}" && \
-    bash "${BAOBAB_CONFIG_DIR}/install-locked-apt.sh" docker-ce-cli "$DOCKER_APT_VERSION" "${!docker_sha:?missing native Docker SHA-256}" && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    docker_package="docker-ce-cli=${DOCKER_APT_VERSION}" && \
+    verify_locked_apt_index "$docker_package" "${!docker_sha:?missing native Docker SHA-256}" && \
+    apt-get install -y --no-install-recommends "$docker_package" && \
+    verify_installed_apt_version "$docker_package" && \
     install -d -m 0755 /usr/libexec/docker/cli-plugins
 
 # Install ONLY our source-pinned, security-rebuilt CLI plugin binaries.

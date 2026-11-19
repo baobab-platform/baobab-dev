@@ -481,6 +481,8 @@ UBUNTU_VERSION=$(yaml '.platform.ubuntu.version')
 [[ "$UBUNTU_VERSION" =~ ^[0-9]{2}\.[0-9]{2}$ ]] || die "Ubuntu requires an exact release series"
 UBUNTU_BASE_SHA256=$(manifest_sha256 '.platform.ubuntu.image_sha256')
 LINUX_LIBC_DEV_APT_VERSION=$(manifest_deb_version '.platform.ubuntu.linux_libc_dev_apt_version')
+LINUX_LIBC_DEV_APT_SHA256_AMD64=$(manifest_sha256 '.platform.ubuntu.linux_libc_dev_apt_sha256_amd64')
+LINUX_LIBC_DEV_APT_SHA256_ARM64=$(manifest_sha256 '.platform.ubuntu.linux_libc_dev_apt_sha256_arm64')
 NODE_APT_SHA256_AMD64=$(manifest_sha256 '.languages.node.apt_sha256_amd64')
 NODE_APT_SHA256_ARM64=$(manifest_sha256 '.languages.node.apt_sha256_arm64')
 
@@ -877,6 +879,8 @@ cat > "$resolved_lock" <<EOF
 export UBUNTU_VERSION=${UBUNTU_VERSION}
 export UBUNTU_BASE_SHA256=${UBUNTU_BASE_SHA256}
 export LINUX_LIBC_DEV_APT_VERSION=${LINUX_LIBC_DEV_APT_VERSION}
+export LINUX_LIBC_DEV_APT_SHA256_AMD64=${LINUX_LIBC_DEV_APT_SHA256_AMD64}
+export LINUX_LIBC_DEV_APT_SHA256_ARM64=${LINUX_LIBC_DEV_APT_SHA256_ARM64}
 
 export PYTHON_VERSION=${PYTHON_VERSION}
 export PYTHON_MINOR=${PYTHON_MINOR}

@@ -35,7 +35,10 @@ class LockedAptInstallTests(unittest.TestCase):
                 with self.subTest(available=available, index=index_sha, installed=installed):
                     receipt.unlink(missing_ok=True)
                     result = subprocess.run(
-                        ["bash", str(ROOT / "scripts/install-locked-apt.sh"), "nodejs", version, correct],
+                        ["bash", "-ec", '. "$1" && verify_locked_apt_index "$2" "$3" && '
+                         'apt-get install -y --no-install-recommends "$2" && '
+                         'verify_installed_apt_version "$2"', "bash",
+                         str(ROOT / "scripts/locked-apt.sh"), f"nodejs={version}", correct],
                         env=dict(os.environ, PATH=str(directory) + ":" + os.environ["PATH"],
                                  AVAILABLE=available, INDEX_SHA=index_sha, INSTALLED=installed,
                                  INSTALL_RECEIPT=str(receipt)),
