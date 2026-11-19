@@ -229,6 +229,17 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         self.assertIsNone(candidate["exact_commit_ancestor_of_ubuntu_tag"])
         self.assertEqual(report["counts"], {"under_investigation": 298})
 
+    def test_non_utf8_history_message_does_not_hide_an_exact_ascii_backport_reference(self):
+        sha = self.candidate()
+        message = b"Historical subject with a legacy byte " + bytes([0xe9]) + b"\n\n"
+        message += f"(cherry picked from commit {sha})\n".encode("ascii")
+        subprocess.run(
+            ["git", "-C", str(self.ubuntu), "-c", "i18n.commitEncoding=UTF-8",
+             "commit", "--allow-empty", "-q", "-F", "-"], input=message, check=True, capture_output=True,
+        )
+        head = git(self.ubuntu, "rev-parse", "HEAD")
+        self.assertEqual(m.trailer_index(self.ubuntu, head, {sha}), {sha: [head]})
+
     def test_missing_candidate_object_is_an_explicit_evidence_gap(self):
         sha = "1" * 40
         report = self.run_audit("https://git.kernel.org/stable/c/" + sha)

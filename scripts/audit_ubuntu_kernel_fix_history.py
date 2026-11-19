@@ -36,9 +36,11 @@ class EvidenceError(ValueError):
     pass
 
 
-def run(repo: Path, *args: str, check: bool = True, timeout: int = 120) -> str:
+def run(repo: Path, *args: str, check: bool = True, timeout: int = 120,
+        replace_invalid_text: bool = False) -> str:
     proc = subprocess.run(
-        ["git", "-C", str(repo), *args], text=True,
+        ["git", "-C", str(repo), *args], encoding="utf-8",
+        errors="replace" if replace_invalid_text else "strict",
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         timeout=timeout, check=False,
     )
@@ -81,7 +83,8 @@ def patch_id(repo: Path, sha: str) -> str | None:
 
 
 def commit_metadata(repo: Path, sha: str) -> dict:
-    raw = run(repo, "show", "-s", "--format=%H%x00%P%x00%T%x00%ct%x00%s", sha)
+    raw = run(repo, "show", "-s", "--format=%H%x00%P%x00%T%x00%ct%x00%s", sha,
+              replace_invalid_text=True)
     parts = raw.split("\0", 4)
     if len(parts) != 5 or parts[0] != sha:
         raise EvidenceError("candidate commit metadata did not resolve to requested SHA")
@@ -148,10 +151,12 @@ def ensure_candidate_object(candidate_root: Path, sha: str, kind: str,
 def trailer_index(repo: Path, tag: str, candidate_shas: set[str]) -> dict[str, list[str]]:
     if not candidate_shas:
         return {}
-    # Search commit messages once; only messages containing a full SHA are returned.
+    # Keep the commit ID and exact ASCII reference intact through historical
+    # messages that contain non-UTF-8 bytes. Inspect only likely trailers.
     output = run(
-        repo, "log", "--format=%H%x00%B%x00", "--extended-regexp",
-        "--grep=[a-f0-9]{40}", tag, timeout=300,
+        repo, "log", "--format=%H%x00%B%x00", "--extended-regexp", "--regexp-ignore-case",
+        "--grep=(cherry picked from commit|backport|upstream commit).*([a-f0-9]{40})",
+        tag, timeout=300, replace_invalid_text=True,
     )
     wanted: dict[str, list[str]] = {sha: [] for sha in candidate_shas}
     parts = output.split("\0")
