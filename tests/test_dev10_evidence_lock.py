@@ -1,5 +1,4 @@
 """The evidence lock is the single validated source for DEV-10 inventory pins."""
-import copy
 import importlib.util
 import json
 from pathlib import Path
