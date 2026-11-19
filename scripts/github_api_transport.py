@@ -121,7 +121,10 @@ def request_json(request, *, context, allowed_status=()):
     except urllib.error.URLError as error:
         reason = "request timed out" if isinstance(error.reason, TimeoutError) else "transport failed"
         raise GitHubAPIError(f"{context} {reason}") from None
-    except (OSError, http.client.HTTPException):
+    except GitHubAPIError:
+        raise
+    except (OSError, http.client.HTTPException, ValueError):
+        # http.client may put a rejected request header in a ValueError.
         raise GitHubAPIError(f"{context} transport failed") from None
     if status not in (200, 201, 204) and status not in allowed_status:
         raise GitHubAPIError(f"{context} returned HTTP {status}")

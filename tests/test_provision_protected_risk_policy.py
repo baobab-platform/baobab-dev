@@ -116,6 +116,12 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
                 )
         self.assertIsNone(caught.exception.__cause__)
 
+    def test_bad_request_header_errors_are_sanitized(self):
+        with patch("github_api_transport.open_github",
+                   side_effect=ValueError("rejected header test-secret-value")):
+            with self.assertRaisesRegex(provisioner.ProvisioningError, "^GitHub API GET transport failed$"):
+                provisioner.api_request("test-secret-value", "GET", "/user")
+
     def test_http_diagnostics_only_report_approved_fields(self):
         import io
         error = urllib.error.HTTPError(

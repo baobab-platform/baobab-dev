@@ -65,6 +65,9 @@ REST returned 94 commits for #76 and local Git produced the same count over the 
 
 The historical review findings for broad legacy risk acceptance, free-text release decisions and invalid Dockerfile healthchecks were checked in source. The legacy validator always refuses, the release verifier rejects unapproved residual risk, and all four Dockerfile stages now invoke a real shell for the process-liveness healthcheck. Runtime health for the candidate still requires a live witness. [PR #74 review threads](https://github.com/baobab-platform/baobab-dev/pull/74)
 
+
+The first corrected head, `2feaeaa8c6343b20e63ba1248b00533e860ec0cf`, passed the live exact-SHA committer, current PR identity and historical #76 checks in the [policy contract](https://github.com/baobab-platform/baobab-dev/actions/runs/44499137611). The [PR independence job](https://github.com/baobab-platform/baobab-dev/actions/runs/44499139607/job/135473965028) independently checked the complete current PR contributor set and recorded that head. This is read-only GitHub identity evidence. The release environment, final digest qualification and consumer exit criteria still apply.
+
 ## Consolidation
 
 | PR | Treatment |
