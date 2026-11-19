@@ -21,7 +21,7 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
             devcontainer,
         )
         self.assertIn(
-            'application:\\n  name: "baobab-dev"\\n  version: "1.5.1"',
+            'application:\n  name: "baobab-dev"\n  version: "1.5.1"',
             environment,
         )
 
