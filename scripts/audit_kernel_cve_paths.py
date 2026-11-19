@@ -22,6 +22,9 @@ from dev10_evidence_lock import EvidenceLock
 LOCK = EvidenceLock.load()
 CVE_RE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
+COMMIT_URL_RE = re.compile(
+    r"https://git\\.kernel\\.org/(?:stable|linus)/c/([a-f0-9]{40})(?:[/?#]|$)"
+)
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+-\d+\.\d+$")
 GITILES = "https://kernel.googlesource.com/pub/scm/linux/security/vulns"
 
