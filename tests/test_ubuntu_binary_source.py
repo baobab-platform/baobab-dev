@@ -16,7 +16,9 @@ SPEC.loader.exec_module(MODULE)
 class UbuntuBinarySourceTests(unittest.TestCase):
     def test_workflow_writes_plain_immutable_base_image_reference(self):
         workflow = (ROOT / ".github/workflows/dev10-ubuntu-source.yml").read_text()
-        self.assertIn("printf '%s\\n' \"$UBUNTU_IMAGE_REF\"", workflow)
+        capture = (ROOT / "scripts/ci/capture-ubuntu-package-evidence.sh").read_text()
+        self.assertIn("bash scripts/ci/capture-ubuntu-package-evidence.sh", workflow)
+        self.assertIn("printf '%s\\n' \"$UBUNTU_IMAGE_REF\"", capture)
         self.assertNotIn("printf '%s\\\\n' \"$UBUNTU_IMAGE_REF\"", workflow)
 
     def setUp(self):

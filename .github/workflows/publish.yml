@@ -96,12 +96,22 @@ on:
       - "!scripts/github_api_transport.py"
       - "tests/**"
       - ".github/workflows/publish.yml"
+      # Security inventory and policy-contract changes must requalify all
+      # eight profile/architecture image scans; they are not image rebuild
+      # inputs, but they can change whether an image is releasable.
+      - "docs/assessments/dev10-kernel-cves-298.tsv"
+      - "docs/assessments/dev10-canonical-cve-status-20261118.tsv"
+      - "security/evidence/**"
+      - "security/decisions/development/foundation.schema.json"
+      - "security/decisions/development/foundation.json"
+      - "security/decisions/development/foundation.proposal.json"
+      - "scripts/evaluate_protected_risk_decision.py"
+      - "scripts/verify_protected_policy_hash.py"
 
   pull_request:
-    branches:
-      - main
-      # Stacked R5 review is based on the R4 candidate (#57), not main.
-      - feat/dev10-r4-lts-multiarch-candidate
+    # Run on every PR base branch. Release publication remains tag-gated in
+    # the jobs below; branch-name allowlists here otherwise strand stacked
+    # security integration branches when their base branch is renamed/merged.
     paths:
       - ".devcontainer/**"
       - "config/**"
@@ -111,6 +121,17 @@ on:
       - "!scripts/github_api_transport.py"
       - "tests/**"
       - ".github/workflows/publish.yml"
+      # Security inventory and policy-contract changes must requalify all
+      # eight profile/architecture image scans; they are not image rebuild
+      # inputs, but they can change whether an image is releasable.
+      - "docs/assessments/dev10-kernel-cves-298.tsv"
+      - "docs/assessments/dev10-canonical-cve-status-20261118.tsv"
+      - "security/evidence/**"
+      - "security/decisions/development/foundation.schema.json"
+      - "security/decisions/development/foundation.json"
+      - "security/decisions/development/foundation.proposal.json"
+      - "scripts/evaluate_protected_risk_decision.py"
+      - "scripts/verify_protected_policy_hash.py"
 
   # Manual validation is main-only. Rebuilding an arbitrary tag in the
   # privileged dispatch context is forbidden; publishing requires a tag push.
@@ -536,10 +557,9 @@ jobs:
           tags: baobab-dev:scan
           outputs: ${{ matrix.target == 'final' && format('type=oci,dest={0}/scan-image-final.tar', runner.temp) || 'type=docker' }}
           cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
-          # Keep only target-result layers: mode=max exhausted the configured
-          # GHA cache budget on multi-architecture PR builds. Cache export is
-          # opportunistic and must not fail an otherwise valid image build.
-          cache-to: type=gha,mode=min,scope=${{ matrix.target }}-${{ matrix.platform }},ignore-error=true
+          # PRs only restore caches. Publish target layers once, on main,
+          # so eight PR workers cannot exhaust the repository cache budget.
+          cache-to: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('type=gha,mode=min,scope={0}-{1},ignore-error=true', matrix.target, matrix.platform) || '' }}
 
       # Cache Trivy vulnerability database
       # Trivy re-downloads its ~500MB+ DB on every scan by default.
@@ -892,9 +912,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=${{ needs.sanity-check.outputs.is_release == 'true' }}
           cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
-          # Cache writes are bounded/non-blocking; build and scan results remain
-          # authoritative even when the GHA cache budget is temporarily full.
-          cache-to: type=gha,mode=min,scope=${{ matrix.target }}-${{ matrix.platform }},ignore-error=true
+          # Reuse main's cache. The digest build does not export it again.
           sbom: true
           # Instruct BuildKit to emit SLSA v1.0 schema inside the in-toto predicate
           provenance: mode=max,version=v1
@@ -1015,11 +1033,11 @@ jobs:
             "$RUNNER_TEMP/trivy-exact-raw.json" \
             "$RUNNER_TEMP/trivy-exact-evidence/findings.json" \
             "${{ matrix.target }}" "${{ matrix.platform }}"
-          # Trivy is NEVER bypassed for tagged images. A real finding (rc=1)
-          # can only be accepted by the same independent exact-CVE gate as
-          # local PR scans, bounded to the owner-approved v1.5.0/v1.5.1
-          # development-image allow-list and expiring 2026-11-26 UTC. Different versions,
-          # vulnerabilities, available fixes, secrets, or tool failures deny.
+          # Trivy is NEVER bypassed for tagged images. DEV-10's development-only
+          # policy applies only to PRs targeting main and pushes to main; it is
+          # never consulted for a release tag. No protected release-specific
+          # exception custody is enabled, so any HIGH/CRITICAL or secret finding
+          # on this exact registry digest blocks publication.
           if (( rc != 0 )); then
             if (( rc != 1 )); then
               echo "::error::Exact remote-digest Trivy tool failed (rc=$rc); cannot publish."
@@ -1986,7 +2004,7 @@ jobs:
             echo "### Security & Hygiene Controls Applied"
             echo "- ✅ **Pinned GitHub Actions:** Immutable 40-character commit SHAs"
             echo "- ✅ **Concurrency Control:** Auto-cancels obsolete build runs on PRs"
-            echo "- ✅ **Exact remote digest Trivy:** Both architectures scanned; CLEAN or an exact, independently authorised DEV-only residual-risk decision for this ref, package, CVE set and digest"
+            echo "- ✅ **Exact remote digest Trivy:** Both architectures scanned; release publication requires CLEAN results. Development-only risk acceptance never authorizes release publication or promotion."
             echo "- ✅ **SBOM & SLSA Attestations:** Embedded directly into OCI index"
             echo "- ✅ **Keyless Cosign Signature:** Signed via GitHub Actions OIDC identity"
             echo "- ✅ **Post-Publish Verification:** Signature and attestations independently re-verified against the published digest (scripts/verify-image.sh)"
@@ -2214,12 +2232,10 @@ jobs:
               trivy image --scanners vuln,secret --pkg-types os,library \
                 --severity HIGH,CRITICAL --ignorefile /dev/null --format json \
                 --output "$RUNNER_TEMP/security-$target-${architecture#linux/}.json" "$image@$child"
-              python3 scripts/evaluate_protected_risk_decision.py \
+              python3 scripts/verify_digest_security_decision.py \
                 --report "$RUNNER_TEMP/security-$target-${architecture#linux/}.json" \
-                --image-repository "$image" --digest "$child" \
-                --profile "$target" --architecture "$architecture" \
-                --environment development \
-                --result-output "$RUNNER_TEMP/security-decision-$target-${architecture#linux/}.json"
+                --target "$target" --digest "$child" --release-tag "$RELEASE_TAG" \
+                --image-repository "$image" --architecture "$architecture"
             done
             bash scripts/verify-image.sh "$image@$digest" "$verification_tag"
             echo "::notice::Promotion precheck: $target digest $digest verified"
@@ -2359,8 +2375,8 @@ jobs:
             if python3 - "${RELEASE_TAG}" <<'PY'
           import sys
           sys.path.insert(0, "scripts")
-          from dev10_kernel_risk_gate import is_approved_development_image_ref
-          raise SystemExit(0 if is_approved_development_image_ref(sys.argv[1]) else 1)
+          from dev10_kernel_risk_gate import is_historical_development_risk_disclosure_ref
+          raise SystemExit(0 if is_historical_development_risk_disclosure_ref(sys.argv[1]) else 1)
           PY
             then
               echo "### Baobab development environment — ${RELEASE_TAG}"

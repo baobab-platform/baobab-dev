@@ -11,7 +11,9 @@ export GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org
 . /build/versions.lock
 : "$GH_VERSION" "$COSIGN_VERSION"
 
-go version | grep -F 'go1.27.3'
+# The first build step checksum-verifies this exact compiler and installs it here.
+read -r go_version < /build/go/VERSION
+[[ "$(go env GOVERSION)" == "$go_version" ]]
 mkdir -p /out
 
 prepare_source() {
@@ -78,6 +80,7 @@ build_gh() {
 
   install -m 0755 "$dest/bin/gh" /out/gh
   go version -m /out/gh | tee /out/gh.buildinfo
+  [[ "$(awk 'NR == 1 { print $NF }' /out/gh.buildinfo)" == "$go_version" ]]
   grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' /out/gh.buildinfo
 
   /out/gh version > /out/gh.version 2>&1 || /out/gh --version > /out/gh.version 2>&1
@@ -109,6 +112,7 @@ build_cosign() {
 
   install -m 0755 "$dest/cosign" /out/cosign
   go version -m /out/cosign | tee /out/cosign.buildinfo
+  [[ "$(awk 'NR == 1 { print $NF }' /out/cosign.buildinfo)" == "$go_version" ]]
   grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' /out/cosign.buildinfo
 
   /out/cosign version > /out/cosign.version 2>&1

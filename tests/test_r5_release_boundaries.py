@@ -23,7 +23,37 @@ def active_yaml(job: str) -> str:
 
 
 class R5ReleaseBoundaryTests(unittest.TestCase):
+    def test_policy_and_inventory_changes_trigger_all_profile_architecture_scans(self):
+        source = WORKFLOW.read_text()
+        push = source.split("  push:", 1)[1].split("  pull_request:", 1)[0]
+        pull_request = source.split("  pull_request:", 1)[1].split("  workflow_dispatch:", 1)[0]
+        required_paths = (
+            "docs/assessments/dev10-kernel-cves-298.tsv",
+            "docs/assessments/dev10-canonical-cve-status-20261118.tsv",
+            "security/evidence/**",
+            "security/decisions/development/foundation.schema.json",
+            "security/decisions/development/foundation.json",
+            "security/decisions/development/foundation.proposal.json",
+            "scripts/evaluate_protected_risk_decision.py",
+            "scripts/verify_protected_policy_hash.py",
+        )
+        for path in required_paths:
+            with self.subTest(path=path):
+                self.assertIn(path, push)
+                self.assertIn(path, pull_request)
+        build = active_yaml(jobs()["build"])
+        for target in ("final", "frontend", "frontend-e2e", "infra"):
+            with self.subTest(target=target):
+                self.assertIn(f"- {target}", build)
+        for platform in ("linux/amd64", "linux/arm64"):
+            with self.subTest(platform=platform):
+                self.assertIn(f"- {platform}", build)
+
     def test_no_pr_or_main_registry_write_in_build(self):
+        source = WORKFLOW.read_text()
+        pull_request = source.split("  pull_request:", 1)[1].split("  workflow_dispatch:", 1)[0]
+        self.assertNotIn("branches:", pull_request,
+                         "stacked security PRs must not be stranded by transient base-branch allowlists")
         build = active_yaml(jobs()["build"])
         self.assertRegex(build, r"(?m)^\s+permissions:\s*\n\s+contents: read\s*$")
         self.assertNotIn("packages: write", build)
@@ -65,14 +95,15 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("trivy image --download-java-db-only", run)
         self.assertIn("verify_trivy_db_freshness.py", run)
 
-    def test_versioned_development_image_distribution_is_approved_v150_v151_rc_and_ga(self):
+    def test_historical_development_risk_gate_is_retired_and_disclosure_only(self):
         gate = (ROOT / "scripts/dev10_kernel_risk_gate.py").read_text()
-        self.assertIn('APPROVED_DEVELOPMENT_IMAGE_REFS = frozenset(', gate)
-        self.assertIn('"refs/tags/v1.5.0"', gate)
-        self.assertIn('"refs/tags/v1.5.1"', gate)
-        self.assertIn('APPROVED_DEVELOPMENT_RC_REF = re.compile', gate)
-        self.assertIn("is_dev_image_release", gate)
-        self.assertIn("now < EXPIRY", gate)
+        self.assertIn("Retired legacy DEV-10 risk gate", gate)
+        self.assertIn("HISTORICAL_DISCLOSURE_IMAGE_REFS", gate)
+        self.assertIn("HISTORICAL_DISCLOSURE_RC_REF", gate)
+        self.assertIn("is_historical_development_risk_disclosure_ref", gate)
+        self.assertIn("def validate(*_args, **_kwargs):", gate)
+        self.assertIn("cannot authorize release publication or promotion", gate)
+        self.assertIn("raise RiskGateError", gate)
         validation = active_yaml(jobs()["build"])
         exact = active_yaml(jobs()["release-digests"])
         self.assertIn("--exit-code 1", validation)
@@ -137,15 +168,41 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("name: dev10-release-promotion", promote)
         self.assertIn("environment:", promote)
 
+    def test_release_publication_and_promotion_never_consume_dev10_risk_authority(self):
+        release_scan = active_yaml(jobs()["release-digests"])
+        publish = active_yaml(jobs()["publish"])
+        promote = active_yaml(jobs()["promote"])
+        for workflow_job in (release_scan, publish, promote):
+            self.assertNotIn("DEV10_PROTECTED_DECISION_SHA256", workflow_job)
+            self.assertNotIn("DEV10_SECURITY_APPROVER_LOGINS", workflow_job)
+            self.assertNotIn("verify_protected_policy_hash.py", workflow_job)
+            self.assertNotIn("scripts/evaluate_protected_risk_decision.py", workflow_job)
+        self.assertIn(
+            "development-only acceptance is insufficient",
+            release_scan,
+        )
+        self.assertIn("--scanners vuln,secret", release_scan)
+        self.assertIn("--severity CRITICAL,HIGH", release_scan)
+        self.assertIn("--exit-code 1", release_scan)
+        self.assertIn(
+            "Residual vulnerabilities in a tagged remote image require separately authenticated exact-digest release approval",
+            release_scan,
+        )
+        self.assertIn("verify_digest_security_decision.py", promote)
+        self.assertIn("verify_release_environment.py", promote)
+
     def test_release_promotion_never_reuses_development_risk_authority(self):
         promote = active_yaml(jobs()["promote"])
         self.assertNotIn("DEV10_PROTECTED_DECISION_SHA256", promote)
         self.assertNotIn("DEV10_SECURITY_APPROVER_LOGINS", promote)
         self.assertNotIn("verify_protected_risk_custody.py", promote)
         self.assertNotIn('decision_file="security/decisions/$RELEASE_TAG', promote)
-        self.assertIn("scripts/evaluate_protected_risk_decision.py", promote)
-        self.assertNotIn("decision_args", promote)
+        self.assertNotIn("scripts/evaluate_protected_risk_decision.py", promote)
+        self.assertNotIn("--environment development", promote)
+        self.assertIn("scripts/verify_digest_security_decision.py", promote)
+        self.assertIn('--release-tag "$RELEASE_TAG"', promote)
         evaluator = (ROOT / "scripts/verify_digest_security_decision.py").read_text()
+        self.assertIn("Release-only exact-digest security decision gate", evaluator)
         self.assertIn("legacy free-text release decisions are not authenticated", evaluator)
         self.assertIn("protected custody required", evaluator)
 
@@ -163,6 +220,53 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn('LEGACY_SLSA_PROTOBUF_COMPATIBLE_NOT_FULL_CONTENT_EQUIVALENCE',
                       integrity)
         self.assertIn('STRICT_SIGNED_NATIVE_CONTENT_VERIFIED', integrity)
+
+    def test_dev10_inventory_and_policy_changes_trigger_full_image_matrix(self):
+        source = WORKFLOW.read_text()
+        for path in (
+            "docs/assessments/dev10-kernel-cves-298.tsv",
+            "docs/assessments/dev10-canonical-cve-status-20261118.tsv",
+            "security/evidence/**",
+            "security/decisions/development/foundation.schema.json",
+            "security/decisions/development/foundation.json",
+            "security/decisions/development/foundation.proposal.json",
+            "scripts/evaluate_protected_risk_decision.py",
+            "scripts/verify_protected_policy_hash.py",
+        ):
+            with self.subTest(path=path):
+                self.assertGreaterEqual(source.count(f'"{path}"'), 2,
+                                        "push and pull_request must both requalify")
+        build = active_yaml(jobs()["build"])
+        self.assertIn("matrix.target", build)
+        self.assertIn("matrix.platform", build)
+        self.assertIn("linux/amd64", build)
+        self.assertIn("linux/arm64", build)
+        for profile in ("final", "frontend", "frontend-e2e", "infra"):
+            with self.subTest(profile=profile):
+                self.assertIn(profile, build)
+
+    def test_historical_ghcr_readback_is_not_v152_release_qualification(self):
+        report = (ROOT / "docs/security/dev10-release-readiness-20261118.md").read_text()
+        self.assertIn("run 44330235494", report)
+        self.assertIn("STRICT_SIGNED_NATIVE_CONTENT_VERIFIED", report)
+        self.assertIn("not qualify a v1.5.2 release candidate", " ".join(report.split()))
+        self.assertIn("No release image was published", report)
+        self.assertIn("DEV10_PROTECTED_DECISION_SHA256", report)
+        self.assertIn("DEV10_SECURITY_APPROVER_LOGINS", report)
+        self.assertIn("scripts/verify_digest_security_decision.py", report)
+        self.assertIn("release promotion is CLEAN-only", report)
+        self.assertNotIn("scripts/evaluate_protected_risk_decision.py", report)
+        for profile in ("final", "frontend", "frontend-e2e", "infra"):
+            with self.subTest(profile=profile):
+                self.assertIn(f"`{profile}`", report)
+        for digest in (
+            "faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed",
+            "388d604293fc6a2046d1abb9c7b80b32e78c6003636b091d1e9c7c827e34766d",
+            "5b4a9ce1ac819a2b125f078fef4b14837b5b65b46527087a2bb8898b4811bb0b",
+            "5b39e71dd068da12e009421012d7c3620339746c2a39839182ea1f4fe788ffda",
+        ):
+            with self.subTest(digest=digest):
+                self.assertIn(digest, report)
 
     def test_independent_integrity_monitor_is_read_only(self):
         source = INTEGRITY.read_text()
