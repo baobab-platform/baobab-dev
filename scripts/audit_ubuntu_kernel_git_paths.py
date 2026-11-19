@@ -131,7 +131,6 @@ def inspect(upstream: dict, repo: Path, paths: set[str], *, binary_source: dict,
                 })
             else:
                 missing.append(path)
-                basename = path.rsplit("/", 1)[-1]
                 all_candidates = ranked_candidates(path, by_basename)
                 candidates = all_candidates[:MAX_BASENAME_CANDIDATES]
                 correspondence.append({
