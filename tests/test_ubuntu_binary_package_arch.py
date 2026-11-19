@@ -22,6 +22,22 @@ class UbuntuBinaryPackageArchitectureTests(unittest.TestCase):
         self.assertEqual(MODULE.source_identity("linux"), ("linux", "7.0.0-43.43"))
         with self.assertRaises(ValueError):
             MODULE.source_identity("linux (unknown)")
+        with self.assertRaises(ValueError):
+            MODULE.source_identity("other-linux (7.0.0-43.43)")
+
+    def test_dpkg_deb_control_output_is_parsed_as_fields_not_positional_values(self):
+        fields = MODULE.parse_control_fields(
+            "Package: linux-libc-dev\\n"
+            "Version: 7.0.0-43.43\\n"
+            "Architecture: arm64\\n"
+            "Source: linux\\n"
+        )
+        self.assertEqual(fields, {
+            "Package": "linux-libc-dev",
+            "Version": "7.0.0-43.43",
+            "Architecture": "arm64",
+            "Source": "linux",
+        })
 
     def test_installed_manifest_is_sorted_and_typed(self):
         with tempfile.TemporaryDirectory() as temp:
