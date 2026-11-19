@@ -9,18 +9,22 @@ from __future__ import annotations
 import argparse
 import base64
 from collections import Counter
-import concurrent.futures
 import csv
 import json
 from pathlib import Path
 import re
 import subprocess
 import sys
-import time
-from urllib import request
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from dev10_evidence_lock import EvidenceLock
+
+LOCK = EvidenceLock.load()
 CVE_RE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
+COMMIT_URL_RE = re.compile(
+    r"^https://git\.kernel\.org/(?:stable|linus)/c/([a-f0-9]{40})(?:[/?#]|$)"
+)
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+-\d+\.\d+$")
 GITILES = "https://kernel.googlesource.com/pub/scm/linux/security/vulns"
 
@@ -47,8 +51,13 @@ def parse_upstream_details(blob: bytes) -> tuple[list[str], list[str]]:
         if item.get("vendor") != "Linux" or item.get("product") != "Linux":
             continue
         for path in item.get("programFiles", []):
-            if isinstance(path, str) and path and not path.startswith("/") and ".." not in path.split("/"):
+            if (isinstance(path, str) and path and not path.startswith("/")
+                    and "\\" not in path
+                    and not any(ord(ch) < 32 or ord(ch) == 127 for ch in path)
+                    and all(part not in {"", ".", ".."} for part in path.split("/"))):
                 paths.add(path)
+            elif isinstance(path, str):
+                raise ValueError("upstream CVE contains an unsafe source path")
     if not paths:
         raise ValueError("kernel CVE has no validated affected-file paths")
     refs: set[str] = set()
@@ -64,7 +73,22 @@ def parse_upstream(blob: bytes) -> list[str]:
     return parse_upstream_details(blob)[0]
 
 
-def inspect(cve: str, sha: str, manifest: set[str], source_root: Path | None = None) -> dict:
+def read_locked_cna_record(source_root: Path, cve: str, sha: str) -> bytes:
+    if not CVE_RE.fullmatch(cve) or not SHA_RE.fullmatch(sha):
+        raise ValueError("untrusted CVE or upstream source revision")
+    name = f"{sha}:cve/published/{cve[4:8]}/{cve}.json"
+    result = subprocess.run(
+        ["git", "-C", str(source_root), "show", name],
+        capture_output=True, check=False, timeout=15,
+    )
+    if result.returncode:
+        raise FileNotFoundError("upstream CVE record is absent from the pinned Git tree")
+    if len(result.stdout) > 1024 * 1024:
+        raise ValueError("upstream CVE JSON exceeds 1 MiB")
+    return result.stdout
+
+
+def inspect(cve: str, sha: str, manifest: set[str], source_root: Path) -> dict:
     url = upstream_url(cve, sha)
     record: dict = {
         "cve": cve, "upstream_url": url, "upstream_paths": [], "candidate_upstream_fix_references": [],
@@ -72,65 +96,51 @@ def inspect(cve: str, sha: str, manifest: set[str], source_root: Path | None = N
         "classification": "UPSTREAM_UNVERIFIED", "error": "",
         "binary_disposition": "PENDING_INDEPENDENT_SECURITY_REVIEW",
     }
-    for attempt in range(5):
-        try:
-            if source_root is not None:
-                # The workflow checks out ONE immutable Git revision. Reading
-                # its files avoids hundreds of concurrent Gitiles GETs/429s.
-                local = source_root / "cve" / "published" / cve[4:8] / (cve + ".json")
-                blob = local.read_bytes()
-                if len(blob) > 1024 * 1024:
-                    raise ValueError("upstream CVE JSON exceeds 1 MiB")
-                paths, refs = parse_upstream_details(base64.b64encode(blob))
-            else:
-                # Backwards-compatible diagnostic fallback, not used by CI.
-                req = request.Request(url, headers={"Accept": "text/plain", "User-Agent": "Baobab-DEV10-Kernel-Path-Audit/1"})
-                with request.urlopen(req, timeout=28) as result:
-                    paths, refs = parse_upstream_details(result.read(1024 * 1024))
-            headers = [path for path in paths if path.endswith(".h")]
-            matches = []
-            for path in headers:
-                # Strong positive match only; nonmatches are never called safe.
-                suffix = path.split("include/uapi/", 1)[-1] if "include/uapi/" in path else ""
-                if suffix and "/usr/include/" + suffix in manifest:
-                    matches.append(path)
-            record.update({
-                "upstream_paths": paths, "candidate_upstream_fix_references": refs,
-                "affected_headers": headers,
-                "matching_shipped_uapi_headers": sorted(matches),
-                "classification": "HEADER_PATH_REVIEW_REQUIRED" if headers
-                    else "KERNEL_IMPLEMENTATION_PATHS_REVIEW_REQUIRED",
-                "error": "",
-            })
-            break
-        except (OSError, ValueError, TypeError, KeyError) as exc:
-            record["error"] = f"{type(exc).__name__}: {str(exc)[:180]}"
-            if attempt < 4:
-                time.sleep(min(16, 2 ** (attempt + 1)))
+    try:
+        # Only a caller-supplied immutable Git checkout is accepted. No live
+        # HTTP fallback: identical inputs must always produce identical evidence.
+        blob = read_locked_cna_record(source_root, cve, sha)
+        paths, refs = parse_upstream_details(base64.b64encode(blob))
+        headers = [path for path in paths if path.endswith(".h")]
+        matches = []
+        for path in headers:
+            suffix = path.split("include/uapi/", 1)[-1] if "include/uapi/" in path else ""
+            if suffix and "/usr/include/" + suffix in manifest:
+                matches.append(path)
+        record.update({
+            "upstream_paths": paths,
+            "candidate_upstream_fix_references": [url for url in refs if COMMIT_URL_RE.search(url)],
+            "affected_headers": headers,
+            "matching_shipped_uapi_headers": sorted(matches),
+            "classification": "HEADER_PATH_REVIEW_REQUIRED" if headers
+                else "KERNEL_IMPLEMENTATION_PATHS_REVIEW_REQUIRED",
+            "error": "",
+        })
+    except (OSError, ValueError, TypeError, KeyError, subprocess.TimeoutExpired) as exc:
+        record["error"] = f"{type(exc).__name__}: {str(exc)[:180]}"
     return record
 
 
 def audit(trivy: list[dict[str, str]], vendor: list[dict[str, str]],
-          manifest: set[str], sha: str, package_version: str, source_root: Path | None = None) -> dict:
+          manifest: set[str], sha: str, package_version: str, source_root: Path) -> dict:
     ids = {row["cve"] for row in trivy}
     vendors = {row["cve"]: row for row in vendor}
-    if len(trivy) != 295 or len(ids) != 295 or ids != set(vendors) or len(vendor) != 295:
-        raise ValueError("Trivy and Canonical evidence must contain the same 295 unique CVEs")
+    if (len(trivy) != LOCK.inventory_count or len(ids) != LOCK.inventory_count
+            or ids != set(vendors) or len(vendor) != LOCK.canonical_count):
+        raise ValueError("Trivy and Canonical evidence must match the reviewed evidence lock")
     if not all(CVE_RE.fullmatch(x) for x in ids) or not SHA_RE.fullmatch(sha):
         raise ValueError("invalid CVE or upstream commit")
-    if not isinstance(package_version, str) or not VERSION_RE.fullmatch(package_version):
-        raise ValueError("invalid installed linux-libc-dev binary package version")
+    if package_version != LOCK.package_version:
+        raise ValueError("installed linux-libc-dev binary package version differs from evidence lock")
     if not any(p.endswith(".h") for p in manifest):
         raise ValueError("exact binary manifest has no development headers")
-    if source_root is not None:
-        # A mutable branch checkout is not sufficient evidence. Validate
-        # the local Git object identity independently of the workflow.
-        checked = subprocess.run(["git", "-C", str(source_root), "rev-parse", "HEAD"],
-                                 text=True, capture_output=True, check=False, timeout=15)
-        if checked.returncode != 0 or checked.stdout.strip() != sha:
-            raise ValueError("upstream Git checkout revision mismatch")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as pool:
-        rows = list(pool.map(lambda item: inspect(item["cve"], sha, manifest, source_root), trivy))
+    # A mutable branch checkout is not sufficient evidence. Validate the local
+    # Git object identity independently of the workflow before reading files.
+    checked = subprocess.run(["git", "-C", str(source_root), "rev-parse", "HEAD"],
+                             text=True, capture_output=True, check=False, timeout=15)
+    if checked.returncode != 0 or checked.stdout.strip() != sha:
+        raise ValueError("upstream Git checkout revision mismatch")
+    rows = [inspect(item["cve"], sha, manifest, source_root) for item in trivy]
     for row, item in zip(trivy, rows):
         item["severity"] = row["severity"]
         item["canonical_ubuntu_linux_status"] = vendors[row["cve"]]["ubuntu_linux_resolute_status"]
@@ -152,7 +162,7 @@ def main() -> int:
     p.add_argument("--upstream-sha", required=True)
     p.add_argument("--binary-package-version", required=True,
                    help="exact linux-libc-dev version installed from the configured Ubuntu pockets")
-    p.add_argument("--upstream-root", type=Path, help="immutable Git checkout; preferred to individual HTTP CVE fetches")
+    p.add_argument("--upstream-root", type=Path, required=True, help="required immutable Git checkout; network fallback is disabled")
     p.add_argument("--output", type=Path, required=True)
     a = p.parse_args()
     try:
