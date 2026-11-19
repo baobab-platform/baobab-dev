@@ -128,7 +128,7 @@ def _http_error_summary(error, context):
         except GitHubAPIError:
             parts.append("error response exceeded the 1 MiB safety limit")
         except (AttributeError, OSError, http.client.HTTPException, ValueError, RecursionError):
-            payload = None
+            pass
         else:
             if isinstance(payload, dict) and "message" in payload:
                 parts.append(safe_github_message(payload["message"]))

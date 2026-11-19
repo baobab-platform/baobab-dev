@@ -80,17 +80,19 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("id: build-local-image", build)
         self.assertIn(
             "if: ${{ !cancelled() && steps.build-local-image.outcome == 'success' "
-            "&& matrix.target != 'final' }}",
+            "&& matrix.target == 'final' }}",
             build,
         )
         self.assertIn(
-            "if: ${{ !cancelled() && steps.build-local-image.outcome == 'success' "
-            "&& (matrix.target == 'frontend' || matrix.target == 'frontend-e2e') "
-            "&& matrix.platform == 'linux/amd64' }}",
+            "if: ${{ !cancelled() && steps.build-local-image.outcome == 'success' }}",
             build,
         )
         # These tests must not become a way around the required Trivy gate.
         self.assertIn("Scan built container with Trivy", build)
+        self.assertIn('SCAN_SOURCE_ARGS=(--input "$SCAN_TAR")', build)
+        self.assertIn('docker load --input "$RUNNER_TEMP/scan-image-final.tar"', build)
+        self.assertIn('sha256sum --check --strict "$RUNNER_TEMP/trivy-evidence/image-archive.sha256"', build)
+        self.assertIn("scripts/ci/qualify-native-image.sh", build)
         self.assertIn("--exit-code 1", build)
 
     def test_tag_only_exact_digest_security_is_required(self):
@@ -110,7 +112,11 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("verify_trivy_db_freshness.py", run)
         self.assertIn('verify_digest_security_decision.py', run)
         self.assertIn('--image-src remote --platform "$PLATFORM"', run)
-        self.assertIn('test "$(id -u)" -ne 0', run)
+        self.assertIn('scripts/ci/qualify-native-image.sh "$image"', run)
+        smoke = (ROOT / "scripts/ci/qualify-native-image.sh").read_text()
+        self.assertIn('test "$(id -u)" -ne 0', smoke)
+        self.assertIn('running/healthy', smoke)
+        self.assertIn('scripts/qualify-pnpm-provisioning.sh "$image_id"', smoke)
         self.assertIn('INDEX_DIGEST: ${{ steps.build.outputs.digest }}', run)
         self.assertEqual(run.count("docker/build-push-action@"), 1)
 

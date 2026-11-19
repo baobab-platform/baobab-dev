@@ -133,7 +133,7 @@ if $LOCKED_MODE; then
     [[ -f "$LOCKFILE" ]] || die "Frozen verification requires versions.lock"
     while IFS= read -r line || [[ -n "$line" ]]; do
         [[ -z "$line" || "$line" == \#* ]] && continue
-        pattern='^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._:/+-]+)$'
+        pattern='^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._:/+~-]+)$'
         [[ "$line" =~ $pattern ]] || die "Invalid frozen lock assignment"
         key="${BASH_REMATCH[1]}"; value="${BASH_REMATCH[2]}"
         [[ ! -v "LOCKED_VALUES[$key]" ]] || die "Duplicate frozen lock key: $key"
@@ -154,6 +154,20 @@ locked_version() {
 
 yaml() {
     yq -r "$1" "$MANIFEST"
+}
+
+manifest_sha256() {
+    local value
+    value=$(yaml "$1")
+    [[ "$value" =~ ^[a-f0-9]{64}$ ]] || die "Expected a SHA-256 at $1"
+    printf '%s' "$value"
+}
+
+manifest_deb_version() {
+    local value
+    value=$(yaml "$1")
+    [[ "$value" =~ ^[0-9][0-9A-Za-z.+:~-]*$ ]] || die "Expected an exact APT package version at $1"
+    printf '%s' "$value"
 }
 
 github_source_commit() {
@@ -463,17 +477,31 @@ require_resolved "$NODE_VERSION" "versions.yaml exact Node release"
 [[ "$NODE_MAJOR" =~ ^[0-9]+$ ]] && is_exact_version "$NODE_VERSION" &&
     [[ "${NODE_VERSION%%.*}" == "$NODE_MAJOR" ]] || die "Node major and exact version disagree"
 
+UBUNTU_VERSION=$(yaml '.platform.ubuntu.version')
+[[ "$UBUNTU_VERSION" =~ ^[0-9]{2}\.[0-9]{2}$ ]] || die "Ubuntu requires an exact release series"
+UBUNTU_BASE_SHA256=$(manifest_sha256 '.platform.ubuntu.image_sha256')
+LINUX_LIBC_DEV_APT_VERSION=$(manifest_deb_version '.platform.ubuntu.linux_libc_dev_apt_version')
+NODE_APT_SHA256_AMD64=$(manifest_sha256 '.languages.node.apt_sha256_amd64')
+NODE_APT_SHA256_ARM64=$(manifest_sha256 '.languages.node.apt_sha256_arm64')
+
 POSTGRES_MAJOR=$(yaml '.database.postgresql.major')
 [[ "$POSTGRES_MAJOR" =~ ^[0-9]+$ ]] || die "PostgreSQL major version is invalid"
+POSTGRES_APT_VERSION=$(manifest_deb_version '.database.postgresql.apt_version')
+[[ "$POSTGRES_APT_VERSION" == "$POSTGRES_MAJOR".* ]] || die "PostgreSQL package version and major disagree"
+POSTGRES_APT_SHA256_AMD64=$(manifest_sha256 '.database.postgresql.apt_sha256_amd64')
+POSTGRES_APT_SHA256_ARM64=$(manifest_sha256 '.database.postgresql.apt_sha256_arm64')
 
-# Same pattern as NODE_MAJOR/POSTGRES_MAJOR above: apt-sourced, major version
-# only, no upstream "latest" resolution to perform here — apt's own
-# dependency resolver picks the exact point release at build time from
-# Eclipse Temurin's repository (see versions.yaml's languages.java comment).
 JAVA_MAJOR=$(yaml '.languages.java.version')
 require_resolved "$JAVA_MAJOR" "versions.yaml key '.languages.java.version'"
 [[ "$JAVA_MAJOR" == 21 ]] ||
     die "DEV10-R4 requires Java 21 as the shared JDK for iDempiere v13 and Subscriptions"
+JAVA_APT_VERSION_AMD64=$(manifest_deb_version '.languages.java.apt_version_amd64')
+JAVA_APT_VERSION_ARM64=$(manifest_deb_version '.languages.java.apt_version_arm64')
+[[ "$JAVA_APT_VERSION_AMD64" == "$JAVA_MAJOR".* && "$JAVA_APT_VERSION_ARM64" == "$JAVA_MAJOR".* ]] ||
+    die "Temurin package versions and JDK major disagree"
+DOCKER_APT_VERSION=$(manifest_deb_version '.development.docker.apt_version')
+DOCKER_APT_SHA256_AMD64=$(manifest_sha256 '.development.docker.apt_sha256_amd64')
+DOCKER_APT_SHA256_ARM64=$(manifest_sha256 '.development.docker.apt_sha256_arm64')
 
 # ------------------------------------------------------------------------------
 # Flutter
@@ -846,7 +874,9 @@ cat > "$resolved_lock" <<EOF
 # DO NOT EDIT
 # ==============================================================================
 
-export UBUNTU_VERSION=$(yaml '.platform.ubuntu.version')
+export UBUNTU_VERSION=${UBUNTU_VERSION}
+export UBUNTU_BASE_SHA256=${UBUNTU_BASE_SHA256}
+export LINUX_LIBC_DEV_APT_VERSION=${LINUX_LIBC_DEV_APT_VERSION}
 
 export PYTHON_VERSION=${PYTHON_VERSION}
 export PYTHON_MINOR=${PYTHON_MINOR}
@@ -854,8 +884,12 @@ export PYTHON_SOURCE_SHA256=${PYTHON_SOURCE_SHA256}
 
 export NODE_MAJOR=${NODE_MAJOR}
 export NODE_VERSION=${NODE_VERSION}
+export NODE_APT_SHA256_AMD64=${NODE_APT_SHA256_AMD64}
+export NODE_APT_SHA256_ARM64=${NODE_APT_SHA256_ARM64}
 
 export JAVA_MAJOR=${JAVA_MAJOR}
+export JAVA_APT_VERSION_AMD64=${JAVA_APT_VERSION_AMD64}
+export JAVA_APT_VERSION_ARM64=${JAVA_APT_VERSION_ARM64}
 
 export FLUTTER_VERSION=${FLUTTER_VERSION}
 export FLUTTER_SHA256=${FLUTTER_SHA256}
@@ -864,6 +898,13 @@ export FLUTTER_GIT_REF=${FLUTTER_GIT_REF}
 export FLUTTER_ARCHIVE_AMD64=${FLUTTER_ARCHIVE_AMD64}
 
 export POSTGRES_MAJOR=${POSTGRES_MAJOR}
+export POSTGRES_APT_VERSION=${POSTGRES_APT_VERSION}
+export POSTGRES_APT_SHA256_AMD64=${POSTGRES_APT_SHA256_AMD64}
+export POSTGRES_APT_SHA256_ARM64=${POSTGRES_APT_SHA256_ARM64}
+
+export DOCKER_APT_VERSION=${DOCKER_APT_VERSION}
+export DOCKER_APT_SHA256_AMD64=${DOCKER_APT_SHA256_AMD64}
+export DOCKER_APT_SHA256_ARM64=${DOCKER_APT_SHA256_ARM64}
 
 export PNPM_VERSION=${PNPM_VERSION}
 export PNPM_SHA256_AMD64=${PNPM_SHA256_AMD64}

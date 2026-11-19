@@ -184,15 +184,15 @@
 #   ambiguity to resolve in the first place.
 # =============================================================================
 
-# Base image tag, single source of truth for all three stages below. Has a
-# default so CI does not need to pass --build-arg UBUNTU_VERSION for normal
-# builds; override it explicitly only for a deliberate one-off build.
+# Local build defaults match the reviewed lock. CI passes the same fields
+# from the verified lock, and base refuses a mismatching input.
 ARG UBUNTU_VERSION=26.04
+ARG UBUNTU_BASE_SHA256=d66b366dac61b575bee2aef07e9c26e8070096fbe84a3d4d3eb0da069b5d76db
 
 # -----------------------------------------------------------------------------
 # Stage: flutter-sdk — fetch + verify + prune the Flutter stable SDK
 # -----------------------------------------------------------------------------
-FROM ubuntu:${UBUNTU_VERSION} AS flutter-sdk
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS flutter-sdk
 ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -281,7 +281,7 @@ RUN set -euo pipefail; \
 # instead of silently verifying against the wrong file.
 # Security rebuild of adopted GitHub CLI, Cosign, Task and yq releases.
 # Source commits, release tags, compiler and patched dependency graphs are pinned.
-FROM ubuntu:${UBUNTU_VERSION} AS patched-go-clis
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS patched-go-clis
 ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tar git make && rm -rf /var/lib/apt/lists/*
@@ -298,7 +298,7 @@ RUN bash /build/build-upstream-security-clis.sh
 FROM patched-go-clis AS patched-terraform
 RUN bash /build/build-upstream-security-clis.sh terraform
 
-FROM ubuntu:${UBUNTU_VERSION} AS cli-tools
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS cli-tools
 ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -397,7 +397,7 @@ RUN set -euo pipefail; \
 # -----------------------------------------------------------------------------
 # pip 26.2.2 bundles urllib3 independently of system/Poetry packages.
 # Rebuild using upstream's vendoring process and identify the downstream wheel.
-FROM ubuntu:${UBUNTU_VERSION} AS patched-pip
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS patched-pip
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git python3 python3-venv && rm -rf /var/lib/apt/lists/*
 RUN python3 -m venv /build/tools
 ENV PATH="/build/tools/bin:${PATH}" PIP_NO_CACHE_DIR=1
@@ -406,9 +406,13 @@ RUN python -m pip install --require-hashes --only-binary=:all: -r /build/require
 COPY scripts/build-security-pip.sh /build/build-security-pip.sh
 RUN bash /build/build-security-pip.sh
 
-FROM ubuntu:${UBUNTU_VERSION} AS base
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS base
 
 ARG TARGETARCH
+ARG UBUNTU_VERSION
+ARG UBUNTU_BASE_SHA256
+LABEL org.opencontainers.image.base.name="docker.io/library/ubuntu:${UBUNTU_VERSION}" \
+      org.opencontainers.image.base.digest="sha256:${UBUNTU_BASE_SHA256}"
 # -----------------------------------------------------------------------------
 # devcontainer.metadata image label — Development Environment Contract task
 # 1.4 (baobab-dev-v1_1_0-release-plan-amended.md / original plan task 1.4).
@@ -464,6 +468,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+ENV BAOBAB_CONFIG_DIR=/usr/local/share/baobab/config
+COPY config/versions.lock /usr/local/share/baobab/config/versions.lock
+COPY scripts/install-locked-apt.sh /usr/local/share/baobab/config/install-locked-apt.sh
+RUN set -euo pipefail; \
+    image_series="$UBUNTU_VERSION"; image_digest="$UBUNTU_BASE_SHA256"; \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
+    test "$image_series" = "$UBUNTU_VERSION"; test "$image_digest" = "$UBUNTU_BASE_SHA256"
+
 # -----------------------------------------------------------------------------
 # 1. Core system packages, locale, timezone
 # -----------------------------------------------------------------------------
@@ -477,8 +489,8 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean; \
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock" && apt-get update && \
+    bash "${BAOBAB_CONFIG_DIR}/install-locked-apt.sh" linux-libc-dev "$LINUX_LIBC_DEV_APT_VERSION" "" \
       sudo curl wget git unzip zip tar jq tree nano vim less htop procps \
       ca-certificates gnupg build-essential \
       pkg-config locales tzdata xz-utils apt-transport-https \
@@ -556,13 +568,10 @@ RUN rm -f /usr/bin/pebble && rm -rf /var/lib/pebble
 RUN mkdir -p /usr/local/share/baobab/config
 
 COPY config/versions.yaml /usr/local/share/baobab/config/versions.yaml
-COPY config/versions.lock /usr/local/share/baobab/config/versions.lock
 COPY --chmod=0755 config/resolve.sh /usr/local/share/baobab/config/resolve.sh
 COPY --chmod=0755 scripts/npm-install-retry.sh /usr/local/share/baobab/config/npm-install-retry.sh
 COPY --chmod=0755 scripts/project-pnpm.sh /usr/local/bin/baobab-project-pnpm
 COPY config/npm-build-security.json /usr/local/share/baobab/config/npm-build-security.json
-
-ENV BAOBAB_CONFIG_DIR=/usr/local/share/baobab/config
 
 
 # -----------------------------------------------------------------------------
@@ -717,12 +726,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" \
       > /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
-    # Fail early on NodeSource metadata drift, before the expensive npm/toolchain layers. \
-    NODE_CANDIDATE="$(apt-cache policy nodejs | awk '/Candidate:/ {print $2; exit}')" && \
-    test "${NODE_CANDIDATE}" = "${NODE_VERSION}-1nodesource1" || { \
-      echo "::error::NodeSource candidate differs from locked Node ${NODE_VERSION}; update config/versions.yaml and regenerate versions.lock" >&2; exit 1; \
-    }; \
-    apt-get install -y --no-install-recommends libatomic1 "nodejs=${NODE_VERSION}-1nodesource1" && \
+    node_sha="NODE_APT_SHA256_${TARGETARCH^^}" && \
+    bash "${BAOBAB_CONFIG_DIR}/install-locked-apt.sh" nodejs "${NODE_VERSION}-1nodesource1" "${!node_sha:?missing native Node SHA-256}" libatomic1 && \
     test "$(node --version)" = "v${NODE_VERSION}" && \
     \
     # npm_install_retry() wraps the two npm-registry-published installs
@@ -1337,9 +1342,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" \
       > /etc/apt/sources.list.d/pgdg.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends \
-      postgresql-client-${POSTGRES_MAJOR} \
-      redis-tools
+    postgres_sha="POSTGRES_APT_SHA256_${TARGETARCH^^}" && \
+    bash "${BAOBAB_CONFIG_DIR}/install-locked-apt.sh" "postgresql-client-${POSTGRES_MAJOR}" \
+      "$POSTGRES_APT_VERSION" "${!postgres_sha:?missing native PostgreSQL SHA-256}" redis-tools
 
 # -----------------------------------------------------------------------------
 # 6b. Java (Eclipse Temurin JDK) + Apache Maven
@@ -1383,9 +1388,8 @@ https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSI
       > /etc/apt/sources.list.d/adoptium.list && \
     apt-get update && \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
-    # Java 21 is the single image JDK for ERP iDempiere v13 and Subscriptions.
-    apt-get install -y --no-install-recommends \
-      "temurin-${JAVA_MAJOR}-jdk"
+    java_pkg="JAVA_APT_VERSION_${ARCH^^}" && \
+    bash "${BAOBAB_CONFIG_DIR}/install-locked-apt.sh" "temurin-${JAVA_MAJOR}-jdk" "${!java_pkg:?missing native Java package version}" ""
 
 # Adoptium's package installs under a version- and arch-suffixed path
 # (/usr/lib/jvm/temurin-${JAVA_MAJOR}-jdk-<arch>) rather than a stable one.
@@ -1472,7 +1476,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
       > /etc/apt/sources.list.d/docker.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends docker-ce-cli && \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
+    docker_sha="DOCKER_APT_SHA256_${ARCH^^}" && \
+    bash "${BAOBAB_CONFIG_DIR}/install-locked-apt.sh" docker-ce-cli "$DOCKER_APT_VERSION" "${!docker_sha:?missing native Docker SHA-256}" && \
     install -d -m 0755 /usr/libexec/docker/cli-plugins
 
 # Install ONLY our source-pinned, security-rebuilt CLI plugin binaries.
@@ -1689,7 +1695,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
       > /etc/apt/sources.list.d/docker.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends docker-ce-cli && \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
+    docker_sha="DOCKER_APT_SHA256_${ARCH^^}" && \
+    bash "${BAOBAB_CONFIG_DIR}/install-locked-apt.sh" docker-ce-cli "$DOCKER_APT_VERSION" "${!docker_sha:?missing native Docker SHA-256}" && \
     install -d -m 0755 /usr/libexec/docker/cli-plugins
 
 # Install ONLY our source-pinned, security-rebuilt CLI plugin binaries.

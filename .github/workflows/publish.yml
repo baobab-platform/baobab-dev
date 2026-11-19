@@ -164,6 +164,8 @@ jobs:
       release_tag: ${{ steps.release-context.outputs.release_tag }}
       is_release: ${{ steps.release-context.outputs.is_release }}
       is_stable_release: ${{ steps.release-context.outputs.is_stable_release }}
+      ubuntu_version: ${{ steps.ubuntu-base.outputs.version }}
+      ubuntu_digest: ${{ steps.ubuntu-base.outputs.digest }}
 
     steps:
       # Resolve release status without checking out caller-selected refs.
@@ -307,6 +309,21 @@ jobs:
           echo "::error::The committed lock or Python pin is stale on this source commit."
           echo "::error::Check DEV-10 manifest lock resolution. Forks retain both files for maintainer follow-up."
           exit 1
+
+      - name: Verify the locked Ubuntu index contains both native architectures
+        id: ubuntu-base
+        run: |
+          set -euo pipefail
+          . config/versions.lock
+          [[ "$UBUNTU_BASE_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          docker buildx imagetools inspect --raw "docker.io/library/ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256}" \
+            > "$RUNNER_TEMP/ubuntu-index.json"
+          printf '%s  %s\n' "$UBUNTU_BASE_SHA256" "$RUNNER_TEMP/ubuntu-index.json" | sha256sum --check --strict
+          jq -e '
+            [.manifests[] | select(.platform.os == "linux" and (.platform.architecture == "amd64" or .platform.architecture == "arm64")) | .platform.architecture]
+            | sort == ["amd64", "arm64"]
+          ' "$RUNNER_TEMP/ubuntu-index.json" >/dev/null
+          printf 'version=%s\ndigest=%s\n' "$UBUNTU_VERSION" "$UBUNTU_BASE_SHA256" >> "$GITHUB_OUTPUT"
 
       # Retain the inputs verified on the immutable event SHA. Downstream jobs
       # use their checkout of those same bytes.
@@ -458,6 +475,7 @@ jobs:
       # uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
 
       - name: Setup Docker Buildx Engine
+        id: local-builder
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # DEV-10 R5: read-only validation. Registry credentials and digest
@@ -468,42 +486,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
-      # Build local single-manifest image for scanning
-      # See "TRIVY SCAN TARGET" above: the real push-by-digest build (with
-      # sbom/provenance) produces a 2-manifest OCI index Trivy can't resolve
-      # directly. This re-exports the identical build — same builder/cache,
-      # nothing rebuilt — with no attestations, purely as an unambiguous
-      # local scan target. Runs on EVERY trigger AND every target (not
-      # gated at all) — this is the whole point of Tier 1: frontend/
-      # frontend-e2e get the same continuous Trivy coverage `final` already
-      # had, even though they don't publish yet. Neither output type below
-      # touches GHCR, so no registry auth needed.
-      #
-      # `final` scans from an OCI tarball (`type=oci,dest=...`) instead of
-      # `load: true`. ROOT-CAUSED (baobab-platform/baobab-dev#31 CI, reproduced
-      # across five separate runs): `load: true` fully materializes a
-      # SECOND complete copy of `final` (Python+Node+Flutter+Java+Maven+
-      # Docker CLI — by far the heaviest target) into the Docker daemon's
-      # own storage, on top of the first build above, before Trivy's
-      # ~922MB Java DB download even starts. GitHub-hosted runners enforce
-      # a per-job disk quota separate from the underlying disk's reported
-      # free space — confirmed live: `docker builder prune -af` reclaimed
-      # exactly 0B (there was no stray buildx build cache to free — that
-      # was never the actual consumer) while `df -h /` still showed 18G
-      # free, yet the job kept failing with `disk quota exceeded` (EDQUOT,
-      # not `ENOSPC`/"no space left on device") partway through the Java
-      # DB download or the subsequent file-analysis pass — the signature
-      # of a hard per-job ceiling, not genuine disk exhaustion. `final` has
-      # no use for a daemon-loaded local image on a PR/branch run anyway:
-      # its own smoke test only runs on a real tag push and pulls the
-      # REGISTRY digest (see "Execute container smoke test (final)"
-      # below), never `baobab-dev:scan`. Writing an OCI tarball instead
-      # avoids that second full daemon-loaded copy entirely; `trivy image
-      # --input` (see "Scan built container with Trivy" below) reads it
-      # directly. frontend/frontend-e2e/infra keep `load: true` — they've
-      # never hit this quota and DO need a locally-loaded `baobab-dev:scan`
-      # for their own smoke test ("Execute container smoke test (non-final
-      # targets)" below).
+      # Keep the largest native image as a Docker archive until Trivy finishes.
+      # Loading it later, after freeing this job's builder cache, reuses the same build.
       - name: Build local single-manifest image for scanning
         id: build-local-image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
@@ -512,13 +496,15 @@ jobs:
           file: ./.devcontainer/docker/Dockerfile
           target: ${{ matrix.target }}
           build-args: |
+            UBUNTU_VERSION=${{ needs.sanity-check.outputs.ubuntu_version }}
+            UBUNTU_BASE_SHA256=${{ needs.sanity-check.outputs.ubuntu_digest }}
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             VERSION=${{ steps.meta.outputs.version }}
             REVISION=${{ github.sha }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: baobab-dev:scan
-          outputs: ${{ matrix.target == 'final' && format('type=oci,dest={0}/scan-image-final.tar', runner.temp) || 'type=docker' }}
+          outputs: ${{ matrix.target == 'final' && format('type=docker,dest={0}/scan-image-final.tar', runner.temp) || 'type=docker' }}
           cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
           # PRs only restore caches. Publish target layers once, on main,
           # so eight PR workers cannot exhaust the repository cache budget.
@@ -586,35 +572,7 @@ jobs:
             --cache "$TRIVY_CACHE_DIR" \
             --evidence "$RUNNER_TEMP/trivy-db-freshness.json"
 
-      # Flags (Trivy 0.73.0): `--pkg-types` replaces deprecated
-      # `--vuln-type` (renamed v0.54.0). `--scanners vuln,secret` is
-      # explicit rather than relying on Trivy's default set. Both DBs are explicitly refreshed and verified. `--skip-version-check` drops Trivy's
-      # own unrelated network check. Not tag-gated (see "SECURITY SCAN
-      # TRIGGER POLICY" above): this is now the primary gate on every
-      # PR/`main` push, with the tag push re-running it as defense-in-depth.
-      #
-      # Scan target: `final` reads the OCI layout DIRECTORY extracted from
-      # the tarball written by "Build local single-manifest image for
-      # scanning" above via `--input`; every other target scans the LOCAL
-      # `baobab-dev:scan` image by name, not the registry digest — see
-      # "TRIVY SCAN TARGET" above. No `--platform` needed either way since a
-      # local single-manifest source has nothing to disambiguate.
-      #
-      # FIX: `trivy image --input <path>` does NOT accept an OCI archive as
-      # a single tar file directly — confirmed live: it tried both parsers
-      # in sequence and failed both ("unable to open ... as a Docker image:
-      # file manifest.json not found in tar" — that's the docker-archive
-      # parser, which expects docker save's layout, not OCI's; "unable to
-      # open ... as an OCI Image: stat .../index.json: not a directory" —
-      # that's the OCI parser, which does `stat <path>/index.json`, i.e. it
-      # expects `<path>` to already be an unpacked OCI Image Layout
-      # DIRECTORY (oci-layout, index.json, blobs/), not the tarball buildx
-      # wrote it as. Untarring first satisfies that exact check. The
-      # tarball is removed as soon as it's extracted (never coexists with
-      # the directory for long) and the directory is removed right after
-      # the scan — nothing later in this job needs either, and `final` is
-      # the one target where every byte of headroom matters (see the
-      # previous step's comment on the disk-quota root cause).
+      # Trivy reads the largest profile from its Docker archive.
       - name: Scan built container with Trivy
         id: trivy-scan
         env:
@@ -627,23 +585,18 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [[ "${{ matrix.target }}" == "final" ]]; then
-            SCAN_TAR="${{ runner.temp }}/scan-image-final.tar"
-            SCAN_DIR="${{ runner.temp }}/scan-image-final"
-            mkdir -p "${SCAN_DIR}"
-            tar -xf "${SCAN_TAR}" -C "${SCAN_DIR}"
-            rm -f "${SCAN_TAR}"
-            SCAN_SOURCE_ARGS=(--input "${SCAN_DIR}")
-          else
-            SCAN_SOURCE_ARGS=(baobab-dev:scan)
-          fi
-
-          # The same unfiltered HIGH/CRITICAL scan is the blocking gate.
-          # Persist vulnerability JSON even when vulnerabilities make Trivy exit 1.
-          # Raw Trivy output can contain secret-match payloads: never upload it.
-          # Never reinterpret missing/invalid report evidence as success.
+          # Retain only sanitized report evidence. The raw report may contain
+          # secret matches and stays on the runner.
           REPORT_DIR="${RUNNER_TEMP}/trivy-evidence"
           mkdir -p "${REPORT_DIR}"
+          if [[ "${{ matrix.target }}" == "final" ]]; then
+            SCAN_TAR="$RUNNER_TEMP/scan-image-final.tar"
+            sha256sum "$SCAN_TAR" > "$REPORT_DIR/image-archive.sha256"
+            SCAN_SOURCE_ARGS=(--input "$SCAN_TAR")
+          else
+            docker image inspect --format '{{.Id}}' baobab-dev:scan > "$REPORT_DIR/image-config-digest.txt"
+            SCAN_SOURCE_ARGS=(--image-src docker baobab-dev:scan)
+          fi
           set +e
           trivy image \
             --scanners vuln,secret \
@@ -675,9 +628,6 @@ jobs:
               --output "${REPORT_DIR}/risk-policy.review-only.json"
             sha256sum "${REPORT_DIR}/risk-policy.review-only.json" \
               > "${REPORT_DIR}/risk-policy.review-only.sha256"
-          fi
-          if [[ "${{ matrix.target }}" == "final" ]]; then
-            rm -rf "${SCAN_DIR}"
           fi
           if (( scan_rc != 0 )); then
             # The owner-approved, short-lived DEV-10 risk treatment is *not* VEX
@@ -724,43 +674,43 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # The release-digests job performs native smoke on the exact RC digests.
-      # Container Smoke Test (every non-final target — local scan image)
-      # Runs against the already-`load: true`-ed local `baobab-dev:scan`
-      # image rather than the registry digest, so it needs no tag gating
-      # and no registry auth — cheap enough to run on every PR/push, not
-      # just at publish time. `final` gets an additional registry-digest
-      # smoke test above since that path already existed; frontend,
-      # frontend-e2e, and (2026-09-03) infra all push for real too but
-      # don't have an equivalent registry-digest smoke test of their own —
-      # this local check still validates FUNCTIONAL correctness
-      # (BAOBAB_BUILD_PROFILE gating, right tools present), just not the
-      # exact bytes GHCR served. Genuinely target-agnostic (`!= 'final'`,
-      # not an enumerated list) — a future target needs no change here.
-      - name: Execute container smoke test (non-final targets)
-        # Functional qualification is independent of the security decision:
-        # run whenever the image built, even if Trivy blocks this job.
-        if: ${{ !cancelled() && steps.build-local-image.outcome == 'success' && matrix.target != 'final' }}
-        run: |
-          docker run --rm baobab-dev:scan baobab-verify
-
-      # DEV-10 R4 pnpm 12 provisioning qualification (AMD64). Native pnpm
-      # and the exact pinned version are verified by baobab-verify separately.
-      # pnpm 12's packageManager pin is a CONFIG dependency: its boot
-      # metadata must be resolved once over the network to create a valid
-      # lock. The second run is physically disconnected, frozen and offline,
-      # followed by negative tests for wrong packageManager and bad lock.
-      # Corepack is only responsible for Yarn; no pnpm download/shim is used.
-      - name: Execute non-interactive package-manager provisioning test
-        # Keep this independent qualification running after a Trivy denial,
-        # but never run it without a successfully built local image.
-        if: ${{ !cancelled() && steps.build-local-image.outcome == 'success' && (matrix.target == 'frontend' || matrix.target == 'frontend-e2e') && matrix.platform == 'linux/amd64' }}
+      - name: Load the scanned final archive for runtime verification
+        if: ${{ !cancelled() && steps.build-local-image.outcome == 'success' && matrix.target == 'final' }}
+        env:
+          BUILDER: ${{ steps.local-builder.outputs.name }}
         run: |
           set -euo pipefail
-          # shellcheck disable=SC1091
-          . config/versions.lock
-          : "${PNPM_VERSION:?missing resolved pnpm version}"
-          bash scripts/qualify-pnpm-provisioning.sh baobab-dev:scan "$PNPM_VERSION"
+          : "${BUILDER:?expected the dedicated job builder}"
+          docker buildx prune --builder "$BUILDER" --all --force
+          sha256sum --check --strict "$RUNNER_TEMP/trivy-evidence/image-archive.sha256"
+          docker load --input "$RUNNER_TEMP/scan-image-final.tar"
+          rm -f "$RUNNER_TEMP/scan-image-final.tar"
+
+      - name: Qualify the scanned image on the native runner
+        id: native-qualification
+        if: ${{ !cancelled() && steps.build-local-image.outcome == 'success' }}
+        env:
+          TARGET: ${{ matrix.target }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET" == final ]]; then
+            read -r SCAN_ARCHIVE_SHA256 _ < "$RUNNER_TEMP/trivy-evidence/image-archive.sha256"
+            export SCAN_ARCHIVE_SHA256
+          else
+            read -r EXPECTED_CONFIG_DIGEST < "$RUNNER_TEMP/trivy-evidence/image-config-digest.txt"
+            export EXPECTED_CONFIG_DIGEST
+          fi
+          bash scripts/ci/qualify-native-image.sh baobab-dev:scan "$TARGET" "$PLATFORM" "$RUNNER_TEMP/native-image"
+
+      - name: Retain native runtime and package evidence
+        if: ${{ !cancelled() && (steps.native-qualification.outcome == 'success' || steps.native-qualification.outcome == 'failure') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-image-${{ matrix.target }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
+          path: ${{ runner.temp }}/native-image/
+          if-no-files-found: ignore
+          retention-days: 30
 
   # This tag-only job builds once per native platform and owns candidate
   # digest uploads. All eight legs must pass before signing and promotion.
@@ -860,6 +810,8 @@ jobs:
           file: ./.devcontainer/docker/Dockerfile
           target: ${{ matrix.target }}
           build-args: |
+            UBUNTU_VERSION=${{ needs.sanity-check.outputs.ubuntu_version }}
+            UBUNTU_BASE_SHA256=${{ needs.sanity-check.outputs.ubuntu_digest }}
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             VERSION=${{ steps.meta.outputs.version }}
             REVISION=${{ github.sha }}
@@ -1011,34 +963,27 @@ jobs:
             > "$evidence/decision.json"
           echo "::notice::Exact remote digest qualified: $image"
 
-      - name: Confirm exact registry child carries immutable release source revision
+      - name: Qualify the exact registry child on the native runner
+        id: native-qualification
         if: ${{ !cancelled() && steps.exact.outcome == 'success' }}
         env:
           CHILD_DIGEST: ${{ steps.exact.outputs.child }}
-          PLATFORM: ${{ matrix.platform }}
-        run: |
-          set -euo pipefail
-          remote="${REGISTRY}/${IMAGE_NAME}@${CHILD_DIGEST}"
-          docker pull --platform "$PLATFORM" "$remote"
-          actual=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$remote")
-          [[ "$actual" == "$GITHUB_SHA" ]] || {
-            echo "::error::Exact remote child image revision label does not match immutable release source"; exit 1;
-          }
-          echo "::notice::Exact image source label verified: $actual"
-
-      - name: Run native non-root smoke against the scanned digest
-        if: ${{ !cancelled() && steps.exact.outcome == 'success' }}
-        env:
-          CHILD_DIGEST: ${{ steps.exact.outputs.child }}
+          TARGET: ${{ matrix.target }}
           PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
           image="${REGISTRY}/${IMAGE_NAME}@${CHILD_DIGEST}"
-          docker run --rm --platform "$PLATFORM" "$image" sh -ec 'test "$(id -u)" -ne 0; baobab-verify'
-          if [[ "$PLATFORM" == linux/amd64 && "${{ matrix.target }}" == frontend* ]]; then
-            . config/versions.lock
-            bash scripts/qualify-pnpm-provisioning.sh "$image" "$PNPM_VERSION"
-          fi
+          docker pull --platform "$PLATFORM" "$image"
+          bash scripts/ci/qualify-native-image.sh "$image" "$TARGET" "$PLATFORM" "$RUNNER_TEMP/native-image"
+
+      - name: Retain exact registry runtime and package evidence
+        if: ${{ !cancelled() && (steps.native-qualification.outcome == 'success' || steps.native-qualification.outcome == 'failure') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-image-${{ matrix.target }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
+          path: ${{ runner.temp }}/native-image/
+          if-no-files-found: ignore
+          retention-days: 30
       - name: Export architecture image digest
         if: needs.sanity-check.outputs.is_release == 'true'
         run: |

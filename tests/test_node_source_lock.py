@@ -19,8 +19,10 @@ def test_node_source_manifest_lock_agree() -> None:
 
 def test_nodesource_apt_package_is_exact_and_preflighted() -> None:
     dockerfile = (ROOT / ".devcontainer/docker/Dockerfile").read_text()
-    assert 'apt-cache policy nodejs' in dockerfile
-    assert 'test "${NODE_CANDIDATE}" = "${NODE_VERSION}-1nodesource1"' in dockerfile
-    assert '"nodejs=${NODE_VERSION}-1nodesource1"' in dockerfile
+    helper = (ROOT / "scripts/install-locked-apt.sh").read_text()
+    assert 'install-locked-apt.sh" nodejs "${NODE_VERSION}-1nodesource1"' in dockerfile
+    assert 'node_sha="NODE_APT_SHA256_${TARGETARCH^^}"' in dockerfile
+    assert 'apt-cache show "$spec"' in helper
+    assert '$index_sha" != "$expected_sha"' in helper
     assert 'test "$(node --version)" = "v${NODE_VERSION}"' in dockerfile
     assert 'libatomic1 nodejs &&' not in dockerfile

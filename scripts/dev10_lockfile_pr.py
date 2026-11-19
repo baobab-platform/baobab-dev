@@ -8,7 +8,6 @@ import os
 from pathlib import Path
 import re
 import subprocess
-import sys
 import urllib.request
 
 from custody_independence import REPOSITORY
@@ -18,7 +17,7 @@ MANIFEST = "config/versions.yaml"
 GENERATED = ("config/versions.lock", ".python-version")
 ALLOWED_CHANGES = frozenset((MANIFEST, *GENERATED))
 SHA = re.compile(r"[0-9a-f]{40}")
-ASSIGNMENT = re.compile(r"export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._:/+-]+)")
+ASSIGNMENT = re.compile(r"export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._:/+~-]+)")
 MAX_FILE_BYTES = 64 * 1024
 MUTATION = """
 mutation($input: CreateCommitOnBranchInput!) {
@@ -95,6 +94,10 @@ def validate_resolution(files, contract):
     if set(assignments) != expected:
         raise ResolutionError("generated lock is missing a required key or contains an unexpected key")
     for key, value in assignments.items():
+        if re.search(r"_APT_VERSION(?:_AMD64|_ARM64)?$", key) and not re.fullmatch(
+            r"[0-9][0-9A-Za-z.+:~-]*", value
+        ):
+            raise ResolutionError(f"generated lock contains a malformed APT version for {key}")
         if key.endswith("_SOURCE_COMMIT") and not SHA.fullmatch(value):
             raise ResolutionError(f"generated lock contains a malformed source commit for {key}")
         if "_SHA256" in key and not re.fullmatch(r"[a-f0-9]{64}", value):

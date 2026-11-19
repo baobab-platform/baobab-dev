@@ -133,7 +133,10 @@ jobs:
         if: needs.scope.outputs.container_scan == 'true'
         run: |
           set -euo pipefail
+          . config/versions.lock
           docker build --file .devcontainer/docker/Dockerfile \
+            --build-arg "UBUNTU_VERSION=$UBUNTU_VERSION" \
+            --build-arg "UBUNTU_BASE_SHA256=$UBUNTU_BASE_SHA256" \
             --build-arg VERSION=0.0.0-ci \
             --build-arg "REVISION=${GITHUB_SHA}" \
             --tag "foundation-scan:${GITHUB_SHA}" .
