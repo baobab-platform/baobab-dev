@@ -220,7 +220,7 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
         base["exact_commit_ancestor_of_ubuntu_tag"] = False
 
     base["backport_trailer_matches"] = [
-        {"commit": commit, "patch_id": patch_id(repo, commit)}
+        {"commit": commit, "patch_id": cached_patch_id(repo, commit, patch_cache)}
         for commit in trailer_commits
     ]
     search_paths = set(paths) | set(row.get("upstream_paths", []))
