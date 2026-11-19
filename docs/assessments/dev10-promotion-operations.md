@@ -72,6 +72,8 @@ attempt.
 The unit contract tests assert the complete v2 top-level and identity-field
 shape, reject accidental emission of v1 fields, and cover the case where the
 original actor and rerun-triggering actor resolve to the same numeric account
-under different login aliases. Workflow-wiring tests require the triggering
-actor lookup to return a typed `User` with a positive JSON numeric ID and
-require shell failure propagation.
+under different login aliases. The workflow corroborates the original actor
+using its numeric account ID from the run context. Both actor lookups must
+return a typed `User` with a positive JSON numeric ID. The capture-step test
+executes the workflow shell and verifier together, including malformed and
+non-`User` responses and removal of review comments from the evidence.

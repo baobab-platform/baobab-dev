@@ -1,6 +1,13 @@
 """Negative controls for immutable DEV-10 release approval identity evidence."""
 import importlib.util
+import json
+import os
 from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+from textwrap import dedent
 import unittest
 
 p = Path(__file__).resolve().parents[1] / "scripts/verify_promotion_approval.py"
@@ -215,6 +222,62 @@ class WorkflowWiringTests(unittest.TestCase):
         self.assertIn('[[ "$TRIGGERING_ACTOR_ID" =~ ^[1-9][0-9]*$ ]]', workflow)
         self.assertIn('ORIGINAL_ACTOR_ID: ${{ github.actor_id }}', workflow)
         self.assertIn('set -euo pipefail', workflow)
+
+    @unittest.skipUnless(shutil.which("jq"), "workflow identity fixture needs jq")
+    def test_capture_step_validates_live_response_shape_and_cli_contract(self):
+        root = Path(__file__).resolve().parents[1]
+        workflow = (root / ".github/workflows/publish.yml").read_text()
+        capture = workflow.split("name: Capture independent deployment approval evidence", 1)[1]
+        script = dedent(capture.split("        run: |\n", 1)[1].split("\n      - name:", 1)[0])
+        stub = dedent('''\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            case "$2" in
+              user/1001) printf '%s' "$ORIGINAL_RESPONSE" | jq -r "$4" ;;
+              users/rerunner) printf '%s' "$TRIGGER_RESPONSE" | jq -r "$4" ;;
+              repos/baobab-platform/baobab-dev/actions/runs/42/approvals)
+                printf '%s' '[{"state":"approved","user":{"login":"reviewer","id":9001,"type":"User"},"environments":[{"name":"dev10-release-promotion"}],"comment":"UNTRUSTED COMMENT"}]' ;;
+              *) exit 3 ;;
+            esac
+        ''')
+        original = {"type": "User", "id": 1001}
+        trigger = {"type": "User", "id": 1002}
+        for initial, rerun in (
+            (original, trigger),
+            ({**original, "type": "Bot"}, trigger),
+            ({**original, "id": 1002}, trigger),
+            (original, {**trigger, "type": "Bot"}),
+            (original, {**trigger, "id": "1002"}),
+        ):
+            with self.subTest(initial=initial, rerun=rerun), tempfile.TemporaryDirectory() as tmp:
+                gh = Path(tmp) / "gh"
+                gh.write_text(stub)
+                gh.chmod(0o755)
+                (Path(tmp) / "python3").symlink_to(sys.executable)
+                result = subprocess.run(
+                    ["bash", "-c", script], cwd=root, capture_output=True, text=True,
+                    env={
+                        **os.environ, "PATH": f"{tmp}:{os.environ['PATH']}", "RUNNER_TEMP": tmp,
+                        "GITHUB_REPOSITORY": "baobab-platform/baobab-dev", "GITHUB_RUN_ID": "42",
+                        "GITHUB_RUN_ATTEMPT": "2", "RELEASE_TAG": "v1.5.2-rc.1",
+                        "ORIGINAL_ACTOR_LOGIN": "renamed-orig", "ORIGINAL_ACTOR_ID": "1001",
+                        "TRIGGERING_ACTOR_LOGIN": "rerunner", "ORIGINAL_RESPONSE": json.dumps(initial),
+                        "TRIGGER_RESPONSE": json.dumps(rerun),
+                    },
+                )
+                output = Path(tmp) / "r5-promotion-evidence/approval.json"
+                if initial != original or rerun != trigger:
+                    self.assertNotEqual(result.returncode, 0, result.stderr)
+                    self.assertFalse(output.exists())
+                    continue
+                self.assertEqual(result.returncode, 0, result.stderr)
+                evidence = json.loads(output.read_text())
+                self.assertEqual(evidence["schema"], "dev10.promotion-approval.v2")
+                self.assertEqual(evidence["initiator"], {"id": 1001, "login": "renamed-orig"})
+                self.assertEqual(evidence["triggering_actor"]["id"], 1002)
+                self.assertEqual(evidence["approval"], {"reviewer_id": 9001, "reviewer_logins": ["reviewer"]})
+                self.assertEqual(evidence["run_attempt"], 2)
+                self.assertNotIn("UNTRUSTED COMMENT", output.read_text())
 
 
 if __name__ == "__main__":

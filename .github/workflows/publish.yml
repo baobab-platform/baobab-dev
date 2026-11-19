@@ -2049,6 +2049,11 @@ jobs:
           set -euo pipefail
           [[ "$ORIGINAL_ACTOR_ID" =~ ^[1-9][0-9]*$ ]]
           [[ -n "$ORIGINAL_ACTOR_LOGIN" && -n "$TRIGGERING_ACTOR_LOGIN" ]]
+          # Look up the original account by ID so a renamed login cannot
+          # change the account type used to corroborate the run context.
+          original_user_id="$(gh api "user/$ORIGINAL_ACTOR_ID" \
+            --jq 'select(.type == "User" and (.id | type) == "number" and .id > 0) | .id')"
+          [[ "$original_user_id" == "$ORIGINAL_ACTOR_ID" ]]
           # Require the account's REST type as well as its immutable numeric ID.
           # An untyped or non-User triggering actor cannot establish custody.
           TRIGGERING_ACTOR_ID="$(gh api "users/$TRIGGERING_ACTOR_LOGIN" \
