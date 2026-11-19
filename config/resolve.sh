@@ -39,6 +39,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 MANIFEST="${SCRIPT_DIR}/versions.yaml"
 LOCKFILE="${SCRIPT_DIR}/versions.lock"
+LOCK_ASSIGNMENT_PATTERN='^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._:/+~-]+)$'
 
 # ------------------------------------------------------------------------------
 # Logging
@@ -133,8 +134,7 @@ if $LOCKED_MODE; then
     [[ -f "$LOCKFILE" ]] || die "Frozen verification requires versions.lock"
     while IFS= read -r line || [[ -n "$line" ]]; do
         [[ -z "$line" || "$line" == \#* ]] && continue
-        pattern='^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._:/+~-]+)$'
-        [[ "$line" =~ $pattern ]] || die "Invalid frozen lock assignment"
+        [[ "$line" =~ $LOCK_ASSIGNMENT_PATTERN ]] || die "Invalid frozen lock assignment"
         key="${BASH_REMATCH[1]}"; value="${BASH_REMATCH[2]}"
         [[ ! -v "LOCKED_VALUES[$key]" ]] || die "Duplicate frozen lock key: $key"
         [[ "$value" != null && "$value" != latest && "$value" != system ]] || die "Unresolved frozen lock value: $key"
@@ -994,8 +994,7 @@ EOF
 
 while IFS= read -r line || [[ -n "$line" ]]; do
     [[ -z "$line" || "$line" == \#* ]] && continue
-    pattern='^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._:/+-]+)$'
-    [[ "$line" =~ $pattern ]] || die "Invalid generated lock assignment"
+    [[ "$line" =~ $LOCK_ASSIGNMENT_PATTERN ]] || die "Invalid generated lock assignment"
     key="${BASH_REMATCH[1]}"
     value="${BASH_REMATCH[2]}"
     [[ "$value" != null && "$value" != latest && "$value" != system ]] || die "Unresolved generated lock value: $key"
