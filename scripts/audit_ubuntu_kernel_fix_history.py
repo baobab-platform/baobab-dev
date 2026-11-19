@@ -177,9 +177,11 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
         candidate_repo, object_status, diagnostic = ensure_candidate_object(candidate_root, sha, kind, remotes)
     base = {
         "reference": url, "candidate_commit": sha, "upstream_tree": kind,
+        "candidate_remote": remotes[kind],
         "candidate_object_status": object_status,
         "candidate_object_diagnostic": diagnostic,
-        "exact_commit_ancestor_of_ubuntu_tag": False,
+        "exact_commit_ancestor_of_ubuntu_tag": None,
+        "ubuntu_merge_base": None,
         "upstream_patch_id": None, "upstream_changed_paths": [],
         "backport_trailer_matches": [], "patch_id_matches": [],
         "assessment": object_status,
@@ -207,10 +209,14 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
         )
         base["exact_commit_ancestor_of_ubuntu_tag"] = ancestor.returncode == 0
+        merge_base = run(repo, "merge-base", sha, tag, check=False)
+        base["ubuntu_merge_base"] = merge_base if SHA_RE.fullmatch(merge_base) else None
         if ancestor.returncode not in (0, 1):
             base["assessment"] = "ancestry_check_inconclusive"
             return base, paths or list(row.get("upstream_paths", []))
     else:
+        # Complete Ubuntu history has been verified; a candidate object fetched
+        # separately cannot be an ancestor unless it is present in this object graph.
         base["exact_commit_ancestor_of_ubuntu_tag"] = False
 
     base["backport_trailer_matches"] = [
