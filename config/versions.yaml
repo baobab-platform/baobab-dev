@@ -323,9 +323,8 @@ infra:
     # separate release gates.
     version: "1.17.1"
     source: "hashicorp"
-    # The per-architecture zip assets are checked against HashiCorp's
-    # official SHA256SUMS manifest by config/resolve.sh and rechecked
-    # during image build.
+    # The lock retains HashiCorp's archive identities. The image rebuilds
+    # the pinned release source with a security-fixed Go compiler.
   aws_cli:
     version: "2.36.38"
     source: "aws"

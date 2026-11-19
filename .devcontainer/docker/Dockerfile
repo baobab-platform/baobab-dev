@@ -293,6 +293,11 @@ COPY scripts/go-mod-download-retry.sh /build/go-mod-download-retry.sh
 RUN bash /build/build-security-clis.sh "${TARGETARCH}"
 RUN bash /build/build-upstream-security-clis.sh
 
+# Terraform is consumed only by infra. Reuse the verified compiler without
+# making the other image targets build Terraform or install its dependencies.
+FROM patched-go-clis AS patched-terraform
+RUN bash /build/build-upstream-security-clis.sh terraform
+
 FROM ubuntu:${UBUNTU_VERSION} AS cli-tools
 ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
@@ -1701,30 +1706,11 @@ RUN docker buildx version | grep -F 'v0.38.1' && docker compose version | grep -
 # -----------------------------------------------------------------------------
 # HashiCorp Terraform
 #
-# Per-architecture zip, verified against HashiCorp's own SHA256SUMS manifest
-# (config/resolve.sh fetched the specific line for this exact asset — see
-# terraform_sha256_for_asset() there) — the same sha256sum -c verification
-# shape as every GitHub-release binary in the cli-tools stage, just from
-# releases.hashicorp.com instead of GitHub's API. Terraform ships as a
-# single static binary inside the zip, extracted straight to /usr/local/bin
-# — no surrounding directory structure to strip, unlike Maven's tarball.
+# The official assets at 1.17.1 and 1.17.2 embed Go 1.26.10. Rebuild the
+# locked 1.17.1 release source with the verified compiler and Go module sums.
 # -----------------------------------------------------------------------------
-RUN set -euo pipefail; \
-    . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
-    ARCH=$(dpkg --print-architecture); \
-    if [ "$ARCH" = "amd64" ]; then \
-        TERRAFORM_ASSET="${TERRAFORM_ASSET_AMD64}"; \
-        TERRAFORM_SHA256="${TERRAFORM_SHA256_AMD64}"; \
-    else \
-        TERRAFORM_ASSET="${TERRAFORM_ASSET_ARM64}"; \
-        TERRAFORM_SHA256="${TERRAFORM_SHA256_ARM64}"; \
-    fi; \
-    curl -fsSL -o /tmp/terraform.zip \
-      "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${TERRAFORM_ASSET}"; \
-    echo "${TERRAFORM_SHA256}  /tmp/terraform.zip" | sha256sum -c -; \
-    unzip -q /tmp/terraform.zip -d /usr/local/bin; \
-    chmod +x /usr/local/bin/terraform; \
-    rm -f /tmp/terraform.zip
+COPY --from=patched-terraform /out/terraform /usr/local/bin/terraform
+COPY --from=patched-terraform /out/licenses/terraform/ /usr/share/licenses/baobab-cli/terraform/
 
 # -----------------------------------------------------------------------------
 # AWS CLI v2

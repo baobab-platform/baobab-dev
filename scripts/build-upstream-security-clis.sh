@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rebuild upstream gh/cosign from exact reviewed release-tag commits.
+# Rebuild upstream gh, Cosign and Terraform from exact release-tag commits.
 # Release metadata comes from versions.lock; no binary is accepted as "DEV".
 set -euo pipefail
 export PATH="/build/go/bin:$PATH" GOTOOLCHAIN=local CGO_ENABLED=0
@@ -49,8 +49,9 @@ verify_fixed_xnet() {
     cd "$dest"
     # The upstream release source is retained, with only the reviewed x/net
     # security override applied and verified against the Go checksum database.
-    go get golang.org/x/net@v0.62.0
-    go mod tidy
+    # Use the same TLS transport as the bounded module download helper.
+    GODEBUG=http2client=0 go get golang.org/x/net@v0.62.0
+    GODEBUG=http2client=0 go mod tidy
     go mod verify
     selected="$(go list -m -f '{{.Version}}' golang.org/x/net)"
     [[ "$selected" == "v0.62.0" ]] || {
@@ -140,5 +141,31 @@ build_cosign() {
   assert_version_field BuildDate "$expected_build_date"
 }
 
-build_gh
-build_cosign
+build_terraform() {
+  local repo="https://github.com/hashicorp/terraform.git"
+  local commit="ff6329e4c2a159b46ec2b73d36bfa3d0ef6560c9"
+  local dest="/build/upstream-terraform"
+  : "${TERRAFORM_VERSION:?expected Terraform version lock}"
+  prepare_source terraform "$repo" "$commit" "$TERRAFORM_VERSION" >/dev/null
+  (
+    cd "$dest"
+    export GOFLAGS=-mod=readonly CHECKPOINT_DISABLE=1 GODEBUG=http2client=0
+    bash /build/go-mod-download-retry.sh
+    go mod verify
+    go build -trimpath -buildvcs=false \
+      -ldflags '-s -w -X github.com/hashicorp/terraform/version.dev=no' \
+      -o /out/terraform .
+    git diff --exit-code -- go.mod go.sum
+    go version -m /out/terraform > /out/terraform.buildinfo
+    [[ "$(awk 'NR == 1 { print $NF }' /out/terraform.buildinfo)" == "$go_version" ]]
+    printf 'Terraform source %s built with %s\n' "$commit" "$go_version"
+    /out/terraform version -json | grep -F "\"terraform_version\": \"${TERRAFORM_VERSION}\""
+    install -Dm 0644 LICENSE /out/licenses/terraform/LICENSE
+  )
+}
+
+case "${1:-all}" in
+  all) build_gh; build_cosign ;;
+  terraform) build_terraform ;;
+  *) echo 'Expected all or terraform' >&2; exit 2 ;;
+esac

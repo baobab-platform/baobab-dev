@@ -22,6 +22,17 @@ class UpstreamGoCliSecurityTests(unittest.TestCase):
         self.assertNotIn('fetch_verify "https://github.com/cli/cli/releases/', dockerfile)
         self.assertNotIn('fetch_verify "https://github.com/sigstore/cosign/releases/', dockerfile)
 
+    def test_terraform_uses_verified_source_in_the_infra_target(self):
+        dockerfile = (ROOT / ".devcontainer/docker/Dockerfile").read_text()
+        builder = (ROOT / "scripts/build-upstream-security-clis.sh").read_text()
+        infra = dockerfile.split("FROM base AS infra\n", 1)[1]
+        self.assertIn("RUN bash /build/build-upstream-security-clis.sh terraform", dockerfile)
+        self.assertIn("COPY --from=patched-terraform /out/terraform /usr/local/bin/terraform", infra)
+        self.assertNotIn("releases.hashicorp.com/terraform/", infra)
+        self.assertIn("ff6329e4c2a159b46ec2b73d36bfa3d0ef6560c9", builder)
+        self.assertIn('git diff --exit-code -- go.mod go.sum', builder)
+        self.assertIn('go version -m /out/terraform', builder)
+
 
 if __name__ == "__main__":
     unittest.main()
