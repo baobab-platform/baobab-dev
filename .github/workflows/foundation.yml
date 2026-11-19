@@ -218,6 +218,9 @@ jobs:
           python3 - "$evidence/upstream-canonical-reconciliation.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
           import json,sys
           data=json.load(open(sys.argv[1]))
+          mirror=json.load(open(sys.argv[1].replace("upstream-canonical-reconciliation.json","cvelist-mirror-reconciliation.json")))
+          assert mirror["counts"]["records"] == 41
+          assert mirror["counts"]["mirror_mismatches"] == 0
           assert data["counts"]["records"] == 41
           assert data["counts"]["records_with_affected_paths"] == 41
           assert data["canonical"]["affected_version"] == "7.0.0-43.43"
