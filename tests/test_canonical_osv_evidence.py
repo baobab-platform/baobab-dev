@@ -9,7 +9,6 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import audit_canonical_osv as audit
-from dev10_evidence_lock import EvidenceLock
 
 
 def sample(cve="CVE-2026-98869", binary_version="7.0.0-43.43"):
