@@ -223,14 +223,16 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
     }
     if base["exact_commit_ancestor_of_ubuntu_tag"]:
         base["assessment"] = "EXACT_UPSTREAM_COMMIT_IN_UBUNTU_ANCESTRY"
+    elif truncated and matches:
+        base["assessment"] = "PATCH_ID_MATCH_FOUND_BUT_HISTORY_TRUNCATED"
+    elif truncated:
+        base["assessment"] = "PATCH_SEARCH_TRUNCATED_INCOMPLETE"
     elif len(matches) == 1:
         base["assessment"] = "UNIQUE_STABLE_PATCH_ID_CORRESPONDENCE"
     elif len(matches) > 1:
         base["assessment"] = "AMBIGUOUS_STABLE_PATCH_ID_CORRESPONDENCE"
     elif base["backport_trailer_matches"]:
         base["assessment"] = "BACKPORT_TRAILER_WITHOUT_PATCH_ID_MATCH"
-    elif truncated:
-        base["assessment"] = "PATCH_SEARCH_TRUNCATED_INCOMPLETE"
     elif not pid:
         base["assessment"] = "UPSTREAM_PATCH_ID_UNAVAILABLE"
     else:
