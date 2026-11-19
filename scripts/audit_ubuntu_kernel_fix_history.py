@@ -162,7 +162,10 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
                       url: str, kind: str, sha: str, row: dict,
                       ubuntu_row: dict, trailer_commits: list[str],
                       remotes: dict[str, str]) -> tuple[dict, list[str]]:
-    candidate_repo, object_status = ensure_candidate_object(candidate_root, sha, kind, remotes)
+    if has_commit(repo, sha):
+        candidate_repo, object_status = repo, "present_in_ubuntu_source_repository"
+    else:
+        candidate_repo, object_status = ensure_candidate_object(candidate_root, sha, kind, remotes)
     base = {
         "reference": url, "candidate_commit": sha, "upstream_tree": kind,
         "candidate_object_status": object_status,
