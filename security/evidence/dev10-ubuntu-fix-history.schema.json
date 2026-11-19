@@ -117,7 +117,7 @@
       "additionalProperties": false,
       "required": [
         "reference", "candidate_commit", "upstream_tree",
-        "candidate_object_status", "exact_commit_ancestor_of_ubuntu_tag",
+        "candidate_object_status", "candidate_object_diagnostic", "exact_commit_ancestor_of_ubuntu_tag",
         "upstream_patch_id", "upstream_changed_paths",
         "backport_trailer_matches", "patch_id_matches", "assessment"
       ],
@@ -126,6 +126,7 @@
         "candidate_commit": { "$ref": "#/$defs/sha1" },
         "upstream_tree": { "enum": ["stable", "linus"] },
         "candidate_object_status": { "type": "string", "minLength": 1 },
+        "candidate_object_diagnostic": { "type": "string", "maxLength": 180 },
         "exact_commit_ancestor_of_ubuntu_tag": { "type": "boolean" },
         "upstream_patch_id": { "type": ["string", "null"], "pattern": "^[a-f0-9]{40}$" },
         "upstream_changed_paths": { "type": "array", "items": { "type": "string" } },
