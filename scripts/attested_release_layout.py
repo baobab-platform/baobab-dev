@@ -31,7 +31,8 @@ def blob(layout, descriptor, *, media_type=None):
     digest = descriptor.get("digest")
     require(isinstance(digest, str) and DIGEST.fullmatch(digest), "invalid OCI blob digest")
     if media_type:
-        require(descriptor.get("mediaType") == media_type, "unexpected OCI descriptor media type")
+        require(descriptor.get("mediaType") == media_type,
+                "OCI descriptor does not match the required media type " + media_type)
     path = layout / "blobs" / "sha256" / digest[7:]
     require(not any(p.is_symlink() for p in (path, path.parent, path.parent.parent, layout))
             and path.is_file() and descriptor.get("size") == path.stat().st_size,

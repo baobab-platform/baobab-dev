@@ -338,7 +338,7 @@ jobs:
           LABEL org.opencontainers.image.revision=$GITHUB_SHA
           EOF
           docker buildx build --platform linux/amd64 --sbom=true --provenance=mode=max,version=v1 \
-            --output "type=oci,oci-mediatypes=true,tar=false,dest=$root/oci" \
+            --output "type=oci,oci-mediatypes=true,tar=false,oci-artifact=false,dest=$root/oci" \
             --metadata-file "$root/metadata.json" "$root/context"
           python3 scripts/attested_release_layout.py prepare --layout "$root/oci" \
             --target final --architecture amd64 --source "$GITHUB_SHA" \
@@ -835,7 +835,7 @@ jobs:
             REVISION=${{ github.sha }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=oci,oci-mediatypes=true,tar=false,dest=${{ runner.temp }}/release-layout
+          outputs: type=oci,oci-mediatypes=true,tar=false,oci-artifact=false,dest=${{ runner.temp }}/release-layout
           cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
           # Reuse main's cache. The digest build does not export it again.
           sbom: true
