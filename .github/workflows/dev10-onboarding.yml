@@ -6,13 +6,11 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  packages: read
 
-# Only the newest branch/PR image qualification is useful; cancel superseded
-# pending matrices while never interrupting main or release-tag validation.
+# Keep a manually requested historical evidence run separate from PR tests.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/') }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   source:
@@ -29,6 +27,14 @@ jobs:
           done
           shellcheck scripts/ci/*.sh
           python3 -B -m unittest discover -s tests -v
+
+  historical-source:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Read immutable supplemental 41-CVE source pins
         run: |
           set -euo pipefail
@@ -117,7 +123,12 @@ jobs:
           path: ${{ runner.temp }}/dev10-image-41-source-evidence/*
           if-no-files-found: warn
           retention-days: 30
+
   published-image:
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -357,9 +368,9 @@ jobs:
   image-binary-reconciliation:
     name: DEV-10 41-CVE published-image source-to-binary reconciliation
     needs:
-      - source
+      - historical-source
       - published-image
-    if: ${{ !cancelled() && needs.source.result == 'success' }}
+    if: ${{ !cancelled() && needs.historical-source.result == 'success' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     permissions:
@@ -434,6 +445,7 @@ jobs:
           retention-days: 30
 
   dev10-image-observed-41-binary-manifests:
+    if: github.event_name == 'workflow_dispatch'
     name: DEV-10 supplemental 41-CVE binary package evidence
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
@@ -498,7 +510,7 @@ jobs:
 
   dev10-image-observed-41-source-binary-reconciliation:
     needs:
-      - source
+      - historical-source
       - dev10-image-observed-41-binary-manifests
     name: DEV-10 supplemental 41-CVE source-to-binary reconciliation
     runs-on: ubuntu-26.04

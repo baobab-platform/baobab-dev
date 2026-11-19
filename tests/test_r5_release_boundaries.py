@@ -139,7 +139,8 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn('for prefix in "$major_minor" "$major" latest;', script)
         registry = INTEGRITY.read_text()
         self.assertIn("releases/tags/", registry)
-        self.assertIn("TRIGGER_SHA", registry)
+        self.assertIn("/git/ref/tags/${TAG_NAME}", registry)
+        self.assertIn('--expected-sha "${SOURCE_SHA}"', registry)
 
     def test_signing_then_protected_approval_then_release(self):
         run = jobs()
@@ -280,7 +281,9 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertNotIn("packages: write", source)
         self.assertIn("verify_release_contracts.py", source)
         self.assertIn("scripts/verify-image.sh", source)
-        self.assertIn("github.event.workflow_run.conclusion == 'success'", source)
+        self.assertIn("  schedule:", source)
+        self.assertIn("  workflow_dispatch:", source)
+        self.assertNotIn("  workflow_run:", source)
 
 
 if __name__ == "__main__":

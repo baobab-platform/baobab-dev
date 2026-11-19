@@ -114,3 +114,25 @@ The tagged Publish path now reads live branch rules before any registry write. I
 The reviewed 52-finding inventory still requires remediation or separate development-risk adjudication. Canonical's Ubuntu package index lists `7.0.0-43.43` for both native architectures in `resolute-updates`. No later supported package was established in this review. [Ubuntu package index](https://packages.ubuntu.com/en/linux-libc-dev)
 
 Final acceptance requires a real manifest-only PR using the approved writer, exact final-head CI and independent review, a verified signed candidate and #55's private GitHub Packages and disposable Codespaces tests. The currently released v1.5.1 image remains insufficient for new candidate acceptance. The existing immutable recovery planner and promotion journal remain available for a future witnessed rollback. [Release recovery procedure](../usage/immutable-rc-recovery.md)
+
+### Workflow trigger review
+
+| Workflow | Ordinary patch PR and merged source | Release or diagnostic event |
+| --- | --- | --- |
+| Manifest lock resolution | Manifest or generated-file paths. Read-only fork artifact or protected same-branch App writeback. | The Publish preflight checks committed resolutions on the exact release source. |
+| Publish Baobab Dev Container | Read-only frozen lock, native build and scan matrix. | Tag push qualifies exact native RC digests or reuses the same-source RC for GA. Main dispatch validates source. |
+| Foundation Repository Gates | Shared checks and contributor audit. Image inputs select the Foundation scan. | Main, schedule and dispatch keep the Foundation scan. The current Shared exception relies on this replacement. |
+| Security | PR and main source, dependency and secret checks. | Schedule and dispatch run security checks. |
+| DEV-10 locked onboarding | Lifecycle lint and source tests. | Manual dispatch reproduces v1.5.1 runtime and 41-CVE evidence. |
+| DEV-14 developer doctor | Relevant toolchain, doctor, exception and onboarding paths. | Manual dispatch. |
+| DEV-10 policy decision contract | Changes to policy declarations, custody code and evidence contracts. | Hosted #76 custody and live PR identity evidence on matching PRs. |
+| DEV-10 Protected Security Decision Qualification | — | Protected decision diagnostics by dispatch. |
+| Provision DEV-10 development risk policy | — | Separate protected provisioning dispatch with custody proof. |
+| DEV-10 Canonical release-tag source corroboration | Source-evidence paths. | Manual dispatch of the pinned Canonical and CNA evidence. |
+| DEV-10 Trivy OpenVEX parser qualification | Parser and diagnostic paths. | Manual dispatch of the unsigned parser fixture. |
+| Verify Released GHCR Contracts | Verifier-code changes. | Daily or manual observation. Exact-digest promotion readback is part of Publish. |
+| DEV-10 Protected Promotion Approval Monitor | — | Schedule and dispatch inspect pending deployments. |
+| Deploy Documentation | Documentation paths. | Main and manual deployment. |
+| Greetings | PR open event. | Issue open event. |
+
+GitHub rejected `11ba46570ed32b7db0808c10104a1f56bac02310` before Publish started because the digest smoke step duplicated an environment key. That declaration was fixed at `43c74b5713969147e3d6557e81ea2defba52816c`. GitHub then passed Frozen Lockfile Integrity and scheduled all eight native ordinary-PR scans. [Rejected workflow](https://github.com/baobab-platform/baobab-dev/actions/runs/44504270809) · [Restored Publish workflow](https://github.com/baobab-platform/baobab-dev/actions/runs/44505116986)

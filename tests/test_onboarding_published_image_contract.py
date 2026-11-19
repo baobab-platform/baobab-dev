@@ -27,7 +27,7 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
     def test_workflow_passes_a_script_not_nested_container_shell_text(self):
         text = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("bash /source/scripts/ci/onboarding-published-image.sh", text)
-        self.assertIn("cancel-in-progress: ${{ github.ref_name != 'main' && !startsWith(github.ref, 'refs/tags/') }}", text)
+        self.assertIn("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", text)
         self.assertNotIn("-e HOME=/tmp/dev10-home", text)
         self.assertIn('docker run --rm -e EXPECTED_PROFILE=', text)
         self.assertIn('if [[ "${{ matrix.profile }}" == "frontend-e2e" ]]; then', text)
@@ -73,8 +73,17 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         reconcile = workflow.split("  image-binary-reconciliation:\n", 1)[1]
         reconcile = reconcile.split("  dev10-image-observed-41-binary-manifests:\n", 1)[0]
         self.assertIn("      - published-image", reconcile)
-        self.assertIn("if: ${{ !cancelled() && needs.source.result == 'success' }}", reconcile)
+        self.assertIn("if: ${{ !cancelled() && needs.historical-source.result == 'success' }}", reconcile)
         self.assertIn('--require-all-profiles', reconcile)
+
+    def test_historical_images_and_kernel_evidence_are_opt_in(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        source = workflow.split("  source:\n", 1)[1].split("\n  historical-source:", 1)[0]
+        self.assertIn("unittest discover -s tests", source)
+        self.assertNotIn("CVE", source)
+        for job in ("historical-source", "published-image", "dev10-image-observed-41-binary-manifests"):
+            with self.subTest(job=job):
+                self.assertIn(f"  {job}:\n    if: github.event_name == 'workflow_dispatch'", workflow)
 
     def test_container_workspace_variables_are_not_expanded_by_host_shell(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
