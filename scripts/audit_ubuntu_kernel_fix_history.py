@@ -23,7 +23,7 @@ REF_RE = re.compile(
     r"^https://git\.kernel\.org/(stable|linus)/c/([a-f0-9]{40})(?:[/?#].*)?$"
 )
 TRAILER_RE = re.compile(
-    r"(?im)^\s*(?:cherry picked from commit|backport(?:ed)?(?: from)?(?: commit)?|upstream commit)\s*:?\s*([a-f0-9]{40})\b"
+    r"(?im)^\s*[\(\[]?\s*(?:cherry picked from commit|backport(?:ed)?(?: from)?(?: commit)?|upstream commit)\s*:?\s*([a-f0-9]{40})\b"
 )
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 MAX_PATH_HISTORY_COMMITS = 2000
