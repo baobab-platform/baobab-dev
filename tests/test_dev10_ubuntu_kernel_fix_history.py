@@ -159,6 +159,47 @@ class UbuntuFixHistoryTests(unittest.TestCase):
                          "NO_PATCH_ID_MATCH_IN_COMPLETE_SELECTED_PATH_HISTORY")
         self.assertEqual(candidate["patch_id_matches"], [])
 
+    def test_backport_trailer_without_patch_equivalence_stays_unverified(self):
+        sha = self.candidate()
+        git(self.ubuntu, "fetch", "-q", "stable", sha)
+        (self.ubuntu / "drivers/example.c").write_text(
+            "int example(void) { return 2; }\n", encoding="utf-8"
+        )
+        git(self.ubuntu, "add", ".")
+        git(self.ubuntu, "commit", "-qm", "Backport from commit " + sha)
+        report = self.run_audit("https://git.kernel.org/stable/c/" + sha)
+        candidate = report["records"][0]["candidates"][0]
+        self.assertEqual(candidate["assessment"], "BACKPORT_TRAILER_WITHOUT_PATCH_ID_MATCH")
+        self.assertEqual(len(candidate["backport_trailer_matches"]), 1)
+        self.assertEqual(candidate["patch_id_matches"], [])
+
+    def test_duplicate_patch_ids_are_ambiguous(self):
+        sha = self.candidate()
+        git(self.ubuntu, "fetch", "-q", "stable", sha)
+        git(self.ubuntu, "cherry-pick", "-q", "-x", sha)
+        first = git(self.ubuntu, "rev-parse", "HEAD")
+        git(self.ubuntu, "revert", "--no-edit", first)
+        git(self.ubuntu, "cherry-pick", "-q", "-x", sha)
+        report = self.run_audit("https://git.kernel.org/stable/c/" + sha)
+        candidate = report["records"][0]["candidates"][0]
+        self.assertEqual(candidate["assessment"], "AMBIGUOUS_STABLE_PATCH_ID_CORRESPONDENCE")
+        self.assertEqual(len(candidate["patch_id_matches"]), 2)
+
+    def test_truncated_history_never_claims_a_unique_patch_match(self):
+        sha = self.candidate()
+        git(self.ubuntu, "fetch", "-q", "stable", sha)
+        git(self.ubuntu, "cherry-pick", "-q", "-x", sha)
+        (self.ubuntu / "drivers/example.c").write_text(
+            "int example(void) { return 3; }\n", encoding="utf-8"
+        )
+        git(self.ubuntu, "add", ".")
+        git(self.ubuntu, "commit", "-qm", "later unrelated edit")
+        with mock.patch.object(m, "MAX_PATH_HISTORY_COMMITS", 1):
+            report = self.run_audit("https://git.kernel.org/stable/c/" + sha)
+        candidate = report["records"][0]["candidates"][0]
+        self.assertTrue(candidate["history_search"]["truncated"])
+        self.assertEqual(candidate["assessment"], "PATCH_ID_MATCH_FOUND_BUT_HISTORY_TRUNCATED")
+
     def test_missing_candidate_object_is_an_explicit_evidence_gap(self):
         sha = "1" * 40
         report = self.run_audit("https://git.kernel.org/stable/c/" + sha)
