@@ -1043,7 +1043,6 @@ jobs:
       - name: Run native non-root smoke against the scanned digest
         if: ${{ !cancelled() && steps.exact.outcome == 'success' }}
         env:
-          PLATFORM: ${{ matrix.platform }}
           CHILD_DIGEST: ${{ steps.exact.outputs.child }}
           PLATFORM: ${{ matrix.platform }}
         run: |
