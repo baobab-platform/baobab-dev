@@ -65,6 +65,7 @@ class EvidenceLockTests(unittest.TestCase):
             root = Path(tmp)
             (root / "security/evidence").mkdir(parents=True)
             (root / "docs/assessments").mkdir(parents=True)
+            shutil.copy2(ROOT / module.BINARY_LOCK_PATH, root / module.BINARY_LOCK_PATH)
             shutil.copy2(ROOT / module.LOCK_PATH, root / module.LOCK_PATH)
             for name in (
                 "dev10-kernel-cves-298.tsv",
@@ -84,6 +85,7 @@ class EvidenceLockTests(unittest.TestCase):
             root = Path(tmp)
             (root / "security/evidence").mkdir(parents=True)
             (root / "docs/assessments").mkdir(parents=True)
+            shutil.copy2(ROOT / module.BINARY_LOCK_PATH, root / module.BINARY_LOCK_PATH)
             shutil.copy2(ROOT / "security/evidence/dev10-kernel-evidence.lock.json",
                          root / module.LOCK_PATH)
             shutil.copy2(ROOT / "docs/assessments/dev10-kernel-cves-298.tsv",

@@ -22,7 +22,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dev10_evidence_lock import EvidenceLock
+from dev10_evidence_lock import EvidenceLock, require_binary_provenance
 
 LOCK = EvidenceLock.load()
 CVE = re.compile(r"^CVE-[0-9]{4}-[0-9]{4,}$")
@@ -153,22 +153,10 @@ def qualify(report: dict, signed: dict, trust: dict, *,
     require(provenance.get("inventory_extension_cves") == sorted(LOCK.extension_cves),
             "applicability register inventory extension differs from reviewed lock")
     binary_source = provenance.get("binary_source") or {}
-    require(binary_source.get("schema") == "baobab.dev10.ubuntu-binary-source-provenance.v1",
-            "signed applicability register lacks verified Ubuntu binary/source provenance")
-    for key, expected in LOCK.binary_source.items():
-        require(binary_source.get(key) == expected,
-                "signed applicability register binary/source identity differs from evidence lock")
-    for key in ("apt_package_metadata_sha256", "apt_policy_sha256", "apt_madison_sha256",
-                "apt_package_deb_sha256", "installed_package_metadata_sha256"):
-        require(isinstance(binary_source.get(key), str)
-                and re.fullmatch(r"[a-f0-9]{64}", binary_source[key]) is not None,
-                "signed applicability register binary/source digest is invalid")
-    require(binary_source.get("apt_candidate_version") == LOCK.package_version
-            and isinstance(binary_source.get("apt_package_index_sha256"), list)
-            and bool(binary_source["apt_package_index_sha256"])
-            and re.fullmatch(r"ubuntu@sha256:[a-f0-9]{64}",
-                             binary_source.get("ubuntu_base_image", "")) is not None,
-            "signed applicability register binary/source provenance is incomplete")
+    try:
+        require_binary_provenance(binary_source, LOCK)
+    except ValueError as error:
+        raise PolicyError("signed applicability register: " + str(error)) from error
     historical = provenance.get("historical_295_inventory") or {}
     require(historical == {
         "path": LOCK.historical_inventory_path,

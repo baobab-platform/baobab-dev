@@ -17,7 +17,7 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dev10_evidence_lock import EvidenceLock
+from dev10_evidence_lock import EvidenceLock, require_binary_provenance
 
 LOCK = EvidenceLock.load()
 SOURCE_REPO = "https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute"
@@ -73,20 +73,7 @@ def inspect(upstream: dict, repo: Path, paths: set[str], *, binary_source: dict,
             require_origin: bool = True) -> dict:
     if upstream.get("package") != "linux-libc-dev=" + RELEASE_VERSION:
         raise ValueError("mismatched binary package source")
-    if binary_source.get("schema") != "baobab.dev10.ubuntu-binary-source-provenance.v1":
-        raise ValueError("missing reproducible Ubuntu binary/source package provenance")
-    for key, expected in LOCK.binary_source.items():
-        if binary_source.get(key) != expected:
-            raise ValueError("mismatched Ubuntu binary/source package identity: " + key)
-    if any(not re.fullmatch(r"[a-f0-9]{64}", binary_source.get(key, "")) for key in (
-        "apt_package_metadata_sha256", "apt_policy_sha256", "apt_madison_sha256",
-        "apt_package_deb_sha256", "installed_package_metadata_sha256"
-    )):
-        raise ValueError("invalid binary/source provenance digest")
-    if (binary_source.get("apt_candidate_version") != RELEASE_VERSION
-            or not binary_source.get("apt_package_index_sha256")
-            or not re.fullmatch(r"ubuntu@sha256:[a-f0-9]{64}", binary_source.get("ubuntu_base_image", ""))):
-        raise ValueError("incomplete binary/source package provenance")
+    require_binary_provenance(binary_source, LOCK)
     rows = upstream.get("records", [])
     if len(rows) != EXPECTED or len({r["cve"] for r in rows}) != EXPECTED:
         raise ValueError("missing/duplicate CVE affected-file records")

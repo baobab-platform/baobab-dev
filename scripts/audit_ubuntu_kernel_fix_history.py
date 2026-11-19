@@ -13,10 +13,11 @@ from pathlib import Path
 import re
 import subprocess
 import sys
+from time import monotonic
 from collections import Counter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dev10_evidence_lock import EvidenceLock
+from dev10_evidence_lock import EvidenceLock, require_binary_provenance
 
 LOCK = EvidenceLock.load()
 SOURCE_REPO = "https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute"
@@ -29,6 +30,8 @@ TRAILER_RE = re.compile(
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 MAX_PATH_HISTORY_COMMITS = 2000
 CANDIDATE_FETCH_TIMEOUT = 60
+UPSTREAM_FETCH_BATCH = 32
+PREFETCH_SECONDS = 180
 GIT_LOCAL_ONLY = dict(os.environ, GIT_NO_LAZY_FETCH="1")
 
 
@@ -58,6 +61,18 @@ def has_commit(repo: Path, sha: str) -> bool:
     return proc.returncode == 0
 
 
+def present_commits(repo: Path, shas: set[str]) -> set[str]:
+    if not shas:
+        return set()
+    proc = subprocess.run(
+        ["git", "-C", str(repo), "cat-file", "--batch-check=%(objectname) %(objecttype)"],
+        input="\n".join(sorted(shas)) + "\n", capture_output=True, text=True,
+        env=GIT_LOCAL_ONLY, timeout=60, check=True,
+    )
+    return {line[:-7] for line in proc.stdout.splitlines()
+            if line.endswith(" commit") and line[:-7] in shas}
+
+
 def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -68,14 +83,14 @@ def patch_id(repo: Path, sha: str) -> str | None:
             ["git", "-C", str(repo), "show", "--format=", "--no-ext-diff", "--binary", sha],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=120,
         )
+        if show.returncode:
+            return None
+        result = subprocess.run(
+            ["git", "patch-id", "--stable"], input=show.stdout,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=30,
+        )
     except subprocess.TimeoutExpired:
         return None
-    if show.returncode:
-        return None
-    result = subprocess.run(
-        ["git", "patch-id", "--stable"], input=show.stdout,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=120,
-    )
     if result.returncode or not result.stdout.strip():
         return None
     value = result.stdout.decode("ascii", "replace").split()
@@ -119,25 +134,52 @@ def candidate_identity(url: str) -> tuple[str, str] | None:
     return (match.group(1), match.group(2)) if match else None
 
 
+def configure_candidate_remote(candidate_root: Path, kind: str, url: str) -> bool:
+    if run(candidate_root, "remote", "get-url", kind, check=False) != url:
+        existing = run(candidate_root, "remote", check=False).splitlines()
+        if kind in existing:
+            return False
+        run(candidate_root, "remote", "add", kind, url)
+    return True
+
+
+def fetch_candidates(candidate_root: Path, kind: str, shas: list[str], timeout: float):
+    return subprocess.run(
+        ["git", "-C", str(candidate_root), "fetch", "--atomic", "--no-tags", "--depth=2",
+         "--filter=blob:none", kind, *shas],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=timeout,
+    )
+
+
+def prefetch_candidates(candidate_root: Path, by_repo: dict[str, list[str]],
+                        remotes: dict[str, str], deadline: float) -> None:
+    for kind, shas in by_repo.items():
+        if len(shas) < 2 or monotonic() >= deadline:
+            continue
+        if not configure_candidate_remote(candidate_root, kind, remotes[kind]):
+            continue
+        present = present_commits(candidate_root, set(shas))
+        missing = [sha for sha in shas if sha not in present]
+        for start in range(0, len(missing), UPSTREAM_FETCH_BATCH):
+            remaining = deadline - monotonic()
+            if remaining <= 0:
+                return
+            try:
+                fetch_candidates(candidate_root, kind, missing[start:start + UPSTREAM_FETCH_BATCH],
+                                 min(CANDIDATE_FETCH_TIMEOUT, remaining))
+            except subprocess.TimeoutExpired:
+                break
+            # A refused batch falls back to exact, individual lookup during analysis.
+
+
 def ensure_candidate_object(candidate_root: Path, sha: str, kind: str,
                             remotes: dict[str, str]) -> tuple[Path | None, str, str]:
     if has_commit(candidate_root, sha):
         return candidate_root, "present_in_candidate_object_store", ""
-    remote_name = kind
-    if run(candidate_root, "remote", "get-url", remote_name, check=False) != remotes[kind]:
-        existing = run(candidate_root, "remote", check=False).splitlines()
-        if remote_name in existing:
-            return None, "candidate_remote_configuration_mismatch", "candidate remote URL differs from the configured official upstream"
-        subprocess.run(
-            ["git", "-C", str(candidate_root), "remote", "add", remote_name, remotes[kind]],
-            check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-        )
+    if not configure_candidate_remote(candidate_root, kind, remotes[kind]):
+        return None, "candidate_remote_configuration_mismatch", "candidate remote URL differs from the configured official upstream"
     try:
-        fetched = subprocess.run(
-            ["git", "-C", str(candidate_root), "fetch", "--no-tags", "--depth=2",
-             "--filter=blob:none", remote_name, sha],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=CANDIDATE_FETCH_TIMEOUT,
-        )
+        fetched = fetch_candidates(candidate_root, kind, [sha], CANDIDATE_FETCH_TIMEOUT)
     except subprocess.TimeoutExpired:
         return None, "candidate_fetch_timed_out", "upstream commit object fetch exceeded its time limit"
     if fetched.returncode or not has_commit(candidate_root, sha):
@@ -182,50 +224,62 @@ def history_candidates(repo: Path, tag: str, paths: list[str]) -> tuple[list[str
     return commits[:MAX_PATH_HISTORY_COMMITS], truncated
 
 
-def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
+def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
                       url: str, kind: str, sha: str, row: dict,
                       ubuntu_row: dict, trailer_commits: list[str],
                       remotes: dict[str, str], history_cache: dict,
-                      patch_cache: dict) -> tuple[dict, list[str]]:
-    if has_commit(repo, sha):
-        candidate_repo, object_status, diagnostic = repo, "present_in_ubuntu_source_repository", ""
-    else:
-        candidate_repo, object_status, diagnostic = ensure_candidate_object(candidate_root, sha, kind, remotes)
+                      patch_cache: dict, *, available_in_ubuntu: set[str],
+                      deadline: float) -> tuple[dict, list[str]]:
     base = {
         "reference": url, "candidate_commit": sha, "upstream_tree": kind,
         "candidate_remote": remotes[kind],
-        "candidate_object_status": object_status,
-        "candidate_object_diagnostic": diagnostic,
         "exact_commit_ancestor_of_ubuntu_tag": None,
         "ubuntu_merge_base": None,
         "upstream_patch_id": None, "upstream_changed_paths": [],
         "backport_trailer_matches": [], "patch_id_matches": [],
-        "assessment": object_status,
+        "candidate_object_status": "analysis_budget_exhausted",
+        "candidate_object_diagnostic": "",
+        "assessment": "ANALYSIS_BUDGET_EXHAUSTED",
     }
+    if monotonic() >= deadline:
+        base["backport_trailer_matches"] = [{"commit": commit, "patch_id": None} for commit in trailer_commits]
+        return base, []
+    if sha in available_in_ubuntu:
+        candidate_repo, object_status, diagnostic = repo, "present_in_ubuntu_source_repository", ""
+    else:
+        candidate_repo, object_status, diagnostic = ensure_candidate_object(candidate_root, sha, kind, remotes)
+    base.update(candidate_object_status=object_status, candidate_object_diagnostic=diagnostic, assessment=object_status)
     if candidate_repo is None:
         base["backport_trailer_matches"] = [
-            {"commit": commit, "patch_id": cached_patch_id(repo, commit, patch_cache)}
+            {"commit": commit, "patch_id": cached_patch_id(repo, commit, patch_cache)
+             if monotonic() < deadline else None}
             for commit in trailer_commits
         ]
         if trailer_commits:
             base["assessment"] = "CANDIDATE_OBJECT_UNAVAILABLE_TRAILER_EVIDENCE_RETAINED"
         return base, list(row.get("upstream_paths", []))
 
-    meta = commit_metadata(candidate_repo, sha)
-    paths = changed_paths(candidate_repo, sha, meta["parents"])
-    pid = cached_patch_id(candidate_repo, sha, patch_cache)
+    try:
+        meta = commit_metadata(candidate_repo, sha)
+        paths = changed_paths(candidate_repo, sha, meta["parents"])
+    except subprocess.TimeoutExpired:
+        base["assessment"] = "UPSTREAM_COMMIT_READ_TIMED_OUT"
+        return base, []
     base.update({
         "candidate_commit_metadata": meta,
-        "upstream_patch_id": pid,
         "upstream_changed_paths": paths,
     })
     if candidate_repo == repo:
-        ancestor = subprocess.run(
-            ["git", "-C", str(repo), "merge-base", "--is-ancestor", sha, tag],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
-        )
+        try:
+            ancestor = subprocess.run(
+                ["git", "-C", str(repo), "merge-base", "--is-ancestor", sha, tag],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False, timeout=60,
+            )
+            merge_base = run(repo, "merge-base", sha, tag, check=False, timeout=60)
+        except subprocess.TimeoutExpired:
+            base["assessment"] = "ANCESTRY_CHECK_TIMED_OUT"
+            return base, paths
         base["exact_commit_ancestor_of_ubuntu_tag"] = ancestor.returncode == 0
-        merge_base = run(repo, "merge-base", sha, tag, check=False)
         base["ubuntu_merge_base"] = merge_base if SHA_RE.fullmatch(merge_base) else None
         if ancestor.returncode not in (0, 1):
             base["exact_commit_ancestor_of_ubuntu_tag"] = None
@@ -237,7 +291,8 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
         base["exact_commit_ancestor_of_ubuntu_tag"] = False
 
     base["backport_trailer_matches"] = [
-        {"commit": commit, "patch_id": cached_patch_id(repo, commit, patch_cache)}
+        {"commit": commit, "patch_id": cached_patch_id(repo, commit, patch_cache)
+         if monotonic() < deadline else None}
         for commit in trailer_commits
     ]
     search_paths = set(paths) | set(row.get("upstream_paths", []))
@@ -246,18 +301,31 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
     if base["exact_commit_ancestor_of_ubuntu_tag"]:
         base["assessment"] = "EXACT_UPSTREAM_COMMIT_IN_UBUNTU_ANCESTRY"
         return base, sorted(search_paths)
+    if monotonic() >= deadline:
+        base["assessment"] = "ANALYSIS_BUDGET_EXHAUSTED"
+        return base, sorted(search_paths)
+    pid = cached_patch_id(candidate_repo, sha, patch_cache)
+    base["upstream_patch_id"] = pid
     if pid is None:
         base["assessment"] = "UPSTREAM_PATCH_ID_UNAVAILABLE"
         return base, sorted(search_paths)
 
     history_key = tuple(sorted(search_paths))
     if history_key not in history_cache:
-        history_cache[history_key] = history_candidates(repo, tag, list(history_key))
+        try:
+            history_cache[history_key] = history_candidates(repo, tag, list(history_key))
+        except subprocess.TimeoutExpired:
+            base["assessment"] = "DOWNSTREAM_HISTORY_READ_TIMED_OUT"
+            return base, sorted(search_paths)
     history, truncated = history_cache[history_key]
     unavailable = 0
+    examined = 0
     matches = {}
     for commit in history:
+        if monotonic() >= deadline:
+            break
         downstream_pid = cached_patch_id(repo, commit, patch_cache)
+        examined += 1
         if downstream_pid is None:
             unavailable += 1
         elif downstream_pid == pid:
@@ -268,15 +336,20 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
     base["patch_id_matches"] = [
         {"commit": commit, "patch_id": value} for commit, value in sorted(matches.items())
     ]
-    complete = not truncated and unavailable == 0
+    budget_exhausted = examined != len(history)
+    complete = not truncated and not budget_exhausted and unavailable == 0
     base["history_search"] = {
         "path_count": len(search_paths),
-        "commit_count_examined": len(history),
+        "commit_count_examined": examined,
         "patch_id_unavailable_count": unavailable,
         "truncated": truncated,
+        "budget_exhausted": budget_exhausted,
         "complete_for_selected_paths": complete,
     }
-    if truncated and matches:
+    if budget_exhausted:
+        base["assessment"] = ("PATCH_ID_MATCH_FOUND_BUT_SEARCH_BUDGET_EXHAUSTED" if matches
+                              else "PATCH_SEARCH_BUDGET_EXHAUSTED")
+    elif truncated and matches:
         base["assessment"] = "PATCH_ID_MATCH_FOUND_BUT_HISTORY_TRUNCATED"
     elif truncated:
         base["assessment"] = "PATCH_SEARCH_TRUNCATED_INCOMPLETE"
@@ -295,14 +368,10 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
 
 def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
           binary_source: dict, expected_commit: str, remotes: dict[str, str],
-          input_digests: dict) -> dict:
+          input_digests: dict, *, analysis_seconds: int = 1200) -> dict:
     if upstream.get("package") != "linux-libc-dev=" + LOCK.package_version:
         raise EvidenceError("upstream evidence package differs from evidence lock")
-    if binary_source.get("schema") != "baobab.dev10.ubuntu-binary-source-provenance.v1":
-        raise EvidenceError("missing Ubuntu binary/source provenance")
-    for key, expected in LOCK.binary_source.items():
-        if binary_source.get(key) != expected:
-            raise EvidenceError("binary/source provenance differs from evidence lock: " + key)
+    require_binary_provenance(binary_source, LOCK)
     if expected_commit != LOCK.ubuntu_tag_commit:
         raise EvidenceError("Ubuntu source commit differs from evidence lock")
     if run(repo, "remote", "get-url", "origin") != SOURCE_REPO:
@@ -325,19 +394,28 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
             or set(upstream_by_cve) != set(ubuntu_by_cve)):
         raise EvidenceError("upstream and Ubuntu path evidence CVE identities differ")
 
-    candidate_shas: set[str] = set()
-    for row in upstream_rows:
-        for url in row.get("candidate_upstream_fix_references", []):
+    deadline = monotonic() + analysis_seconds
+    cve_order = sorted(upstream_by_cve, key=lambda cve: (cve not in LOCK.observed_kernel_cves, cve))
+    identities: dict[str, dict[str, None]] = {}
+    for cve in cve_order:
+        for url in sorted(upstream_by_cve[cve].get("candidate_upstream_fix_references", [])):
             identity = candidate_identity(url)
             if identity:
-                candidate_shas.add(identity[1])
+                kind, sha = identity
+                identities.setdefault(kind, {})[sha] = None
+    candidate_shas = {sha for by_kind in identities.values() for sha in by_kind}
+    available_in_ubuntu = present_commits(repo, candidate_shas)
     trailers = trailer_index(repo, expected_commit, candidate_shas)
+    prefetch_candidates(candidate_root, {
+        kind: [sha for sha in values if sha not in available_in_ubuntu]
+        for kind, values in identities.items()
+    }, remotes, min(deadline, monotonic() + PREFETCH_SECONDS))
     records = []
     counts = Counter()
     all_search_paths: set[str] = set()
     history_cache: dict = {}
     patch_cache: dict = {}
-    for cve in sorted(upstream_by_cve):
+    for cve in cve_order:
         row = upstream_by_cve[cve]
         ubuntu_row = ubuntu_by_cve[cve]
         candidates = []
@@ -350,9 +428,10 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
                 continue
             kind, sha = identity
             result, searched = inspect_candidate(
-                repo, candidate_root, expected_commit, cve, url, kind, sha,
+                repo, candidate_root, expected_commit, url, kind, sha,
                 row, ubuntu_row, trailers.get(sha, []), remotes,
-                history_cache, patch_cache,
+                history_cache, patch_cache, available_in_ubuntu=available_in_ubuntu,
+                deadline=deadline,
             )
             candidates.append(result)
             all_search_paths.update(searched)
@@ -390,11 +469,13 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
             )
         },
         "candidate_commit_count": len(candidate_shas),
+        "analysis_budget_seconds": analysis_seconds,
+        "analysis_budget_exhausted": any("BUDGET_EXHAUSTED" in status for status in counts),
         "path_search_count": len(all_search_paths),
         "assessment_counts": dict(sorted(counts.items())),
         "record_count": len(records),
         "counts": {"under_investigation": len(records)},
-        "records": records,
+        "records": sorted(records, key=lambda row: row["cve"]),
     }
 
 
@@ -408,8 +489,11 @@ def main() -> int:
     parser.add_argument("--expected-commit", required=True)
     parser.add_argument("--stable-remote", default="https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git")
     parser.add_argument("--linus-remote", default="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git")
+    parser.add_argument("--analysis-seconds", type=int, default=1200)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.analysis_seconds < 1:
+        parser.error("--analysis-seconds must be positive")
     try:
         if not args.candidate_root.exists():
             args.candidate_root.mkdir(parents=True)
@@ -425,7 +509,7 @@ def main() -> int:
             json.loads(args.ubuntu_paths.read_text(encoding="utf-8")),
             args.ubuntu_checkout, args.candidate_root,
             json.loads(args.binary_source.read_text(encoding="utf-8")),
-            args.expected_commit, remotes, digests,
+            args.expected_commit, remotes, digests, analysis_seconds=args.analysis_seconds,
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")

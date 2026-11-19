@@ -9,15 +9,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 LOCK_PATH = Path("security/evidence/dev10-kernel-evidence.lock.json")
+BINARY_LOCK_PATH = LOCK_PATH.with_name("dev10-ubuntu-binary-evidence.lock.json")
 SHA40 = re.compile(r"^[a-f0-9]{40}$")
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
 CVE = re.compile(r"^CVE-[0-9]{4}-[0-9]{4,}$")
+UBUNTU_BINARY_POCKETS = frozenset({"resolute-updates", "resolute-security"})
+DEBIAN_VERSION = re.compile(r"(?:[0-9]+:)?[0-9][A-Za-z0-9.+~\-]*")
 
 
 @dataclass(frozen=True)
 class EvidenceLock:
     package_version: str
     binary_source: dict[str, str]
+    binary_artifact_sha256: dict[str, str]
     ubuntu_tag: str
     ubuntu_tag_commit: str
     upstream_sha: str
@@ -60,6 +64,8 @@ class EvidenceLock:
         )
         canonical_osv = data["canonical_osv"]
         binary_source = data["binary_source"]
+        artifact_lock = json.loads((root / BINARY_LOCK_PATH).read_text(encoding="utf-8"))
+        binary_artifacts = artifact_lock["sha256"]
         stable = data.get("stable_base_image", {})
         if binary_source != {
             "binary_package": "linux-libc-dev",
@@ -70,8 +76,17 @@ class EvidenceLock:
             "release_pocket": "resolute-updates",
         }:
             raise ValueError("Ubuntu binary-to-source package identity differs from reviewed lock")
+        if (artifact_lock.get("schema") != "baobab.dev10.ubuntu-binary-evidence-lock.v1"
+                or artifact_lock.get("package") != binary_source["binary_package"]
+                or artifact_lock.get("version") != binary_source["binary_version"]
+                or not isinstance(binary_artifacts, dict)
+                or set(binary_artifacts) != {"amd64", "arm64"}
+                or any(not isinstance(value, str) or not SHA256.fullmatch(value)
+                       for value in binary_artifacts.values())):
+            raise ValueError("Ubuntu binary artifact hashes must cover both native architectures")
         lock = cls(
             package_version=data["package_version"], binary_source=binary_source,
+            binary_artifact_sha256=binary_artifacts,
             ubuntu_tag=ubuntu["name"], ubuntu_tag_commit=ubuntu["commit"],
             upstream_sha=upstream["sha"],
             canonical_osv_repository=canonical_osv["repository"],
@@ -225,3 +240,32 @@ class EvidenceLock:
                 or final_image["index_digest"] != stable["index_digest"]):
             raise ValueError("final profile GHCR image lock differs from stable base image")
         return lock
+
+
+def require_binary_provenance(binary_source: dict, lock: EvidenceLock) -> None:
+    if not isinstance(binary_source, dict) or binary_source.get(
+        "schema"
+    ) != "baobab.dev10.ubuntu-binary-source-provenance.v1":
+        raise ValueError("missing verified Ubuntu binary/source provenance")
+    for key, expected in lock.binary_source.items():
+        if binary_source.get(key) != expected:
+            raise ValueError("Ubuntu binary/source identity differs from evidence lock: " + key)
+    package_digest = lock.binary_artifact_sha256[lock.binary_source["architecture"]]
+    if binary_source.get("apt_package_deb_sha256") != package_digest:
+        raise ValueError("Ubuntu binary/source digest differs from evidence lock")
+    for key in ("apt_package_metadata_sha256", "apt_policy_sha256", "apt_madison_sha256",
+                "installed_package_metadata_sha256"):
+        value = binary_source.get(key)
+        if not isinstance(value, str) or not SHA256.fullmatch(value):
+            raise ValueError("invalid Ubuntu binary/source provenance digest: " + key)
+    pockets = binary_source.get("apt_exact_version_pockets")
+    candidate = binary_source.get("apt_candidate_version")
+    indices = binary_source.get("apt_package_index_sha256")
+    image = binary_source.get("ubuntu_base_image")
+    if (not isinstance(pockets, list) or not pockets
+            or any(not isinstance(pocket, str) or pocket not in UBUNTU_BINARY_POCKETS for pocket in pockets)
+            or len(set(pockets)) != len(pockets)
+            or not isinstance(candidate, str) or not DEBIAN_VERSION.fullmatch(candidate)
+            or not isinstance(indices, list) or not indices
+            or not isinstance(image, str) or not re.fullmatch(r"ubuntu@sha256:[a-f0-9]{64}", image)):
+        raise ValueError("incomplete Ubuntu binary/source provenance")

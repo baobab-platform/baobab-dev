@@ -15,11 +15,15 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dev10_evidence_lock import EvidenceLock
+from dev10_evidence_lock import DEBIAN_VERSION, EvidenceLock, UBUNTU_BINARY_POCKETS
 
 LOCK = EvidenceLock.load()
 SHA256 = re.compile(r"^[a-f0-9]{64}$")
 SOURCE_FIELD = re.compile(r"^([a-z0-9+.-]+)(?:\s+\(([^)]+)\))?$")
+PACKAGE_ORIGIN = re.compile(
+    r"https?://(?:archive\.ubuntu\.com|security\.ubuntu\.com|ports\.ubuntu\.com)"
+    r"/(?:ubuntu|ubuntu-ports) (resolute-[a-z]+)/main (amd64|arm64) Packages"
+)
 
 
 def digest(path: Path) -> str:
@@ -59,18 +63,10 @@ def source_identity(value: str, binary_version: str) -> tuple[str, str]:
     return match.group(1), match.group(2) or binary_version
 
 
-def verify(args: argparse.Namespace) -> dict:
-    expected = LOCK.binary_source
-    installed = installed_fields(args.installed_package)
-    for key in ("binary_package", "binary_version", "architecture",
-                "source_package", "source_version"):
-        if installed.get(key) != expected[key]:
-            raise ValueError("installed dpkg " + key + " differs from reviewed binary/source lock")
-    if installed.get("status") != "install ok installed":
-        raise ValueError("linux-libc-dev is not in the installed dpkg state")
-
+def authenticated_apt_binary(args: argparse.Namespace, expected: dict, deb_hash: str) -> tuple[str, list[str]]:
+    archive = f"{expected['binary_package']}_{expected['binary_version']}_{expected['architecture']}.deb"
     records = apt_records(args.apt_package_metadata)
-    matches = []
+    matches = set()
     for record in records:
         if (record.get("Package") != expected["binary_package"]
                 or record.get("Version") != expected["binary_version"]
@@ -82,31 +78,49 @@ def verify(args: argparse.Namespace) -> dict:
         if source_identity(source, expected["binary_version"]) == (
             expected["source_package"], expected["source_version"]
         ):
-            matches.append(record)
-    if not matches:
+            filename = record.get("Filename", "")
+            matches.add((Path(filename).name, record.get("SHA256", "")))
+    if matches != {(archive, deb_hash)}:
         raise ValueError("apt package metadata does not corroborate the locked source package/version")
 
     policy = args.apt_policy.read_text(encoding="utf-8")
-    candidate = re.search(r"(?m)^\s*Candidate:\s*(\S+)\s*$", policy)
-    if not candidate or candidate.group(1) != expected["binary_version"]:
-        raise ValueError("apt candidate version differs from the installed binary version")
-    pocket = expected["release_pocket"]
-    if pocket not in policy:
-        raise ValueError("apt policy does not identify the locked Ubuntu release pocket")
+    candidates = re.findall(r"(?m)^\s*Candidate:\s*(\S+)\s*$", policy)
+    if len(candidates) != 1 or not DEBIAN_VERSION.fullmatch(candidates[0]):
+        raise ValueError("apt candidate version is missing or ambiguous")
 
-    madison = args.apt_madison.read_text(encoding="utf-8")
-    if expected["binary_version"] not in madison or pocket not in madison:
-        raise ValueError("apt madison does not corroborate the locked version and release pocket")
+    pockets = set()
+    for line in args.apt_madison.read_text(encoding="utf-8").splitlines():
+        fields = [field.strip() for field in line.split("|", 2)]
+        if fields[:2] != [expected["binary_package"], expected["binary_version"]] or len(fields) != 3:
+            continue
+        if (origin := PACKAGE_ORIGIN.fullmatch(fields[2])) and (
+            origin[1] in UBUNTU_BINARY_POCKETS and origin[2] == expected["architecture"]
+        ):
+            pockets.add(origin[1])
+    if not pockets:
+        raise ValueError("apt madison does not identify the exact binary in a Canonical Resolute pocket")
+    return candidates[0], sorted(pockets)
+
+
+def verify(args: argparse.Namespace) -> dict:
+    expected = LOCK.binary_source
+    installed = installed_fields(args.installed_package)
+    for key in ("binary_package", "binary_version", "architecture",
+                "source_package", "source_version"):
+        if installed.get(key) != expected[key]:
+            raise ValueError("installed dpkg " + key + " differs from reviewed binary/source lock")
+    if installed.get("status") != "install ok installed":
+        raise ValueError("linux-libc-dev is not in the installed dpkg state")
 
     deb_lines = [line for line in args.deb_sha256.read_text(encoding="utf-8").splitlines() if line]
     if len(deb_lines) != 1:
         raise ValueError("downloaded binary package must have exactly one SHA-256 record")
     deb_hash, deb_name = deb_lines[0].split(maxsplit=1)
     deb_filename = Path(deb_name.strip().lstrip("*")).name
-    if not SHA256.fullmatch(deb_hash) or not deb_filename.startswith(
-        expected["binary_package"] + "_" + expected["binary_version"] + "_"
-    ):
-        raise ValueError("downloaded binary package digest/name is invalid")
+    if (deb_hash != LOCK.binary_artifact_sha256[expected["architecture"]]
+            or deb_filename != f"{expected['binary_package']}_{expected['binary_version']}_{expected['architecture']}.deb"):
+        raise ValueError("downloaded binary package digest/name differs from evidence lock")
+    candidate, pockets = authenticated_apt_binary(args, expected, deb_hash)
 
     index_records = []
     for line in args.index_sha256.read_text(encoding="utf-8").splitlines():
@@ -127,7 +141,8 @@ def verify(args: argparse.Namespace) -> dict:
         "schema": "baobab.dev10.ubuntu-binary-source-provenance.v1",
         **expected,
         "binary_status": installed["status"],
-        "apt_candidate_version": candidate.group(1),
+        "apt_candidate_version": candidate,
+        "apt_exact_version_pockets": pockets,
         "apt_package_metadata_sha256": digest(args.apt_package_metadata),
         "apt_policy_sha256": digest(args.apt_policy),
         "apt_madison_sha256": digest(args.apt_madison),

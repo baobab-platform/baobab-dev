@@ -20,6 +20,7 @@ on:
       - docs/assessments/dev10-canonical-cve-status-20261118.tsv
       - docs/security/dev10-pr74-observed-cve-inventory.md
       - security/evidence/dev10-kernel-evidence.lock.json
+      - security/evidence/dev10-ubuntu-binary-evidence.lock.json
       - security/evidence/dev10-cve-applicability.schema.json
       - scripts/dev10_evidence_lock.py
       - scripts/audit_canonical_osv.py
@@ -190,6 +191,7 @@ jobs:
             --candidate-root "$RUNNER_TEMP/kernel-fix-candidate-objects" \
             --binary-source "$RUNNER_TEMP/dev10-ubuntu-source/binary-source-corroboration.json" \
             --expected-commit "$UBUNTU_TAG_COMMIT" \
+            --analysis-seconds 1200 \
             --output "$output"
           python3 - "$output" >> "$GITHUB_STEP_SUMMARY" <<'PY'
           import json,sys
@@ -200,6 +202,7 @@ jobs:
           print("Pinned Ubuntu tag:",report["ubuntu_source"]["tag"],report["ubuntu_source"]["commit"])
           print("Complete history commits:",report["ubuntu_source"]["reachable_commit_count"])
           print("Candidate commits:",report["candidate_commit_count"])
+          print("Analysis budget exhausted:",report["analysis_budget_exhausted"])
           print("Assessment counts:",report["assessment_counts"])
           print("All CVEs remain under investigation; no fix, VEX or release disposition inferred.")
           PY

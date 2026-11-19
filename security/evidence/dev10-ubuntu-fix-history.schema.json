@@ -6,7 +6,8 @@
   "additionalProperties": false,
   "required": [
     "schema", "decision", "inputs", "ubuntu_source", "binary_source",
-    "candidate_commit_count", "path_search_count", "assessment_counts",
+    "candidate_commit_count", "analysis_budget_seconds", "analysis_budget_exhausted",
+    "path_search_count", "assessment_counts",
     "record_count", "counts", "records"
   ],
   "properties": {
@@ -53,6 +54,8 @@
       }
     },
     "candidate_commit_count": { "type": "integer", "minimum": 0 },
+    "analysis_budget_seconds": { "type": "integer", "minimum": 0 },
+    "analysis_budget_exhausted": { "type": "boolean" },
     "path_search_count": { "type": "integer", "minimum": 0 },
     "assessment_counts": {
       "type": "object",
@@ -174,12 +177,13 @@
         "history_search": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["path_count", "commit_count_examined", "patch_id_unavailable_count", "truncated", "complete_for_selected_paths"],
+          "required": ["path_count", "commit_count_examined", "patch_id_unavailable_count", "truncated", "budget_exhausted", "complete_for_selected_paths"],
           "properties": {
             "path_count": { "type": "integer", "minimum": 0 },
             "commit_count_examined": { "type": "integer", "minimum": 0 },
             "patch_id_unavailable_count": { "type": "integer", "minimum": 0 },
             "truncated": { "type": "boolean" },
+            "budget_exhausted": { "type": "boolean" },
             "complete_for_selected_paths": { "type": "boolean" }
           }
         },

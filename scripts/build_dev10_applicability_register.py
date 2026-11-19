@@ -17,7 +17,7 @@ import sys
 from datetime import datetime, timezone
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from dev10_evidence_lock import EvidenceLock
+from dev10_evidence_lock import EvidenceLock, require_binary_provenance
 
 LOCK = EvidenceLock.load()
 COUNT = LOCK.inventory_count
@@ -98,22 +98,7 @@ def build(scanner: list[dict], canonical: list[dict],
         if LOCK.binary_manifest_sha256 and digest != LOCK.binary_manifest_sha256:
             raise ValueError("captured binary manifest digest differs from reviewed evidence lock")
         binary_source = ubuntu_patches.get("binary_source")
-        if not isinstance(binary_source, dict) or binary_source.get(
-            "schema"
-        ) != "baobab.dev10.ubuntu-binary-source-provenance.v1":
-            raise ValueError("Ubuntu binary/source package provenance is missing")
-        for key, expected in LOCK.binary_source.items():
-            if binary_source.get(key) != expected:
-                raise ValueError("Ubuntu binary/source package identity differs from evidence lock")
-        for key in ("apt_package_metadata_sha256", "apt_policy_sha256", "apt_madison_sha256",
-                    "apt_package_deb_sha256", "installed_package_metadata_sha256"):
-            if not re.fullmatch(r"[a-f0-9]{64}", binary_source.get(key, "")):
-                raise ValueError("Ubuntu binary/source package evidence has an invalid digest")
-        if (binary_source.get("apt_candidate_version") != LOCK.package_version
-                or not binary_source.get("apt_package_index_sha256")
-                or not re.fullmatch(r"ubuntu@sha256:[a-f0-9]{64}",
-                                    binary_source.get("ubuntu_base_image", ""))):
-            raise ValueError("Ubuntu binary/source package evidence is incomplete")
+        require_binary_provenance(binary_source, LOCK)
         patch_rows = unique(ubuntu_patches["records"], "Ubuntu source")
         if set(patch_rows) != set(by_scanner):
             raise ValueError("Ubuntu patch input is incomplete")

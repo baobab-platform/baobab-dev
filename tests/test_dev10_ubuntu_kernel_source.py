@@ -115,10 +115,11 @@ class UbuntuSourceVerificationTests(unittest.TestCase):
             "release_pocket": "resolute-updates",
             "binary_status": "install ok installed",
             "apt_candidate_version": m.RELEASE_VERSION,
+            "apt_exact_version_pockets": ["resolute-updates"],
             "apt_package_metadata_sha256": "a" * 64,
             "apt_policy_sha256": "b" * 64,
             "apt_madison_sha256": "c" * 64,
-            "apt_package_deb_sha256": "d" * 64,
+            "apt_package_deb_sha256": m.LOCK.binary_artifact_sha256["amd64"],
             "apt_package_deb_filename": f"linux-libc-dev_{m.RELEASE_VERSION}_amd64.deb",
             "apt_package_index_sha256": [{"sha256": "e" * 64, "index_name": "Packages"}],
             "installed_package_metadata_sha256": "f" * 64,
@@ -134,7 +135,7 @@ class UbuntuSourceVerificationTests(unittest.TestCase):
     def test_binary_source_mapping_must_match_the_reviewed_package_identity(self):
         source = dict(self.binary_source)
         source["source_package"] = "linux-raspi"
-        with self.assertRaisesRegex(ValueError, "mismatched Ubuntu binary/source package identity"):
+        with self.assertRaisesRegex(ValueError, "Ubuntu binary/source identity differs"):
             self.inspect(binary_source=source)
 
     def test_298_paths_present_but_no_automatic_fix_or_vex(self):

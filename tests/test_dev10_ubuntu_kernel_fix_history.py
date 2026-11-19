@@ -64,10 +64,11 @@ class UbuntuFixHistoryTests(unittest.TestCase):
             "release_pocket": "resolute-updates",
             "binary_status": "install ok installed",
             "apt_candidate_version": "7.0.0-43.43",
+            "apt_exact_version_pockets": ["resolute-updates"],
             "apt_package_metadata_sha256": "a" * 64,
             "apt_policy_sha256": "b" * 64,
             "apt_madison_sha256": "c" * 64,
-            "apt_package_deb_sha256": "d" * 64,
+            "apt_package_deb_sha256": m.LOCK.binary_artifact_sha256["amd64"],
             "apt_package_deb_filename": "linux-libc-dev_7.0.0-43.43_amd64.deb",
             "apt_package_index_sha256": [{"sha256": "e" * 64, "index_name": "Packages"}],
             "installed_package_metadata_sha256": "f" * 64,
@@ -79,7 +80,9 @@ class UbuntuFixHistoryTests(unittest.TestCase):
             package_version="7.0.0-43.43",
             ubuntu_tag=m.LOCK.ubuntu_tag,
             ubuntu_tag_commit="",
-            binary_source=self.binary_source,
+            binary_source=m.LOCK.binary_source,
+            binary_artifact_sha256=m.LOCK.binary_artifact_sha256,
+            observed_kernel_cves=m.LOCK.observed_kernel_cves,
         )
 
     def candidate(self, value="int example(void) { return 1; }\n"):
@@ -111,7 +114,7 @@ class UbuntuFixHistoryTests(unittest.TestCase):
             {"records": ubuntu_rows},
         )
 
-    def run_audit(self, reference=None, expected_commit=None):
+    def run_audit(self, reference=None, expected_commit=None, **kwargs):
         git(self.ubuntu, "tag", "-f", self.lock.ubuntu_tag)
         self.tag_commit = git(self.ubuntu, "rev-parse", "HEAD")
         self.lock.ubuntu_tag_commit = self.tag_commit
@@ -121,6 +124,7 @@ class UbuntuFixHistoryTests(unittest.TestCase):
                 upstream, ubuntu_paths, self.ubuntu, self.candidate_root,
                 self.binary_source, expected_commit or self.tag_commit,
                 self.remotes, {"upstream_evidence_sha256": "a" * 64},
+                **kwargs,
             )
 
     def test_exact_upstream_commit_ancestor_is_recorded_without_fix_disposition(self):
@@ -253,6 +257,18 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         self.assertEqual(record["candidate_count"], 0)
         self.assertEqual(record["invalid_reference_count"], 1)
         self.assertEqual(record["disposition"], "under_investigation")
+
+    def test_expired_analysis_budget_records_every_cve_and_known_trailer(self):
+        sha = self.candidate()
+        git(self.ubuntu, "commit", "--allow-empty", "-qm", f"Backport from commit {sha}")
+        head = git(self.ubuntu, "rev-parse", "HEAD")
+        report = self.run_audit("https://git.kernel.org/stable/c/" + sha, analysis_seconds=0)
+        candidate = report["records"][0]["candidates"][0]
+        self.assertEqual(candidate["assessment"], "ANALYSIS_BUDGET_EXHAUSTED")
+        self.assertIsNone(candidate["exact_commit_ancestor_of_ubuntu_tag"])
+        self.assertEqual(candidate["backport_trailer_matches"], [{"commit": head, "patch_id": None}])
+        self.assertTrue(report["analysis_budget_exhausted"])
+        self.assertEqual(report["record_count"], 298)
 
     def test_absent_candidate_reference_remains_under_investigation(self):
         report = self.run_audit()

@@ -36,6 +36,7 @@ class UbuntuBinarySourceTests(unittest.TestCase):
             "output": root / "binary-source.json",
         }
         version = MODULE.LOCK.package_version
+        deb_hash = MODULE.LOCK.binary_artifact_sha256["amd64"]
         self.paths["installed_package"].write_text(
             "\t".join(("linux-libc-dev", version, "amd64", "install ok installed",
                        "linux", version)) + "\n",
@@ -43,7 +44,8 @@ class UbuntuBinarySourceTests(unittest.TestCase):
         )
         self.paths["apt_package_metadata"].write_text(
             f"Package: linux-libc-dev\nVersion: {version}\nArchitecture: amd64\n"
-            f"Source: linux ({version})\n\n",
+            f"Source: linux ({version})\nFilename: pool/main/l/linux/linux-libc-dev_{version}_amd64.deb\n"
+            f"SHA256: {deb_hash}\n\n",
             encoding="utf-8",
         )
         self.paths["apt_policy"].write_text(
@@ -58,7 +60,7 @@ class UbuntuBinarySourceTests(unittest.TestCase):
             encoding="utf-8",
         )
         self.paths["deb_sha256"].write_text(
-            "a" * 64 + f"  ./linux-libc-dev_{version}_amd64.deb\n",
+            deb_hash + f"  ./linux-libc-dev_{version}_amd64.deb\n",
             encoding="utf-8",
         )
         self.paths["index_sha256"].write_text(
@@ -95,12 +97,36 @@ class UbuntuBinarySourceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "does not corroborate"):
             MODULE.verify(self.args())
 
-    def test_apt_candidate_mismatch_is_rejected(self):
+    def test_new_candidate_can_coexist_with_exact_locked_bytes_in_security_pocket(self):
         path = self.paths["apt_policy"]
-        path.write_text(path.read_text(encoding="utf-8").replace(
-            MODULE.LOCK.package_version, "7.0.0-99.99"
-        ), encoding="utf-8")
-        with self.assertRaisesRegex(ValueError, "candidate version"):
+        version = MODULE.LOCK.package_version
+        path.write_text(path.read_text().replace(f"Candidate: {version}", "Candidate: 7.0.0-44.44"))
+        path = self.paths["apt_madison"]
+        path.write_text(path.read_text().replace("archive.ubuntu.com", "security.ubuntu.com").replace(
+            "resolute-updates", "resolute-security"
+        ))
+        evidence = MODULE.verify(self.args())
+        self.assertEqual(evidence["apt_candidate_version"], "7.0.0-44.44")
+        self.assertEqual(evidence["apt_exact_version_pockets"], ["resolute-security"])
+        self.assertEqual(evidence["release_pocket"], "resolute-updates")
+
+    def test_exact_version_and_canonical_pocket_must_share_a_record(self):
+        path = self.paths["apt_madison"]
+        path.write_text(path.read_text().replace(MODULE.LOCK.package_version, "7.0.0-44.44")
+                        + f"linux-libc-dev | {MODULE.LOCK.package_version} | https://untrusted.invalid/ubuntu "
+                        "resolute-security/main amd64 Packages\n")
+        with self.assertRaisesRegex(ValueError, "exact binary"):
+            MODULE.verify(self.args())
+
+    def test_downloaded_sha_and_metadata_must_both_match_the_evidence_lock(self):
+        original = MODULE.LOCK.binary_artifact_sha256["amd64"]
+        path = self.paths["apt_package_metadata"]
+        path.write_text(path.read_text().replace(original, "a" * 64))
+        with self.assertRaisesRegex(ValueError, "does not corroborate"):
+            MODULE.verify(self.args())
+        path = self.paths["deb_sha256"]
+        path.write_text(path.read_text().replace(original, "a" * 64))
+        with self.assertRaisesRegex(ValueError, "differs from evidence lock"):
             MODULE.verify(self.args())
 
     def test_missing_apt_index_digest_is_rejected(self):

@@ -18,17 +18,16 @@ import subprocess
 import sys
 import tempfile
 
-PACKAGE = "linux-libc-dev"
-VERSION = "7.0.0-43.43"
-SOURCE = "linux"
-SOURCE_VERSION = "7.0.0-43.43"
-POCKET = "resolute-updates"
-SHA256 = re.compile(r"^[a-f0-9]{64}$")
-SOURCE_FIELD = re.compile(r"^([a-z0-9+.-]+)(?:\s+\(([^)]+)\))?$")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from dev10_evidence_lock import EvidenceLock
+from verify_ubuntu_binary_source import authenticated_apt_binary, digest, SHA256, SOURCE_FIELD
 
-
-def digest(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+LOCK = EvidenceLock.load()
+PACKAGE = LOCK.binary_source["binary_package"]
+VERSION = LOCK.binary_source["binary_version"]
+SOURCE = LOCK.binary_source["source_package"]
+SOURCE_VERSION = LOCK.binary_source["source_version"]
+POCKET = LOCK.binary_source["release_pocket"]
 
 
 def run(*args: str) -> str:
@@ -46,20 +45,6 @@ def parse_one_line(path: Path, names: tuple[str, ...]) -> dict[str, str]:
     if len(values) != len(names):
         raise ValueError(path.name + " has an unexpected field count")
     return dict(zip(names, values, strict=True))
-
-
-def apt_records(path: Path) -> list[dict[str, str]]:
-    records = []
-    for paragraph in re.split(r"\n\s*\n", path.read_text(encoding="utf-8").strip()):
-        fields: dict[str, str] = {}
-        for line in paragraph.splitlines():
-            if line[:1].isspace() or ":" not in line:
-                continue
-            key, value = line.split(":", 1)
-            fields[key] = value.strip()
-        if fields:
-            records.append(fields)
-    return records
 
 
 def source_identity(value: str) -> tuple[str, str]:
@@ -151,37 +136,17 @@ def verify(args: argparse.Namespace) -> dict:
     if installed["status"] != "install ok installed":
         raise ValueError("linux-libc-dev is not in installed dpkg state")
 
-    matches = []
-    for record in apt_records(args.apt_package_metadata):
-        if (record.get("Package") == PACKAGE and record.get("Version") == VERSION
-                and record.get("Architecture") == args.architecture):
-            source = record.get("Source", PACKAGE)
-            if source_identity(source) == (SOURCE, SOURCE_VERSION):
-                matches.append(record)
-    if len(matches) != 1:
-        raise ValueError("apt metadata does not identify exactly one expected binary/source package record")
-
-    policy = args.apt_policy.read_text(encoding="utf-8")
-    candidate = re.search(r"(?m)^\s*Candidate:\s*(\S+)\s*$", policy)
-    if not candidate or candidate.group(1) != VERSION or POCKET not in policy:
-        raise ValueError("apt policy does not corroborate the expected candidate and Resolute pocket")
-    madison = args.apt_madison.read_text(encoding="utf-8")
-    if VERSION not in madison or POCKET not in madison:
-        raise ValueError("apt madison does not corroborate the expected version and Resolute pocket")
-
     deb_hash = digest(args.deb)
-    if not SHA256.fullmatch(deb_hash):
-        raise ValueError("invalid downloaded .deb digest")
-    index_package_hash = matches[0].get("SHA256", "")
-    if not SHA256.fullmatch(index_package_hash) or index_package_hash != deb_hash:
-        raise ValueError("downloaded .deb SHA-256 does not match the signed apt package index record")
+    if deb_hash != LOCK.binary_artifact_sha256[args.architecture]:
+        raise ValueError("downloaded .deb SHA-256 differs from the evidence lock")
+    candidate, pockets = authenticated_apt_binary(args, expected, deb_hash)
     control = parse_control_fields(run("dpkg-deb", "-f", str(args.deb)))
     if (control.get("Package") != PACKAGE or control.get("Version") != VERSION
             or control.get("Architecture") != args.architecture):
         raise ValueError("downloaded .deb control identity differs from expected package/version/architecture")
     if source_identity(control.get("Source", PACKAGE)) != (SOURCE, SOURCE_VERSION):
         raise ValueError("downloaded .deb Source field differs from expected Ubuntu source package/version")
-    if not args.deb.name.startswith(f"{PACKAGE}_{VERSION}_{args.architecture}."):
+    if args.deb.name != f"{PACKAGE}_{VERSION}_{args.architecture}.deb":
         raise ValueError("downloaded .deb filename does not match expected package/version/architecture")
 
     index_records = []
@@ -237,12 +202,13 @@ def verify(args: argparse.Namespace) -> dict:
         "source_version": SOURCE_VERSION,
         "release_pocket": POCKET,
         "binary_status": installed["status"],
-        "apt_candidate_version": candidate.group(1),
+        "apt_candidate_version": candidate,
+        "apt_exact_version_pockets": pockets,
         "apt_package_metadata_sha256": digest(args.apt_package_metadata),
         "apt_policy_sha256": digest(args.apt_policy),
         "apt_madison_sha256": digest(args.apt_madison),
         "apt_package_deb_sha256": deb_hash,
-        "apt_index_package_sha256": index_package_hash,
+        "apt_index_package_sha256": deb_hash,
         "apt_package_deb_filename": args.deb.name,
         "apt_package_index_sha256": sorted(index_records, key=lambda item: item["index_name"]),
         "apt_inrelease_sha256": sorted(release_records, key=lambda item: item["release_name"]),
