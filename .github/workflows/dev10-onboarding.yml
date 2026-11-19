@@ -259,7 +259,27 @@ jobs:
           path: ${{ runner.temp }}/ghcr-native-provenance-evidence.json
           if-no-files-found: warn
           retention-days: 30
+      - name: Capture installed package evidence independently of the lifecycle
+        env:
+          IMAGE_REF: ${{ steps.stable-image.outputs.image_ref }}
+          EXPECTED_ARCHITECTURE: ${{ matrix.architecture }}
+          EXPECTED_PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/dev10-evidence"
+          chmod 0777 "$RUNNER_TEMP/dev10-evidence"
+          expected_version="$(jq -r .source.binary_package_mapping.binary_version security/evidence/dev10-image-observed-cves-41-canonical.lock.json)"
+          docker run --rm -e EXPECTED_ARCHITECTURE -e EXPECTED_LINUX_LIBC_DEV_VERSION="$expected_version" \
+            -v "$GITHUB_WORKSPACE:/source:ro" -v "$RUNNER_TEMP/dev10-evidence:/evidence" "$IMAGE_REF" \
+            bash /source/scripts/ci/capture-image-binary-manifest.sh
+          python3 -B scripts/ci/assemble_image_binary_package_manifest.py \
+            --profile "$EXPECTED_PROFILE" --architecture "$EXPECTED_ARCHITECTURE" \
+            --image-ref "$IMAGE_REF" --expected-version "$expected_version" \
+            --package-metadata "$RUNNER_TEMP/dev10-evidence/linux-libc-dev.package.tsv" \
+            --manifest "$RUNNER_TEMP/dev10-evidence/linux-libc-dev.manifest.tsv" \
+            --output "$RUNNER_TEMP/dev10-evidence/binary-package-provenance-$EXPECTED_PROFILE-$EXPECTED_ARCHITECTURE.json"
       - name: Execute locked onboarding and root pnpm workspace in the published image
+        if: ${{ !cancelled() && steps.stable-image.outcome == 'success' }}
         env:
           IMAGE_REF: ${{ steps.stable-image.outputs.image_ref }}
         run: |
@@ -288,22 +308,11 @@ jobs:
                 chmod -R a+rX /evidence/browser-cache
               '
           fi
-          expected_version="$(jq -r .source.binary_package_mapping.binary_version security/evidence/dev10-image-observed-cves-41-canonical.lock.json)"
           docker run --rm -e EXPECTED_PROFILE="${{ matrix.profile }}" -e IMAGE_REF="$IMAGE_REF" \
-            -e EXPECTED_ARCHITECTURE="${{ matrix.architecture }}" \
-            -e EXPECTED_LINUX_LIBC_DEV_VERSION="$expected_version" \
             -e PLAYWRIGHT_BROWSERS_PATH=/evidence/browser-cache \
             -v "$GITHUB_WORKSPACE:/source:ro" \
             -v "$RUNNER_TEMP/dev10-evidence:/evidence" "$IMAGE_REF" \
             bash /source/scripts/ci/onboarding-published-image.sh
-          python3 -B scripts/ci/assemble_image_binary_package_manifest.py \
-            --profile "${{ matrix.profile }}" \
-            --architecture "${{ matrix.architecture }}" \
-            --image-ref "$IMAGE_REF" \
-            --expected-version "$expected_version" \
-            --package-metadata "$RUNNER_TEMP/dev10-evidence/linux-libc-dev.package.tsv" \
-            --manifest "$RUNNER_TEMP/dev10-evidence/linux-libc-dev.manifest.tsv" \
-            --output "$RUNNER_TEMP/dev10-evidence/binary-package-provenance-${{ matrix.profile }}-${{ matrix.architecture }}.json"
       - name: Retain immutable-image onboarding verification evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -315,7 +324,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 30
       - name: A failed final verifier must fail the actual container lifecycle
-        if: matrix.profile == 'final'
+        if: ${{ !cancelled() && matrix.profile == 'final' && steps.stable-image.outcome == 'success' }}
         env:
           IMAGE_REF: ${{ steps.stable-image.outputs.image_ref }}
         run: |
@@ -374,7 +383,7 @@ jobs:
           tag="$(jq -r .ubuntu_tag.name security/evidence/dev10-kernel-evidence.lock.json)"
           commit="$(jq -r .ubuntu_tag.commit security/evidence/dev10-kernel-evidence.lock.json)"
           root="$RUNNER_TEMP/ubuntu-linux-resolute-41"
-          git clone --depth 1 --filter=blob:none --single-branch --branch "$tag" \
+          git clone --depth 1 --no-checkout --filter=blob:none --single-branch --branch "$tag" \
             https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute "$root"
           actual="$(git -C "$root" rev-parse --verify "refs/tags/$tag^{commit}")"
           test "$actual" = "$commit"
@@ -520,7 +529,7 @@ jobs:
           tag="$(jq -r .ubuntu_tag.name security/evidence/dev10-kernel-evidence.lock.json)"
           commit="$(jq -r .ubuntu_tag.commit security/evidence/dev10-kernel-evidence.lock.json)"
           root="$RUNNER_TEMP/ubuntu-linux-resolute-41"
-          git clone --depth 1 --filter=blob:none --single-branch \
+          git clone --depth 1 --no-checkout --filter=blob:none --single-branch \
             --branch "$tag" \
             https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute \
             "$root"

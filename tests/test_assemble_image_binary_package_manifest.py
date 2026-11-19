@@ -29,6 +29,7 @@ class ImageBinaryManifestAssemblyTests(unittest.TestCase):
             manifest = root / "manifest.tsv"
             manifest.write_text(
                 "path\tkind\tsha256\tlink_target\n"
+                "/.\tdirectory\t\t\n"
                 "/usr/include/linux/test.h\tfile\t" + "a" * 64 + "\t\n"
                 "/usr/include/linux/current.h\tsymlink\t\tlinux/test.h\n"
                 "/usr/include/linux\tdirectory\t\t\n"
@@ -53,6 +54,13 @@ class ImageBinaryManifestAssemblyTests(unittest.TestCase):
             self.assertEqual(by_path["/usr/include/linux/current.h"]["kind"], "symlink")
             self.assertEqual(by_path["/usr/include/linux"]["kind"], "dir")
             self.assertEqual(by_path["/usr/include/linux/missing.h"]["kind"], "missing")
+            original = manifest.read_text()
+            manifest.write_text(original + "/.\tdirectory\t\t\n")
+            with self.assertRaisesRegex(ValueError, "duplicate paths"):
+                MODULE.assemble(args)
+            manifest.write_text(original.replace("/.\tdirectory", "/.\tfile"))
+            with self.assertRaisesRegex(ValueError, "unsafe installed package path"):
+                MODULE.assemble(args)
 
     def test_rejects_wrong_source_version_or_non_immutable_image_ref(self):
         with tempfile.TemporaryDirectory() as tmp:

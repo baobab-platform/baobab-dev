@@ -40,11 +40,19 @@ def assemble(args: argparse.Namespace) -> dict:
         if package.get(key) != value:
             raise ValueError("installed package " + key + " differs from the pinned identity")
     entries = []
+    seen = set()
     for row in tsv(args.manifest):
         path = row.get("path", "")
-        if not path.startswith("/") or "\\" in path or any(p in {"", ".", ".."} for p in path.split("/")[1:]):
-            raise ValueError("unsafe installed package path")
         raw_kind = row.get("kind")
+        if path in seen:
+            raise ValueError("installed package manifest has duplicate paths")
+        seen.add(path)
+        # dpkg-query includes the archive root. It is not a package entry.
+        if path == "/." and raw_kind == "directory" and row.get("sha256") == row.get("link_target") == "":
+            continue
+        if (not path.startswith("/") or "\\" in path
+                or any(p in {"", ".", ".."} for p in path.split("/")[1:])):
+            raise ValueError("unsafe installed package path")
         if raw_kind == "directory":
             kind, value = "dir", ""
         elif raw_kind == "file":
@@ -60,8 +68,8 @@ def assemble(args: argparse.Namespace) -> dict:
         else:
             raise ValueError("unsupported installed package manifest kind")
         entries.append({"kind": kind, "path": path, "value": value})
-    if not entries or len({item["path"] for item in entries}) != len(entries):
-        raise ValueError("installed package manifest is empty or has duplicate paths")
+    if not entries:
+        raise ValueError("installed package manifest is empty")
     entries.sort(key=lambda item: item["path"])
     manifest_bytes = json.dumps(entries, sort_keys=True, separators=(",", ":")).encode()
     return {

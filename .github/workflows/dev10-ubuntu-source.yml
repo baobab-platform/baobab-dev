@@ -63,7 +63,8 @@ jobs:
       - name: Capture exact installed amd64 binary manifest
         run: |
           set -euo pipefail
-          bash scripts/ci/capture-ubuntu-package-evidence.sh "$UBUNTU_KERNEL_RELEASE" amd64             "$RUNNER_TEMP/dev10-ubuntu-source"
+          bash scripts/ci/capture-ubuntu-package-evidence.sh "$UBUNTU_KERNEL_RELEASE" amd64 \
+            "$RUNNER_TEMP/dev10-ubuntu-source"
       - name: Verify installed Ubuntu binary-to-source package provenance
         run: |
           set -euo pipefail
@@ -83,11 +84,12 @@ jobs:
           git init -q "$root"
           git -C "$root" remote add origin https://github.com/canonical/ubuntu-security-notices.git
           git -C "$root" -c protocol.version=2 fetch --filter=blob:none --no-tags --depth=1 origin "$CANONICAL_OSV_SHA"
-          git -C "$root" sparse-checkout init --cone
-          mapfile -t years < <(tail -n +2 docs/assessments/dev10-kernel-cves-298.tsv | cut -f1 | sed -nE 's/^CVE-([0-9]{4})-[0-9]{4,}$/\1/p' | sort -u)
-          paths=()
-          for year in "${years[@]}"; do paths+=("osv/cve/$year"); done
-          git -C "$root" sparse-checkout set "${paths[@]}"
+          # Only materialize the audited OSV blobs from the pinned tree.
+          while read -r cve; do
+            [[ "$cve" =~ ^CVE-[0-9]{4}-[0-9]{4,}$ ]] || exit 2
+            printf '/osv/cve/%s/UBUNTU-%s.json\n' "${cve:4:4}" "$cve"
+          done < <(tail -n +2 docs/assessments/dev10-kernel-cves-298.tsv | cut -f1) \
+            | git -C "$root" sparse-checkout set --no-cone --stdin
           git -C "$root" checkout --detach --quiet FETCH_HEAD
           test "$(git -C "$root" rev-parse HEAD)" = "$CANONICAL_OSV_SHA"
           echo "CANONICAL_OSV_ROOT=$root" >> "$GITHUB_ENV"
@@ -127,7 +129,7 @@ jobs:
       - name: Checkout authoritative Ubuntu 26.04 exact source release tag
         run: |
           set -euo pipefail
-          git clone --depth 1 --filter=blob:none --single-branch \
+          git clone --depth 1 --no-checkout --filter=blob:none --single-branch \
             --branch "$UBUNTU_SOURCE_TAG" \
             https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute \
             "$RUNNER_TEMP/ubuntu-linux-resolute"

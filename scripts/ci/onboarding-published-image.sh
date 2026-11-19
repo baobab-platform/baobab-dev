@@ -38,8 +38,6 @@ require_source
 [[ "$(getent passwd "$(id -u)" | cut -d: -f6)" == "$HOME" ]] || { echo "Container HOME must remain the image runtime user home" >&2; exit 2; }
 mkdir -p "$HOME" "$PROJECT_DIR" "$TOOLS_DIR" /evidence
 
-# Capture the installed package from this immutable image before lifecycle tests.
-bash "$SRC_DIR/scripts/ci/capture-image-binary-manifest.sh"
 cp -a "$SRC_DIR/." "$PROJECT_DIR/"
 test -f "$PROJECT_DIR/scripts/post-create.sh"
 
