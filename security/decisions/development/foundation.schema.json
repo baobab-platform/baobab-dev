@@ -227,8 +227,10 @@
     },
     "finding_count": {
       "type": "integer",
-      "minimum": 8,
-      "maximum": 12
+      "enum": [
+        8,
+        12
+      ]
     },
     "notes": {
       "type": "string",
@@ -240,6 +242,10 @@
         "null"
       ],
       "minimum": 1
+    },
+    "evidence_lock_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "allOf": [
@@ -314,6 +320,23 @@
             "format": "date-time"
           }
         }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "finding_count": {
+            "const": 12
+          }
+        },
+        "required": [
+          "finding_count"
+        ]
+      },
+      "then": {
+        "required": [
+          "evidence_lock_sha256"
+        ]
       }
     }
   ]

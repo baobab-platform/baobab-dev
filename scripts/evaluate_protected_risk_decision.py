@@ -51,6 +51,21 @@ def demand(condition: bool, reason: str) -> None:
         raise DecisionDenied(reason)
 
 
+def validate_decision_evidence_lock(decision: dict) -> None:
+    if decision.get("finding_count") != 12 and "evidence_lock_sha256" not in decision:
+        return
+    from dev10_evidence_lock import EvidenceLock
+
+    expected = decision.get("evidence_lock_sha256")
+    demand(isinstance(expected, str) and re.fullmatch(r"[a-f0-9]{64}", expected) is not None,
+           "twelve-finding decision must bind the reviewed evidence lock SHA-256")
+    try:
+        actual = EvidenceLock.load().evidence_lock_sha256
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise DecisionDenied("reviewed evidence lock is unavailable or invalid") from exc
+    demand(expected == actual, "decision evidence-lock SHA-256 differs from the reviewed lock")
+
+
 def verify_decision_bytes(raw: bytes, trusted_sha256: str) -> tuple[dict, str]:
     """Authenticate exact policy bytes against a protected, independently managed hash."""
     demand(isinstance(raw, bytes), "risk decision must be supplied as raw file bytes")
@@ -61,6 +76,7 @@ def verify_decision_bytes(raw: bytes, trusted_sha256: str) -> tuple[dict, str]:
     demand(actual == trusted_sha256, "decision bytes differ from protected approval")
     decision = json.loads(raw)
     demand(isinstance(decision, dict), "invalid decision document")
+    validate_decision_evidence_lock(decision)
     return decision, actual
 
 
