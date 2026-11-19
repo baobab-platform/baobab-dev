@@ -48,6 +48,8 @@ The succeeding candidate manifest SHA-256 is **011eed6960b9971b487ae5518e8492a69
 | Historical exception code | RETIRE | Historical disclosure only. Current release policy blocks residual High, Critical and secret findings. |
 | Registry, source and rollback evidence | RETAIN | Keep exact digest readback, bounded retries, source lineage diagnostics and protected alias recovery. |
 
+GitHub's read-only preflight at 21861666f55c896ec59d2ea4f3334796df02ea85 passed frozen resolution, live BuildKit OCI export and Docker import. The archive preserves the exact native manifest and config, supporting Docker's containerd and classic image stores while preserving the identity scanned by Trivy. The protected release job remains subject to the separate policy and deployment gates. [Hosted exporter probe](https://github.com/baobab-platform/baobab-dev/actions/runs/44569802742/job/135721423266)
+
 The release trigger still requires a reviewed canonical main merge and an authorized tag. Automatic publisher activation after merge remains unqualified. The GitHub deployment review history has run-level custody, so a rerun needs fresh attempt-specific authority before the workflow permits writes. [Publish workflow](../../.github/workflows/publish.yml) · [Rollback](../usage/immutable-rc-recovery.md)
 
 ## 4. GII-01–GII-14
@@ -73,7 +75,9 @@ The release trigger still requires a reviewed canonical main merge and an author
 
 Independent download verified ZIP SHA-256 **f2eb46751ba495aaf36e6b669c1b897312b869892d7d6661cabf90de2de1b33a** for authenticated historical custody. Approval 5932308847 covers exact head **f9fd73d4e848a7c4d3bcfbe28651e06149cdcb6d** and service commit **dad5dc64031d05b7e7d93345f1ea553abea6c70e**. [Hosted receipt](https://github.com/baobab-platform/baobab-dev/actions/runs/44561067917/artifacts/14548747253)
 
-The release environment readback has four numeric reviewer appointments, prevents self-review and disables admin bypass. Repository tag rules use the literal doubled prefix **refs/tags/refs/tags/v***. It misses ordinary release refs. The custodian must establish the actual main and tag rules and authorize this exact release source. [Repository tag rules](https://github.com/baobab-platform/baobab-dev/rules/20470719)
+The repository owner confirmed that main is intentionally unprotected for internal development. This is the current development setting. Tagged GHCR publication is governed separately. A reviewed merge establishes source ancestry and the tag workflow reads the actual branch and tag rules again before a registry write. [Effective release rules verifier](../../scripts/verify_release_governance.py)
+
+The release environment readback has four numeric reviewer appointments, prevents self-review and disables admin bypass. Repository tag rules use the literal doubled prefix **refs/tags/refs/tags/v***. It misses ordinary release refs. The protected branch and tag settings require effective owner-managed enforcement. Existing #74 APPROVED reviews were submitted against c4c15d363fa03ea073e5a2ac3a4908eb86c192a6. The candidate still requires an independent exact-head review. [Repository tag rules](https://github.com/baobab-platform/baobab-dev/rules/20470719)
 
 Local regression covers modified OCI bytes, wrong source, wrong scanner config identity, residual High findings and exact immutable transport. The checksum-verified crane transferred the fixture index by digest and read back the identical digest from a disposable loopback registry. Hosted PR preflight separately exercises real BuildKit OCI export and Docker import. The HEALTHCHECK, legacy exception refusals and two API cleanup findings were checked in the actual diff. The open threads remain recorded pending review of the replacement head.
 
@@ -107,6 +111,10 @@ The independent readback of the eight 167b962 scanner artifacts and the dedicate
 - CRITICAL — CVE-2026-99287, CVE-2026-99306, CVE-2026-99310
 - HIGH — CVE-2022-50240, CVE-2025-40190, CVE-2026-100081, CVE-2026-68103, CVE-2026-72198, CVE-2026-74578, CVE-2026-89805, CVE-2026-98376, CVE-2026-98420, CVE-2026-98869, CVE-2026-98890, CVE-2026-99083, CVE-2026-99109, CVE-2026-99110, CVE-2026-99116, CVE-2026-99117, CVE-2026-99126, CVE-2026-99128, CVE-2026-99138, CVE-2026-99147, CVE-2026-99152, CVE-2026-99153, CVE-2026-99154, CVE-2026-99164, CVE-2026-99166, CVE-2026-99167, CVE-2026-99185, CVE-2026-99203, CVE-2026-99212, CVE-2026-99213, CVE-2026-99218, CVE-2026-99227, CVE-2026-99231, CVE-2026-99236, CVE-2026-99239, CVE-2026-99260, CVE-2026-99270, CVE-2026-99272, CVE-2026-99274, CVE-2026-99275, CVE-2026-99282, CVE-2026-99284, CVE-2026-99288, CVE-2026-99290, CVE-2026-99292, CVE-2026-99295, CVE-2026-99302, CVE-2026-99304, CVE-2026-99311
 
+The hosted history run verified all 1,444,815 commits reachable from the exact Canonical release tag. Its retained output records three exact upstream ancestors. It also records 21 trailer hits without an available upstream object, 199 further unavailable objects and 1,235 comparisons outside the analysis budget. Repeated failures were caused by a shallow lock left by a timed-out fetch. The correction terminates the fetch process group and releases only its own lock. An ancestry pass now runs for the full candidate set before network-dependent comparisons. [Digest-verified history evidence](https://github.com/baobab-platform/baobab-dev/actions/runs/44563107246/artifacts/14554502703)
+
+The 298-record source inventory covers 11 of the 52 scanner findings. The supplemental inventory matches the remaining 41, including all three Critical findings. Independent download verified all 41 pinned Canonical OSV Git blob identities and their matching Resolute source and linux-libc-dev binary versions. Binary applicability and authorization remain open. [Supplemental inventory](dev10-image-observed-cves-41.tsv) · [Pinned Canonical records](https://github.com/canonical/ubuntu-security-notices/tree/a64faad6c6b5b52353b7300d278e501c0ca75d21/osv/cve/2026)
+
 The source verifier now preserves the original Resolute updates observation and validates the exact .deb hash from the current security pocket separately. The historical case evidence lock and risk-decision records retain their original bytes. [Exact package capture](https://github.com/baobab-platform/baobab-dev/actions/runs/44558261972/artifacts/14546278211)
 
 ## 7. Native qualification
@@ -119,6 +127,8 @@ The source verifier now preserves the original Resolute updates observation and 
 | infra | Build and non-root native smoke passed | Build and non-root native smoke passed |
 
 This matrix describes PR head **167b962305a01c489f1b1d9f543f35a77a6fb758** and synthetic checkout **d8ebb82e3f92a1e0c0d5e55a61ba413b5de84b2a** at observation. The dedicated Foundation container gate refused the same candidate. The initial reconciled head had eight builds and six native smoke passes, with both final-profile smoke tests skipped before the archive handling correction. [Hosted matrix](https://github.com/baobab-platform/baobab-dev/actions/runs/44563107235) · [Full AMD64 native proof](https://github.com/baobab-platform/baobab-dev/actions/runs/44563107235/artifacts/14551034744) · [Full ARM64 native proof](https://github.com/baobab-platform/baobab-dev/actions/runs/44563107235/artifacts/14551927233) · [Foundation](https://github.com/baobab-platform/baobab-dev/actions/runs/44563109091)
+
+The subsequent matrix on **21861666f55c896ec59d2ea4f3334796df02ea85** and checkout **46ffffc376f5d2b8c36928051e42a2dbc657f6ac** repeated all eight builds and native smoke tests successfully with the pinned Temurin hashes. Independently checked ZIPs for the eight Trivy profiles and separate Foundation scan again contained the same 52 findings. The ancestry cleanup commit changes the source diagnostic and its tests. Hosted checks on that commit are separate evidence. [Second native matrix](https://github.com/baobab-platform/baobab-dev/actions/runs/44569802742) · [Current Foundation scan artifact](https://github.com/baobab-platform/baobab-dev/actions/runs/44569805332/artifacts/14555045844)
 
 ## 8. GHCR release evidence
 
@@ -135,11 +145,11 @@ Git had no v1.5.2 tag or GitHub Release at check time. Anonymous registry access
 
 | Consumer | Current repository evidence and required acceptance |
 | --- | --- |
-| Nabhold, ZuriBeans, Thamani | Node 24 and pnpm 11.24.0 with separately pinned Playwright versions. Run frozen installs, builds and their browser suites on the candidate. |
+| Nabhold, ZuriBeans, Thamani | Node 24 and pnpm 11.24.0. Playwright is pinned to 1.64.1, 1.63.0 and 1.62.1 respectively. These declared ranges need separate adoption before the Node 26 image can qualify the repositories. [Nabhold](https://github.com/baobab-platform/nabhold/blob/main/package.json) · [ZuriBeans](https://github.com/baobab-platform/zuribeans/blob/main/package.json) · [Thamani](https://github.com/baobab-platform/thamani/blob/main/package.json) |
 | Baobab CP | Bootstrap pins Node 26.13.0. Candidate uses 26.13.1. Test CP's intended Node patch and pnpm 12 compatibility independently. |
 | Baobab Pulse | Python capability declared. Exercise its locked application under 3.14.10. |
 | Baobab ERP | Execute real iDempiere native JVM and OSGi verification against the candidate JDK and Maven. |
-| Baobab Subscriptions | Java 21, Maven and PostgreSQL 17 declared. Run its committed Maven wrapper and database tests. |
+| Baobab Subscriptions | Java 21 and PostgreSQL 17 declared. The committed Maven wrapper selects 3.10.0. Run the wrapper and database tests. [Maven wrapper](https://github.com/baobab-platform/baobab-subscriptions/blob/main/.mvn/wrapper/maven-wrapper.properties) |
 | Infrastructure | Terraform and infrastructure profile declared. Verify native init, validate, plan and AWS tooling. |
 
 Disposable fresh Codespaces, authenticated pulls, real GitHub Packages, consumer builds and verified teardown remain **BLOCKED** on the qualified image release. No consumer pin was migrated. [Acceptance contract](https://github.com/baobab-platform/baobab-dev/issues/55)

@@ -1,6 +1,7 @@
 """Fix-history evidence is conservative and never assigns a CVE disposition."""
 from pathlib import Path
 import importlib.util
+import os
 import subprocess
 import tempfile
 import types
@@ -218,20 +219,36 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         self.assertEqual(candidate["history_search"]["patch_id_unavailable_count"], 1)
 
     def test_upstream_fetch_timeout_retains_under_investigation(self):
-        original = subprocess.run
-
-        def run(*args, **kwargs):
-            if args[0][:4] == ["git", "-C", str(self.candidate_root), "fetch"]:
-                raise subprocess.TimeoutExpired(args[0], m.CANDIDATE_FETCH_TIMEOUT)
-            return original(*args, **kwargs)
-
         sha = "1" * 40
-        with mock.patch.object(m.subprocess, "run", side_effect=run):
+        with mock.patch.object(m, "fetch_candidates", side_effect=subprocess.TimeoutExpired("git fetch", 1)):
             report = self.run_audit("https://git.kernel.org/stable/c/" + sha)
         candidate = report["records"][0]["candidates"][0]
         self.assertEqual(candidate["assessment"], "candidate_fetch_timed_out")
         self.assertIsNone(candidate["exact_commit_ancestor_of_ubuntu_tag"])
         self.assertEqual(report["counts"], {"under_investigation": 298})
+
+    def test_timed_out_fetch_releases_only_its_shallow_lock(self):
+        bin_path = self.candidate_root.parent / "bin"
+        bin_path.mkdir()
+        executable = bin_path / "git"
+        executable.write_text("#!/bin/sh\n"
+                              "if [ \"${HANG_FETCH:-}\" = yes ]; then\n"
+                              "  touch \"$2/.git/shallow.lock\"\n"
+                              "  sleep 20 &\n"
+                              "  wait\n"
+                              "fi\n")
+        executable.chmod(0o755)
+        lock = self.candidate_root / ".git/shallow.lock"
+        with mock.patch.dict(os.environ, {"PATH": str(bin_path) + ":" + os.environ["PATH"], "HANG_FETCH": "yes"}):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                m.fetch_candidates(self.candidate_root, "stable", ["1" * 40], 0.3)
+            self.assertFalse(lock.exists())
+            with mock.patch.dict(os.environ, {"HANG_FETCH": "no"}):
+                self.assertEqual(m.fetch_candidates(self.candidate_root, "stable", ["1" * 40], 1).returncode, 0)
+                lock.write_text("owned by another Git process")
+                with self.assertRaisesRegex(m.EvidenceError, "pre-existing shallow lock"):
+                    m.fetch_candidates(self.candidate_root, "stable", ["1" * 40], 1)
+                self.assertEqual(lock.read_text(), "owned by another Git process")
 
     def test_non_utf8_history_message_does_not_hide_an_exact_ascii_backport_reference(self):
         sha = self.candidate()
@@ -269,6 +286,16 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         self.assertEqual(candidate["backport_trailer_matches"], [{"commit": head, "patch_id": None}])
         self.assertTrue(report["analysis_budget_exhausted"])
         self.assertEqual(report["record_count"], 298)
+
+    def test_ancestor_membership_is_verified_before_backport_budget(self):
+        sha = self.candidate()
+        git(self.ubuntu, "fetch", "-q", "stable", sha)
+        git(self.ubuntu, "merge", "--ff-only", sha)
+        report = self.run_audit("https://git.kernel.org/stable/c/" + sha, analysis_seconds=0)
+        entry = report["records"][0]["candidates"][0]
+        self.assertTrue(entry["exact_commit_ancestor_of_ubuntu_tag"])
+        self.assertEqual(entry["ubuntu_merge_base"], sha)
+        self.assertEqual(report["assessment_counts"]["EXACT_UPSTREAM_COMMIT_IN_UBUNTU_ANCESTRY"], 1)
 
     def test_absent_candidate_reference_remains_under_investigation(self):
         report = self.run_audit()

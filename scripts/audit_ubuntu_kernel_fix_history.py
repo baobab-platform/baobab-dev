@@ -6,11 +6,14 @@ This tool never decides that a CVE is fixed, unaffected, accepted, or releasable
 from __future__ import annotations
 
 import argparse
+from contextlib import suppress
+import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
 import re
+import signal
 import subprocess
 import sys
 from time import monotonic
@@ -144,11 +147,26 @@ def configure_candidate_remote(candidate_root: Path, kind: str, url: str) -> boo
 
 
 def fetch_candidates(candidate_root: Path, kind: str, shas: list[str], timeout: float):
-    return subprocess.run(
-        ["git", "-C", str(candidate_root), "fetch", "--atomic", "--no-tags", "--depth=2",
-         "--filter=blob:none", kind, *shas],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=timeout,
-    )
+    argv = ["git", "-C", str(candidate_root), "fetch", "--atomic", "--no-tags", "--depth=2",
+            "--filter=blob:none", kind, *shas]
+    git_dir = candidate_root / ".git"
+    shallow_lock = git_dir / "shallow.lock"
+    # A fetch can spawn transport and index-pack children. Kill the complete
+    # process group and remove only a lock created during our exclusive fetch.
+    with (git_dir / "dev10-fetch.lock").open("a") as lease:
+        fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if os.path.lexists(shallow_lock):
+            raise EvidenceError("candidate repository has a pre-existing shallow lock")
+        with subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True) as proc:
+            try:
+                stdout, stderr = proc.communicate(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                with suppress(ProcessLookupError):
+                    os.killpg(proc.pid, signal.SIGKILL)
+                proc.communicate()
+                shallow_lock.unlink(missing_ok=True)
+                raise
+            return subprocess.CompletedProcess(argv, proc.returncode, stdout, stderr)
 
 
 def prefetch_candidates(candidate_root: Path, by_repo: dict[str, list[str]],
@@ -167,7 +185,7 @@ def prefetch_candidates(candidate_root: Path, by_repo: dict[str, list[str]],
             try:
                 fetch_candidates(candidate_root, kind, missing[start:start + UPSTREAM_FETCH_BATCH],
                                  min(CANDIDATE_FETCH_TIMEOUT, remaining))
-            except subprocess.TimeoutExpired:
+            except (subprocess.TimeoutExpired, EvidenceError, BlockingIOError):
                 break
             # A refused batch falls back to exact, individual lookup during analysis.
 
@@ -182,6 +200,8 @@ def ensure_candidate_object(candidate_root: Path, sha: str, kind: str,
         fetched = fetch_candidates(candidate_root, kind, [sha], CANDIDATE_FETCH_TIMEOUT)
     except subprocess.TimeoutExpired:
         return None, "candidate_fetch_timed_out", "upstream commit object fetch exceeded its time limit"
+    except (EvidenceError, BlockingIOError):
+        return None, "candidate_repository_busy", "upstream fetch could not acquire its candidate-store lease"
     if fetched.returncode or not has_commit(candidate_root, sha):
         diagnostic = fetched.stderr.decode("utf-8", "replace")[:180]
         return None, "candidate_commit_unavailable", diagnostic
@@ -228,7 +248,7 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
                       url: str, kind: str, sha: str, row: dict,
                       ubuntu_row: dict, trailer_commits: list[str],
                       remotes: dict[str, str], history_cache: dict,
-                      patch_cache: dict, *, available_in_ubuntu: set[str],
+                      patch_cache: dict, *, available_in_ubuntu: set[str], ancestors: set[str],
                       deadline: float) -> tuple[dict, list[str]]:
     base = {
         "reference": url, "candidate_commit": sha, "upstream_tree": kind,
@@ -241,6 +261,14 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
         "candidate_object_diagnostic": "",
         "assessment": "ANALYSIS_BUDGET_EXHAUSTED",
     }
+    if sha in ancestors:
+        base.update(
+            candidate_object_status="present_in_ubuntu_source_repository",
+            exact_commit_ancestor_of_ubuntu_tag=True, ubuntu_merge_base=sha,
+            assessment="EXACT_UPSTREAM_COMMIT_IN_UBUNTU_ANCESTRY",
+            backport_trailer_matches=[{"commit": commit, "patch_id": None} for commit in trailer_commits],
+        )
+        return base, list(row.get("upstream_paths", []))
     if monotonic() >= deadline:
         base["backport_trailer_matches"] = [{"commit": commit, "patch_id": None} for commit in trailer_commits]
         return base, []
@@ -394,7 +422,6 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
             or set(upstream_by_cve) != set(ubuntu_by_cve)):
         raise EvidenceError("upstream and Ubuntu path evidence CVE identities differ")
 
-    deadline = monotonic() + analysis_seconds
     cve_order = sorted(upstream_by_cve, key=lambda cve: (cve not in LOCK.observed_kernel_cves, cve))
     identities: dict[str, dict[str, None]] = {}
     for cve in cve_order:
@@ -405,7 +432,14 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
                 identities.setdefault(kind, {})[sha] = None
     candidate_shas = {sha for by_kind in identities.values() for sha in by_kind}
     available_in_ubuntu = present_commits(repo, candidate_shas)
+    history = run(repo, "rev-list", expected_commit, timeout=300).splitlines()
+    if not history or history[0] != expected_commit:
+        raise EvidenceError("complete Ubuntu ancestor walk did not start at the exact release tag")
+    ancestors = available_in_ubuntu.intersection(history)
+    reachable_count = len(history)
+    del history
     trailers = trailer_index(repo, expected_commit, candidate_shas)
+    deadline = monotonic() + analysis_seconds
     prefetch_candidates(candidate_root, {
         kind: [sha for sha in values if sha not in available_in_ubuntu]
         for kind, values in identities.items()
@@ -430,7 +464,7 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
             result, searched = inspect_candidate(
                 repo, candidate_root, expected_commit, url, kind, sha,
                 row, ubuntu_row, trailers.get(sha, []), remotes,
-                history_cache, patch_cache, available_in_ubuntu=available_in_ubuntu,
+                history_cache, patch_cache, available_in_ubuntu=available_in_ubuntu, ancestors=ancestors,
                 deadline=deadline,
             )
             candidates.append(result)
@@ -460,7 +494,7 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
         "ubuntu_source": {
             "repository": SOURCE_REPO, "tag": tag, "commit": expected_commit,
             "history_complete": True, "shallow": False,
-            "reachable_commit_count": int(run(repo, "rev-list", "--count", expected_commit)),
+            "reachable_commit_count": reachable_count,
         },
         "binary_source": {
             key: binary_source[key] for key in (
