@@ -73,7 +73,7 @@ The source-history/backport workflow run `44597449221` was still executing at th
 
 The exact SHA-256 of `security/evidence/dev10-kernel-evidence.lock.json` at this branch head is:
 
-`db53b7f55f2ce287f764a031656fd7e57c5e5cd06ad7dc07d9a25c790bf0cb80`
+`f15ad8d9ded6db5d9e023faa8193eb466682fd91d364261e883530b436e05c30`
 
 This is the digest required in the 12-finding decision's `evidence_lock_sha256` field. It binds the reviewed inventory, canonical snapshot, Ubuntu tag, binary manifest and eight profile/architecture scan artifact digests. If any locked evidence input changes, recompute this value and update the proposed decision; do not retain a stale digest.
 
