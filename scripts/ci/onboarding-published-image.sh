@@ -38,12 +38,9 @@ require_source
 [[ "$(getent passwd "$(id -u)" | cut -d: -f6)" == "$HOME" ]] || { echo "Container HOME must remain the image runtime user home" >&2; exit 2; }
 mkdir -p "$HOME" "$PROJECT_DIR" "$TOOLS_DIR" /evidence
 
-# Capture the installed linux-libc-dev package from this exact immutable image.
-# This is the image payload manifest, not a reconstruction from the Ubuntu base.
-: "${EXPECTED_ARCHITECTURE:?expected image architecture is required}"
-: "${EXPECTED_LINUX_LIBC_DEV_VERSION:?expected linux-libc-dev version is required}"
-package_record="$(dpkg-query -W -f='${Status}\t${Version}\t${Architecture}\t${source:Package}\t${source:Version}\n' linux-libc-dev)"
-IFS=cp -a "$SRC_DIR/." "$PROJECT_DIR/"
+# Capture the installed package from this immutable image before lifecycle tests.
+bash "$SRC_DIR/scripts/ci/capture-image-binary-manifest.sh"
+cp -a "$SRC_DIR/." "$PROJECT_DIR/"
 test -f "$PROJECT_DIR/scripts/post-create.sh"
 
 # Install the repository-pinned uv with an architecture-specific checksum.
