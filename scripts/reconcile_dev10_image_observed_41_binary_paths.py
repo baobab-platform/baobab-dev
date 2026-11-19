@@ -53,22 +53,45 @@ def safe_source_path(value: str) -> bool:
 
 def compare(args: argparse.Namespace) -> dict:
     upstream = json.loads(args.upstream_evidence.read_text(encoding="utf-8"))
-    amd64 = json.loads(args.amd64_manifest.read_text(encoding="utf-8"))
-    arm64 = json.loads(args.arm64_manifest.read_text(encoding="utf-8"))
     if upstream.get("counts", {}).get("records") != 41 or len(upstream.get("records", [])) != 41:
         raise ValueError("upstream source evidence must contain exactly 41 CVEs")
     if git(args.ubuntu_root, "rev-parse", "HEAD").decode().strip() != args.ubuntu_commit:
         raise ValueError("Ubuntu source checkout does not match immutable release-tag commit")
     if args.ubuntu_tag != "Ubuntu-7.0.0-43.43":
         raise ValueError("unexpected Ubuntu kernel source tag")
-    manifests = {"amd64": amd64, "arm64": arm64}
-    for architecture, evidence in manifests.items():
+    if args.image_manifest:
+        if args.amd64_manifest or args.arm64_manifest:
+            raise ValueError("use image manifests or architecture base manifests, not both")
+        loaded = [json.loads(path.read_text(encoding="utf-8")) for path in args.image_manifest]
+    else:
+        if not args.amd64_manifest or not args.arm64_manifest:
+            raise ValueError("both architecture manifests are required")
+        loaded = [
+            json.loads(args.amd64_manifest.read_text(encoding="utf-8")),
+            json.loads(args.arm64_manifest.read_text(encoding="utf-8")),
+        ]
+    manifests = {}
+    for evidence in loaded:
+        architecture = evidence.get("architecture")
+        profile = evidence.get("profile", "base")
+        key = profile + "/" + str(architecture)
+        if key in manifests:
+            raise ValueError("duplicate binary manifest for " + key)
         if (evidence.get("binary_package") != "linux-libc-dev"
                 or evidence.get("binary_version") != "7.0.0-43.43"
-                or evidence.get("architecture") != architecture
+                or architecture not in {"amd64", "arm64"}
                 or evidence.get("source_package") != "linux"
-                or evidence.get("source_version") != "7.0.0-43.43"):
-            raise ValueError(architecture + ": binary package provenance does not match the reviewed source package")
+                or evidence.get("source_version") != "7.0.0-43.43"
+                or not isinstance(evidence.get("package_content_manifest"), list)):
+            raise ValueError(key + ": binary package provenance does not match the reviewed source package")
+        manifests[key] = evidence
+    if {item["architecture"] for item in manifests.values()} != {"amd64", "arm64"}:
+        raise ValueError("binary evidence must cover both amd64 and arm64")
+    if args.require_all_profiles:
+        expected = {f"{profile}/{arch}" for profile in ("final", "frontend", "frontend-e2e", "infra")
+                    for arch in ("amd64", "arm64")}
+        if set(manifests) != expected:
+            raise ValueError("published-image manifests must cover all four profiles on both architectures")
     output_records = []
     for record in upstream["records"]:
         cve = record["cve"]
@@ -91,7 +114,8 @@ def compare(args: argparse.Namespace) -> dict:
                     git(args.ubuntu_root, "show", f"{args.ubuntu_commit}:{source_path}")
                 ).hexdigest()
             per_arch = {}
-            for architecture, evidence in manifests.items():
+            for image_key, evidence in manifests.items():
+                architecture = evidence["architecture"]
                 entries = {item["path"]: item for item in evidence["package_content_manifest"]}
                 candidates = candidate_binary_paths(source_path, architecture)
                 matches = [entries[path] for path in candidates if path in entries]
@@ -114,7 +138,10 @@ def compare(args: argparse.Namespace) -> dict:
                     classification = "PRIVATE_OR_NON_EXPORTED_HEADER_NO_DIRECT_BINARY_MAPPING"
                 else:
                     classification = "KERNEL_IMPLEMENTATION_SOURCE_NO_DIRECT_BINARY_MAPPING"
-                per_arch[architecture] = {
+                per_arch[image_key] = {
+                    "profile": evidence.get("profile", "base"),
+                    "architecture": architecture,
+                    "image_ref": evidence.get("image_ref"),
                     "candidate_binary_paths": list(candidates),
                     "matched_binary_paths": [item["path"] for item in matches],
                     "classification": classification,
@@ -149,8 +176,11 @@ def compare(args: argparse.Namespace) -> dict:
             "tag": args.ubuntu_tag,
             "commit": args.ubuntu_commit,
         },
-        "binary_packages": {
-            architecture: {
+        "binary_packages": [
+            {
+                "profile": evidence.get("profile", "base"),
+                "architecture": evidence["architecture"],
+                "image_ref": evidence.get("image_ref"),
                 "package": evidence["binary_package"],
                 "version": evidence["binary_version"],
                 "source_package": evidence["source_package"],
@@ -158,10 +188,13 @@ def compare(args: argparse.Namespace) -> dict:
                 "package_path_count": evidence["package_path_count"],
                 "package_content_manifest_sha256": evidence["package_content_manifest_sha256"],
             }
-            for architecture, evidence in manifests.items()
-        },
+            for _, evidence in sorted(manifests.items())
+        ],
         "counts": {
             "cves": len(output_records),
+            "binary_manifest_count": len(manifests),
+            "architectures": sorted({item["architecture"] for item in manifests.values()}),
+            "profiles": sorted({item.get("profile", "base") for item in manifests.values()}),
             "canonical_linux_libc_dev_binary_mappings": sum(
                 1 for row in output_records if row["canonical_linux_libc_dev_binary_listed_as_affected"]
             ),
@@ -191,8 +224,10 @@ def compare(args: argparse.Namespace) -> dict:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--upstream-evidence", type=Path, required=True)
-    parser.add_argument("--amd64-manifest", type=Path, required=True)
-    parser.add_argument("--arm64-manifest", type=Path, required=True)
+    parser.add_argument("--amd64-manifest", type=Path)
+    parser.add_argument("--arm64-manifest", type=Path)
+    parser.add_argument("--image-manifest", type=Path, action="append", default=[])
+    parser.add_argument("--require-all-profiles", action="store_true")
     parser.add_argument("--ubuntu-root", type=Path, required=True)
     parser.add_argument("--ubuntu-tag", required=True)
     parser.add_argument("--ubuntu-commit", required=True)
@@ -203,7 +238,7 @@ def main() -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n",
                                encoding="utf-8")
-        print("Reconciled 41-CVE affected paths against Ubuntu source and both binary manifests:",
+        print("Reconciled 41-CVE affected paths against Ubuntu source and binary manifests:",
               result["counts"])
         print("No non-applicability or VEX disposition was inferred.")
         return 0
