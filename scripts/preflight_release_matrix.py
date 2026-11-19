@@ -10,7 +10,7 @@ JOBS = {
     "sanity-check": (),
     "ga-reuse": ("sanity-check",),
     "build": ("sanity-check",),
-    "release-digests": ("sanity-check", "build"),
+    "release-digests": ("sanity-check",),
     "publish": ("release-digests", "sanity-check"),
     "promote": ("publish", "ga-reuse", "sanity-check"),
     "release": ("promote", "sanity-check", "ga-reuse"),

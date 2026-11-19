@@ -72,6 +72,19 @@ class SecurityDecisionTests(unittest.TestCase):
     def test_invalid_release_tag_is_rejected(self):
         with self.assertRaisesRegex(ValueError,"invalid release target/digest/repository/architecture"):
             verify(None,tag="refs/heads/main")
+    def test_standard_trivy_report_uses_the_observed_binary_version(self):
+        report = dict(REPORT)
+        report.pop("Trivy")
+        report["Results"] = [{"Target": "ubuntu:26.04", "Vulnerabilities": [], "Secrets": []}]
+        kwargs = dict(target="final", digest=DIGEST, release_tag="v1.5.2", now=NOW)
+        with self.assertRaisesRegex(ValueError, "scanner version"):
+            m.validate(None, report, **kwargs)
+        with self.assertRaisesRegex(ValueError, "scanner version"):
+            m.validate(None, report, scanner_version="0.74.0", **kwargs)
+        self.assertEqual(
+            m.validate(None, report, scanner_version=m.TRIVY_VERSION, **kwargs)["digest"], DIGEST
+        )
+
     def test_invalid_trivy_version_is_rejected(self):
         report = dict(REPORT)
         report["Trivy"] = {"Version":"0.74.0"}

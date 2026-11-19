@@ -80,7 +80,7 @@ def findings(report):
 
 def validate(decision, report, *, target, digest, release_tag,
              image_repository=IMAGE_REPOSITORY, architecture="linux/amd64",
-             expected_trivy_version=TRIVY_VERSION, now):
+             expected_trivy_version=TRIVY_VERSION, scanner_version=None, now):
     if not isinstance(report, dict):
         raise ValueError("invalid Trivy report")
     if (target not in TARGETS or not isinstance(digest, str) or not DIGEST.fullmatch(digest)
@@ -89,10 +89,14 @@ def validate(decision, report, *, target, digest, release_tag,
             or architecture not in ARCHITECTURES
             or expected_trivy_version != TRIVY_VERSION):
         raise ValueError("invalid release target/digest/repository/architecture")
+    embedded = report.get("Trivy")
     if (report.get("SchemaVersion") != 2
             or report.get("ArtifactType") != "container_image"
-            or not isinstance(report.get("Trivy"), dict)
-            or report["Trivy"].get("Version") != expected_trivy_version):
+            or (embedded is not None and (
+                not isinstance(embedded, dict) or embedded.get("Version") != expected_trivy_version
+            ))
+            or (scanner_version is not None and scanner_version != expected_trivy_version)
+            or (embedded is None and scanner_version is None)):
         raise ValueError("Trivy report schema, image type or scanner version is not qualified")
     metadata = report.get("Metadata")
     if not isinstance(metadata, dict):
@@ -120,13 +124,16 @@ def main():
     for arg in ("report","target","digest","release-tag","image-repository","architecture"):
         p.add_argument("--"+arg, required=True)
     p.add_argument("--decision")
+    p.add_argument("--scanner-version", required=True,
+                   help="observed version from the checksum-verified Trivy binary")
     a=p.parse_args()
     try:
         report=json.loads(Path(a.report).read_text())
         decision=json.loads(Path(a.decision).read_text()) if a.decision else None
         result=validate(decision,report,target=a.target,digest=a.digest,
                         release_tag=a.release_tag,image_repository=a.image_repository,
-                        architecture=a.architecture,now=dt.datetime.now(dt.timezone.utc))
+                        architecture=a.architecture,scanner_version=a.scanner_version,
+                        now=dt.datetime.now(dt.timezone.utc))
     except (ValueError, OSError, TypeError) as exc:
         p.error(str(exc))
     print(json.dumps(result,sort_keys=True))

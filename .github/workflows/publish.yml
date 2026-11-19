@@ -27,16 +27,9 @@
 #   This closes CodeQL actions/cache-poisoning/poisonable-step (#2) by never
 #   executing a caller-chosen ref in the default-branch dispatch context.
 #
-# SECURITY SCAN TRIGGER POLICY (shift-left):
-#   The Trivy gate ("Build local single-manifest image for scanning"
-#   through "Scan built container with Trivy") is DELIBERATELY NOT
-#   tag-gated — it runs on every PR, `main` push, and tag push, so a bad
-#   dependency or base-image bump is caught before merge, not at release
-#   time. Added cost is minimal: it reuses the `type=gha` build cache and
-#   the cached vulnerability DB. It still re-runs at tag time too, as
-#   defense-in-depth against a CVE disclosed between merge and release.
-#   Registry push, the real build's `push:` flag, digest export/upload,
-#   the smoke test, and the whole `publish` job remain tag-gated.
+# PRs and main pushes perform read-only development qualification. An RC
+# performs one native digest build per target and platform and scans those
+# bytes before signing. GA reuses the verified same-source RC digests.
 #
 # TRIVY CLI FLAGS (pinned TRIVY_VERSION=0.73.0):
 #   `--pkg-types os,library` replaces the deprecated `--vuln-type`
@@ -54,20 +47,9 @@
 #   `--skip-version-check` drops Trivy's own unrelated, unpinned
 #   "newer CLI available" network check.
 #
-# TRIVY SCAN TARGET:
-#   `sbom: true` + `provenance: true` make even a single-platform build
-#   emit an OCI Image INDEX (real manifest + a separate "unknown/unknown"
-#   attestation manifest) — documented BuildKit behavior (moby/buildkit,
-#   docker/buildx#1964; also goharbor/harbor#22848, stacklok/dockyard#215).
-#   Trivy can't resolve that index directly, so "Build local
-#   single-manifest image for scanning" re-exports the same build (no
-#   attestations, same builder/cache, nothing rebuilt) purely as an
-#   unambiguous local scan target — `load: true` into the Docker daemon
-#   for most targets, or an OCI tarball (`type=oci` + `trivy image
-#   --input`) for `final`, whose daemon-loaded footprint alone was enough
-#   to blow past GitHub-hosted runners' per-job disk quota (see that
-#   step's comment for the full root-cause writeup). The real published
-#   artifact keeps its full SBOM + provenance untouched either way.
+# Registry release builds carry BuildKit SBOM and provenance. Resolve the
+# exact child by platform, use it for the scan and native runtime tests, then
+# pass the unchanged single-platform index to the signing and merge jobs.
 #
 # PERFORMANCE:
 #   Trivy's vulnerability DB (~500MB+) is cached via our own SHA-pinned
@@ -383,7 +365,7 @@ jobs:
   build:
     name: "Build & Security Scan (${{ matrix.target }}, ${{ matrix.platform }})"
     needs: sanity-check
-    if: needs.sanity-check.outputs.is_stable_release != 'true'
+    if: needs.sanity-check.outputs.is_release != 'true'
 
     # RATIONALE: Route arm64 builds to native ARM GitHub-hosted runners for faster performance.
     runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
@@ -745,8 +727,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # Exact registry-digest smoke tests for all profiles and architectures
-      # now belong to the privileged release-digests job.
+      # The release-digests job performs native smoke on the exact RC digests.
       # Container Smoke Test (every non-final target — local scan image)
       # Runs against the already-`load: true`-ed local `baobab-dev:scan`
       # image rather than the registry digest, so it needs no tag gating
@@ -784,13 +765,11 @@ jobs:
           : "${PNPM_VERSION:?missing resolved pnpm version}"
           bash scripts/qualify-pnpm-provisioning.sh baobab-dev:scan "$PNPM_VERSION"
 
-  # R5: validation is read-only; this tag-only job owns untagged GHCR uploads.
-  # Publication artifacts are produced ONLY after ALL eight validation legs pass.
-  # Exact remote digest scan is mandatory; development kernel exceptions do
-  # not apply to stable version tags. No version tags are created here.
+  # This tag-only job builds once per native platform and owns candidate
+  # digest uploads. All eight legs must pass before signing and promotion.
   release-digests:
     name: "Release candidate exact-digest scan (${{ matrix.target }}, ${{ matrix.platform }})"
-    needs: [sanity-check, build]
+    needs: sanity-check
     if: needs.sanity-check.outputs.is_release == 'true' && needs.sanity-check.outputs.is_stable_release != 'true'
     runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
     timeout-minutes: 140
@@ -1004,10 +983,12 @@ jobs:
         run: |
           set -euo pipefail
           image="${REGISTRY}/${IMAGE_NAME}@${CHILD_DIGEST}"
-          mkdir -p "$RUNNER_TEMP/trivy-exact-evidence"
+          evidence="$RUNNER_TEMP/trivy-exact-evidence"
+          mkdir -p "$evidence"
           # Do not scan an independently rebuilt local tag or infer equivalence.
           set +e
-          trivy image --scanners vuln,secret --skip-db-update --skip-java-db-update \
+          trivy image --image-src remote --platform "$PLATFORM" \
+            --scanners vuln,secret --skip-db-update --skip-java-db-update \
             --ignorefile /dev/null --pkg-types os,library --severity CRITICAL,HIGH \
             --exit-code 1 --skip-version-check --format json \
             --output "$RUNNER_TEMP/trivy-exact-raw.json" "$image"
@@ -1029,11 +1010,17 @@ jobs:
             fi
             echo "::error::Residual vulnerabilities in a tagged remote image require separately authenticated exact-digest release approval; development-only acceptance is insufficient."
             exit 2
-          else
-            echo "::notice::Remote digest Trivy CLEAN: $image"
           fi
+          python3 scripts/verify_digest_security_decision.py \
+            --report "$RUNNER_TEMP/trivy-exact-raw.json" \
+            --target "${{ matrix.target }}" --digest "$CHILD_DIGEST" \
+            --release-tag "$GITHUB_REF_NAME" --image-repository "${REGISTRY}/${IMAGE_NAME}" \
+            --architecture "$PLATFORM" --scanner-version "$(trivy --version | sed -n 's/^Version: //p' | head -1)" \
+            > "$evidence/decision.json"
+          echo "::notice::Exact remote digest qualified: $image"
 
       - name: Confirm exact registry child carries immutable release source revision
+        if: ${{ !cancelled() && steps.exact.outcome == 'success' }}
         env:
           CHILD_DIGEST: ${{ steps.exact.outputs.child }}
           PLATFORM: ${{ matrix.platform }}
@@ -1047,14 +1034,20 @@ jobs:
           }
           echo "::notice::Exact image source label verified: $actual"
 
-      - name: Run runtime smoke against the scanned digest
+      - name: Run native non-root smoke against the scanned digest
+        if: ${{ !cancelled() && steps.exact.outcome == 'success' }}
         env:
+          PLATFORM: ${{ matrix.platform }}
           CHILD_DIGEST: ${{ steps.exact.outputs.child }}
           PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          docker run --rm --platform "$PLATFORM" \
-            "${REGISTRY}/${IMAGE_NAME}@${CHILD_DIGEST}" baobab-verify
+          image="${REGISTRY}/${IMAGE_NAME}@${CHILD_DIGEST}"
+          docker run --rm --platform "$PLATFORM" "$image" sh -ec 'test "$(id -u)" -ne 0; baobab-verify'
+          if [[ "$PLATFORM" == linux/amd64 && "${{ matrix.target }}" == frontend* ]]; then
+            . config/versions.lock
+            bash scripts/qualify-pnpm-provisioning.sh "$image" "$PNPM_VERSION"
+          fi
       - name: Export architecture image digest
         if: needs.sanity-check.outputs.is_release == 'true'
         run: |
@@ -2196,13 +2189,15 @@ jobs:
             for architecture in linux/amd64 linux/arm64; do
               child=$(jq -r --arg arch "${architecture#linux/}" '.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest' "$RUNNER_TEMP/verified-$target-index.json")
               [[ "$child" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::Missing exact architecture child digest"; exit 2; }
-              trivy image --scanners vuln,secret --pkg-types os,library \
+              trivy image --image-src remote --platform "$architecture" \
+                --scanners vuln,secret --pkg-types os,library \
                 --severity HIGH,CRITICAL --ignorefile /dev/null --format json \
                 --output "$RUNNER_TEMP/security-$target-${architecture#linux/}.json" "$image@$child"
               python3 scripts/verify_digest_security_decision.py \
                 --report "$RUNNER_TEMP/security-$target-${architecture#linux/}.json" \
                 --target "$target" --digest "$child" --release-tag "$RELEASE_TAG" \
-                --image-repository "$image" --architecture "$architecture"
+                --image-repository "$image" --architecture "$architecture" \
+                --scanner-version "$(trivy --version | sed -n 's/^Version: //p' | head -1)"
             done
             bash scripts/verify-image.sh "$image@$digest" "$verification_tag"
             echo "::notice::Promotion precheck: $target digest $digest verified"

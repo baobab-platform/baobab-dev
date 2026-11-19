@@ -60,6 +60,7 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertNotIn("docker/login-action@", build)
         self.assertNotIn("push-by-digest=true", build)
         self.assertIn("Scan built container with Trivy", build)
+        self.assertIn("needs.sanity-check.outputs.is_release != 'true'", build)
 
     def test_local_runtime_qualification_runs_after_scan_denial_when_build_succeeded(self):
         build = active_yaml(jobs()["build"])
@@ -81,7 +82,7 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
 
     def test_tag_only_exact_digest_security_is_required(self):
         run = jobs()["release-digests"]
-        self.assertIn("needs: [sanity-check, build]", run)
+        self.assertIn("needs: sanity-check", run)
         self.assertIn("needs.sanity-check.outputs.is_release == 'true'", run)
         self.assertIn("packages: write", run)
         self.assertIn("Scan EXACT registry architecture digest with fresh Trivy DBs", run)
@@ -94,6 +95,11 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("trivy image --download-db-only", run)
         self.assertIn("trivy image --download-java-db-only", run)
         self.assertIn("verify_trivy_db_freshness.py", run)
+        self.assertIn('verify_digest_security_decision.py', run)
+        self.assertIn('--image-src remote --platform "$PLATFORM"', run)
+        self.assertIn('test "$(id -u)" -ne 0', run)
+        self.assertIn('INDEX_DIGEST: ${{ steps.build.outputs.digest }}', run)
+        self.assertEqual(run.count("docker/build-push-action@"), 1)
 
     def test_historical_development_risk_gate_is_retired_and_disclosure_only(self):
         gate = (ROOT / "scripts/dev10_kernel_risk_gate.py").read_text()
@@ -113,7 +119,7 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("summarize-trivy-vulnerabilities.py", exact)
         self.assertIn("if (( rc != 1 )); then", exact)
         self.assertNotIn("dev10_kernel_risk_gate.py", exact)
-        self.assertIn("needs: [sanity-check, build]", exact)
+        self.assertIn("needs: sanity-check", exact)
         self.assertNotIn("packages: write", validation)
         self.assertIn("name: dev10-release-promotion", jobs()["promote"])
 
