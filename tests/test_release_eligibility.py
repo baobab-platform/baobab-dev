@@ -24,7 +24,16 @@ class ReleaseEligibilityTests(unittest.TestCase):
     def test_reviewed_maintenance(self):
         self.assertEqual(mod.decide("v1.5.2-rc.2", self.tags, False, False, True), "reviewed-maintenance")
     def test_ga_not_rebuilt(self):
-        self.assertEqual(mod.decide("v1.5.2", self.tags, False, False), "qualified-RC-digest-reuse")
+        channel = mod.publication_channel("v1.5.2", ["v1.5.2-rc.1"])
+        self.assertEqual(channel, "ga")
+        self.assertEqual(mod.decide("v1.5.2", self.tags, False, False, channel=channel),
+                         "qualified-RC-digest-reuse")
+    def test_new_stable_family_qualifies_without_a_numbered_rc(self):
+        channel = mod.publication_channel("v1.5.2", ["v1.5.1-rc.1", "v1.5.2-rc.0"])
+        self.assertEqual(channel, "ga-direct")
+        self.assertEqual(mod.decide("v1.5.2", self.tags[:-1], True, True, channel=channel), "changed-toolchain")
+        with self.assertRaises(mod.ReleaseEligibilityError):
+            mod.decide("v1.5.2", self.tags[:-1], False, False, channel=channel)
     def test_finalized_family_refused(self):
         with self.assertRaises(mod.ReleaseEligibilityError):
             mod.decide("v1.5.1-rc.2", self.tags, True, True)

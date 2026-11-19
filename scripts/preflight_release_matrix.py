@@ -11,7 +11,8 @@ JOBS = {
     "ga-reuse": ("sanity-check",),
     "build": ("sanity-check",),
     "release-digests": ("sanity-check",),
-    "publish": ("release-digests", "sanity-check"),
+    "authorize-publish": ("release-digests", "sanity-check"),
+    "publish": ("authorize-publish", "sanity-check"),
     "promote": ("publish", "ga-reuse", "sanity-check"),
     "release": ("promote", "sanity-check", "ga-reuse"),
 }
@@ -20,6 +21,8 @@ REQUIRED_FILES = (
     "scripts/test-verify-image-release-identity.sh",
     "scripts/verify_release_artifact_contract.py",
     "scripts/verify_release_governance.py",
+    "scripts/attested_release_layout.py",
+    "scripts/assemble_release_evidence.py",
     "scripts/verify_rc_ga_workflow.py",
     "scripts/prepare_ga_reuse.py",
     "scripts/select_qualified_rc_run.py",
@@ -68,13 +71,16 @@ def check(root: Path, workflow: str):
         "name: resolved-lockfile",
         "name: ga-reused-candidates",
         "name: published-info-${{ matrix.target }}",
-        "pattern: ${{ needs.sanity-check.outputs.is_stable_release == 'true' && 'ga-reused-candidates' || 'published-info-*' }}",
+        "pattern: ${{ needs.sanity-check.outputs.publication_channel == 'ga' && 'ga-reused-candidates' || 'published-info-*' }}",
         "scripts/verify_release_artifact_contract.py",
         "scripts/verify_release_governance.py",
         "scripts/test-verify-image-release-identity.sh",
         "tests/test_release_artifact_contract.py",
         "tests/test_immutable_rc_recovery.py",
         "if-no-files-found: error",
+        "--channel native --run-id",
+        "scripts/attested_release_layout.py qualify",
+        "name: verified-release-evidence",
         'gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=completed&per_page=100"',
         "scripts/select_qualified_rc_run.py",
         "verify_rc_ga_workflow.py",
@@ -84,9 +90,11 @@ def check(root: Path, workflow: str):
     for target in TARGETS:
         if target not in workflow:
             errors.append("missing release target " + target)
-    # Both channels must have independent publication paths.
-    if "is_stable_release == 'true'" not in workflow or "is_stable_release != 'true'" not in workflow:
-        errors.append("missing RC/GA workflow branch")
+    if ("publication_channel == 'ga-direct'" not in blocks.get("release-digests", "")
+            or "publication_channel == 'ga'" not in blocks.get("ga-reuse", "")):
+        errors.append("missing direct stable publication or same-source RC reuse")
+    if "packages: write" in blocks.get("release-digests", ""):
+        errors.append("native release qualification must not have registry write access")
     for tag, expected in (
         ("v1.5.0-rc.1", "rc"), ("v1.5.1-rc.2", "rc"),
         ("v1.5.2-rc.1", "rc"), ("v1.5.2", "ga"), ("v2.0.0", "ga"),

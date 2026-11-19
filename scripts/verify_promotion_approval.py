@@ -17,6 +17,7 @@ from custody_independence import (
     GITHUB_WEB_FLOW_ID, REPOSITORY, CustodyError, is_positive_id, rest_user_id,
 )
 from github_api_transport import GitHubAPIError, rest_request
+from provision_protected_risk_policy import OWNER_USER_ID
 from release_tag_policy import classify
 
 ENVIRONMENT = "dev10-release-promotion"
@@ -42,7 +43,7 @@ def _login(value, label):
 
 def attest(
     reviews: object, *, run_id: int, attempt: int, actor: str, actor_id: int,
-    triggering_actor: str, triggering_actor_id: int, tag: str,
+    triggering_actor: str, triggering_actor_id: int, tag: str, eligible_ids: set[int] | None = None,
 ) -> dict:
     if not isinstance(reviews, list):
         raise EvidenceError("missing deployment review response")
@@ -93,7 +94,7 @@ def attest(
             # Automation and wait-timer records are not independent approvals.
             continue
         login = _login(reviewer.get("login"), "deployment reviewer login")
-        if reviewer_id in (actor_id, triggering_actor_id):
+        if reviewer_id in (actor_id, triggering_actor_id) or (eligible_ids is not None and reviewer_id not in eligible_ids):
             continue
         approved.setdefault(reviewer_id, set()).add(login)
 
@@ -122,10 +123,14 @@ def attest(
     }
 
 
-def collect_run_approval(token, *, run_id, attempt, head_sha, actor, actor_id, tag):
+def collect_run_approval(token, *, run_id, attempt, head_sha, actor, actor_id, tag, eligible_ids):
     """Bind actor IDs to the exact Publish run attempt before reading approvals."""
     _positive_id(run_id, "workflow run ID")
     _positive_id(attempt, "workflow run attempt")
+    if attempt != 1:
+        raise EvidenceError("GitHub deployment review history has no attempt binding; protected rerun refused")
+    if not eligible_ids or any(not is_positive_id(reviewer) for reviewer in eligible_ids):
+        raise EvidenceError("no authorized independent release reviewer appointments")
     _positive_id(actor_id, "original workflow actor")
     if (not isinstance(head_sha, str) or not re.fullmatch(r"[a-f0-9]{40}", head_sha)
             or not isinstance(tag, str) or classify(tag) is None):
@@ -151,6 +156,7 @@ def collect_run_approval(token, *, run_id, attempt, head_sha, actor, actor_id, t
     return attest(
         reviews, run_id=run_id, attempt=attempt, actor=actor, actor_id=original_id,
         triggering_actor=triggering_actor.get("login"), triggering_actor_id=triggering_id, tag=tag,
+        eligible_ids=eligible_ids,
     )
 
 
@@ -162,17 +168,30 @@ def main() -> int:
     parser.add_argument("--actor", required=True)
     parser.add_argument("--actor-id", type=int, required=True)
     parser.add_argument("--tag", required=True)
+    parser.add_argument("--environment-evidence", type=Path, required=True)
+    parser.add_argument("--contributors", required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     token = os.environ.get("GITHUB_TOKEN")
     if not token or os.environ.get("GITHUB_REPOSITORY") != REPOSITORY:
         parser.error("promotion approval requires GitHub authentication for the canonical repository")
     try:
+        environment = json.loads(args.environment_evidence.read_text())
+        contributors = json.loads(args.contributors)
+        if (not isinstance(environment, dict) or environment.get("environment") != ENVIRONMENT
+                or environment.get("release_tag") != args.tag):
+            raise EvidenceError("release environment receipt differs from the exact release")
+        appointed = environment.get("reviewer_ids")
+        for identities in (contributors, appointed):
+            if (not isinstance(identities, list) or not identities or any(not is_positive_id(i) for i in identities)
+                    or len(set(identities)) != len(identities)):
+                raise EvidenceError("missing or malformed exact release contributor/reviewer identities")
         result = collect_run_approval(
             token, run_id=args.run_id, attempt=args.attempt, head_sha=args.head_sha,
             actor=args.actor, actor_id=args.actor_id, tag=args.tag,
+            eligible_ids=set(appointed) - (set(contributors) | {OWNER_USER_ID}),
         )
-    except (EvidenceError, CustodyError, GitHubAPIError) as exc:
+    except (CustodyError, GitHubAPIError, ValueError, OSError) as exc:
         parser.error(str(exc))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")

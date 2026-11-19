@@ -499,6 +499,8 @@ require_resolved "$JAVA_MAJOR" "versions.yaml key '.languages.java.version'"
     die "DEV10-R4 requires Java 21 as the shared JDK for iDempiere v13 and Subscriptions"
 JAVA_APT_VERSION_AMD64=$(manifest_deb_version '.languages.java.apt_version_amd64')
 JAVA_APT_VERSION_ARM64=$(manifest_deb_version '.languages.java.apt_version_arm64')
+JAVA_APT_SHA256_AMD64=$(manifest_sha256 '.languages.java.apt_sha256_amd64')
+JAVA_APT_SHA256_ARM64=$(manifest_sha256 '.languages.java.apt_sha256_arm64')
 [[ "$JAVA_APT_VERSION_AMD64" == "$JAVA_MAJOR".* && "$JAVA_APT_VERSION_ARM64" == "$JAVA_MAJOR".* ]] ||
     die "Temurin package versions and JDK major disagree"
 DOCKER_APT_VERSION=$(manifest_deb_version '.development.docker.apt_version')
@@ -894,6 +896,8 @@ export NODE_APT_SHA256_ARM64=${NODE_APT_SHA256_ARM64}
 export JAVA_MAJOR=${JAVA_MAJOR}
 export JAVA_APT_VERSION_AMD64=${JAVA_APT_VERSION_AMD64}
 export JAVA_APT_VERSION_ARM64=${JAVA_APT_VERSION_ARM64}
+export JAVA_APT_SHA256_AMD64=${JAVA_APT_SHA256_AMD64}
+export JAVA_APT_SHA256_ARM64=${JAVA_APT_SHA256_ARM64}
 
 export FLUTTER_VERSION=${FLUTTER_VERSION}
 export FLUTTER_SHA256=${FLUTTER_SHA256}

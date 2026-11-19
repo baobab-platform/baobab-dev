@@ -1388,7 +1388,8 @@ https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSI
     java_pkg="JAVA_APT_VERSION_${ARCH^^}" && \
     . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
     java_package="temurin-${JAVA_MAJOR}-jdk=${!java_pkg:?missing native Java package version}" && \
-    verify_locked_apt_index "$java_package" && \
+    java_sha="JAVA_APT_SHA256_${ARCH^^}" && \
+    verify_locked_apt_index "$java_package" "${!java_sha:?missing native Java SHA-256}" && \
     apt-get install -y --no-install-recommends "$java_package" && \
     verify_installed_apt_version "$java_package"
 

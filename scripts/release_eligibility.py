@@ -39,14 +39,26 @@ def previous_ga(family, tags):
         raise ReleaseEligibilityError("no earlier GA baseline: explicit bootstrap review required")
     return max(older, key=semver)
 
-def decide(tag, tags, manifest_changed, lock_changed, maintenance=False):
+def publication_channel(tag, same_source_tags):
     kind = classify(tag)
     if kind is None:
         raise ReleaseEligibilityError("invalid release tag")
-    if kind == "ga":
+    if kind == "rc":
+        return "rc"
+    if any(candidate.startswith(tag + "-rc.") and classify(candidate) == "rc"
+           for candidate in same_source_tags):
+        return "ga"
+    return "ga-direct"
+
+
+def decide(tag, tags, manifest_changed, lock_changed, maintenance=False, *, channel=None):
+    kind = classify(tag)
+    if kind is None:
+        raise ReleaseEligibilityError("invalid release tag")
+    if kind == "ga" and channel == "ga":
         return "qualified-RC-digest-reuse"
     family = tag.split("-rc.", 1)[0]
-    if family in tags:
+    if kind == "rc" and family in tags:
         raise ReleaseEligibilityError("release family already finalized")
     if manifest_changed:
         if not lock_changed:
@@ -151,6 +163,7 @@ def reviewed_source(token, sha, trusted_ids):
         "schema": "baobab.dev10.reviewed-release-source.v1",
         "repository": REPOSITORY, "source_sha": sha, "pr": pr_number, "pr_head_sha": head,
         "merged_at": pr["merged_at"], "approvals": independent, "input_sha256": inputs,
+        "contributor_ids": sorted(set(contributors) | {author}),
     }
 
 
@@ -251,19 +264,23 @@ def main():
         evidence = reviewed_source(token, args.source_sha, trusted_ids)
         evidence["release_tag"] = args.tag
         args.source_evidence.write_text(json.dumps(evidence, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-        if classify(args.tag) == "ga":
-            print("GA must pass existing same-source qualified RC digest-reuse gate")
-            return
         family = args.tag.split("-rc.", 1)[0]
         tags = run("git", "tag", "--list", "v*").splitlines()
+        same_source = [tag for tag in tags if tag.startswith(family + "-rc.")
+                       and classify(tag) == "rc"
+                       and run("git", "rev-parse", f"refs/tags/{tag}^{{commit}}") == args.source_sha]
+        channel = publication_channel(args.tag, same_source)
         previous = previous_ga(family, tags)
-        ga_tags = [t for t in tags if semver(t) is not None]
-        if family in ga_tags or semver(family) <= max(map(semver, ga_tags)):
-            raise ReleaseEligibilityError("RC family must be newer than the latest GA")
+        ga_tags = [t for t in tags if semver(t) is not None and t != args.tag]
+        if semver(family) <= max(map(semver, ga_tags)):
+            raise ReleaseEligibilityError("release family must be newer than the latest GA")
         changed = manifest(previous) != manifest("HEAD")
         locked = run("git", "show", f"{previous}:config/versions.lock") != run("git", "show", "HEAD:config/versions.lock")
-        outcome = decide(args.tag, tags, changed, locked, maintenance(family, previous) if not changed else False)
-        print(json.dumps({"tag": args.tag, "previous_ga": previous, "eligibility": outcome}))
+        outcome = decide(args.tag, tags, changed, locked,
+                         maintenance(family, previous) if not changed and channel != "ga" else False,
+                         channel=channel)
+        print(json.dumps({"tag": args.tag, "previous_ga": previous, "eligibility": outcome,
+                          "channel": channel}))
     except (ReleaseEligibilityError, ProvisioningError, OSError) as exc:
         parser.error(str(exc))
 

@@ -207,11 +207,11 @@ class WorkflowWiringTests(unittest.TestCase):
     def setUp(self):
         self.sha = "a" * 40
         self.run = {
-            "id": 42, "run_attempt": 2, "path": ".github/workflows/publish.yml",
+            "id": 42, "run_attempt": 1, "path": ".github/workflows/publish.yml",
             "head_sha": self.sha, "head_branch": "v1.5.2-rc.1", "event": "push",
             "repository": {"full_name": mod.REPOSITORY},
             "actor": {"type": "User", "id": 1001, "login": "renamed-original"},
-            "triggering_actor": {"type": "User", "id": 1002, "login": "rerunner"},
+            "triggering_actor": {"type": "User", "id": 1001, "login": "renamed-original"},
         }
         self.reviews = [{
             "state": "approved", "environments": [{"name": mod.ENVIRONMENT}],
@@ -220,8 +220,8 @@ class WorkflowWiringTests(unittest.TestCase):
 
     def qualifier(self):
         return mod.collect_run_approval(
-            "test-token", run_id=42, attempt=2, head_sha=self.sha,
-            actor="original", actor_id=1001, tag="v1.5.2-rc.1",
+            "test-token", run_id=42, attempt=1, head_sha=self.sha,
+            actor="original", actor_id=1001, tag="v1.5.2-rc.1", eligible_ids={9001},
         )
 
     def test_release_workflow_passes_exact_run_attempt_and_immutable_source(self):
@@ -238,10 +238,16 @@ class WorkflowWiringTests(unittest.TestCase):
     def test_exact_run_attempt_ids_and_protected_approval_are_read_by_cli(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "approval.json"
+            environment = Path(tmp) / "environment.json"
+            environment.write_text(json.dumps({
+                "environment": mod.ENVIRONMENT, "release_tag": "v1.5.2-rc.1",
+                "reviewer_ids": [9001],
+            }))
             args = [
-                "verify_promotion_approval.py", "--run-id", "42", "--attempt", "2",
+                "verify_promotion_approval.py", "--run-id", "42", "--attempt", "1",
                 "--head-sha", self.sha, "--actor", "original", "--actor-id", "1001",
                 "--tag", "v1.5.2-rc.1", "--output", str(path),
+                "--environment-evidence", str(environment), "--contributors", "[5000]",
             ]
             with (patch.object(sys, "argv", args),
                   patch.dict(os.environ, {"GITHUB_TOKEN": "test-token", "GITHUB_REPOSITORY": mod.REPOSITORY}),
@@ -249,18 +255,18 @@ class WorkflowWiringTests(unittest.TestCase):
                 self.assertEqual(mod.main(), 0)
             endpoint = f"/repos/{mod.REPOSITORY}/actions/runs/42"
             self.assertEqual(api.call_args_list, [
-                call("test-token", "GET", endpoint + "/attempts/2"),
+                call("test-token", "GET", endpoint + "/attempts/1"),
                 call("test-token", "GET", endpoint + "/approvals"),
             ])
             receipt = json.loads(path.read_text())
         self.assertEqual(receipt["schema"], "dev10.promotion-approval.v2")
         self.assertEqual(receipt["initiator"], {"id": 1001, "login": "original"})
-        self.assertEqual(receipt["triggering_actor"], {"id": 1002, "login": "rerunner"})
+        self.assertEqual(receipt["triggering_actor"], {"id": 1001, "login": "renamed-original"})
         self.assertEqual(receipt["approval"], {"reviewer_id": 9001, "reviewer_logins": ["reviewer"]})
 
     def test_unrelated_run_and_untyped_or_conflicting_actors_fail_before_review_lookup(self):
         for changes in (
-            {"id": 43}, {"run_attempt": 1}, {"event": "pull_request"}, {"head_sha": "b" * 40},
+            {"id": 43}, {"run_attempt": 2}, {"event": "pull_request"}, {"head_sha": "b" * 40},
             {"head_branch": "v1.5.2-rc.2"}, {"actor": {"id": 1002, "type": "User"}},
             {"triggering_actor": {"id": 1002, "type": "Bot"}},
             {"triggering_actor": {"id": "1002", "type": "User"}},
@@ -272,8 +278,17 @@ class WorkflowWiringTests(unittest.TestCase):
                 self.qualifier()
             api.assert_called_once()
 
-    def test_run_attempt_resolved_rerunner_cannot_approve(self):
-        self.reviews[0]["user"] = {"type": "User", "id": 1002, "login": "renamed-rerunner"}
+    def test_rerun_cannot_reuse_approval_from_the_first_attempt(self):
+        with patch.object(mod, "rest_request") as api:
+            with self.assertRaisesRegex(mod.EvidenceError, "no attempt binding"):
+                mod.collect_run_approval(
+                    "test-token", run_id=42, attempt=2, head_sha=self.sha, actor="original",
+                    actor_id=1001, tag="v1.5.2-rc.1", eligible_ids={9001},
+                )
+            api.assert_not_called()
+
+    def test_configured_reviewer_appointment_is_required(self):
+        self.reviews[0]["user"] = {"type": "User", "id": 7777, "login": "unappointed"}
         with patch.object(mod, "rest_request", side_effect=[(200, self.run), (200, self.reviews)]):
             with self.assertRaisesRegex(mod.EvidenceError, "no independent eligible"):
                 self.qualifier()
