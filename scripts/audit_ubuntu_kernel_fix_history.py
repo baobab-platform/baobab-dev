@@ -97,6 +97,13 @@ def changed_paths(repo: Path, sha: str, parents: list[str]) -> list[str]:
     return sorted({p for p in values if p and not p.startswith("/") and "\\" not in p})
 
 
+def cached_patch_id(repo: Path, sha: str, cache: dict) -> str | None:
+    key = (str(repo.resolve()), sha)
+    if key not in cache:
+        cache[key] = patch_id(repo, sha)
+    return cache[key]
+
+
 def candidate_identity(url: str) -> tuple[str, str] | None:
     match = REF_RE.fullmatch(url) if isinstance(url, str) else None
     return (match.group(1), match.group(2)) if match else None
@@ -162,7 +169,8 @@ def history_candidates(repo: Path, tag: str, paths: list[str]) -> tuple[list[str
 def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
                       url: str, kind: str, sha: str, row: dict,
                       ubuntu_row: dict, trailer_commits: list[str],
-                      remotes: dict[str, str]) -> tuple[dict, list[str]]:
+                      remotes: dict[str, str], history_cache: dict,
+                      patch_cache: dict) -> tuple[dict, list[str]]:
     if has_commit(repo, sha):
         candidate_repo, object_status, diagnostic = repo, "present_in_ubuntu_source_repository", ""
     else:
@@ -178,7 +186,7 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
     }
     if candidate_repo is None:
         base["backport_trailer_matches"] = [
-            {"commit": commit, "patch_id": patch_id(repo, commit)}
+            {"commit": commit, "patch_id": cached_patch_id(repo, commit, patch_cache)}
             for commit in trailer_commits
         ]
         if trailer_commits:
@@ -187,7 +195,7 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
 
     meta = commit_metadata(candidate_repo, sha)
     paths = changed_paths(candidate_repo, sha, meta["parents"])
-    pid = patch_id(candidate_repo, sha)
+    pid = cached_patch_id(candidate_repo, sha, patch_cache)
     base.update({
         "candidate_commit_metadata": meta,
         "upstream_patch_id": pid,
@@ -212,11 +220,14 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
     search_paths = set(paths) | set(row.get("upstream_paths", []))
     for correspondence in ubuntu_row.get("upstream_path_correspondence", []):
         search_paths.update(correspondence.get("same_basename_candidates", []))
-    history, truncated = history_candidates(repo, tag, sorted(search_paths))
+    history_key = tuple(sorted(search_paths))
+    if history_key not in history_cache:
+        history_cache[history_key] = history_candidates(repo, tag, list(history_key))
+    history, truncated = history_cache[history_key]
     matches = []
     if pid:
         for commit in history:
-            downstream_pid = patch_id(repo, commit)
+            downstream_pid = cached_patch_id(repo, commit, patch_cache)
             if downstream_pid == pid:
                 matches.append({"commit": commit, "patch_id": downstream_pid})
         for item in base["backport_trailer_matches"]:
@@ -290,6 +301,8 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
     records = []
     counts = Counter()
     all_search_paths: set[str] = set()
+    history_cache: dict = {}
+    patch_cache: dict = {}
     for cve in sorted(upstream_by_cve):
         row = upstream_by_cve[cve]
         ubuntu_row = ubuntu_by_cve[cve]
@@ -305,6 +318,7 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
             result, searched = inspect_candidate(
                 repo, candidate_root, expected_commit, cve, url, kind, sha,
                 row, ubuntu_row, trailers.get(sha, []), remotes,
+                history_cache, patch_cache,
             )
             candidates.append(result)
             all_search_paths.update(searched)
