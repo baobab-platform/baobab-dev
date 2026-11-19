@@ -288,17 +288,28 @@ jobs:
                 chmod -R a+rX /evidence/browser-cache
               '
           fi
+          expected_version="$(jq -r .source.binary_package_mapping.binary_version security/evidence/dev10-image-observed-cves-41-canonical.lock.json)"
           docker run --rm -e EXPECTED_PROFILE="${{ matrix.profile }}" -e IMAGE_REF="$IMAGE_REF" \
+            -e EXPECTED_ARCHITECTURE="${{ matrix.architecture }}" \
+            -e EXPECTED_LINUX_LIBC_DEV_VERSION="$expected_version" \
             -e PLAYWRIGHT_BROWSERS_PATH=/evidence/browser-cache \
             -v "$GITHUB_WORKSPACE:/source:ro" \
             -v "$RUNNER_TEMP/dev10-evidence:/evidence" "$IMAGE_REF" \
             bash /source/scripts/ci/onboarding-published-image.sh
+          python3 -B scripts/ci/assemble_image_binary_package_manifest.py \
+            --profile "${{ matrix.profile }}" \
+            --architecture "${{ matrix.architecture }}" \
+            --image-ref "$IMAGE_REF" \
+            --expected-version "$expected_version" \
+            --package-metadata "$RUNNER_TEMP/dev10-evidence/linux-libc-dev.package.tsv" \
+            --manifest "$RUNNER_TEMP/dev10-evidence/linux-libc-dev.manifest.tsv" \
+            --output "$RUNNER_TEMP/dev10-evidence/binary-package-provenance-${{ matrix.profile }}-${{ matrix.architecture }}.json"
       - name: Retain immutable-image onboarding verification evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dev10-onboarding-verification-${{ matrix.profile }}-${{ matrix.architecture }}
-          path: ${{ runner.temp }}/dev10-evidence/onboarding-verification.json
+          path: ${{ runner.temp }}/dev10-evidence/*
           if-no-files-found: warn
           retention-days: 30
       - name: A failed final verifier must fail the actual container lifecycle
