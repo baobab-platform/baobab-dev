@@ -103,14 +103,14 @@ def candidate_identity(url: str) -> tuple[str, str] | None:
 
 
 def ensure_candidate_object(candidate_root: Path, sha: str, kind: str,
-                            remotes: dict[str, str]) -> tuple[Path | None, str]:
+                            remotes: dict[str, str]) -> tuple[Path | None, str, str]:
     if has_commit(candidate_root, sha):
-        return candidate_root, "present_in_candidate_object_store"
+        return candidate_root, "present_in_candidate_object_store", ""
     remote_name = kind
     if run(candidate_root, "remote", "get-url", remote_name, check=False) != remotes[kind]:
         existing = run(candidate_root, "remote", check=False).splitlines()
         if remote_name in existing:
-            return None, "candidate_remote_configuration_mismatch"
+            return None, "candidate_remote_configuration_mismatch", "candidate remote URL differs from the configured official upstream"
         subprocess.run(
             ["git", "-C", str(candidate_root), "remote", "add", remote_name, remotes[kind]],
             check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -120,10 +120,11 @@ def ensure_candidate_object(candidate_root: Path, sha: str, kind: str,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=300,
     )
     if fetched.returncode or not has_commit(candidate_root, sha):
-        return None, "candidate_commit_unavailable"
+        diagnostic = fetched.stderr.decode("utf-8", "replace")[:180]
+        return None, "candidate_commit_unavailable", diagnostic
     if run(candidate_root, "rev-parse", sha + "^{commit}") != sha:
-        return None, "candidate_commit_identity_mismatch"
-    return candidate_root, "fetched_and_sha_verified"
+        return None, "candidate_commit_identity_mismatch", "fetched object did not resolve to the requested commit SHA"
+    return candidate_root, "fetched_and_sha_verified", ""
 
 
 def trailer_index(repo: Path, tag: str, candidate_shas: set[str]) -> dict[str, list[str]]:
@@ -163,18 +164,25 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
                       ubuntu_row: dict, trailer_commits: list[str],
                       remotes: dict[str, str]) -> tuple[dict, list[str]]:
     if has_commit(repo, sha):
-        candidate_repo, object_status = repo, "present_in_ubuntu_source_repository"
+        candidate_repo, object_status, diagnostic = repo, "present_in_ubuntu_source_repository", ""
     else:
-        candidate_repo, object_status = ensure_candidate_object(candidate_root, sha, kind, remotes)
+        candidate_repo, object_status, diagnostic = ensure_candidate_object(candidate_root, sha, kind, remotes)
     base = {
         "reference": url, "candidate_commit": sha, "upstream_tree": kind,
         "candidate_object_status": object_status,
+        "candidate_object_diagnostic": diagnostic,
         "exact_commit_ancestor_of_ubuntu_tag": False,
         "upstream_patch_id": None, "upstream_changed_paths": [],
         "backport_trailer_matches": [], "patch_id_matches": [],
         "assessment": object_status,
     }
     if candidate_repo is None:
+        base["backport_trailer_matches"] = [
+            {"commit": commit, "patch_id": patch_id(repo, commit)}
+            for commit in trailer_commits
+        ]
+        if trailer_commits:
+            base["assessment"] = "CANDIDATE_OBJECT_UNAVAILABLE_TRAILER_EVIDENCE_RETAINED"
         return base, list(row.get("upstream_paths", []))
 
     meta = commit_metadata(candidate_repo, sha)
