@@ -180,6 +180,7 @@ class UbuntuFixHistoryTests(unittest.TestCase):
 
     def test_shallow_history_is_rejected(self):
         sha = git(self.ubuntu, "rev-parse", "HEAD")
+        git(self.ubuntu, "tag", self.lock.ubuntu_tag, sha)
         shallow_file = self.ubuntu / ".git/shallow"
         shallow_file.write_text(sha + "\n", encoding="ascii")
         upstream, ubuntu_paths = self.records()
