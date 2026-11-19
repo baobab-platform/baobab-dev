@@ -22,6 +22,10 @@ class EvidenceLockTests(unittest.TestCase):
         self.assertEqual(lock.inventory_count, 298)
         self.assertEqual(lock.canonical_count, 298)
         self.assertEqual(lock.package_version, "7.0.0-43.43")
+        self.assertEqual(
+            lock.evidence_lock_sha256,
+            "db53b7f55f2ce287f764a031656fd7e57c5e5cd06ad7dc07d9a25c790bf0cb80",
+        )
         self.assertEqual(lock.ubuntu_tag, "Ubuntu-7.0.0-43.43")
         self.assertEqual(lock.ubuntu_tag_commit, "f53b359683af7918c5436499948763cb726d5082")
         self.assertEqual(lock.canonical_osv_commit, "88c00a77a1247172dd107f5dd3f24a1e1d1f57b2")
