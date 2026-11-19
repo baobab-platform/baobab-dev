@@ -86,7 +86,7 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         (self.upstream_repo / "drivers/example.c").write_text(value, encoding="utf-8")
         git(self.upstream_repo, "add", ".")
         git(self.upstream_repo, "commit", "-qm", "upstream security fix")
-        git(self.upstream_repo, "push", "-q", "origin", "HEAD")
+        git(self.upstream_repo, "push", "-q", "origin", "HEAD:refs/heads/main")
         return git(self.upstream_repo, "rev-parse", "HEAD")
 
     def records(self, reference=None):
@@ -183,7 +183,8 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         shallow_file = self.ubuntu / ".git/shallow"
         shallow_file.write_text(sha + "\n", encoding="ascii")
         upstream, ubuntu_paths = self.records()
-        with unittest.mock.patch.object(m, "LOCK", self.lock):
+        self.lock.ubuntu_tag_commit = sha
+        with mock.patch.object(m, "LOCK", self.lock):
             with self.assertRaisesRegex(m.EvidenceError, "history is shallow"):
                 m.audit(
                     upstream, ubuntu_paths, self.ubuntu, self.candidate_root,
@@ -195,8 +196,7 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         git(self.ubuntu, "tag", "-f", self.lock.ubuntu_tag)
         self.tag_commit = git(self.ubuntu, "rev-parse", "HEAD")
         self.lock.ubuntu_tag_commit = self.tag_commit
-        with unittest.mock.patch.object(m, "LOCK", self.lock):
-            self.lock.ubuntu_tag_commit = "0" * 40
+        self.lock.ubuntu_tag_commit = "0" * 40
         with mock.patch.object(m, "LOCK", self.lock):
             with self.assertRaisesRegex(m.EvidenceError, "do not match"):
                 m.audit(
