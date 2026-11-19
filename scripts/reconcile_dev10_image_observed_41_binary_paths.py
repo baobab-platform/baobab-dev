@@ -130,6 +130,8 @@ def compare(args: argparse.Namespace) -> dict:
                         classification = "EXPORTED_UAPI_FILE_CONTENT_MATCH"
                     elif any(item["kind"] == "symlink" for item in matches):
                         classification = "EXPORTED_UAPI_PATH_PRESENT_AS_SYMLINK"
+                    elif any(item["kind"] == "missing" for item in matches):
+                        classification = "PACKAGE_MANIFEST_PATH_MISSING_IN_IMAGE"
                     else:
                         classification = "EXPORTED_UAPI_PATH_PRESENT_CONTENT_DIFFERS_OR_IS_GENERATED"
                 elif candidates:
