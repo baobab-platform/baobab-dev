@@ -25,8 +25,8 @@ jobs:
         run: |
           set -euo pipefail
           bash -n scripts/post-create.sh scripts/project-pnpm.sh scripts/verify.sh scripts/summary.sh
-          bash -n scripts/ci/onboarding-published-image.sh scripts/ci/checkout-linux-vulns.sh
-          shellcheck scripts/ci/onboarding-published-image.sh scripts/ci/checkout-linux-vulns.sh
+          bash -n scripts/ci/onboarding-published-image.sh scripts/ci/checkout-linux-vulns.sh scripts/ci/capture-image-binary-manifest.sh
+          shellcheck scripts/ci/onboarding-published-image.sh scripts/ci/checkout-linux-vulns.sh scripts/ci/capture-image-binary-manifest.sh
           bash -n config/bashrc.d/20-aliases.sh scripts/build-security-pip.sh
           python3 -B -m unittest discover -s tests -v
       - name: Read immutable supplemental 41-CVE source pins
