@@ -9,6 +9,22 @@ WORKFLOW = ROOT / ".github/workflows/dev10-onboarding.yml"
 
 
 class PublishedImageOnboardingContractTests(unittest.TestCase):
+    def test_devcontainer_uses_the_verified_v151_multiarch_digest(self):
+        devcontainer = (ROOT / ".devcontainer/devcontainer.json").read_text(encoding="utf-8")
+        environment = (ROOT / ".baobab/environment.yaml").read_text(encoding="utf-8")
+        self.assertIn(
+            '"image": "ghcr.io/baobab-platform/baobab-dev:1.5.1@sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed"',
+            devcontainer,
+        )
+        self.assertNotIn(
+            '"image": "ghcr.io/baobab-platform/baobab-dev:1.5.1",',
+            devcontainer,
+        )
+        self.assertIn(
+            'application:\\n  name: "baobab-dev"\\n  version: "1.5.1"',
+            environment,
+        )
+
     def test_script_parses_and_keeps_source_and_consumer_paths_distinct(self):
         subprocess.run(["bash", "-n", str(SCRIPT)], check=True)
         text = SCRIPT.read_text(encoding="utf-8")
