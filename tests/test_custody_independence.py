@@ -148,47 +148,6 @@ class CompleteHistoryTests(unittest.TestCase):
         self.assertGreater(author_id, 0)
         self.assertGreater(commit_count, 0)
 
-    @unittest.skipUnless(
-        os.environ.get("GH_TOKEN"),
-        "live exact-SHA service-committer validation requires GH_TOKEN",
-    )
-    def test_live_exact_sha_reconciles_service_committer_from_decision_history(self):
-        token = os.environ["GH_TOKEN"]
-        oid = "dad5dc64031d05b7e7d93345f1ea553abea6c70e"
-        record, = custody._fetch_commit_records(token, [oid])
-        actor = record["committer"]
-        self.assertIn("user", actor)
-        expected_service_id = 19864447
-        self.assertEqual(
-            custody._rest_commit_committer_user_id(token, oid, actor), expected_service_id
-        )
-        if actor["user"] is not None:
-            self.assertEqual(custody._numeric_user_id(actor, "commit committer"), expected_service_id)
-
-    @unittest.skipUnless(os.environ.get("GH_TOKEN"), "historical custody requires GH_TOKEN")
-    def test_live_historical_pr76_custody_uses_distinct_exact_head_approval(self):
-        from provision_protected_risk_policy import (
-            paginated, select_independent_approval, verify_owner_concurrence,
-        )
-
-        token = os.environ["GH_TOKEN"]
-        head = "f9fd73d4e848a7c4d3bcfbe28651e06149cdcb6d"
-        merged_at = "2026-11-17T03:36:58Z"
-        author, contributors = custody.collect_pr(token, 76, head)
-        self.assertEqual(author, 350241706)
-        self.assertEqual(contributors, {350241706, 356890520, 19864447})
-        endpoint = f"/repos/{custody.REPOSITORY}"
-        reviews = paginated(token, endpoint + "/pulls/76/reviews")
-        result = select_independent_approval(
-            reviews, head=head, trusted_reviewers={356890520, 356900102},
-            author_id=author, contributors=contributors, merged_at=merged_at,
-        )
-        self.assertEqual(result["approval_id"], "github-review-5932308847")
-        self.assertEqual(result["approved_by_id"], 356900102)
-        comments = paginated(token, endpoint + "/issues/76/comments")
-        owner = verify_owner_concurrence(comments, merged_at=merged_at)
-        self.assertEqual(owner["owner_comment_id"], 6924572973)
-
     def test_rest_fallback_resolves_exact_sha_with_metadata_corroboration(self):
         oid = "d" * 40
         payload = {

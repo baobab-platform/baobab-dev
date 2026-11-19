@@ -68,6 +68,9 @@ The historical review findings for broad legacy risk acceptance, free-text relea
 
 The first corrected head, `2feaeaa8c6343b20e63ba1248b00533e860ec0cf`, passed the live exact-SHA committer, current PR identity and historical #76 checks in the [policy contract](https://github.com/baobab-platform/baobab-dev/actions/runs/44499137611). The [PR independence job](https://github.com/baobab-platform/baobab-dev/actions/runs/44499139607/job/135473965028) independently checked the complete current PR contributor set and recorded that head. This is read-only GitHub identity evidence. The release environment, final digest qualification and consumer exit criteria still apply.
 
+
+The custody workflow now retains two read-only JSON receipts. Foundation records exact current-head commit and review completeness. The policy contract separately records the immutable #76 witness and the service committer's pinned raw metadata and numeric ID. Both carry the workflow run and attempt, sanitized request IDs and GitHub rate-limit response counters. Count REST fallbacks and GraphQL requests from the receipts before considering a cache. The receipts contain no credentials or response bodies and confer no policy authority.
+
 ## Consolidation
 
 | PR | Treatment |

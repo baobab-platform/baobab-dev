@@ -8,10 +8,12 @@ on:
       - "tests/test_provision_protected_risk_policy.py"
       - "tests/test_custody_independence.py"
       - "tests/test_protected_risk_custody.py"
+      - "tests/test_audit_pr_reviewer_independence.py"
       - ".github/workflows/dev10-policy-decision.yml"
       - ".github/workflows/provision-dev10-risk-policy.yml"
       - "scripts/provision_protected_risk_policy.py"
       - "scripts/custody_independence.py"
+      - "scripts/audit_pr_reviewer_independence.py"
       - "scripts/github_api_transport.py"
       - "scripts/verify_protected_risk_custody.py"
 permissions:
@@ -40,7 +42,8 @@ jobs:
             tests/test_development_risk_decision_record.py \
             tests/test_provision_protected_risk_policy.py \
             tests/test_custody_independence.py \
-            tests/test_protected_risk_custody.py
+            tests/test_protected_risk_custody.py \
+            tests/test_audit_pr_reviewer_independence.py
       - name: Validate custody GraphQL query against GitHub's live schema and response
         if: github.event_name == 'pull_request'
         env:
@@ -49,4 +52,18 @@ jobs:
           DEV10_GRAPHQL_INTEGRATION_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          python3 -B -m unittest -v tests/test_custody_independence.py
+          python3 -B -m unittest -v \
+            tests.test_custody_independence.CompleteHistoryTests.test_live_github_graphql_schema_and_author_response
+      - name: Corroborate historical decision custody and retain the live API receipt
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 -B scripts/audit_pr_reviewer_independence.py --historical \
+            --output "$RUNNER_TEMP/dev10-historical-custody.json"
+      - name: Retain read-only exact SHA and reviewer evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev10-historical-custody-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dev10-historical-custody.json
+          if-no-files-found: error
+          retention-days: 30

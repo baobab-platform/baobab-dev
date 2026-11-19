@@ -9,14 +9,22 @@ import json
 import os
 import re
 import subprocess
+from pathlib import Path
 
 from custody_independence import (
     GITHUB_WEB_FLOW_ID, REPOSITORY, CustodyError, collect_pr, is_positive_id,
+    _fetch_commit_records, _numeric_user_id, _rest_commit_committer_user_id, _same_timestamp,
     require_independent, rest_user_id,
 )
-from provision_protected_risk_policy import ProvisioningError, api_request, paginated
+from github_api_transport import trace_requests
+from provision_protected_risk_policy import (
+    ProvisioningError, api_request, paginated,
+    select_independent_approval, verify_owner_concurrence,
+)
 
 IndependenceError = CustodyError
+HISTORICAL_HEAD = "f9fd73d4e848a7c4d3bcfbe28651e06149cdcb6d"
+HISTORICAL_SERVICE_COMMIT = "dad5dc64031d05b7e7d93345f1ea553abea6c70e"
 
 
 def classify_reviewer(user, author_id, contributors):
@@ -103,28 +111,95 @@ def audit(token, number):
     return {
         "pull_request": number,
         "head_sha": head,
+        "commit_count": len(revision_list),
         "contributor_count": len(contributors),
+        "review_count": len(reviews),
         "reviewers": [reviewers[reviewer_id] for reviewer_id in sorted(reviewers)],
         "note": "Independence results are not approval or trust decisions.",
     }
 
 
+def historical_custody(token):
+    """Corroborate the recorded #76 witness using authenticated read-only APIs."""
+    repo = f"/repos/{REPOSITORY}"
+    _, pull = api_request(token, "GET", repo + "/pulls/76")
+    if (not isinstance(pull, dict) or pull.get("merged") is not True
+            or (pull.get("head") or {}).get("sha") != HISTORICAL_HEAD
+            or pull.get("merged_at") != "2026-11-17T03:36:58Z"
+            or pull.get("commits") != 94):
+        raise IndependenceError("historical PR #76 metadata differs from the recorded witness")
+    author, contributors = collect_pr(token, 76, HISTORICAL_HEAD)
+    if (rest_user_id(pull.get("user"), "historical PR author") != author
+            or author != 350241706 or contributors != {350241706, 356890520, GITHUB_WEB_FLOW_ID}):
+        raise IndependenceError("historical PR #76 contributor identities differ from the recorded witness")
+    record, = _fetch_commit_records(token, [HISTORICAL_SERVICE_COMMIT])
+    actor = record.get("committer")
+    expected_committer = {"name": "GitHub", "email": "noreply@github.com", "date": "2026-11-17T01:29:58Z"}
+    if (not isinstance(actor, dict) or "user" not in actor
+            or actor.get("name") != expected_committer["name"]
+            or actor.get("email") != expected_committer["email"]
+            or not _same_timestamp(actor.get("date"), expected_committer["date"])):
+        raise IndependenceError("historical service commit metadata differs from the recorded witness")
+    service_id = _rest_commit_committer_user_id(token, HISTORICAL_SERVICE_COMMIT, expected_committer)
+    if (service_id != GITHUB_WEB_FLOW_ID
+            or _numeric_user_id(record.get("author"), "historical merge author") != 356890520
+            or (actor["user"] is not None and _numeric_user_id(actor, "historical committer") != service_id)):
+        raise IndependenceError("historical merge author or service committer differs from the recorded witness")
+    reviews = paginated(token, repo + "/pulls/76/reviews")
+    approval = select_independent_approval(
+        reviews, head=HISTORICAL_HEAD, trusted_reviewers={356890520, 356900102},
+        author_id=author, contributors=contributors, merged_at=pull["merged_at"],
+    )
+    if approval["approval_id"] != "github-review-5932308847" or approval["approved_by_id"] != 356900102:
+        raise IndependenceError("historical PR #76 approval differs from the recorded witness")
+    owner = verify_owner_concurrence(paginated(token, repo + "/issues/76/comments"), merged_at=pull["merged_at"])
+    if owner["owner_comment_id"] != 6924572973:
+        raise IndependenceError("historical PR #76 owner concurrence differs from the recorded witness")
+    return {
+        "pull_request": 76, "head_sha": HISTORICAL_HEAD, "commit_count": 94,
+        "contributor_ids": sorted(contributors), "review_count": len(reviews),
+        "service_commit_sha": HISTORICAL_SERVICE_COMMIT, "service_committer_id": service_id,
+        "approved_head": HISTORICAL_HEAD, "approval_id": approval["approval_id"],
+        "approved_by_id": approval["approved_by_id"], "approved_at": approval["approved_at"],
+        **owner,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pr-number", type=int, required=True)
+    scope = parser.add_mutually_exclusive_group(required=True)
+    scope.add_argument("--pr-number", type=int)
+    scope.add_argument("--historical", action="store_true")
+    parser.add_argument("--output", type=Path, help="retain a read-only, sanitized Actions receipt")
     args = parser.parse_args()
-    if args.pr_number < 1:
+    if args.pr_number is not None and args.pr_number < 1:
         parser.error("PR number must be positive")
     token = os.environ.get("GITHUB_TOKEN")
     if not token:
         parser.error("GITHUB_TOKEN is required for live GitHub custody")
     try:
-        result = audit(token, args.pr_number)
+        with trace_requests() as requests:
+            if args.historical:
+                result = historical_custody(token)
+            else:
+                result = audit(token, args.pr_number)
+        if args.output:
+            run_id = os.environ.get("GITHUB_RUN_ID", "")
+            attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "")
+            if not all(re.fullmatch(r"[1-9][0-9]{0,19}", value) for value in (run_id, attempt)):
+                raise IndependenceError("Actions run and attempt are required for a custody receipt")
+            result.update(
+                schema="dev10.github-custody-observation.v1",
+                run_id=int(run_id), run_attempt=int(attempt), api_requests=requests,
+            )
     except (ProvisioningError, IndependenceError) as exc:
         parser.error(str(exc))
     except (OSError, subprocess.CalledProcessError):
         parser.error("could not read the complete local PR Git history")
-    print(json.dumps(result, indent=2, sort_keys=True))
+    serialized = json.dumps(result, indent=2, sort_keys=True)
+    if args.output:
+        args.output.write_text(serialized + "\n", encoding="utf-8")
+    print(serialized)
 
 
 if __name__ == "__main__":

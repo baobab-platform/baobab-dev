@@ -1,4 +1,6 @@
 """Bounded GitHub API transport for DEV-10 identity and custody evidence."""
+from contextlib import contextmanager
+from contextvars import ContextVar
 import http.client
 import json
 import re
@@ -10,6 +12,7 @@ API_HOST = "api.github.com"
 API_ROOT = f"https://{API_HOST}"
 API_VERSION = "2022-11-28"
 MAX_RESPONSE_BYTES = 1_048_576
+_REQUEST_TRACE = ContextVar("dev10_github_request_trace", default=None)
 _REQUEST_ID = re.compile(r"(?:[0-9A-Fa-f]{1,16}:){2,5}[0-9A-Fa-f]{1,16}")
 _SAFE_MESSAGES = {
     message.casefold(): message for message in (
@@ -78,6 +81,40 @@ def safe_github_message(value):
     return "unrecognized GitHub error"
 
 
+def _request_id(headers):
+    candidate = headers.get("x-github-request-id") if headers else None
+    if isinstance(candidate, str) and len(candidate) <= 80 and _REQUEST_ID.fullmatch(candidate):
+        return candidate
+    return None
+
+
+@contextmanager
+def trace_requests():
+    """Collect sanitized logical request observations for this diagnostic invocation."""
+    records = []
+    trace = _REQUEST_TRACE.set(records)
+    try:
+        yield records
+    finally:
+        _REQUEST_TRACE.reset(trace)
+
+
+def _trace_response(context, status, headers=None):
+    records = _REQUEST_TRACE.get()
+    if records is None:
+        return
+    record = {"operation": context, "http_status": status, "request_id": _request_id(headers)}
+    # Keep counters only. Authentication and arbitrary response headers stay out of evidence.
+    for name in ("limit", "remaining", "used", "reset"):
+        value = headers.get(f"x-ratelimit-{name}") if headers else None
+        if isinstance(value, str) and re.fullmatch(r"[0-9]{1,12}", value):
+            record[f"rate_limit_{name}"] = int(value)
+    resource = headers.get("x-ratelimit-resource") if headers else None
+    if resource in ("core", "graphql"):
+        record["rate_limit_resource"] = resource
+    records.append(record)
+
+
 def _http_error_summary(error, context):
     """Report HTTP status, documented message labels and a validated request ID."""
     status = error.code
@@ -95,12 +132,9 @@ def _http_error_summary(error, context):
         else:
             if isinstance(payload, dict) and "message" in payload:
                 parts.append(safe_github_message(payload["message"]))
-    candidate = error.headers.get("x-github-request-id") if error.headers else None
-    if (
-        isinstance(candidate, str) and len(candidate) <= 80
-        and _REQUEST_ID.fullmatch(candidate)
-    ):
-        parts.append(f"GitHub request ID {candidate}")
+    request_id = _request_id(error.headers)
+    if request_id is not None:
+        parts.append(f"GitHub request ID {request_id}")
     return ": ".join(parts)
 
 
@@ -109,9 +143,11 @@ def request_json(request, *, context, allowed_status=()):
     try:
         with open_github(request) as response:
             status = response.status
+            _trace_response(context, status, response.headers)
             raw = read_bounded(response)
     except urllib.error.HTTPError as error:
         with error:
+            _trace_response(context, error.code, error.headers)
             if error.code in allowed_status:
                 return error.code, None
             message = _http_error_summary(error, context)
