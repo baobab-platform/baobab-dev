@@ -41,3 +41,51 @@ The readback from the second integrated run supplied all eight historical image 
 The next Foundation scan surfaced the same Go finding in Terraform 1.17.1. Both official 1.17.2 archives matched HashiCorp's SHA-256 manifest and still reported Go 1.26.10 in their build information. The infra target rebuilds the existing Terraform pin from its exact release commit using the verified Go 1.27.4 compiler. The builder checks the module sums, refuses module file drift, and verifies the resulting CLI version. [Foundation scan artifact](https://github.com/baobab-platform/baobab-dev/actions/runs/44443796173/artifacts/14493230882)
 
 PR #82 is a supersession candidate once its final-head checks are reviewed. PR #91 remains open until consolidated source and consumer qualification is witnessed. PR #92 remains independent. The integration stays open while security and release prerequisites are outstanding.
+
+
+## 19 November reconciliation update — PR #91 remains open
+
+### Reconciliation decision
+
+PR #91 is **not yet eligible to close as superseded**. Its implementation is substantially represented on the PR #74 integration branch, but the repository's stated closure condition remains unmet: consolidated source and consumer qualification must be witnessed on the current #74 head. PR #91 must not be closed merely because its paths or inventory files exist on #74.
+
+The PR #74 branch contains the 298-CVE inventory and evidence lock with identical Git blob IDs to #91:
+- `docs/assessments/dev10-kernel-cves-298.tsv`: `8074dfb1e14a047b53a6bf48070b5abb2a75f23d`
+- `security/evidence/dev10-kernel-evidence.lock.json`: `bfa43900b3433c57c4cb5d8ffaf89a9bfd180288`
+- `scripts/audit_ubuntu_kernel_git_paths.py`: `7b2a5e486e546054179d5f1d46817da5d7e81b2b`
+- `scripts/build_dev10_applicability_register.py`: `3465348158f809bcf36a56c3a25e0e6f90acf3ce`
+
+One important implementation divergence is intentional and must be retained: #74's `scripts/audit_kernel_cve_paths.py` is not byte-identical to #91's version. The #74 version reads each CNA record with `git show <pinned-sha>:<path>`, validates the immutable Git checkout before reading, and only records commit-shaped stable/linus references as candidate fix references. The #91 version reads from the working tree and returns all HTTPS references; its commit URL regular expression is over-escaped. The #74 implementation is the stricter replacement and must not be regressed to #91's version.
+
+The ADR `docs/adr/ADR-DEV10-001-reusable-development-risk-policy.md` is byte-identical on both heads (blob `ac4f20ef470452aa64759e55a0ed27eec55a152b`). Its authority boundaries remain binding: the 12-finding development proposal is inactive until the separate #92 decision and custody/provisioning requirements pass; development risk acceptance is not release authorization; all new or changed findings remain blocking.
+
+### Evidence observed before the latest #74 commits
+
+The following runs exercised the then-current #74 merge head (not the later cleanup commits):
+- [Ubuntu exact-tag source corroboration, run 44445936263](https://github.com/baobab-platform/baobab-dev/actions/runs/44445936263): passed. It checked the 298-record inventory against the pinned `Ubuntu-7.0.0-43.43` source tag at `f53b359683af7918c5436499948763cb726d5082`, validated Canonical OSV records and retained artifact `14493222621` (SHA-256 `caee45dc5aac6f498634a46cf1f46d6c4141d9fcb627ea730e4d3625185e52a9`). The joined register retained all 298 records as `under_investigation`; this is source-path corroboration, not fix/backport proof.
+- [Locked onboarding, run 44445936290](https://github.com/baobab-platform/baobab-dev/actions/runs/44445936290): source audit, both native APT captures, all eight published-image manifests, and both 41-CVE source-to-binary joins passed. The eight published-image lifecycle jobs did not qualify: the immutable historical v1.5.1 image reports GitHub CLI `DEV` instead of the required `2.102.1`, and its Cosign version output also fails the verifier's expected format. The jobs correctly retained historical-baseline-unqualified status; this is not a reason to weaken the pinned toolchain contract.
+- [Foundation Repository Gates, run 44445937621](https://github.com/baobab-platform/baobab-dev/actions/runs/44445937621): the unfiltered Foundation scan found 52 `linux-libc-dev=7.0.0-43.43` advisories (3 Critical, 49 High). The exact 12-finding development proposal does not cover this set. The protected evaluator correctly denied the findings as outside the approved inventory. Do not expand the proposal, suppress findings, or alter the fail-closed gate to make CI green.
+- [Publish, run 44445936275](https://github.com/baobab-platform/baobab-dev/actions/runs/44445936275): all eight profile/architecture scans failed at the same protected evaluator boundary because the observed inventory exceeded the exact approved set. Builds and non-final smoke tests ran; release/GA reuse, digest scan, publish/sign and promotion stages remained skipped.
+
+### Scoped implementation completed in the integration branch
+
+Three non-functional review findings in #91's transplanted files were corrected on #74:
+- Removed the unused `EvidenceLock` import from `tests/test_canonical_osv_evidence.py`.
+- Removed the unused `copy` import from `tests/test_dev10_evidence_lock.py`.
+- Removed the unused `basename` local from `scripts/audit_ubuntu_kernel_git_paths.py`.
+
+These edits were committed sequentially on `dev10/v1.5.2-rc-verifier`; final commit: `be314583eca6b1c140f5cadbff9ed0b4e8b92bce`. The three changes are cleanup only and do not alter evidence semantics.
+
+### Strict rollout plan and exit criteria
+
+1. **Reconcile source and evidence inputs.** Keep the 295-row historical TSVs immutable; validate the separate 298-row inventory, Canonical snapshot, evidence lock and pinned source revisions. Retain all missing-path discrepancies and same-basename candidates as non-dispositive leads.
+2. **Prove source-to-binary evidence.** Require the exact Ubuntu tag and binary/source provenance; retain the 298-row register with every disposition under investigation. Separately require the 41-CVE amd64/arm64 package-archive and eight published-image payload joins. No missing path or path match may produce a not-affected, fix, backport or VEX conclusion.
+3. **Complete candidate fix adjudication.** For every upstream candidate fix relevant to a finding, compare the candidate against the exact Ubuntu Resolute source history and binary payload. Check ancestry and patch equivalence (including cherry-pick/backport equivalence); a matching path, basename or commit reference alone is insufficient. Record unresolved cases without disposition. Issue #93 remains the history/ancestry follow-up.
+4. **Resolve scanner findings without policy expansion.** Reconcile the 52-finding Foundation result and each profile/architecture Publish result against exact source, package and build provenance. Remediate actual vulnerable components or obtain a separate exact-scope, independently reviewed decision through #92 and its required custody/provisioning path. Do not transfer historical acceptance or widen the 12-finding proposal.
+5. **Repair historical consumer qualification.** Resolve the immutable v1.5.1 image's GitHub CLI and Cosign verifier mismatches through a documented compatibility decision or a correctly pinned image baseline. Do not silently accept `DEV`, relax exact versions or call the historical image qualified.
+6. **Re-run final-head CI.** All required jobs must complete on the same latest #74 head. Require both architectures, all four profiles, source evidence, binary evidence, Foundation, Publish, security and consumer contracts. No skipped, neutralized or bypassed required job counts as a pass.
+7. **Close #91 only after witnessed integration.** Compare the final #91 scope against the final #74 head, verify no unique behavior or evidence remains, obtain required fresh reviews, and record the exact #74 head and evidence run IDs in this reconciliation note. Then close #91 as superseded with a link to #74. Until all criteria pass, #91 remains open and #74 remains the integration vehicle.
+
+### Current-head qualification status
+
+The three cleanup commits moved #74 to `be314583eca6b1c140f5cadbff9ed0b4e8b92bce`. New final-head workflows have been triggered for that exact commit (including Foundation, Publish, Security, locked onboarding and Ubuntu source corroboration). Their queued/in-progress results are not yet qualification evidence. This note must be updated from those completed runs before any supersession or merge decision.
