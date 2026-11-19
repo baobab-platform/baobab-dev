@@ -116,8 +116,8 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "reference", "candidate_commit", "upstream_tree",
-        "candidate_object_status", "candidate_object_diagnostic", "exact_commit_ancestor_of_ubuntu_tag",
+        "reference", "candidate_commit", "upstream_tree", "candidate_remote",
+        "candidate_object_status", "candidate_object_diagnostic", "exact_commit_ancestor_of_ubuntu_tag", "ubuntu_merge_base",
         "upstream_patch_id", "upstream_changed_paths",
         "backport_trailer_matches", "patch_id_matches", "assessment"
       ],
@@ -125,9 +125,14 @@
         "reference": { "type": "string", "maxLength": 1024 },
         "candidate_commit": { "$ref": "#/$defs/sha1" },
         "upstream_tree": { "enum": ["stable", "linus"] },
+        "candidate_remote": { "enum": [
+          "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
+          "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
+        ] },
         "candidate_object_status": { "type": "string", "minLength": 1 },
         "candidate_object_diagnostic": { "type": "string", "maxLength": 180 },
-        "exact_commit_ancestor_of_ubuntu_tag": { "type": "boolean" },
+        "exact_commit_ancestor_of_ubuntu_tag": { "type": ["boolean", "null"] },
+        "ubuntu_merge_base": { "type": ["string", "null"], "pattern": "^[a-f0-9]{40}$" },
         "upstream_patch_id": { "type": ["string", "null"], "pattern": "^[a-f0-9]{40}$" },
         "upstream_changed_paths": { "type": "array", "items": { "type": "string" } },
         "candidate_commit_metadata": {
