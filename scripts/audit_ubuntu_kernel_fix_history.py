@@ -268,13 +268,11 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
         raise EvidenceError("upstream and Ubuntu path evidence CVE identities differ")
 
     candidate_shas: set[str] = set()
-    candidate_refs: dict[tuple[str, str], str] = {}
     for row in upstream_rows:
         for url in row.get("candidate_upstream_fix_references", []):
             identity = candidate_identity(url)
             if identity:
                 candidate_shas.add(identity[1])
-                candidate_refs[(identity[0], identity[1])] = url
     trailers = trailer_index(repo, expected_commit, candidate_shas)
     records = []
     counts = Counter()
