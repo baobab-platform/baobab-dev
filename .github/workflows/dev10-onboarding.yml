@@ -29,6 +29,94 @@ jobs:
           shellcheck scripts/ci/onboarding-published-image.sh scripts/ci/checkout-linux-vulns.sh
           bash -n config/bashrc.d/20-aliases.sh scripts/build-security-pip.sh
           python3 -B -m unittest discover -s tests -v
+      - name: Read immutable supplemental 41-CVE source pins
+        run: |
+          set -euo pipefail
+          echo "UPSTREAM_41_SHA=$(jq -r .commit security/evidence/dev10-image-observed-cves-41-upstream.lock.json)" >> "$GITHUB_ENV"
+      - name: Checkout pinned Linux CNA records
+        uses: ./.github/actions/checkout-linux-vulns
+        with:
+          sha: ${{ env.UPSTREAM_41_SHA }}
+          inventory: docs/assessments/dev10-image-observed-cves-41.tsv
+      - name: Checkout pinned official CVE List mirror
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/cvelist-v5-41"
+          sha="$(jq -r .source.commit security/evidence/dev10-image-observed-cves-41-cvelist.lock.json)"
+          git init -q "$root"
+          git -C "$root" remote add origin https://github.com/CVEProject/cvelistV5.git
+          git -C "$root" -c protocol.version=2 fetch --filter=blob:none --no-tags --depth=1 origin "$sha"
+          git -C "$root" sparse-checkout init --cone
+          git -C "$root" sparse-checkout set cves/2026/99xxx cves/2026/100xxx
+          git -C "$root" checkout --detach --quiet FETCH_HEAD
+          test "$(git -C "$root" rev-parse HEAD)" = "$sha"
+          echo "CVELIST_41_ROOT=$root" >> "$GITHUB_ENV"
+      - name: Checkout pinned Canonical OSV snapshot
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/canonical-osv-41"
+          sha="$(jq -r .source.commit security/evidence/dev10-image-observed-cves-41-canonical.lock.json)"
+          git init -q "$root"
+          git -C "$root" remote add origin https://github.com/canonical/ubuntu-security-notices.git
+          git -C "$root" -c protocol.version=2 fetch --filter=blob:none --no-tags --depth=1 origin "$sha"
+          git -C "$root" sparse-checkout init --cone
+          git -C "$root" sparse-checkout set osv/cve/2026
+          git -C "$root" checkout --detach --quiet FETCH_HEAD
+          test "$(git -C "$root" rev-parse HEAD)" = "$sha"
+          echo "CANONICAL_41_ROOT=$root" >> "$GITHUB_ENV"
+      - name: Verify direct Linux CNA records against the official CVE List mirror
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/dev10-image-41-source-evidence"
+          mkdir -p "$evidence"
+          python3 -B scripts/verify_dev10_linux_cna_mirror.py \
+            --cvelist-lock security/evidence/dev10-image-observed-cves-41-cvelist.lock.json \
+            --cvelist-tsv docs/assessments/dev10-image-observed-cves-41-upstream.tsv \
+            --upstream-lock security/evidence/dev10-image-observed-cves-41-upstream.lock.json \
+            --cvelist-root "$CVELIST_41_ROOT" \
+            --kernel-root "$UPSTREAM_ROOT" \
+            --output "$evidence/cvelist-mirror-reconciliation.json"
+      - name: Audit pinned upstream CNA and Canonical records
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/dev10-image-41-source-evidence"
+          python3 -B scripts/audit_dev10_image_observed_41.py \
+            --inventory docs/assessments/dev10-image-observed-cves-41.tsv \
+            --canonical-tsv docs/assessments/dev10-image-observed-cves-41-canonical.tsv \
+            --canonical-lock security/evidence/dev10-image-observed-cves-41-canonical.lock.json \
+            --upstream-lock security/evidence/dev10-image-observed-cves-41-upstream.lock.json \
+            --upstream-root "$UPSTREAM_ROOT" \
+            --canonical-root "$CANONICAL_41_ROOT" \
+            --upstream-sha "$UPSTREAM_41_SHA" \
+            --output "$evidence/upstream-canonical-reconciliation.json"
+          mkdir -p "$evidence/upstream-records" "$evidence/canonical-records" "$evidence/cvelist-records"
+          while IFS="$(printf '\\t')" read -r cve _; do
+            [[ "$cve" == "cve" ]] && continue
+            cp "$UPSTREAM_ROOT/cve/published/2026/$cve.json" "$evidence/upstream-records/$cve.json"
+            cp "$CANONICAL_41_ROOT/osv/cve/2026/UBUNTU-$cve.json" "$evidence/canonical-records/$cve.json"
+            record_path="$(awk -F '\\t' -v id="$cve" 'NR>1 && $1==id {print $2}' docs/assessments/dev10-image-observed-cves-41-upstream.tsv)"
+            cp "$CVELIST_41_ROOT/$record_path" "$evidence/cvelist-records/$cve.json"
+          done < docs/assessments/dev10-image-observed-cves-41.tsv
+          python3 - "$evidence/upstream-canonical-reconciliation.json" "$evidence/cvelist-mirror-reconciliation.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          data=json.load(open(sys.argv[1]))
+          mirror=json.load(open(sys.argv[2]))
+          assert data["counts"]["records"] == 41
+          assert data["counts"]["records_with_affected_paths"] == 41
+          assert mirror["counts"]["records"] == 41
+          assert mirror["counts"]["mirror_mismatches"] == 0
+          print("### Supplemental 41-CVE source evidence")
+          print("Linux CNA mirror:",mirror["counts"])
+          print("Canonical source/binary records:",data["canonical"])
+          PY
+      - name: Retain pinned 41-CVE source evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev10-image-observed-41-source-evidence
+          path: ${{ runner.temp }}/dev10-image-41-source-evidence/*
+          if-no-files-found: warn
+          retention-days: 30
   published-image:
     strategy:
       fail-fast: false
