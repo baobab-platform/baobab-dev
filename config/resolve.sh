@@ -22,6 +22,8 @@
 #
 # Usage:
 #   ./config/resolve.sh
+#   ./config/resolve.sh --locked
+#   ./config/resolve.sh --manifest PATH --output-dir DIR
 #
 # ==============================================================================
 
@@ -36,7 +38,6 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 MANIFEST="${SCRIPT_DIR}/versions.yaml"
 LOCKFILE="${SCRIPT_DIR}/versions.lock"
-PYTHON_VERSION_FILE="${REPO_ROOT}/.python-version"
 
 # ------------------------------------------------------------------------------
 # Logging
@@ -94,6 +95,10 @@ require_resolved() {
     fi
 }
 
+is_exact_version() {
+    [[ "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-][A-Za-z0-9.-]+)?$ ]]
+}
+
 # ------------------------------------------------------------------------------
 # Checks
 # ------------------------------------------------------------------------------
@@ -104,19 +109,24 @@ command -v yq >/dev/null 2>&1 \
 command -v curl >/dev/null 2>&1 \
     || die "curl is not installed."
 
-[[ -f "$MANIFEST" ]] \
-    || die "Cannot find ${MANIFEST}"
-
-# Frozen verification uses the committed resolution for manifest "latest" keys.
-# It still fetches the exact version's upstream digests below; CI compares the
-# regenerated lock byte-for-byte. Only the separate update workflow discovers
-# newer versions. Never source lock data as executable shell during validation.
+# PR resolution preserves the reviewed base pins behind unchanged "latest"
+# entries. It resolves explicit changes against upstream and stages output
+# separately from both the trusted resolver checkout and the PR branch.
 LOCKED_MODE=false
+OUTPUT_DIR="$REPO_ROOT"
 case "${1:-}" in
     "") [[ $# -eq 0 ]] || die "Unexpected resolver arguments" ;;
     --locked) [[ $# -eq 1 ]] || die "Unexpected resolver arguments"; LOCKED_MODE=true ;;
-    *) die "Usage: resolve.sh [--locked]" ;;
+    --manifest)
+        [[ $# -eq 4 && "$3" == "--output-dir" ]] || die "Supply --manifest PATH --output-dir DIR"
+        MANIFEST="$2"
+        OUTPUT_DIR="$4"
+        LOCKED_MODE=true
+        ;;
+    *) die "Usage: resolve.sh [--locked | --manifest PATH --output-dir DIR]" ;;
 esac
+[[ -f "$MANIFEST" ]] || die "Cannot find version manifest"
+mkdir -p -- "$OUTPUT_DIR/config"
 declare -A LOCKED_VALUES=()
 if $LOCKED_MODE; then
     [[ -f "$LOCKFILE" ]] || die "Frozen verification requires versions.lock"
@@ -149,7 +159,7 @@ github_latest() {
 
     local repo="$1"
 
-    curl -fsSL \
+    curl -fsS --max-time 45 \
         ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} \
         "https://api.github.com/repos/${repo}/releases/latest" |
         yq -r '.tag_name' |
@@ -197,11 +207,13 @@ github_asset_digest() {
     local tag="$2"
     local asset_name="$3"
     local digest
+    [[ "$tag" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+([.+-][A-Za-z0-9.-]+)?$ &&
+       "$asset_name" =~ ^[A-Za-z0-9._+-]+$ ]] || die "Invalid exact GitHub release tag or asset name"
 
-    digest=$(curl -fsSL \
+    digest=$(curl -fsS --max-time 45 \
         ${GITHUB_TOKEN:+-H "Authorization: Bearer ${GITHUB_TOKEN}"} \
         "https://api.github.com/repos/${repo}/releases/tags/${tag}" |
-        yq -p json -o json -r ".assets[] | select(.name == \"${asset_name}\") | .digest")
+        ASSET_NAME="$asset_name" yq -p json -r '.assets[] | select(.name == strenv(ASSET_NAME)) | .digest')
 
     digest="${digest#sha256:}"
 
@@ -416,12 +428,29 @@ resolve_npm() {
 # ------------------------------------------------------------------------------
 
 PYTHON_VERSION=$(yaml '.languages.python.version')
+[[ "$PYTHON_VERSION" =~ ^3\.14\.[0-9]+$ ]] || die "Expected an exact Python 3.14 release"
+
+PYTHON_SOURCE_SHA256=$(yaml '.languages.python.sha256')
+[[ "$PYTHON_SOURCE_SHA256" =~ ^[a-f0-9]{64}$ ]] || die "Python source requires a publisher SHA-256"
+python_archive="$(mktemp)"
+trap 'rm -f -- "$python_archive"' EXIT
+curl --fail --location --silent --show-error --retry 3 --max-time 120 \
+    "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz" \
+    --output "$python_archive" ||
+    die "The exact Python source archive is unavailable for $PYTHON_VERSION"
+printf '%s  %s\n' "$PYTHON_SOURCE_SHA256" "$python_archive" | sha256sum --check --strict ||
+    die "Python source archive SHA-256 does not match versions.yaml"
+rm -f -- "$python_archive"
+trap - EXIT
 
 NODE_MAJOR=$(yaml '.languages.node.major')
 NODE_VERSION=$(yaml '.languages.node.exact')
 require_resolved "$NODE_VERSION" "versions.yaml exact Node release"
+[[ "$NODE_MAJOR" =~ ^[0-9]+$ ]] && is_exact_version "$NODE_VERSION" &&
+    [[ "${NODE_VERSION%%.*}" == "$NODE_MAJOR" ]] || die "Node major and exact version disagree"
 
 POSTGRES_MAJOR=$(yaml '.database.postgresql.major')
+[[ "$POSTGRES_MAJOR" =~ ^[0-9]+$ ]] || die "PostgreSQL major version is invalid"
 
 # Same pattern as NODE_MAJOR/POSTGRES_MAJOR above: apt-sourced, major version
 # only, no upstream "latest" resolution to perform here — apt's own
@@ -445,6 +474,7 @@ elif [[ "$FLUTTER_VERSION" == "latest" ]]; then
     FLUTTER_VERSION=$(flutter_latest)
 fi
 
+is_exact_version "$FLUTTER_VERSION" || die "Flutter requires an exact stable version"
 info "Fetching Flutter SDK checksum for ${FLUTTER_VERSION}..."
 FLUTTER_SHA256=$(flutter_sha256_for_version "${FLUTTER_VERSION}")
 
@@ -462,7 +492,7 @@ FLUTTER_SHA256_AMD64="${FLUTTER_SHA256}"
 info "Resolving Flutter git ref for arm64 (${FLUTTER_VERSION})..."
 FLUTTER_GIT_REF=$(flutter_hash_for_version "${FLUTTER_VERSION}")
 
-[[ -n "$FLUTTER_GIT_REF" && "$FLUTTER_GIT_REF" != "null" ]] \
+[[ "$FLUTTER_GIT_REF" =~ ^[a-f0-9]{40}$ ]] \
     || die "Flutter's release manifest has no hash for stable version ${FLUTTER_VERSION}."
 
 info "Resolving Flutter amd64 archive URL for ${FLUTTER_VERSION}..."
@@ -676,6 +706,7 @@ YQ_SHA256_ARM64=$(github_asset_digest "mikefarah/yq" "v${YQ_VERSION}" "${YQ_ASSE
 
 MAVEN_VERSION=$(yaml '.development.maven.version')
 require_resolved "$MAVEN_VERSION" "versions.yaml key '.development.maven.version'"
+is_exact_version "$MAVEN_VERSION" || die "MAVEN_VERSION requires an exact version"
 
 info "Fetching Maven checksum for ${MAVEN_VERSION}..."
 MAVEN_SHA512=$(maven_sha512_for_version "${MAVEN_VERSION}")
@@ -692,6 +723,7 @@ require_resolved "$MAVEN_SHA512" "Apache archive .sha512 lookup for Maven ${MAVE
 
 TERRAFORM_VERSION=$(yaml '.infra.terraform.version')
 require_resolved "$TERRAFORM_VERSION" "versions.yaml key '.infra.terraform.version'"
+is_exact_version "$TERRAFORM_VERSION" || die "TERRAFORM_VERSION requires an exact version"
 
 info "Fetching Terraform checksums for ${TERRAFORM_VERSION}..."
 TERRAFORM_ASSET_AMD64="terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
@@ -722,6 +754,7 @@ require_resolved "$TERRAFORM_SHA256_ARM64" "HashiCorp SHA256SUMS lookup for ${TE
 
 AWS_CLI_VERSION=$(yaml '.infra.aws_cli.version')
 require_resolved "$AWS_CLI_VERSION" "versions.yaml key '.infra.aws_cli.version'"
+is_exact_version "$AWS_CLI_VERSION" || die "AWS_CLI_VERSION requires an exact version"
 
 info "Confirming AWS CLI ${AWS_CLI_VERSION} installer archives exist..."
 AWS_CLI_ASSET_AMD64="awscli-exe-linux-x86_64-${AWS_CLI_VERSION}.zip"
@@ -753,6 +786,23 @@ SHARP_VERSION=$(resolve_npm '.frontend_tooling.sharp.version' 'sharp' 'SHARP_VER
 
 LIGHTHOUSE_VERSION=$(resolve_npm '.frontend_tooling.lighthouse.version' 'lighthouse' 'LIGHTHOUSE_VERSION')
 
+# Require exact registry metadata and its integrity field for Node tools.
+# The package manager rechecks integrity when installing the selected release.
+for package_pin in "npm:$NPM_VERSION" "tar:$NPM_BUNDLED_TAR_VERSION" \
+    "corepack:$COREPACK_VERSION" "turbo:$TURBO_VERSION" \
+    "playwright:$PLAYWRIGHT_VERSION" "sharp:$SHARP_VERSION" "lighthouse:$LIGHTHOUSE_VERSION"
+do
+    package="${package_pin%%:*}"
+    version="${package_pin#*:}"
+    is_exact_version "$version" || die "$package requires an exact npm version"
+    metadata=$(curl -fsSL --retry 3 --max-time 45 "https://registry.npmjs.org/$package/$version") ||
+        die "The exact registry release $package@$version is unavailable"
+    registry_version=$(yq -p json -r '.version' <<< "$metadata")
+    integrity=$(yq -p json -r '.dist.integrity' <<< "$metadata")
+    [[ "$registry_version" == "$version" && "$integrity" =~ ^sha512-[A-Za-z0-9+/]+={0,2}$ ]] ||
+        die "$package@$version is missing valid exact-version registry integrity"
+done
+
 # Derived, not resolved from an external source: the minor version (e.g.
 # "3.14" from "3.14.6") selects the python<MINOR> binary name and feeds
 # .python-version below. Computed once, here, so both versions.lock and
@@ -763,10 +813,14 @@ LIGHTHOUSE_VERSION=$(resolve_npm '.frontend_tooling.lighthouse.version' 'lightho
 PYTHON_MINOR="${PYTHON_VERSION%.*}"
 
 # ------------------------------------------------------------------------------
-# Generate lock file
+# Generate and validate both derived files before replacing any output.
 # ------------------------------------------------------------------------------
+temporary="$(mktemp -d "$OUTPUT_DIR/.dev10-resolution.XXXXXX")"
+trap 'rm -rf -- "$temporary"' EXIT
+resolved_lock="$temporary/versions.lock"
+resolved_python="$temporary/.python-version"
 
-cat > "$LOCKFILE" <<EOF
+cat > "$resolved_lock" <<EOF
 # ==============================================================================
 # BAOBAB Version Lock File
 #
@@ -779,6 +833,7 @@ export UBUNTU_VERSION=$(yaml '.platform.ubuntu.version')
 
 export PYTHON_VERSION=${PYTHON_VERSION}
 export PYTHON_MINOR=${PYTHON_MINOR}
+export PYTHON_SOURCE_SHA256=${PYTHON_SOURCE_SHA256}
 
 export NODE_MAJOR=${NODE_MAJOR}
 export NODE_VERSION=${NODE_VERSION}
@@ -876,27 +931,21 @@ export NPM_VERSION=${NPM_VERSION}
 export NPM_BUNDLED_TAR_VERSION=${NPM_BUNDLED_TAR_VERSION}
 EOF
 
-chmod 644 "$LOCKFILE"
+while IFS= read -r line || [[ -n "$line" ]]; do
+    [[ -z "$line" || "$line" == \#* ]] && continue
+    pattern='^export ([A-Z][A-Z0-9_]*)=([A-Za-z0-9._:/+-]+)$'
+    [[ "$line" =~ $pattern ]] || die "Invalid generated lock assignment"
+    key="${BASH_REMATCH[1]}"
+    value="${BASH_REMATCH[2]}"
+    [[ "$value" != null && "$value" != latest && "$value" != system ]] || die "Unresolved generated lock value: $key"
+    case "$key" in
+        *_SHA256*) [[ "$value" =~ ^[a-f0-9]{64}$ ]] || die "Invalid generated SHA-256 for $key" ;;
+        *_SHA512) [[ "$value" =~ ^[a-f0-9]{128}$ ]] || die "Invalid generated SHA-512 for $key" ;;
+    esac
+done < "$resolved_lock"
 
-info "Generated ${LOCKFILE}"
-
-# ------------------------------------------------------------------------------
-# Generate .python-version
-# ------------------------------------------------------------------------------
-# (PYTHON_MINOR computed above, alongside the lock file, so both consumers
-# derive from the exact same value.)
-
-printf '%s\n' "${PYTHON_MINOR}" > "${PYTHON_VERSION_FILE}"
-
-chmod 644 "${PYTHON_VERSION_FILE}"
-
-info "Generated ${PYTHON_VERSION_FILE} (${PYTHON_MINOR})"
-
-echo
-cat "$LOCKFILE"
-echo
-echo "${PYTHON_VERSION_FILE}:"
-cat "${PYTHON_VERSION_FILE}"
-echo
-
-info "Version resolution complete."
+printf '%s\n' "$PYTHON_MINOR" > "$resolved_python"
+chmod 644 "$resolved_lock" "$resolved_python"
+mv -- "$resolved_lock" "$OUTPUT_DIR/config/versions.lock"
+mv -- "$resolved_python" "$OUTPUT_DIR/.python-version"
+info "Generated the verified lock and Python pin under $OUTPUT_DIR"

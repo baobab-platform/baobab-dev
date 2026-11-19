@@ -90,6 +90,7 @@ on:
     paths:
       - ".devcontainer/**"
       - "config/**"
+      - ".python-version"
       - "scripts/**"
       - "!scripts/provision_protected_risk_policy.py"
       - "!scripts/custody_independence.py"
@@ -115,6 +116,7 @@ on:
     paths:
       - ".devcontainer/**"
       - "config/**"
+      - ".python-version"
       - "scripts/**"
       - "!scripts/provision_protected_risk_policy.py"
       - "!scripts/custody_independence.py"
@@ -282,14 +284,13 @@ jobs:
       - name: DEV-10 R5 negative unit tests (registry retry, RC selection, release contracts and Trivy DB freshness)
         run: |
           set -euo pipefail
-          python3 -m unittest -v tests/test_fetch_complete_oci_index_retry.py tests/test_select_qualified_rc_run.py tests/test_toolchain_version_pins.py tests/test_go_mod_download_retry.py tests/test_pnpm_release_asset_attestation.py tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_release_artifact_contract.py tests/test_actions_artifact_containers.py tests/test_independent_oci_index.py tests/test_digest_security_decision.py tests/test_immutable_rc_recovery.py tests/test_verify_remote_release_tag.py tests/test_verify_image_identity.py tests/test_verify_release_environment.py tests/test_verify_promotion_approval.py tests/test_release_tag_policy.py tests/test_release_promotion.py tests/test_r5_release_boundaries.py tests/test_signed_release_predicates.py tests/test_legacy_provenance.py tests/test_protected_risk_decision.py tests/test_protected_local_policy.py tests/test_protected_risk_custody.py tests/test_custody_independence.py tests/test_audit_pr_reviewer_independence.py
+          python3 -m unittest -v tests/test_fetch_complete_oci_index_retry.py tests/test_select_qualified_rc_run.py tests/test_toolchain_version_pins.py tests/test_dev10_lockfile_pr.py tests/test_go_mod_download_retry.py tests/test_pnpm_release_asset_attestation.py tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_release_artifact_contract.py tests/test_actions_artifact_containers.py tests/test_independent_oci_index.py tests/test_digest_security_decision.py tests/test_immutable_rc_recovery.py tests/test_verify_remote_release_tag.py tests/test_verify_image_identity.py tests/test_verify_release_environment.py tests/test_verify_promotion_approval.py tests/test_release_tag_policy.py tests/test_release_promotion.py tests/test_r5_release_boundaries.py tests/test_signed_release_predicates.py tests/test_legacy_provenance.py tests/test_protected_risk_decision.py tests/test_protected_local_policy.py tests/test_protected_risk_custody.py tests/test_custody_independence.py tests/test_audit_pr_reviewer_independence.py
       - name: Verify committed resolutions and upstream asset checksums
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           : "${GH_TOKEN:?GitHub CLI requires the Actions token in GH_TOKEN}"
-          gh auth status
           chmod +x config/resolve.sh
           ./config/resolve.sh --locked
 
@@ -302,28 +303,11 @@ jobs:
             echo "drift=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # Lockfile drift is now ALWAYS a hard failure — on PRs, branch
-      # pushes, tag pushes, and manual main validations alike. CHANGED:
-      # this pipeline previously auto-committed resolved drift on branch
-      # pushes via git-auto-commit-action, and only hard-failed on tag
-      # pushes. That auto-commit was removed:
-      #   1. Publishing pipelines should be deterministic and not mutate
-      #      source as a side effect of building it.
-      #   2. A `pull_request` run — including from a fork — auto-committing
-      #      with `secrets.GITHUB_TOKEN` was a real risk surface: a fork's
-      #      token can't push back to the base repo anyway, so the step
-      #      would either silently no-op or fail in a way easy to mistake
-      #      for a genuine problem.
-      #   3. It duplicated `.github/workflows/update-lockfile.yml`, which
-      #      already does this properly on a schedule + manual dispatch,
-      #      opening a reviewable PR rather than committing directly.
-      # Auto-resolution now lives exclusively in that dedicated workflow;
-      # this job only verifies and fails loudly.
       - name: Fail on lockfile drift
         if: steps.drift-check.outputs.drift == 'true'
         run: |
-          echo "::error:: config/versions.lock is out of date with config/versions.yaml on immutable commit '$GITHUB_SHA'."
-          echo "::error:: This pipeline no longer auto-commits resolved lockfiles. Run config/resolve.sh locally, or trigger .github/workflows/update-lockfile.yml, review and merge the resulting PR, then re-run."
+          echo "::error::The committed lock or Python pin is stale on this source commit."
+          echo "::error::Check DEV-10 manifest lock resolution. Forks retain both files for maintainer follow-up."
           exit 1
 
       # Hand off the upstream-verified committed resolution via artifact.

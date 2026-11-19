@@ -33,6 +33,7 @@ languages:
   python:
     version: "3.14.10"
     source: "python.org"
+    sha256: "de414a57119abef52784d8993e341d53aed635fc2b05c2607d9f98a2c5b72032"
 
   node:
     major: "26"

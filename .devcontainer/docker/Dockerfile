@@ -1141,10 +1141,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     update-alternatives --install /usr/bin/python3 python3 "/usr/bin/python${PYTHON_MINOR}" 1 && \
     update-alternatives --install /usr/bin/python  python  /usr/bin/python3 1
 
-# DEV10-R4: Ubuntu's python3.14 apt package guarantees the minor, NOT the
-# Python 3.14.10 security patch. Fetch PSF's exact signed-release tarball with
-# its published SHA-256; compile independently on amd64 and arm64. Do not
-# report a patch level that the actual binary does not provide.
+# Build the exact manifest-selected Python 3.14 patch from the
+# publisher archive verified against its generated SHA-256 pin.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     set -euo pipefail; \
@@ -1153,11 +1151,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
       libsqlite3-dev libffi-dev liblzma-dev libncurses-dev xz-utils; \
     . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
-    test "${PYTHON_VERSION}" = "3.14.10"; \
+    [[ "${PYTHON_VERSION}" =~ ^3\.14\.[0-9]+$ && "${PYTHON_SOURCE_SHA256}" =~ ^[a-f0-9]{64}$ ]]; \
     curl --fail --location --silent --show-error \
       "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz" \
       --output /tmp/baobab-python.tar.xz; \
-    echo "de414a57119abef52784d8993e341d53aed635fc2b05c2607d9f98a2c5b72032  /tmp/baobab-python.tar.xz" | sha256sum -c -; \
+    printf '%s  %s\n' "${PYTHON_SOURCE_SHA256}" /tmp/baobab-python.tar.xz | sha256sum -c -; \
     mkdir -p /tmp/baobab-python-source; \
     tar --no-same-owner -xf /tmp/baobab-python.tar.xz -C /tmp/baobab-python-source --strip-components=1; \
     cd /tmp/baobab-python-source; \
