@@ -66,7 +66,20 @@ def source_identity(value: str) -> tuple[str, str]:
     match = SOURCE_FIELD.fullmatch(value.strip())
     if not match:
         raise ValueError("invalid Source field in Ubuntu package metadata")
-    return match.group(1), match.group(2) or VERSION
+    source_version = match.group(2) or VERSION
+    if match.group(1) != SOURCE or source_version != SOURCE_VERSION:
+        raise ValueError("Ubuntu package Source field differs from expected linux source/version")
+    return match.group(1), source_version
+
+
+def parse_control_fields(value: str) -> dict[str, str]:
+    fields: dict[str, str] = {}
+    for line in value.splitlines():
+        if line[:1].isspace() or ":" not in line:
+            continue
+        key, field_value = line.split(":", 1)
+        fields[key] = field_value.strip()
+    return fields
 
 
 def archive_manifest(deb: Path) -> list[dict[str, str]]:
@@ -150,10 +163,11 @@ def verify(args: argparse.Namespace) -> dict:
     index_package_hash = matches[0].get("SHA256", "")
     if not SHA256.fullmatch(index_package_hash) or index_package_hash != deb_hash:
         raise ValueError("downloaded .deb SHA-256 does not match the signed apt package index record")
-    control = run("dpkg-deb", "-f", str(args.deb), "Package", "Version", "Architecture", "Source").splitlines()
-    if len(control) != 4 or control[:3] != [PACKAGE, VERSION, args.architecture]:
+    control = parse_control_fields(run("dpkg-deb", "-f", str(args.deb)))
+    if (control.get("Package") != PACKAGE or control.get("Version") != VERSION
+            or control.get("Architecture") != args.architecture):
         raise ValueError("downloaded .deb control identity differs from expected package/version/architecture")
-    if source_identity(control[3]) != (SOURCE, SOURCE_VERSION):
+    if source_identity(control.get("Source", PACKAGE)) != (SOURCE, SOURCE_VERSION):
         raise ValueError("downloaded .deb Source field differs from expected Ubuntu source package/version")
     if not args.deb.name.startswith(f"{PACKAGE}_{VERSION}_{args.architecture}."):
         raise ValueError("downloaded .deb filename does not match expected package/version/architecture")
