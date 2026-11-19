@@ -73,10 +73,14 @@ class ReleaseLayoutTests(unittest.TestCase):
 
     def test_archive_and_runtime_receipt_are_bound_to_the_same_native_bytes(self):
         plan, config, layers = self.inspect()
-        layout.docker_archive(self.archive, self.layout, config, layers)
+        layout.docker_archive(self.archive, self.layout, plan, config, layers)
         with tarfile.open(self.archive) as archived:
             paths = json.load(archived.extractfile("manifest.json"))[0]
             self.assertEqual(paths["RepoTags"], [layout.SCAN_TAG])
+            index = json.load(archived.extractfile("index.json"))
+            self.assertEqual(index["manifests"][0]["digest"], plan["child_digest"])
+            raw_manifest = archived.extractfile("blobs/sha256/" + plan["child_digest"][7:]).read()
+            self.assertEqual(hashlib.sha256(raw_manifest).hexdigest(), plan["child_digest"][7:])
             self.assertEqual(hashlib.sha256(archived.extractfile(paths["Config"]).read()).hexdigest(),
                              plan["config_digest"].removeprefix("sha256:"))
             self.assertEqual(hashlib.sha256(archived.extractfile(paths["Layers"][0]).read()).hexdigest(),
@@ -88,7 +92,8 @@ class ReleaseLayoutTests(unittest.TestCase):
             "Results": [{"Target": "native-ubuntu", "Vulnerabilities": []}],
         }
         runtime = {"source_sha": SOURCE, "lock_sha256": LOCK, "platform": "linux/amd64",
-                   "image_config_digest": plan["config_digest"], "profile": "full",
+                   "image_config_digest": plan["config_digest"], "image_engine_id": plan["child_digest"],
+                   "profile": "full",
                    "scan_archive_sha256": layout.sha256(self.archive),
                    "health": "healthy", "runtime": "passed"}
         proof = layout.qualified(plan, runtime, scanner, self.archive, "0.73.0")

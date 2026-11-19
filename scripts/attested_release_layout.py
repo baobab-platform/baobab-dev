@@ -92,17 +92,27 @@ def inspect(layout, target, architecture, source_sha, lock_sha, expected_index):
     }, config, layers
 
 
-def docker_archive(archive, layout, config, layers):
+def docker_archive(archive, layout, plan, config, layers):
     metadata = [{
         "Config": config.relative_to(layout).as_posix(), "RepoTags": [SCAN_TAG],
         "Layers": [layer.relative_to(layout).as_posix() for layer in layers],
     }]
-    data = json.dumps(metadata, separators=(",", ":")).encode()
-    member = tarfile.TarInfo("manifest.json")
-    member.size = len(data)
+    native_manifest = layout / "blobs" / "sha256" / plan["child_digest"][7:]
+    architecture = plan["platform"].split("/")[1]
+    index = {"schemaVersion": 2, "mediaType": INDEX, "manifests": [{
+        "mediaType": MANIFEST, "digest": plan["child_digest"], "size": native_manifest.stat().st_size,
+        "platform": {"os": "linux", "architecture": architecture},
+        "annotations": {"io.containerd.image.name": "docker.io/library/" + SCAN_TAG,
+                        "org.opencontainers.image.ref.name": SCAN_TAG},
+    }]}
+    files = {"manifest.json": metadata, "index.json": index, "oci-layout": {"imageLayoutVersion": "1.0.0"}}
     with tarfile.open(archive, "x") as output:
-        output.addfile(member, io.BytesIO(data))
-        for path in dict.fromkeys([config, *layers]):
+        for name, value in files.items():
+            data = json.dumps(value, separators=(",", ":")).encode()
+            member = tarfile.TarInfo(name)
+            member.size = len(data)
+            output.addfile(member, io.BytesIO(data))
+        for path in dict.fromkeys([native_manifest, config, *layers]):
             output.add(path, arcname=path.relative_to(layout).as_posix(), recursive=False)
 
 
@@ -113,7 +123,8 @@ def qualified(plan, runtime, scanner, archive, scanner_version):
         "profile": "full" if plan["target"] == "final" else plan["target"],
         "scan_archive_sha256": sha256(archive), "health": "healthy", "runtime": "passed",
     }
-    require(all(runtime.get(key) == value for key, value in expected.items()),
+    require(all(runtime.get(key) == value for key, value in expected.items())
+            and runtime.get("image_engine_id") in (plan["config_digest"], plan["child_digest"]),
             "native runtime receipt differs from the exact built and scanned archive")
     require(scanner_version == TRIVY_VERSION and scanner.get("SchemaVersion") == 2
             and scanner.get("ArtifactType") == "container_image"
@@ -141,7 +152,7 @@ def main():
             plan, config, layers = inspect(
                 args.layout, args.target, args.architecture, args.source, args.lock, args.index,
             )
-            docker_archive(args.archive, args.layout, config, layers)
+            docker_archive(args.archive, args.layout, plan, config, layers)
             args.plan.write_text(json.dumps(plan))
         elif args.mode == "qualify":
             plan = json.loads(args.plan.read_bytes())

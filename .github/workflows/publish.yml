@@ -346,7 +346,9 @@ jobs:
             --index "$(jq -er '."containerimage.digest"' "$root/metadata.json")" \
             --archive "$root/native.tar" --plan "$root/plan.json"
           docker load --input "$root/native.tar"
-          test "$(docker image inspect --format '{{.Id}}' baobab-dev:scan)" = "$(jq -er .config_digest "$root/plan.json")"
+          engine_id=$(docker image inspect --format '{{.Id}}' baobab-dev:scan)
+          printf 'Imported native identity %s\n' "$engine_id"
+          jq -e --arg actual "$engine_id" '.config_digest == $actual or .child_digest == $actual' "$root/plan.json"
 
       # Retain the inputs verified on the immutable event SHA. Downstream jobs
       # use their checkout of those same bytes.
@@ -971,6 +973,7 @@ jobs:
         run: |
           set -euo pipefail
           export EXPECTED_CONFIG_DIGEST="$(jq -er '.config_digest' "$RUNNER_TEMP/release-native-plan.json")"
+          export EXPECTED_NATIVE_MANIFEST_DIGEST="$(jq -er '.child_digest' "$RUNNER_TEMP/release-native-plan.json")"
           export SCAN_ARCHIVE_SHA256="$(sha256sum "$RUNNER_TEMP/release-native.tar" | cut -d ' ' -f1)"
           docker load --input "$RUNNER_TEMP/release-native.tar"
           bash scripts/ci/qualify-native-image.sh baobab-dev:scan "$TARGET" "$PLATFORM" "$RUNNER_TEMP/native-image"

@@ -23,7 +23,8 @@ image_id=$(jq -er --arg source "$source_sha" --arg platform "$platform" '
         and "\(.Os)/\(.Architecture)" == $platform) | .Id
 ' <<< "$inspect")
 [[ "$image_id" =~ ^sha256:[a-f0-9]{64}$ ]]
-if [[ -n "${EXPECTED_CONFIG_DIGEST:-}" && "$image_id" != "$EXPECTED_CONFIG_DIGEST" ]]; then
+if [[ -n "${EXPECTED_CONFIG_DIGEST:-}" && "$image_id" != "$EXPECTED_CONFIG_DIGEST" &&
+      "$image_id" != "${EXPECTED_NATIVE_MANIFEST_DIGEST:-}" ]]; then
     echo "Local runtime image differs from the scanned image" >&2
     exit 1
 fi
@@ -105,11 +106,11 @@ done
 if [[ "$target" != infra ]]; then
     bash scripts/qualify-pnpm-provisioning.sh "$image_id" "$PNPM_VERSION" | tee "$evidence/pnpm.log"
 fi
-jq -n --arg reference "$image" --arg config "$image_id" --arg source "$source_sha" \
+jq -n --arg reference "$image" --arg config "${EXPECTED_CONFIG_DIGEST:-$image_id}" --arg engine "$image_id" --arg source "$source_sha" \
     --arg platform "$platform" --arg profile "$profile" --arg lock "$lock_sha" \
     --arg archive "${SCAN_ARCHIVE_SHA256:-}" --arg base "$base_digest" \
     --arg apt "$(sha256sum "$evidence/apt-packages.tsv" | cut -d ' ' -f1)" '
-    {schema: "baobab.dev10.native-image.v1", image_reference: $reference, image_config_digest: $config,
+    {schema: "baobab.dev10.native-image.v1", image_reference: $reference, image_config_digest: $config, image_engine_id: $engine,
      source_sha: $source, platform: $platform, profile: $profile, lock_sha256: $lock, ubuntu_base: $base,
      scan_archive_sha256: (if $archive == "" then null else $archive end), apt_inventory_sha256: $apt,
      health: "healthy", runtime: "passed"}
