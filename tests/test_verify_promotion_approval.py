@@ -1,19 +1,16 @@
 """Negative controls for immutable DEV-10 release approval identity evidence."""
-import importlib.util
 import json
 import os
 from pathlib import Path
-import shutil
-import subprocess
 import sys
 import tempfile
-from textwrap import dedent
 import unittest
 
-p = Path(__file__).resolve().parents[1] / "scripts/verify_promotion_approval.py"
-spec = importlib.util.spec_from_file_location("verify_promotion_approval", p)
-mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mod)
+from unittest.mock import call, patch
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+import verify_promotion_approval as mod
 
 
 class ApprovalTests(unittest.TestCase):
@@ -53,7 +50,7 @@ class ApprovalTests(unittest.TestCase):
             **self.approval[0],
             "user": {"login": "renamed-account", "id": 1001, "type": "User"},
         }]
-        with self.assertRaisesRegex(mod.EvidenceError, "no independent human-approved"):
+        with self.assertRaisesRegex(mod.EvidenceError, "no independent eligible"):
             self.verify(self_approval)
 
     def test_excludes_rerun_triggering_actor_by_numeric_id(self):
@@ -61,7 +58,7 @@ class ApprovalTests(unittest.TestCase):
             **self.approval[0],
             "user": {"login": "rerunner", "id": 1002, "type": "User"},
         }]
-        with self.assertRaisesRegex(mod.EvidenceError, "no independent human-approved"):
+        with self.assertRaisesRegex(mod.EvidenceError, "no independent eligible"):
             self.verify(rerun_approval)
 
     def test_same_original_and_triggering_numeric_id_cannot_evade_self_review(self):
@@ -71,7 +68,7 @@ class ApprovalTests(unittest.TestCase):
             **self.approval[0],
             "user": {"login": "renamed-initiator", "id": 1001, "type": "User"},
         }]
-        with self.assertRaisesRegex(mod.EvidenceError, "no independent human-approved"):
+        with self.assertRaisesRegex(mod.EvidenceError, "no independent eligible"):
             self.verify(
                 same_identity,
                 actor="original-login", actor_id=1001,
@@ -156,6 +153,15 @@ class ApprovalTests(unittest.TestCase):
         evidence = self.verify([self.approval[0], self.approval[0]])
         self.assertEqual(len(evidence["eligible_approvals"]), 1)
 
+    def test_known_service_user_and_conflicting_types_cannot_supply_promotion_approval(self):
+        approval, = self.approval
+        service = dict(approval, user={"login": "renamed-service", "type": "User", "id": 19864447})
+        bot = dict(approval, user={"login": "automation[bot]", "type": "Bot", "id": 9001})
+        with self.assertRaisesRegex(mod.EvidenceError, "no independent eligible"):
+            self.verify([service])
+        with self.assertRaisesRegex(mod.EvidenceError, "conflicting account type"):
+            self.verify([approval, bot])
+
     def test_missing_or_invalid_reviewer_identity_fails_closed(self):
         invalid_users = (
             {"login": "security-reviewer", "type": "User"},
@@ -198,86 +204,79 @@ class ApprovalTests(unittest.TestCase):
 
 
 class WorkflowWiringTests(unittest.TestCase):
-    def test_release_workflow_passes_original_and_triggering_numeric_actor_ids(self):
-        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/publish.yml").read_text()
-        self.assertIn("ORIGINAL_ACTOR_ID: ${{ github.actor_id }}", workflow)
-        self.assertIn("TRIGGERING_ACTOR_LOGIN: ${{ github.triggering_actor }}", workflow)
-        self.assertIn('TRIGGERING_ACTOR_ID="$(gh api "users/$TRIGGERING_ACTOR_LOGIN"', workflow)
-        self.assertIn('select(.type == "User" and (.id | type) == "number" and .id > 0)', workflow)
-        self.assertIn('[[ "$TRIGGERING_ACTOR_ID" =~ ^[1-9][0-9]*$ ]]', workflow)
-        self.assertIn('--actor-id "$ORIGINAL_ACTOR_ID"', workflow)
-        self.assertIn('--triggering-actor-id "$TRIGGERING_ACTOR_ID"', workflow)
-        self.assertNotIn('--actor "$GITHUB_ACTOR" --tag "$RELEASE_TAG"', workflow)
+    def setUp(self):
+        self.sha = "a" * 40
+        self.run = {
+            "id": 42, "run_attempt": 2, "path": ".github/workflows/publish.yml",
+            "head_sha": self.sha, "head_branch": "v1.5.2-rc.1", "event": "push",
+            "repository": {"full_name": mod.REPOSITORY},
+            "actor": {"type": "User", "id": 1001, "login": "renamed-original"},
+            "triggering_actor": {"type": "User", "id": 1002, "login": "rerunner"},
+        }
+        self.reviews = [{
+            "state": "approved", "environments": [{"name": mod.ENVIRONMENT}],
+            "user": {"type": "User", "id": 9001, "login": "reviewer"},
+        }]
 
-    def test_approval_capture_remains_inside_protected_release_environment(self):
-        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/publish.yml").read_text()
-        release_job = workflow.split("name: Capture independent deployment approval evidence", 1)[0]
-        self.assertIn("name: dev10-release-promotion", release_job)
-        self.assertIn("verify_release_environment.py", release_job)
-        self.assertIn("deployment-branch-policies", release_job)
+    def qualifier(self):
+        return mod.collect_run_approval(
+            "test-token", run_id=42, attempt=2, head_sha=self.sha,
+            actor="original", actor_id=1001, tag="v1.5.2-rc.1",
+        )
 
-    def test_triggering_actor_resolution_rejects_non_user_and_invalid_numeric_ids(self):
-        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/publish.yml").read_text()
-        self.assertIn('select(.type == "User" and (.id | type) == "number" and .id > 0) | .id', workflow)
-        self.assertIn('[[ "$TRIGGERING_ACTOR_ID" =~ ^[1-9][0-9]*$ ]]', workflow)
-        self.assertIn('ORIGINAL_ACTOR_ID: ${{ github.actor_id }}', workflow)
-        self.assertIn('set -euo pipefail', workflow)
+    def test_release_workflow_passes_exact_run_attempt_and_immutable_source(self):
+        workflow = (ROOT / ".github/workflows/publish.yml").read_text()
+        before, after = workflow.split("name: Capture independent deployment approval evidence", 1)
+        step = after.split("\n      - name:", 1)[0]
+        self.assertIn("name: dev10-release-promotion", before)
+        self.assertIn("verify_release_environment.py", before)
+        self.assertIn("ORIGINAL_ACTOR_ID: ${{ github.actor_id }}", step)
+        self.assertIn(' --attempt "$GITHUB_RUN_ATTEMPT"', step)
+        self.assertIn('--head-sha "$GITHUB_SHA"', step)
+        self.assertIn('--actor-id "$ORIGINAL_ACTOR_ID"', step)
 
-    @unittest.skipUnless(shutil.which("jq"), "workflow identity fixture needs jq")
-    def test_capture_step_validates_live_response_shape_and_cli_contract(self):
-        root = Path(__file__).resolve().parents[1]
-        workflow = (root / ".github/workflows/publish.yml").read_text()
-        capture = workflow.split("name: Capture independent deployment approval evidence", 1)[1]
-        script = dedent(capture.split("        run: |\n", 1)[1].split("\n      - name:", 1)[0])
-        stub = dedent('''\
-            #!/usr/bin/env bash
-            set -euo pipefail
-            case "$2" in
-              user/1001) printf '%s' "$ORIGINAL_RESPONSE" | jq -r "$4" ;;
-              users/rerunner) printf '%s' "$TRIGGER_RESPONSE" | jq -r "$4" ;;
-              repos/baobab-platform/baobab-dev/actions/runs/42/approvals)
-                printf '%s' '[{"state":"approved","user":{"login":"reviewer","id":9001,"type":"User"},"environments":[{"name":"dev10-release-promotion"}],"comment":"UNTRUSTED COMMENT"}]' ;;
-              *) exit 3 ;;
-            esac
-        ''')
-        original = {"type": "User", "id": 1001}
-        trigger = {"type": "User", "id": 1002}
-        for initial, rerun in (
-            (original, trigger),
-            ({**original, "type": "Bot"}, trigger),
-            ({**original, "id": 1002}, trigger),
-            (original, {**trigger, "type": "Bot"}),
-            (original, {**trigger, "id": "1002"}),
+    def test_exact_run_attempt_ids_and_protected_approval_are_read_by_cli(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "approval.json"
+            args = [
+                "verify_promotion_approval.py", "--run-id", "42", "--attempt", "2",
+                "--head-sha", self.sha, "--actor", "original", "--actor-id", "1001",
+                "--tag", "v1.5.2-rc.1", "--output", str(path),
+            ]
+            with (patch.object(sys, "argv", args),
+                  patch.dict(os.environ, {"GITHUB_TOKEN": "test-token", "GITHUB_REPOSITORY": mod.REPOSITORY}),
+                  patch.object(mod, "rest_request", side_effect=[(200, self.run), (200, self.reviews)]) as api):
+                self.assertEqual(mod.main(), 0)
+            endpoint = f"/repos/{mod.REPOSITORY}/actions/runs/42"
+            self.assertEqual(api.call_args_list, [
+                call("test-token", "GET", endpoint + "/attempts/2"),
+                call("test-token", "GET", endpoint + "/approvals"),
+            ])
+            receipt = json.loads(path.read_text())
+        self.assertEqual(receipt["schema"], "dev10.promotion-approval.v2")
+        self.assertEqual(receipt["initiator"], {"id": 1001, "login": "original"})
+        self.assertEqual(receipt["triggering_actor"], {"id": 1002, "login": "rerunner"})
+        self.assertEqual(receipt["approval"], {"reviewer_id": 9001, "reviewer_logins": ["reviewer"]})
+
+    def test_unrelated_run_and_untyped_or_conflicting_actors_fail_before_review_lookup(self):
+        for changes in (
+            {"id": 43}, {"run_attempt": 1}, {"event": "pull_request"}, {"head_sha": "b" * 40},
+            {"head_branch": "v1.5.2-rc.2"}, {"actor": {"id": 1002, "type": "User"}},
+            {"triggering_actor": {"id": 1002, "type": "Bot"}},
+            {"triggering_actor": {"id": "1002", "type": "User"}},
+            {"triggering_actor": {"id": 19864447, "type": "User", "login": "web-flow"}},
         ):
-            with self.subTest(initial=initial, rerun=rerun), tempfile.TemporaryDirectory() as tmp:
-                gh = Path(tmp) / "gh"
-                gh.write_text(stub)
-                gh.chmod(0o755)
-                (Path(tmp) / "python3").symlink_to(sys.executable)
-                result = subprocess.run(
-                    ["bash", "-c", script], cwd=root, capture_output=True, text=True,
-                    env={
-                        **os.environ, "PATH": f"{tmp}:{os.environ['PATH']}", "RUNNER_TEMP": tmp,
-                        "GITHUB_REPOSITORY": "baobab-platform/baobab-dev", "GITHUB_RUN_ID": "42",
-                        "GITHUB_RUN_ATTEMPT": "2", "RELEASE_TAG": "v1.5.2-rc.1",
-                        "ORIGINAL_ACTOR_LOGIN": "renamed-orig", "ORIGINAL_ACTOR_ID": "1001",
-                        "TRIGGERING_ACTOR_LOGIN": "rerunner", "ORIGINAL_RESPONSE": json.dumps(initial),
-                        "TRIGGER_RESPONSE": json.dumps(rerun),
-                    },
-                )
-                output = Path(tmp) / "r5-promotion-evidence/approval.json"
-                if initial != original or rerun != trigger:
-                    self.assertNotEqual(result.returncode, 0, result.stderr)
-                    self.assertFalse(output.exists())
-                    continue
-                self.assertEqual(result.returncode, 0, result.stderr)
-                evidence = json.loads(output.read_text())
-                self.assertEqual(evidence["schema"], "dev10.promotion-approval.v2")
-                self.assertEqual(evidence["initiator"], {"id": 1001, "login": "renamed-orig"})
-                self.assertEqual(evidence["triggering_actor"]["id"], 1002)
-                self.assertEqual(evidence["approval"], {"reviewer_id": 9001, "reviewer_logins": ["reviewer"]})
-                self.assertEqual(evidence["run_attempt"], 2)
-                self.assertNotIn("UNTRUSTED COMMENT", output.read_text())
+            with (self.subTest(changes=changes),
+                  patch.object(mod, "rest_request", return_value=(200, self.run | changes)) as api,
+                  self.assertRaises(ValueError)):
+                self.qualifier()
+            api.assert_called_once()
+
+    def test_run_attempt_resolved_rerunner_cannot_approve(self):
+        self.reviews[0]["user"] = {"type": "User", "id": 1002, "login": "renamed-rerunner"}
+        with patch.object(mod, "rest_request", side_effect=[(200, self.run), (200, self.reviews)]):
+            with self.assertRaisesRegex(mod.EvidenceError, "no independent eligible"):
+                self.qualifier()
 
 
 if __name__ == "__main__":

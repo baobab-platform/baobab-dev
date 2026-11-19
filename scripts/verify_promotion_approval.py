@@ -9,8 +9,15 @@ No token, secrets, or untrusted free-text comments are persisted.
 from __future__ import annotations
 import argparse
 import json
+import os
 from pathlib import Path
 import re
+
+from custody_independence import (
+    GITHUB_WEB_FLOW_ID, REPOSITORY, CustodyError, is_positive_id, rest_user_id,
+)
+from github_api_transport import GitHubAPIError, rest_request
+from release_tag_policy import classify
 
 ENVIRONMENT = "dev10-release-promotion"
 
@@ -20,7 +27,7 @@ class EvidenceError(ValueError):
 
 
 def _positive_id(value, label):
-    if type(value) is not int or value <= 0:
+    if not is_positive_id(value):
         raise EvidenceError(f"{label} must be a positive numeric GitHub user ID")
     return value
 
@@ -47,10 +54,11 @@ def attest(
     triggering_actor_id = _positive_id(triggering_actor_id, "rerun-triggering actor")
     actor = _login(actor, "original workflow actor login")
     triggering_actor = _login(triggering_actor, "rerun-triggering actor login")
-    if not isinstance(tag, str) or not tag.strip():
-        raise EvidenceError("release tag is missing")
+    if not isinstance(tag, str) or classify(tag) is None:
+        raise EvidenceError("invalid release tag")
 
     approved = {}
+    account_types = {}
     for item in reviews:
         if not isinstance(item, dict):
             raise EvidenceError("malformed deployment review record")
@@ -76,12 +84,14 @@ def attest(
         if not isinstance(reviewer, dict):
             raise EvidenceError("approved deployment review has no reviewer identity")
         reviewer_type = reviewer.get("type")
-        if reviewer_type == "Bot":
-            # Automation/wait-timer records are not independent approvals.
-            continue
-        if reviewer_type != "User":
+        if reviewer_type not in ("User", "Bot"):
             raise EvidenceError("approved deployment reviewer is not a typed GitHub User")
         reviewer_id = _positive_id(reviewer.get("id"), "deployment reviewer")
+        if account_types.setdefault(reviewer_id, reviewer_type) != reviewer_type:
+            raise EvidenceError("conflicting account type for a numeric deployment reviewer")
+        if reviewer_type == "Bot" or reviewer_id == GITHUB_WEB_FLOW_ID:
+            # Automation and wait-timer records are not independent approvals.
+            continue
         login = _login(reviewer.get("login"), "deployment reviewer login")
         if reviewer_id in (actor_id, triggering_actor_id):
             continue
@@ -89,7 +99,7 @@ def attest(
 
     if not approved:
         raise EvidenceError(
-            "no independent human-approved deployment review for protected environment"
+            "no independent eligible deployment review for protected environment"
         )
     # More than one independent reviewer may be present. Preserve every
     # eligible immutable ID instead of silently discarding all but the lowest.
@@ -112,29 +122,60 @@ def attest(
     }
 
 
+def collect_run_approval(token, *, run_id, attempt, head_sha, actor, actor_id, tag):
+    """Bind actor IDs to the exact Publish run attempt before reading approvals."""
+    _positive_id(run_id, "workflow run ID")
+    _positive_id(attempt, "workflow run attempt")
+    _positive_id(actor_id, "original workflow actor")
+    if (not isinstance(head_sha, str) or not re.fullmatch(r"[a-f0-9]{40}", head_sha)
+            or not isinstance(tag, str) or classify(tag) is None):
+        raise EvidenceError("release source SHA or tag is invalid")
+    endpoint = f"/repos/{REPOSITORY}/actions/runs/{run_id}"
+    _, run = rest_request(token, "GET", f"{endpoint}/attempts/{attempt}")
+    if not isinstance(run, dict):
+        raise EvidenceError("missing workflow run attempt evidence")
+    repository = run.get("repository")
+    if (type(run.get("id")) is not int or run["id"] != run_id
+            or type(run.get("run_attempt")) is not int or run["run_attempt"] != attempt
+            or not isinstance(repository, dict) or repository.get("full_name") != REPOSITORY
+            or run.get("path") != ".github/workflows/publish.yml" or run.get("event") != "push"
+            or run.get("head_sha") != head_sha or run.get("head_branch") != tag):
+        raise EvidenceError("workflow run attempt does not match the protected release source")
+    triggering_actor = run.get("triggering_actor")
+    original_id = rest_user_id(run.get("actor"), "original workflow actor")
+    triggering_id = rest_user_id(triggering_actor, "rerun-triggering actor")
+    if (original_id != actor_id or (attempt == 1 and triggering_id != original_id)
+            or GITHUB_WEB_FLOW_ID in (original_id, triggering_id)):
+        raise EvidenceError("workflow actor IDs conflict with the release run context")
+    _, reviews = rest_request(token, "GET", f"{endpoint}/approvals")
+    return attest(
+        reviews, run_id=run_id, attempt=attempt, actor=actor, actor_id=original_id,
+        triggering_actor=triggering_actor.get("login"), triggering_actor_id=triggering_id, tag=tag,
+    )
+
+
 def main() -> int:
-    p = argparse.ArgumentParser()
-    p.add_argument("--reviews", type=Path, required=True)
-    p.add_argument("--run-id", type=int, required=True)
-    p.add_argument("--attempt", type=int, required=True)
-    p.add_argument("--actor", required=True)
-    p.add_argument("--actor-id", type=int, required=True)
-    p.add_argument("--triggering-actor", required=True)
-    p.add_argument("--triggering-actor-id", type=int, required=True)
-    p.add_argument("--tag", required=True)
-    p.add_argument("--output", type=Path, required=True)
-    a = p.parse_args()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--run-id", type=int, required=True)
+    parser.add_argument("--attempt", type=int, required=True)
+    parser.add_argument("--head-sha", required=True)
+    parser.add_argument("--actor", required=True)
+    parser.add_argument("--actor-id", type=int, required=True)
+    parser.add_argument("--tag", required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    token = os.environ.get("GITHUB_TOKEN")
+    if not token or os.environ.get("GITHUB_REPOSITORY") != REPOSITORY:
+        parser.error("promotion approval requires GitHub authentication for the canonical repository")
     try:
-        result = attest(
-            json.loads(a.reviews.read_text()), run_id=a.run_id, attempt=a.attempt,
-            actor=a.actor, actor_id=a.actor_id,
-            triggering_actor=a.triggering_actor,
-            triggering_actor_id=a.triggering_actor_id, tag=a.tag,
+        result = collect_run_approval(
+            token, run_id=args.run_id, attempt=args.attempt, head_sha=args.head_sha,
+            actor=args.actor, actor_id=args.actor_id, tag=args.tag,
         )
-    except (ValueError, OSError) as exc:
-        p.error(str(exc))
-    a.output.parent.mkdir(parents=True, exist_ok=True)
-    a.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    except (EvidenceError, CustodyError, GitHubAPIError) as exc:
+        parser.error(str(exc))
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     return 0
 
 

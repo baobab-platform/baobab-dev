@@ -137,7 +137,7 @@ class UbuntuFixHistoryTests(unittest.TestCase):
     def test_cherry_pick_with_trailer_and_matching_patch_id_is_reported(self):
         sha = self.candidate()
         git(self.ubuntu, "fetch", "-q", "stable", sha)
-        git(self.ubuntu, "cherry-pick", "-q", "-x", sha)
+        git(self.ubuntu, "cherry-pick", "-x", sha)
         report = self.run_audit("https://git.kernel.org/stable/c/" + sha)
         candidate = report["records"][0]["candidates"][0]
         self.assertFalse(candidate["exact_commit_ancestor_of_ubuntu_tag"])
@@ -176,10 +176,10 @@ class UbuntuFixHistoryTests(unittest.TestCase):
     def test_duplicate_patch_ids_are_ambiguous(self):
         sha = self.candidate()
         git(self.ubuntu, "fetch", "-q", "stable", sha)
-        git(self.ubuntu, "cherry-pick", "-q", "-x", sha)
+        git(self.ubuntu, "cherry-pick", "-x", sha)
         first = git(self.ubuntu, "rev-parse", "HEAD")
         git(self.ubuntu, "revert", "--no-edit", first)
-        git(self.ubuntu, "cherry-pick", "-q", "-x", sha)
+        git(self.ubuntu, "cherry-pick", "-x", sha)
         report = self.run_audit("https://git.kernel.org/stable/c/" + sha)
         candidate = report["records"][0]["candidates"][0]
         self.assertEqual(candidate["assessment"], "AMBIGUOUS_STABLE_PATCH_ID_CORRESPONDENCE")
@@ -188,7 +188,7 @@ class UbuntuFixHistoryTests(unittest.TestCase):
     def test_truncated_history_never_claims_a_unique_patch_match(self):
         sha = self.candidate()
         git(self.ubuntu, "fetch", "-q", "stable", sha)
-        git(self.ubuntu, "cherry-pick", "-q", "-x", sha)
+        git(self.ubuntu, "cherry-pick", "-x", sha)
         (self.ubuntu / "drivers/example.c").write_text(
             "int example(void) { return 3; }\n", encoding="utf-8"
         )

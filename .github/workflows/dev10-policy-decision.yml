@@ -7,10 +7,13 @@ on:
       - "tests/test_development_risk_decision_record.py"
       - "tests/test_provision_protected_risk_policy.py"
       - "tests/test_custody_independence.py"
+      - "tests/test_protected_risk_custody.py"
       - ".github/workflows/dev10-policy-decision.yml"
       - ".github/workflows/provision-dev10-risk-policy.yml"
       - "scripts/provision_protected_risk_policy.py"
       - "scripts/custody_independence.py"
+      - "scripts/github_api_transport.py"
+      - "scripts/verify_protected_risk_custody.py"
 permissions:
   contents: read
   pull-requests: read
@@ -36,7 +39,8 @@ jobs:
           python3 -B -m unittest -v \
             tests/test_development_risk_decision_record.py \
             tests/test_provision_protected_risk_policy.py \
-            tests/test_custody_independence.py
+            tests/test_custody_independence.py \
+            tests/test_protected_risk_custody.py
       - name: Validate custody GraphQL query against GitHub's live schema and response
         if: github.event_name == 'pull_request'
         env:

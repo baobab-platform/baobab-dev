@@ -169,10 +169,10 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 20
 
-    # Contents are read-only. Public pnpm release attestations are verified
-    # anonymously against pnpm/pnpm; this job never writes repository state.
+    # GitHub review evidence and release ancestry are read-only.
     permissions:
       contents: read
+      pull-requests: read
 
     outputs:
       # is_release: canonical GA or numbered RC tag; security eligibility is a separate gate.
@@ -2058,33 +2058,16 @@ jobs:
 
       - name: Capture independent deployment approval evidence
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
           ORIGINAL_ACTOR_LOGIN: ${{ github.actor }}
           ORIGINAL_ACTOR_ID: ${{ github.actor_id }}
-          TRIGGERING_ACTOR_LOGIN: ${{ github.triggering_actor }}
         run: |
           set -euo pipefail
-          [[ "$ORIGINAL_ACTOR_ID" =~ ^[1-9][0-9]*$ ]]
-          [[ -n "$ORIGINAL_ACTOR_LOGIN" && -n "$TRIGGERING_ACTOR_LOGIN" ]]
-          # Look up the original account by ID so a renamed login cannot
-          # change the account type used to corroborate the run context.
-          original_user_id="$(gh api "user/$ORIGINAL_ACTOR_ID" \
-            --jq 'select(.type == "User" and (.id | type) == "number" and .id > 0) | .id')"
-          [[ "$original_user_id" == "$ORIGINAL_ACTOR_ID" ]]
-          # Require the account's REST type as well as its immutable numeric ID.
-          # An untyped or non-User triggering actor cannot establish custody.
-          TRIGGERING_ACTOR_ID="$(gh api "users/$TRIGGERING_ACTOR_LOGIN" \
-            --jq 'select(.type == "User" and (.id | type) == "number" and .id > 0) | .id')"
-          [[ "$TRIGGERING_ACTOR_ID" =~ ^[1-9][0-9]*$ ]]
-          mkdir -p "$RUNNER_TEMP/r5-promotion-evidence"
-          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/approvals" > "$RUNNER_TEMP/promotion-approvals.json"
           python3 scripts/verify_promotion_approval.py \
-            --reviews "$RUNNER_TEMP/promotion-approvals.json" \
             --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" \
-            --actor "$ORIGINAL_ACTOR_LOGIN" --actor-id "$ORIGINAL_ACTOR_ID" \
-            --triggering-actor "$TRIGGERING_ACTOR_LOGIN" \
-            --triggering-actor-id "$TRIGGERING_ACTOR_ID" --tag "$RELEASE_TAG" \
+            --head-sha "$GITHUB_SHA" --actor "$ORIGINAL_ACTOR_LOGIN" \
+            --actor-id "$ORIGINAL_ACTOR_ID" --tag "$RELEASE_TAG" \
             --output "$RUNNER_TEMP/r5-promotion-evidence/approval.json"
 
       - name: Verify Actions candidate artifact containers before download
