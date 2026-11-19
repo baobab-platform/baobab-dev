@@ -52,13 +52,24 @@ def safe_source_path(value: str) -> bool:
 
 
 def compare(args: argparse.Namespace) -> dict:
+    from dev10_evidence_lock import EvidenceLock
+
+    lock = EvidenceLock.load()
     upstream = json.loads(args.upstream_evidence.read_text(encoding="utf-8"))
-    if upstream.get("counts", {}).get("records") != 41 or len(upstream.get("records", [])) != 41:
+    source_lock_path = Path(__file__).resolve().parents[1] / "security/evidence/dev10-image-observed-cves-41-upstream.lock.json"
+    source_lock = json.loads(source_lock_path.read_text(encoding="utf-8"))
+    records = upstream.get("records", [])
+    if (upstream.get("counts", {}).get("records") != 41 or len(records) != 41
+            or {record.get("cve") for record in records} != set(source_lock["cves"])
+            or upstream.get("upstream", {}).get("commit") != source_lock["commit"]):
         raise ValueError("upstream source evidence must contain exactly 41 CVEs")
+    if (args.ubuntu_tag, args.ubuntu_commit) != (lock.ubuntu_tag, lock.ubuntu_tag_commit):
+        raise ValueError("Ubuntu source tag or commit differs from the reviewed lock")
     if git(args.ubuntu_root, "rev-parse", "HEAD").decode().strip() != args.ubuntu_commit:
         raise ValueError("Ubuntu source checkout does not match immutable release-tag commit")
-    if args.ubuntu_tag != "Ubuntu-7.0.0-43.43":
-        raise ValueError("unexpected Ubuntu kernel source tag")
+    tagged = git(args.ubuntu_root, "rev-parse", f"refs/tags/{args.ubuntu_tag}^{{commit}}")
+    if tagged.decode().strip() != args.ubuntu_commit:
+        raise ValueError("Ubuntu source tag no longer resolves to the reviewed commit")
     if args.image_manifest:
         if args.amd64_manifest or args.arm64_manifest:
             raise ValueError("use image manifests or architecture base manifests, not both")
@@ -71,6 +82,7 @@ def compare(args: argparse.Namespace) -> dict:
             json.loads(args.arm64_manifest.read_text(encoding="utf-8")),
         ]
     manifests = {}
+    payload_by_image = {}
     for evidence in loaded:
         architecture = evidence.get("architecture")
         profile = evidence.get("profile", "base")
@@ -84,7 +96,17 @@ def compare(args: argparse.Namespace) -> dict:
                 or evidence.get("source_version") != "7.0.0-43.43"
                 or not isinstance(evidence.get("package_content_manifest"), list)):
             raise ValueError(key + ": binary package provenance does not match the reviewed source package")
-        manifests[key] = evidence
+        payload = evidence["package_content_manifest"]
+        entries = {item["path"]: item for item in payload}
+        payload_bytes = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        if (not entries or len(entries) != len(payload) or len(payload) != evidence.get("package_path_count")
+                or hashlib.sha256(payload_bytes).hexdigest() != evidence.get("package_content_manifest_sha256")):
+            raise ValueError(key + ": package content manifest does not match its recorded count and digest")
+        if args.require_all_profiles:
+            expected_index = lock.stable_profile_images.get(profile, {}).get("index_digest")
+            if expected_index is None or evidence.get("image_ref") != f"ghcr.io/baobab-platform/baobab-dev@{expected_index}":
+                raise ValueError(key + ": package manifest was not captured from its locked GHCR image index")
+        manifests[key], payload_by_image[key] = evidence, entries
     if {item["architecture"] for item in manifests.values()} != {"amd64", "arm64"}:
         raise ValueError("binary evidence must cover both amd64 and arm64")
     if args.require_all_profiles:
@@ -92,8 +114,11 @@ def compare(args: argparse.Namespace) -> dict:
                     for arch in ("amd64", "arm64")}
         if set(manifests) != expected:
             raise ValueError("published-image manifests must cover all four profiles on both architectures")
+    # Git tree membership distinguishes real absence from object-fetch failure.
+    tree = git(args.ubuntu_root, "ls-tree", "-r", "-z", "--name-only", args.ubuntu_commit)
+    source_paths = set(tree.split(b"\0"))
     output_records = []
-    for record in upstream["records"]:
+    for record in records:
         cve = record["cve"]
         if (record.get("canonical_linux_libc_dev_binary_version") != "7.0.0-43.43"
                 or record.get("canonical_linux_libc_dev_binary_listed_as_affected") is not True):
@@ -102,12 +127,7 @@ def compare(args: argparse.Namespace) -> dict:
         for source_path in record.get("affected_source_paths", []):
             if not safe_source_path(source_path):
                 raise ValueError(cve + ": unsafe affected source path")
-            exists = subprocess.run(
-                ["git", "-C", str(args.ubuntu_root), "cat-file", "-e",
-                 f"{args.ubuntu_commit}:{source_path}"],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                timeout=30, check=False,
-            ).returncode == 0
+            exists = source_path.encode() in source_paths
             source_sha256 = None
             if exists:
                 source_sha256 = hashlib.sha256(
@@ -116,7 +136,7 @@ def compare(args: argparse.Namespace) -> dict:
             per_arch = {}
             for image_key, evidence in manifests.items():
                 architecture = evidence["architecture"]
-                entries = {item["path"]: item for item in evidence["package_content_manifest"]}
+                entries = payload_by_image[image_key]
                 candidates = candidate_binary_paths(source_path, architecture)
                 matches = [entries[path] for path in candidates if path in entries]
                 if not exists:

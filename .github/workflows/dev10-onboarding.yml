@@ -351,13 +351,15 @@ jobs:
         run: |
           set -euo pipefail
           test "$PROVENANCE_OUTCOME" = success
-          jq -e '.verify_status == "VERIFIED" and .release_qualification == false'             "$RUNNER_TEMP/dev10-evidence/onboarding-verification.json" >/dev/null
+          jq -e '.verify_status == "VERIFIED" and .release_qualification == false' \
+            "$RUNNER_TEMP/dev10-evidence/onboarding-verification.json" >/dev/null
 
   image-binary-reconciliation:
     name: DEV-10 41-CVE published-image source-to-binary reconciliation
     needs:
       - source
       - published-image
+    if: ${{ !cancelled() && needs.source.result == 'success' }}
     runs-on: ubuntu-26.04
     timeout-minutes: 45
     permissions:

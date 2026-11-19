@@ -68,6 +68,14 @@ class PublishedImageOnboardingContractTests(unittest.TestCase):
         self.assertIn('[[ "$EXPECTED_PROFILE" == "frontend-e2e" && "$playwright_verified" != true ]]' , script)
         self.assertIn('stable_profile_images[$profile].signer_tag', workflow)
 
+    def test_manifest_reconciliation_runs_after_a_historical_lifecycle_refusal(self):
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        reconcile = workflow.split("  image-binary-reconciliation:\n", 1)[1]
+        reconcile = reconcile.split("  dev10-image-observed-41-binary-manifests:\n", 1)[0]
+        self.assertIn("      - published-image", reconcile)
+        self.assertIn("if: ${{ !cancelled() && needs.source.result == 'success' }}", reconcile)
+        self.assertIn('--require-all-profiles', reconcile)
+
     def test_container_workspace_variables_are_not_expanded_by_host_shell(self):
         workflow = WORKFLOW.read_text(encoding="utf-8")
         step = workflow.split("      - name: A failed final verifier", 1)[1]
