@@ -29,7 +29,19 @@ class ReleaseGovernanceTests(unittest.TestCase):
 
     def test_effective_rules_allow_preflight_to_continue(self):
         governance.verify_main(self.main, self.rules)
-        self.assertEqual(governance.verify_tag_protection([self.tags]), 42)
+        self.assertEqual(governance.verify_tag_protection([self.tags]), {
+            "creation": [42], "deletion": [42], "update": [42],
+        })
+
+    def test_creation_and_immutability_can_be_enforced_by_separate_rulesets(self):
+        creation = dict(self.tags, rules=[{"type": "creation"}])
+        immutability = dict(self.tags, id=57, rules=[{"type": "update"}, {"type": "deletion"}])
+        self.assertEqual(governance.verify_tag_protection([creation, immutability]), {
+            "creation": [42], "deletion": [57], "update": [57],
+        })
+        immutability["rules"][0]["type"] = "non_fast_forward"
+        with self.assertRaisesRegex(governance.GovernanceError, "missing: update"):
+            governance.verify_tag_protection([creation, immutability])
 
     def test_main_requires_current_head_reviews_and_up_to_date_checks(self):
         for flags in ("dismiss_stale_reviews_on_push", "require_last_push_approval"):

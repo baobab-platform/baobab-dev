@@ -1,4 +1,5 @@
 """Release eligibility regressions: RC iterations and GA digest reuse."""
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -138,6 +139,51 @@ class ReleaseEligibilityTests(unittest.TestCase):
                   "submitted_at": "2026-11-15T12:00:00"}
         with self.assertRaisesRegex(mod.ReleaseEligibilityError, "must include a timezone"):
             mod.verify_current_approval(pr, [review], 100)
+
+    def test_release_source_requires_exact_premerge_independent_approval_and_input_bytes(self):
+        head, merge = "a" * 40, "b" * 40
+        pr = {
+            "number": 75, "head": {"sha": head}, "state": "closed", "merged": True,
+            "merged_at": "2026-11-15T11:00:00Z", "merge_commit_sha": merge,
+            "base": {"ref": "main", "repo": {"full_name": mod.REPOSITORY}},
+            "user": {"id": 100, "type": "User"},
+        }
+        review = {
+            "id": 1, "user": {"id": 201, "type": "User", "login": "checker"},
+            "state": "APPROVED", "commit_id": head, "submitted_at": "2026-11-15T09:00:00Z",
+        }
+        approved = b"reviewed"
+        for association, item, contributors, merged_bytes, diagnostic in (
+            ([pr], review, {100, 19864447}, approved, None),
+            ([], review, {100}, approved, "exact merge"),
+            ([pr, pr], review, {100}, approved, "exact merge"),
+            ([pr], dict(review, commit_id="c" * 40), {100}, approved, "current trusted"),
+            ([pr], dict(review, submitted_at="2026-11-15T12:00:00Z"), {100}, approved, "current trusted"),
+            ([pr], review, {100, 201}, approved, "independent of all PR contributors"),
+            ([pr], review, {100}, b"removed checksum", "differs from the exact reviewed bytes"),
+        ):
+            with (self.subTest(diagnostic=diagnostic, review=item),
+                  patch.object(mod, "paginated", side_effect=[association, [item]]) as pages,
+                  patch.object(mod, "api_request", return_value=(200, pr)),
+                  patch.object(mod, "collect_pr", return_value=(100, contributors)),
+                  patch.object(mod, "contents_bytes",
+                               side_effect=lambda _, _path, ref: approved if ref == head else merged_bytes)):
+                if diagnostic:
+                    with self.assertRaisesRegex(mod.ReleaseEligibilityError, diagnostic):
+                        mod.reviewed_source("read-token", merge, {201})
+                else:
+                    result = mod.reviewed_source("read-token", merge, {201})
+                    self.assertEqual(result["source_sha"], merge)
+                    self.assertEqual(result["pr_head_sha"], head)
+                    self.assertEqual(result["approvals"], [{"review_id": 1, "reviewer_id": 201}])
+                    self.assertEqual(result["input_sha256"], {
+                        file: hashlib.sha256(approved).hexdigest() for file in (mod.MANIFEST, *mod.GENERATED)
+                    })
+                    root = f"/repos/{mod.REPOSITORY}"
+                    self.assertEqual(pages.call_args_list, [
+                        call("read-token", f"{root}/commits/{merge}/pulls"),
+                        call("read-token", f"{root}/pulls/75/reviews"),
+                    ])
 
     def test_maintenance_joins_rest_author_and_complete_contributor_custody(self):
         head = "a" * 40

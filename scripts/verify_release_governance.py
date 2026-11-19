@@ -8,7 +8,7 @@ from custody_independence import REPOSITORY
 from github_api_transport import GitHubAPIError, rest_request
 from release_tag_policy import classify
 
-REQUIRED_TAG_RULES = {"creation", "non_fast_forward", "deletion"}
+REQUIRED_TAG_RULES = {"creation", "update", "deletion"}
 REQUIRED_TAG_PATTERNS = {"refs/tags/v*", "~ALL"}
 
 
@@ -60,14 +60,23 @@ def matching_tag_ruleset(ruleset):
 
 
 def verify_tag_protection(rulesets):
+    coverage = {}
     for ruleset in rulesets:
         if not matching_tag_ruleset(ruleset):
             continue
         rules = ruleset.get("rules")
-        if (isinstance(rules, list)
-                and REQUIRED_TAG_RULES <= {rule.get("type") for rule in rules if isinstance(rule, dict)}):
-            return ruleset["id"]
-    raise GovernanceError("no active release-tag ruleset protects canonical creation, updates and deletion")
+        if not isinstance(rules, list):
+            continue
+        for rule in rules:
+            if not isinstance(rule, dict):
+                continue
+            kind = rule.get("type")
+            if isinstance(kind, str) and kind in REQUIRED_TAG_RULES:
+                coverage.setdefault(kind, []).append(ruleset["id"])
+    missing = REQUIRED_TAG_RULES - coverage.keys()
+    if missing:
+        raise GovernanceError("active canonical release-tag protection is missing: " + ", ".join(sorted(missing)))
+    return coverage
 
 
 def read_governance(token):
@@ -100,11 +109,11 @@ def main():
         print("::error::Release governance readback requires the canonical repository and a release tag", file=sys.stderr)
         return 2
     try:
-        ruleset = read_governance(token)
+        rulesets = read_governance(token)
     except (GitHubAPIError, GovernanceError) as exc:
         print(f"::error::Release governance refused: {exc}", file=sys.stderr)
         return 2
-    print(json.dumps({"branch": "main", "release_tag": tag, "tag_ruleset_id": ruleset}))
+    print(json.dumps({"branch": "main", "release_tag": tag, "tag_rulesets": rulesets}, sort_keys=True))
     return 0
 
 

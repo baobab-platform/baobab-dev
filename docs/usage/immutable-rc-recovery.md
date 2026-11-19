@@ -34,12 +34,11 @@ automatically to the replacement candidate.
 
 ## Required repository-side enforcement (administrator)
 
-Configure a repository ruleset under **Settings → Rules → Rulesets** targeting
-release tag names `v*` (all supported RC and GA tags). Enable **Restrict
-updates** and **Restrict deletions**. Limit tag creation to authorized release
-maintainers; do not grant an unrestricted bypass to the publishing workflow.
-Evaluate organization-level rulesets and repository bypass actors together.
-Keep this policy active for all historic and future published release tags.
+Under **Settings → Rules → Rulesets**, target release tag names `v*` for both
+RC and GA. Enforce **Restrict updates** and **Restrict deletions** without
+bypass. Use a separate **Restrict creations** rule when authorized release
+maintainers need a creation-only bypass. Check the effective organization and
+repository rulesets and their bypass actors before enabling publication.
 
 Verify the ruleset with a disposable test tag and a deliberately rejected
 update/deletion attempt by the actual release credential; retain the ruleset
@@ -49,4 +48,15 @@ Do not test by rewriting a real published release tag.
 CI also executes `scripts/verify_remote_release_tag.py` for every tagged
 run, refusing a tag that no longer resolves to its event commit. This detects
 drift but cannot undo a server-side tag mutation or replace the ruleset.
-The recovery planner rejects reusing the failed candidate's source commit.
+Verify that the tag resolves to the exact merge of an independently approved
+main PR and that the manifest and generated files match the reviewed head.
+The recovery planner requires a different source commit from the failed RC.
+
+Publish serializes protected GHCR tag promotion. For a partially applied
+promotion, retain the journal before investigating. Automatic compensation
+reads back each mutable alias and restores its snapshot only while the alias
+still carries this run's digest. A concurrent change or an indeterminate
+remote response requires independent readback and a new recovery decision.
+To roll back a consumer, take the previous qualified index digest from its
+signed release contract, verify the exact profile and source, restore that
+digest with the corresponding project pins, and rerun the frozen lifecycle.

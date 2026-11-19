@@ -248,7 +248,17 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --no-tags origin '+refs/tags/v*:refs/tags/v*'
-          python3 scripts/release_eligibility.py --tag "$GITHUB_REF_NAME"
+          python3 scripts/release_eligibility.py --tag "$GITHUB_REF_NAME" \
+            --source-sha "$GITHUB_SHA" --source-evidence "$RUNNER_TEMP/reviewed-release-source.json"
+
+      - name: Retain exact release PR and input provenance
+        if: steps.release-context.outputs.is_release == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: reviewed-release-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/reviewed-release-source.json
+          if-no-files-found: error
+          retention-days: 30
 
       - name: DEV-10 release eligibility regression tests
         run: python3 -m unittest -v tests/test_release_eligibility.py
@@ -2003,6 +2013,9 @@ jobs:
     if: always() && needs.sanity-check.outputs.is_release == 'true' && ((needs.sanity-check.outputs.is_stable_release == 'true' && needs.ga-reuse.result == 'success') || (needs.sanity-check.outputs.is_stable_release != 'true' && needs.publish.result == 'success'))
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    concurrency:
+      group: dev10-registry-tag-promotion
+      queue: max
     environment:
       name: dev10-release-promotion
     permissions:

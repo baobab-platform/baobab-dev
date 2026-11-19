@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""DEV-10 manual-tag eligibility: new RC families need a changed baseline."""
+"""Verify reviewed DEV-10 release source and eligibility of its tag."""
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -10,6 +11,7 @@ from custody_independence import (
     REPOSITORY, CustodyError, collect_pr, is_positive_id, latest_user_reviews,
     require_independent, rest_user_id, review_timestamp,
 )
+from dev10_lockfile_pr import GENERATED, MANIFEST
 from provision_protected_risk_policy import (
     ProvisioningError, api_request, contents_bytes, paginated, resolve_trusted_reviewers,
 )
@@ -60,7 +62,8 @@ def manifest(ref):
 
 def verify_current_approval(pr, reviews, author_id, trusted_approver_ids=None, *, merged_at=None):
     """Return exact-head approvals after resolving each typed reviewer's latest state by ID."""
-    head = (pr.get("head") or {}).get("sha")
+    head_record = pr.get("head")
+    head = head_record.get("sha") if isinstance(head_record, dict) else None
     if not isinstance(head, str) or not re.fullmatch(r"[0-9a-f]{40}", head):
         raise ReleaseEligibilityError("merged PR head is unavailable")
     if not is_positive_id(author_id):
@@ -87,6 +90,69 @@ def verify_current_approval(pr, reviews, author_id, trusted_approver_ids=None, *
     if not approvals:
         raise ReleaseEligibilityError("no current trusted independent typed-User approval on merged head")
     return approvals
+
+
+def canonical_main_pr(pr):
+    base = pr.get("base") if isinstance(pr, dict) else None
+    repository = base.get("repo") if isinstance(base, dict) else None
+    return (isinstance(repository, dict) and repository.get("full_name") == REPOSITORY
+            and base.get("ref") == "main")
+
+
+def reviewed_source(token, sha, trusted_ids):
+    """Bind the release commit and its toolchain inputs to the exact reviewed PR."""
+    if not isinstance(sha, str) or not re.fullmatch(r"[a-f0-9]{40}", sha):
+        raise ReleaseEligibilityError("invalid immutable release source SHA")
+    root = f"/repos/{REPOSITORY}"
+    try:
+        associated = paginated(token, f"{root}/commits/{sha}/pulls")
+        matches = [
+            pr for pr in associated
+            if canonical_main_pr(pr) and pr.get("merge_commit_sha") == sha
+            and pr.get("state") == "closed" and pr.get("merged_at")
+        ]
+        if len(matches) != 1 or not is_positive_id(matches[0].get("number")):
+            raise ReleaseEligibilityError("release commit must be the exact merge of one canonical main PR")
+        pr_number = matches[0]["number"]
+        endpoint = f"{root}/pulls/{pr_number}"
+        _, pr = api_request(token, "GET", endpoint)
+        if (not canonical_main_pr(pr) or not is_positive_id(pr.get("number"))
+                or pr["number"] != pr_number or pr.get("merged") is not True
+                or any(pr.get(field) != matches[0].get(field) for field in
+                       ("merge_commit_sha", "merged_at", "state"))):
+            raise ReleaseEligibilityError("release source PR metadata disagrees with the merged commit")
+        author = rest_user_id(pr.get("user"), "release source PR author")
+        approvals = verify_current_approval(
+            pr, paginated(token, endpoint + "/reviews"), author, trusted_ids, merged_at=pr["merged_at"],
+        )
+        head = pr["head"]["sha"]
+        graphql_author, contributors = collect_pr(token, pr_number, head)
+        if graphql_author != author:
+            raise ReleaseEligibilityError("numeric release source author differs between GitHub APIs")
+        independent = []
+        for review in approvals:
+            reviewer = review["user"]["id"]
+            try:
+                require_independent(reviewer, trusted_ids, author, contributors)
+            except CustodyError:
+                continue
+            independent.append({"review_id": review["id"], "reviewer_id": reviewer})
+        if not independent:
+            raise ReleaseEligibilityError("release source has no approved reviewer independent of all PR contributors")
+        inputs = {}
+        for path in (MANIFEST, *GENERATED):
+            reviewed = contents_bytes(token, path, head)
+            if contents_bytes(token, path, sha) != reviewed:
+                raise ReleaseEligibilityError(f"merged {path} differs from the exact reviewed bytes")
+            inputs[path] = hashlib.sha256(reviewed).hexdigest()
+    except (ProvisioningError, CustodyError) as exc:
+        raise ReleaseEligibilityError(str(exc)) from None
+    return {
+        "schema": "baobab.dev10.reviewed-release-source.v1",
+        "repository": REPOSITORY, "source_sha": sha, "pr": pr_number, "pr_head_sha": head,
+        "merged_at": pr["merged_at"], "approvals": independent, "input_sha256": inputs,
+    }
+
 
 def maintenance(family, previous):
     if not EXCEPTION.is_file():
@@ -131,8 +197,7 @@ def maintenance(family, previous):
         merged_sha = pr.get("merge_commit_sha")
         if (pr.get("merged") is not True or not isinstance(merged_sha, str)
                 or not re.fullmatch(r"[0-9a-f]{40}", merged_sha)
-                or pr.get("state") != "closed" or (pr.get("base") or {}).get("ref") != "main"
-                or ((pr.get("base") or {}).get("repo") or {}).get("full_name") != repo):
+                or pr.get("state") != "closed" or not canonical_main_pr(pr)):
             raise ReleaseEligibilityError("maintenance exception PR must be merged into canonical main")
         merge_time = pr.get("merged_at")
         if not isinstance(merge_time, str):
@@ -167,15 +232,30 @@ def maintenance(family, previous):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", required=True)
+    parser.add_argument("--source-sha", required=True)
+    parser.add_argument("--source-evidence", type=Path, required=True)
     args = parser.parse_args()
     if classify(args.tag) is None:
         parser.error("invalid tag")
-    if classify(args.tag) == "ga":
-        print("GA must pass existing same-source qualified RC digest-reuse gate")
-        return
-    family = args.tag.split("-rc.", 1)[0]
-    tags = run("git", "tag", "--list", "v*").splitlines()
+    token = os.environ.get("GH_TOKEN")
+    if not token or os.environ.get("GITHUB_REPOSITORY") != REPOSITORY:
+        parser.error("release source verification requires the canonical repository and a read token")
+    trusted_logins = [
+        value.strip() for value in os.environ.get("DEV10_SECURITY_APPROVER_LOGINS", "").split(",")
+        if value.strip()
+    ]
     try:
+        if run("git", "rev-parse", "HEAD") != args.source_sha:
+            raise ReleaseEligibilityError("release source SHA differs from the checkout")
+        trusted_ids = set(resolve_trusted_reviewers(token, trusted_logins))
+        evidence = reviewed_source(token, args.source_sha, trusted_ids)
+        evidence["release_tag"] = args.tag
+        args.source_evidence.write_text(json.dumps(evidence, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+        if classify(args.tag) == "ga":
+            print("GA must pass existing same-source qualified RC digest-reuse gate")
+            return
+        family = args.tag.split("-rc.", 1)[0]
+        tags = run("git", "tag", "--list", "v*").splitlines()
         previous = previous_ga(family, tags)
         ga_tags = [t for t in tags if semver(t) is not None]
         if family in ga_tags or semver(family) <= max(map(semver, ga_tags)):
@@ -184,7 +264,7 @@ def main():
         locked = run("git", "show", f"{previous}:config/versions.lock") != run("git", "show", "HEAD:config/versions.lock")
         outcome = decide(args.tag, tags, changed, locked, maintenance(family, previous) if not changed else False)
         print(json.dumps({"tag": args.tag, "previous_ga": previous, "eligibility": outcome}))
-    except ReleaseEligibilityError as exc:
+    except (ReleaseEligibilityError, ProvisioningError, OSError) as exc:
         parser.error(str(exc))
 
 if __name__ == "__main__":
