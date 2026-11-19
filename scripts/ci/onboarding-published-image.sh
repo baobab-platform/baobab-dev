@@ -37,6 +37,201 @@ require_source
 [[ "$(id -u)" -ne 0 ]] || { echo "Published image onboarding must run as its non-root runtime user" >&2; exit 2; }
 [[ "$(getent passwd "$(id -u)" | cut -d: -f6)" == "$HOME" ]] || { echo "Container HOME must remain the image runtime user home" >&2; exit 2; }
 mkdir -p "$HOME" "$PROJECT_DIR" "$TOOLS_DIR" /evidence
+
+# Capture the installed linux-libc-dev package from this exact immutable image.
+# This is the image payload manifest, not a reconstruction from the Ubuntu base.
+: "${EXPECTED_ARCHITECTURE:?expected image architecture is required}"
+: "${EXPECTED_LINUX_LIBC_DEV_VERSION:?expected linux-libc-dev version is required}"
+package_record="$(dpkg-query -W -f='${Status}\t${Version}\t${Architecture}\t${source:Package}\t${source:Version}\n' linux-libc-dev)"
+IFS=cp -a "$SRC_DIR/." "$PROJECT_DIR/"
+test -f "$PROJECT_DIR/scripts/post-create.sh"
+
+# Install the repository-pinned uv with an architecture-specific checksum.
+mkdir -p /tmp/dev10-uv
+case "$(uname -m)" in
+  x86_64)
+    uv_asset=uv-x86_64-unknown-linux-gnu.tar.gz
+    uv_sha=a7fbaff2b9a271d85c1bdb540941090fd1ce011797b4abeb48e4dcd39c2471d5
+    ;;
+  aarch64)
+    uv_asset=uv-aarch64-unknown-linux-gnu.tar.gz
+    uv_sha=0797542018e541a9288855df555c8077eed06f7a47d206362030480e8ecc9f3d
+    ;;
+  *)
+    echo "Unsupported onboarding architecture: $(uname -m)" >&2
+    exit 2
+    ;;
+esac
+curl -fsSL --retry 5 --retry-all-errors \
+  "https://github.com/astral-sh/uv/releases/download/0.13.9/$uv_asset" \
+  -o /tmp/dev10-uv/uv.tar.gz
+echo "$uv_sha  /tmp/dev10-uv/uv.tar.gz" | sha256sum --check --strict
+tar -xzf /tmp/dev10-uv/uv.tar.gz -C /tmp/dev10-uv
+mapfile -t uv_bins < <(find /tmp/dev10-uv -type f -name uv -perm -u+x -print)
+(( ${#uv_bins[@]} == 1 )) || {
+  echo "Expected exactly one executable uv in verified archive" >&2
+  exit 2
+}
+install "${uv_bins[0]}" "$TOOLS_DIR/uv"
+uv_version="$("$TOOLS_DIR/uv" --version)"
+[[ "$uv_version" == "uv 0.13.9"* ]] || {
+  echo "Expected uv 0.13.9, got: $uv_version" >&2
+  exit 2
+}
+cat > "$TOOLS_DIR/baobab-summary" <<'SH'
+#!/usr/bin/env bash
+exec bash /source/scripts/summary.sh "$@"
+SH
+cat > "$TOOLS_DIR/baobab-verify" <<'SH'
+#!/usr/bin/env bash
+set +e
+bash /source/scripts/verify.sh "$@" > /tmp/dev10-post-create-verify.log 2>&1
+status=$?
+printf '%s\n' "$status" >> /tmp/dev10-post-create-verify-statuses
+# The historical verifier result is retained below; it must not abort the
+# post-create lifecycle before the explicit verification evidence is written.
+exit 0
+SH
+chmod +x "$TOOLS_DIR/baobab-summary" "$TOOLS_DIR/baobab-verify"
+export PATH="$TOOLS_DIR:$PATH"
+
+# Lifecycle scripts are executed from the read-only checkout while WORKSPACE_DIR
+# points only to the writable project copy.
+(
+  cd "$PROJECT_DIR"
+  WORKSPACE_DIR="$PROJECT_DIR" bash "$SRC_DIR/scripts/post-create.sh" --stage=post-create
+)
+if [[ "$BUILD_PROFILE" == "infra" ]]; then
+  echo "Skipping in-image Python unit suite: infra profile intentionally excludes Python"
+else
+  python3 -B -m unittest discover -s "$PROJECT_DIR/tests" -v
+fi
+
+# The infra image intentionally has no Node/pnpm toolchain. Other profiles
+# exercise both the image-pinned pnpm and exact consumer packageManager pins.
+if [[ "$BUILD_PROFILE" != "infra" ]]; then
+  [[ "$(cd / && pnpm --version)" == "12.16.1" ]]
+  for pnpm_version in 12.16.1 11.24.0; do
+    rm -rf "$CONSUMER_DIR"
+    mkdir -p "$CONSUMER_DIR"
+    cp -R "$SRC_DIR/tests/fixtures/pnpm-workspace/." "$CONSUMER_DIR/"
+    mv "$CONSUMER_DIR/package.json.fixture" "$CONSUMER_DIR/package.json"
+    mv "$CONSUMER_DIR/frontend/package.json.fixture" "$CONSUMER_DIR/frontend/package.json"
+    cp -R "$SRC_DIR/config" "$CONSUMER_DIR/config"
+    sed -i "s/pnpm@12[.]16[.]1/pnpm@${pnpm_version}/" "$CONSUMER_DIR/package.json"
+    echo "Testing consumer packageManager pnpm@${pnpm_version}"
+    (
+      cd "$CONSUMER_DIR"
+      WORKSPACE_DIR="$CONSUMER_DIR" bash "$SRC_DIR/scripts/post-create.sh" --stage=post-create
+    )
+    test ! -f "$CONSUMER_DIR/frontend/package-lock.json"
+  done
+else
+  echo "Skipping Node/pnpm fixtures: infra profile deliberately excludes Node"
+fi
+
+# Run the full verifier as the image's non-root runtime user. The 1.5.1
+# historical image may fail newer tool-version checks; retain that outcome as
+# an explicit unqualified baseline instead of suppressing it or calling it green.
+verify_log=/tmp/dev10-verify.log
+if WORKSPACE_DIR="$PROJECT_DIR" bash "$SRC_DIR/scripts/verify.sh" >"$verify_log" 2>&1; then
+  verify_status=0
+else
+  verify_status=$?
+fi
+cat "$verify_log"
+playwright_verified=false
+if [[ "$EXPECTED_PROFILE" == "frontend-e2e" ]]; then
+  [[ -n "${PLAYWRIGHT_BROWSERS_PATH:-}" && -d "$PLAYWRIGHT_BROWSERS_PATH" ]] || {
+    echo "frontend-e2e requires the immutable image's readable Playwright browser cache" >&2
+    exit 1
+  }
+  playwright_package="$(npm root -g)/playwright"
+  [[ -f "$playwright_package/package.json" ]] || {
+    echo "Global Playwright package is unavailable in the published image" >&2
+    exit 1
+  }
+  node - "$playwright_package" <<'NODE'
+const { chromium } = require(process.argv[2]);
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  await browser.close();
+})().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+NODE
+  playwright_verified=true
+  echo "Playwright Chromium launches as $(id -un)"
+fi
+if (( verify_status == 0 )); then
+  verify_label="VERIFIED"
+else
+  verify_label="HISTORICAL_BASELINE_UNQUALIFIED"
+fi
+# Record verifier failure count without depending on Python
+# (which the infra profile intentionally excludes).
+failed_check_count="$(grep -c '✘' "$verify_log" || true)"
+post_create_verify_status="$(tail -n 1 /tmp/dev10-post-create-verify-statuses 2>/dev/null || printf 127)"
+# Evidence generation is shell-only because the infra profile excludes Python.
+cat > "$EVIDENCE_FILE" <<EOF
+{
+  "schema": "baobab.dev10.historical-onboarding-verification.v1",
+  "image_profile": "$EXPECTED_PROFILE",
+  "runtime_profile": "$BUILD_PROFILE",
+  "image_ref": "$IMAGE_REF",
+  "runtime_uid": $(id -u),
+  "runtime_user": "$(id -un)",
+  "verify_exit_status": $verify_status,
+  "post_create_verify_exit_status": $post_create_verify_status,
+  "verify_status": "$verify_label",
+  "playwright_chromium_verified": $playwright_verified,
+  "failed_check_count": $failed_check_count,
+  "release_qualification": false,
+  "note": "A historical 1.5.1 image verification result is diagnostic only and never qualifies a new release."
+}
+EOF
+if [[ "$EXPECTED_PROFILE" == "frontend-e2e" && "$playwright_verified" != true ]]; then
+  echo "frontend-e2e requires a successful non-root Playwright Chromium launch" >&2
+  exit 1
+fi
+if (( verify_status != 0 )); then
+  echo "::warning::Historical image verifier failed; evidence is HISTORICAL_BASELINE_UNQUALIFIED"
+fi
+\t' read -r package_status package_version package_arch source_package source_version <<< "$package_record"
+[[ "$package_status" == "install ok installed" ]] || {
+  echo "linux-libc-dev is not installed in the published image: $package_status" >&2
+  exit 2
+}
+[[ "$package_version" == "$EXPECTED_LINUX_LIBC_DEV_VERSION" &&
+   "$source_version" == "$EXPECTED_LINUX_LIBC_DEV_VERSION" &&
+   "$source_package" == "linux" &&
+   "$package_arch" == "$EXPECTED_ARCHITECTURE" ]] || {
+  echo "Installed linux-libc-dev identity differs from the pinned Canonical evidence" >&2
+  printf 'status=%s version=%s arch=%s source=%s source_version=%s\n' \
+    "$package_status" "$package_version" "$package_arch" "$source_package" "$source_version" >&2
+  exit 2
+}
+{
+  printf 'status\tversion\tarchitecture\tsource_package\tsource_version\n'
+  printf '%s\n' "$package_record"
+} > /evidence/linux-libc-dev.package.tsv
+{
+  printf 'path\tkind\tsha256\tlink_target\n'
+  while IFS= read -r package_path; do
+    [[ -n "$package_path" ]] || continue
+    if [[ -L "$package_path" ]]; then
+      printf '%s\tsymlink\t\t%s\n' "$package_path" "$(readlink -- "$package_path")"
+    elif [[ -f "$package_path" ]]; then
+      printf '%s\tfile\t%s\t\n' "$package_path" "$(sha256sum -- "$package_path" | cut -d ' ' -f 1)"
+    elif [[ -d "$package_path" ]]; then
+      printf '%s\tdirectory\t\t\n' "$package_path"
+    else
+      printf '%s\tmissing\t\t\n' "$package_path"
+    fi
+  done < <(dpkg-query -L linux-libc-dev | LC_ALL=C sort -u)
+} > /evidence/linux-libc-dev.manifest.tsv
+echo "Captured linux-libc-dev ${package_version} (${package_arch}) payload paths: $(($(wc -l < /evidence/linux-libc-dev.manifest.tsv) - 1))"
 cp -a "$SRC_DIR/." "$PROJECT_DIR/"
 test -f "$PROJECT_DIR/scripts/post-create.sh"
 
