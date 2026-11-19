@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -27,6 +28,8 @@ TRAILER_RE = re.compile(
 )
 SHA_RE = re.compile(r"^[a-f0-9]{40}$")
 MAX_PATH_HISTORY_COMMITS = 2000
+CANDIDATE_FETCH_TIMEOUT = 60
+GIT_LOCAL_ONLY = dict(os.environ, GIT_NO_LAZY_FETCH="1")
 
 
 class EvidenceError(ValueError):
@@ -48,6 +51,7 @@ def has_commit(repo: Path, sha: str) -> bool:
     proc = subprocess.run(
         ["git", "-C", str(repo), "cat-file", "-e", sha + "^{commit}"],
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+        env=GIT_LOCAL_ONLY, timeout=20,
     )
     return proc.returncode == 0
 
@@ -57,10 +61,13 @@ def sha256_file(path: Path) -> str:
 
 
 def patch_id(repo: Path, sha: str) -> str | None:
-    show = subprocess.run(
-        ["git", "-C", str(repo), "show", "--format=", "--no-ext-diff", "--binary", sha],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=120,
-    )
+    try:
+        show = subprocess.run(
+            ["git", "-C", str(repo), "show", "--format=", "--no-ext-diff", "--binary", sha],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=120,
+        )
+    except subprocess.TimeoutExpired:
+        return None
     if show.returncode:
         return None
     result = subprocess.run(
@@ -122,10 +129,14 @@ def ensure_candidate_object(candidate_root: Path, sha: str, kind: str,
             ["git", "-C", str(candidate_root), "remote", "add", remote_name, remotes[kind]],
             check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
-    fetched = subprocess.run(
-        ["git", "-C", str(candidate_root), "fetch", "--no-tags", "--depth=2", remote_name, sha],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=300,
-    )
+    try:
+        fetched = subprocess.run(
+            ["git", "-C", str(candidate_root), "fetch", "--no-tags", "--depth=2",
+             "--filter=blob:none", remote_name, sha],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=CANDIDATE_FETCH_TIMEOUT,
+        )
+    except subprocess.TimeoutExpired:
+        return None, "candidate_fetch_timed_out", "upstream commit object fetch exceeded its time limit"
     if fetched.returncode or not has_commit(candidate_root, sha):
         diagnostic = fetched.stderr.decode("utf-8", "replace")[:180]
         return None, "candidate_commit_unavailable", diagnostic
@@ -203,7 +214,7 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
         "upstream_patch_id": pid,
         "upstream_changed_paths": paths,
     })
-    if has_commit(repo, sha):
+    if candidate_repo == repo:
         ancestor = subprocess.run(
             ["git", "-C", str(repo), "merge-base", "--is-ancestor", sha, tag],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
@@ -212,6 +223,7 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
         merge_base = run(repo, "merge-base", sha, tag, check=False)
         base["ubuntu_merge_base"] = merge_base if SHA_RE.fullmatch(merge_base) else None
         if ancestor.returncode not in (0, 1):
+            base["exact_commit_ancestor_of_ubuntu_tag"] = None
             base["assessment"] = "ancestry_check_inconclusive"
             return base, paths or list(row.get("upstream_paths", []))
     else:
@@ -226,40 +238,51 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str, cve: str,
     search_paths = set(paths) | set(row.get("upstream_paths", []))
     for correspondence in ubuntu_row.get("upstream_path_correspondence", []):
         search_paths.update(correspondence.get("same_basename_candidates", []))
+    if base["exact_commit_ancestor_of_ubuntu_tag"]:
+        base["assessment"] = "EXACT_UPSTREAM_COMMIT_IN_UBUNTU_ANCESTRY"
+        return base, sorted(search_paths)
+    if pid is None:
+        base["assessment"] = "UPSTREAM_PATCH_ID_UNAVAILABLE"
+        return base, sorted(search_paths)
+
     history_key = tuple(sorted(search_paths))
     if history_key not in history_cache:
         history_cache[history_key] = history_candidates(repo, tag, list(history_key))
     history, truncated = history_cache[history_key]
-    matches = []
-    if pid:
-        for commit in history:
-            downstream_pid = cached_patch_id(repo, commit, patch_cache)
-            if downstream_pid == pid:
-                matches.append({"commit": commit, "patch_id": downstream_pid})
-        for item in base["backport_trailer_matches"]:
-            if item["patch_id"] == pid and not any(x["commit"] == item["commit"] for x in matches):
-                matches.append(item)
-    base["patch_id_matches"] = sorted(matches, key=lambda item: item["commit"])
+    unavailable = 0
+    matches = {}
+    for commit in history:
+        downstream_pid = cached_patch_id(repo, commit, patch_cache)
+        if downstream_pid is None:
+            unavailable += 1
+        elif downstream_pid == pid:
+            matches[commit] = downstream_pid
+    for item in base["backport_trailer_matches"]:
+        if item["patch_id"] == pid:
+            matches[item["commit"]] = pid
+    base["patch_id_matches"] = [
+        {"commit": commit, "patch_id": value} for commit, value in sorted(matches.items())
+    ]
+    complete = not truncated and unavailable == 0
     base["history_search"] = {
         "path_count": len(search_paths),
         "commit_count_examined": len(history),
+        "patch_id_unavailable_count": unavailable,
         "truncated": truncated,
-        "complete_for_selected_paths": not truncated,
+        "complete_for_selected_paths": complete,
     }
-    if base["exact_commit_ancestor_of_ubuntu_tag"]:
-        base["assessment"] = "EXACT_UPSTREAM_COMMIT_IN_UBUNTU_ANCESTRY"
-    elif truncated and matches:
+    if truncated and matches:
         base["assessment"] = "PATCH_ID_MATCH_FOUND_BUT_HISTORY_TRUNCATED"
     elif truncated:
         base["assessment"] = "PATCH_SEARCH_TRUNCATED_INCOMPLETE"
+    elif unavailable:
+        base["assessment"] = "DOWNSTREAM_PATCH_EVIDENCE_INCOMPLETE"
     elif len(matches) == 1:
         base["assessment"] = "UNIQUE_STABLE_PATCH_ID_CORRESPONDENCE"
     elif len(matches) > 1:
         base["assessment"] = "AMBIGUOUS_STABLE_PATCH_ID_CORRESPONDENCE"
     elif base["backport_trailer_matches"]:
         base["assessment"] = "BACKPORT_TRAILER_WITHOUT_PATCH_ID_MATCH"
-    elif not pid:
-        base["assessment"] = "UPSTREAM_PATCH_ID_UNAVAILABLE"
     else:
         base["assessment"] = "NO_PATCH_ID_MATCH_IN_COMPLETE_SELECTED_PATH_HISTORY"
     return base, sorted(search_paths)

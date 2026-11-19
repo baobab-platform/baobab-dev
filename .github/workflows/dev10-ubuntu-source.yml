@@ -1,6 +1,7 @@
 name: DEV-10 Canonical release-tag source corroboration (read-only)
 # Diagnostic proof only. No VEX, no security exception, no release privileges.
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - .github/workflows/dev10-ubuntu-source.yml
@@ -168,10 +169,11 @@ jobs:
           print(f"All {expected} remain under investigation; fix/backport/UAPI binary analysis NOT complete.")
           PY
       - name: Materialize complete blobless Ubuntu tag history
+        timeout-minutes: 25
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/ubuntu-linux-resolute"
-          git -C "$root" fetch --unshallow --filter=blob:none origin \
+          git -C "$root" -c protocol.version=2 fetch --progress --unshallow --filter=blob:none --no-tags origin \
             "refs/tags/${UBUNTU_SOURCE_TAG}:refs/tags/${UBUNTU_SOURCE_TAG}"
           test "$(git -C "$root" rev-parse --is-shallow-repository)" = "false"
           test "$(git -C "$root" rev-parse "refs/tags/${UBUNTU_SOURCE_TAG}^{commit}")" = "$UBUNTU_TAG_COMMIT"

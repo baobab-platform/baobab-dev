@@ -174,10 +174,11 @@
         "history_search": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["path_count", "commit_count_examined", "truncated", "complete_for_selected_paths"],
+          "required": ["path_count", "commit_count_examined", "patch_id_unavailable_count", "truncated", "complete_for_selected_paths"],
           "properties": {
             "path_count": { "type": "integer", "minimum": 0 },
             "commit_count_examined": { "type": "integer", "minimum": 0 },
+            "patch_id_unavailable_count": { "type": "integer", "minimum": 0 },
             "truncated": { "type": "boolean" },
             "complete_for_selected_paths": { "type": "boolean" }
           }

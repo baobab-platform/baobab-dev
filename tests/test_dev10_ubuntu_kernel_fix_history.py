@@ -200,6 +200,35 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         self.assertTrue(candidate["history_search"]["truncated"])
         self.assertEqual(candidate["assessment"], "PATCH_ID_MATCH_FOUND_BUT_HISTORY_TRUNCATED")
 
+    def test_unavailable_downstream_patch_id_refuses_complete_correspondence(self):
+        sha = self.candidate()
+        downstream = git(self.ubuntu, "rev-parse", "HEAD")
+        read_patch = m.patch_id
+        with mock.patch.object(m, "patch_id", side_effect=lambda repo, commit: (
+            None if commit == downstream else read_patch(repo, commit)
+        )):
+            report = self.run_audit("https://git.kernel.org/stable/c/" + sha)
+        candidate = report["records"][0]["candidates"][0]
+        self.assertEqual(candidate["assessment"], "DOWNSTREAM_PATCH_EVIDENCE_INCOMPLETE")
+        self.assertFalse(candidate["history_search"]["complete_for_selected_paths"])
+        self.assertEqual(candidate["history_search"]["patch_id_unavailable_count"], 1)
+
+    def test_upstream_fetch_timeout_retains_under_investigation(self):
+        original = subprocess.run
+
+        def run(*args, **kwargs):
+            if args[0][:4] == ["git", "-C", str(self.candidate_root), "fetch"]:
+                raise subprocess.TimeoutExpired(args[0], m.CANDIDATE_FETCH_TIMEOUT)
+            return original(*args, **kwargs)
+
+        sha = "1" * 40
+        with mock.patch.object(m.subprocess, "run", side_effect=run):
+            report = self.run_audit("https://git.kernel.org/stable/c/" + sha)
+        candidate = report["records"][0]["candidates"][0]
+        self.assertEqual(candidate["assessment"], "candidate_fetch_timed_out")
+        self.assertIsNone(candidate["exact_commit_ancestor_of_ubuntu_tag"])
+        self.assertEqual(report["counts"], {"under_investigation": 298})
+
     def test_missing_candidate_object_is_an_explicit_evidence_gap(self):
         sha = "1" * 40
         report = self.run_audit("https://git.kernel.org/stable/c/" + sha)

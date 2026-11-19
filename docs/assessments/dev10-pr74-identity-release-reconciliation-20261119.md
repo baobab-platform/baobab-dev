@@ -71,6 +71,11 @@ The first corrected head, `2feaeaa8c6343b20e63ba1248b00533e860ec0cf`, passed the
 
 The custody workflow now retains two read-only JSON receipts. Foundation records exact current-head commit and review completeness. The policy contract separately records the immutable #76 witness and the service committer's pinned raw metadata and numeric ID. Both carry the workflow run and attempt, sanitized request IDs and GitHub rate-limit response counters. Count REST fallbacks and GraphQL requests from the receipts before considering a cache. The receipts contain no credentials or response bodies and confer no policy authority.
 
+
+GitHub artifact readback verified the SHA-256 of both custody receipts on `698a360a7d9a4fb3af0101aa43851092d466ba88`. [Historical #76 receipt 14516623800](https://github.com/baobab-platform/baobab-dev/actions/runs/44500670315/artifacts/14516623800) used two GraphQL requests, three other REST reads, and two exact-SHA REST reads including the deliberately repeated immutable fixture. [Current-head #74 receipt 14517356489](https://github.com/baobab-platform/baobab-dev/actions/runs/44500672575/artifacts/14517356489) covered 612 commits and 23 reviews using 33 GraphQL requests, two other REST reads, and one committer fallback. Minimum observed remaining allowances were 4,913 GraphQL points and 4,814 REST requests. These observations do not justify caching authorization by mutable actor attributes or between runs.
+
+The #93 evidence reader now bounds unavailable candidate retrieval, checks local commit presence without fetching arbitrary objects from a partial clone, and refuses to call a patch-ID search complete when downstream patch evidence is missing. A full history fetch and a fresh source-to-binary join remain required for the live evidence gate.
+
 ## Consolidation
 
 | PR | Treatment |
