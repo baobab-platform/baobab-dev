@@ -17,9 +17,9 @@ SPEC = importlib.util.spec_from_file_location(
 provisioner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(provisioner)
 
-DECISION = provisioner.json.loads(
-    (ROOT / "security/decisions/development/foundation.json").read_text()
-)
+DECISION_BYTES = (ROOT / "security/decisions/development/foundation.json").read_bytes()
+DECISION = provisioner.json.loads(DECISION_BYTES)
+DECISION_PR = int(DECISION["approval_evidence"].rsplit("/", 1)[1])
 PROPOSAL = provisioner.json.loads(
     (ROOT / "security/decisions/development/foundation.proposal.json").read_text()
 )
@@ -245,7 +245,7 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
 class DecisionContractTests(unittest.TestCase):
     def test_exact_candidate_record_is_accepted_for_provisioning(self):
         result = provisioner.validate_decision(
-            copy.deepcopy(DECISION), decision_pr=76, now=NOW
+            copy.deepcopy(DECISION), decision_pr=DECISION_PR, now=NOW
         )
         self.assertEqual(result["status"], "approved")
 
@@ -274,7 +274,7 @@ class DecisionContractTests(unittest.TestCase):
                 candidate = copy.deepcopy(DECISION)
                 mutate(candidate)
                 with self.assertRaises(provisioner.ProvisioningError):
-                    provisioner.validate_decision(candidate, decision_pr=76, now=NOW)
+                    provisioner.validate_decision(candidate, decision_pr=DECISION_PR, now=NOW)
 
     def test_rejects_widened_scope_and_inventory(self):
         mutations = (
@@ -282,7 +282,7 @@ class DecisionContractTests(unittest.TestCase):
             ("wrong repository", lambda item: item.update(repository="other/repo")),
             ("release environment", lambda item: item.update(environment="production")),
             ("wrong PR evidence", lambda item: item.update(
-                approval_evidence="https://github.com/baobab-platform/baobab-dev/pull/75"
+                approval_evidence=f"https://github.com/baobab-platform/baobab-dev/pull/{DECISION_PR + 1}"
             )),
             ("wrong profile", lambda item: item["profiles"].append("release")),
             ("wrong architecture", lambda item: item["architectures"].append("linux/s390x")),
@@ -300,13 +300,13 @@ class DecisionContractTests(unittest.TestCase):
                 candidate = copy.deepcopy(DECISION)
                 mutate(candidate)
                 with self.assertRaises(provisioner.ProvisioningError):
-                    provisioner.validate_decision(candidate, decision_pr=76, now=NOW)
+                    provisioner.validate_decision(candidate, decision_pr=DECISION_PR, now=NOW)
 
     def test_rejects_expired_decision(self):
         with self.assertRaisesRegex(provisioner.ProvisioningError, "expired"):
             provisioner.validate_decision(
                 copy.deepcopy(DECISION),
-                decision_pr=76,
+                decision_pr=DECISION_PR,
                 now=dt.datetime(2026, 11, 27, tzinfo=dt.timezone.utc),
             )
 
@@ -496,7 +496,7 @@ class IndependentApprovalTests(unittest.TestCase):
 
 class MergedCustodyTests(unittest.TestCase):
     def setUp(self):
-        self.raw = provisioner.json.dumps(DECISION, separators=(",", ":")).encode()
+        self.raw = DECISION_BYTES
         self.encoded = provisioner.base64.b64encode(self.raw).decode()
         self.merge_sha = "b" * 40
         self.pull = {
@@ -547,11 +547,12 @@ class MergedCustodyTests(unittest.TestCase):
                  AUTHOR, set() if contributors is None else contributors
              )):
             return provisioner.verify_merged_custody(
-                "token", DECISION, 76, expected_head, TRUSTED
+                "token", DECISION, DECISION_PR, expected_head, TRUSTED
             )
 
     def test_verifies_merged_head_review_contributors_and_merge_ancestry(self):
         result = self.verify()
+        self.assertEqual(result["decision_pr"], DECISION_PR)
         self.assertEqual(result["decision_pr_head"], HEAD)
         self.assertEqual(result["merge_commit_sha"], self.merge_sha)
         self.assertEqual(result["approval_id"], "github-review-99")

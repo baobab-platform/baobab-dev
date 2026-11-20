@@ -88,29 +88,29 @@ class UbuntuBinarySourceTests(unittest.TestCase):
         version = MODULE.LOCK.package_version
         arm64_hash = MODULE.LOCK.binary_artifact_sha256["arm64"]
         self.paths["installed_package"].write_text(
-            "\\t".join(("linux-libc-dev", version, "arm64", "install ok installed",
-                         "linux", version)) + "\\n",
+            "\t".join(("linux-libc-dev", version, "arm64", "install ok installed",
+                       "linux", version)) + "\n",
             encoding="utf-8",
         )
         self.paths["apt_package_metadata"].write_text(
-            f"Package: linux-libc-dev\\nVersion: {version}\\nArchitecture: arm64\\n"
-            f"Source: linux ({version})\\nFilename: pool/main/l/linux/linux-libc-dev_{version}_arm64.deb\\n"
-            f"SHA256: {arm64_hash}\\n\\n",
+            f"Package: linux-libc-dev\nVersion: {version}\nArchitecture: arm64\n"
+            f"Source: linux ({version})\nFilename: pool/main/l/linux/linux-libc-dev_{version}_arm64.deb\n"
+            f"SHA256: {arm64_hash}\n\n",
             encoding="utf-8",
         )
         self.paths["apt_policy"].write_text(
-            f"linux-libc-dev:\\n Installed: {version}\\n Candidate: {version}\\n"
-            f" Version table:\\n *** {version} 500\\n"
-            f"        500 http://archive.ubuntu.com/ubuntu resolute-updates/main arm64 Packages\\n",
+            f"linux-libc-dev:\n Installed: {version}\n Candidate: {version}\n"
+            f" Version table:\n *** {version} 500\n"
+            "        500 http://ports.ubuntu.com/ubuntu-ports resolute-updates/main arm64 Packages\n",
             encoding="utf-8",
         )
         self.paths["apt_madison"].write_text(
-            f"linux-libc-dev | {version} | http://archive.ubuntu.com/ubuntu "
-            "resolute-updates/main arm64 Packages\\n",
+            f"linux-libc-dev | {version} | http://ports.ubuntu.com/ubuntu-ports "
+            "resolute-updates/main arm64 Packages\n",
             encoding="utf-8",
         )
         self.paths["deb_sha256"].write_text(
-            arm64_hash + f"  ./linux-libc-dev_{version}_arm64.deb\\n",
+            arm64_hash + f"  ./linux-libc-dev_{version}_arm64.deb\n",
             encoding="utf-8",
         )
         result = MODULE.verify(Namespace(**self.paths, architecture="arm64"))
