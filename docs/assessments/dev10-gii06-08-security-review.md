@@ -1,43 +1,26 @@
-# DEV-10 issue #81 — GII-06 implementation and GII-07/GII-08 security assessments
+# GII-06–08 GitHub API diagnostics and identity assessment
 
-**Baseline:** PR #74 head `ceb2f1b8323466b56e3572a7f8174c2e0c2c027c`. **Scope:** no protected writes, approval grants, release activation, policy broadening, or relaxed contributor exclusion.
+The reviewed integration baseline is PR #74 at `f860332af8442f3ad85e43109a1f243441f3e562`. Its shared transport owns REST and GraphQL request handling. This review completes the REST failure regressions against that implementation. [Issue #81](https://github.com/baobab-platform/baobab-dev/issues/81) · [ADR-DEV10-001](../adr/ADR-DEV10-001-reusable-development-risk-policy.md)
 
-## GII-06 — REST diagnostics (implemented)
+## GII-06 safe diagnostics
 
-The PR #74 baseline already includes `_http_error_summary` with HTTP status, bounded error-body parsing, optional validated `x-github-request-id`, and a 1 MiB response cap. Its REST exception handler was using that helper. However, `_http_error_summary` still emitted the arbitrary GitHub JSON `message` after generic redaction, and REST transport failures included `URLError.reason`. Error bodies and network error reasons are not a trustworthy diagnostic channel and may contain unanticipated secrets or attacker-supplied content.
-
-This change admits only a small allowlist of known GitHub error messages; unknown messages are reported as `unrecognized GitHub error`. HTTP status and syntactically validated request ID remain visible. REST transport failure is reported without the raw reason. API failures still abort custody. Negative tests cover known/unknown messages, invalid JSON, oversized bodies, malicious request IDs and transport reasons.
-
-**Residual review:** `_http_error_summary` also services GraphQL HTTP errors, so its message allowlist is deliberately shared. Check CI and consider follow-on audits of *all* other authenticated GitHub API callers under GII-14. No successful live REST failure was induced as part of this change.
-
-## GII-07 — metadata equality (assessment; no policy relaxation)
-
-**Observed implementation:** `_rest_commit_committer_user_id` requires a 40-character lowercase exact SHA; compares the REST response `sha` to that SHA; requires raw `commit.committer` name, email and timezone-normalized date to match GraphQL GitActor metadata; then requires REST `committer.type == "User"` and a positive integer `committer.id`.
-
-**Threat distinction:** The SHA identifies immutable commit bytes; it does *not* prove the GitHub account association, because the account link is platform-provided metadata, not necessarily a signed statement inside the commit. Comparing the raw Git metadata across two GitHub API representations is useful for detecting inconsistent responses, stale projections and implementation defects, but is **not an independent human-identity attestation**: both APIs can reflect the same platform attribution. Dropping name/email/date checks would reduce consistency assurance without improving the proof that an account is a human.
-
-**Decision:** retain exact-SHA, metadata equality and numeric account ID requirements. Continue accepting equivalent timestamp offsets that represent the same instant; reject missing/naive timestamps and conflicting raw metadata. A change to this rule needs an explicit security decision, representative live read-only evidence and tests of GitHub commit attribution behavior. Never resolve a reviewer, PR author, owner or initiator by the committer-only fallback.
-
-## GII-08 — actor classification (assessment; no new trust grants)
-
-| Actor/source | Current evidence | Permitted role |
+| Failure | Evidence retained | Refusal |
 | --- | --- | --- |
-| GraphQL PR author `__typename=User`, positive `databaseId` | Concrete account identity, not independent proof of a human | Preparer; excluded from independent review |
-| GraphQL linked commit author/committer/co-author `user.databaseId` | Linked account identity | Contributor; excluded |
-| GraphQL null committer -> REST exact-SHA `committer.type=User`, positive `id` | GitHub-linked account for this immutable commit | **Exclusion-only** contributor |
-| GitHub `web-flow` service User | REST type `User` may be service-owned | Contributor; never automatically eligible as a human reviewer |
-| `Bot`, GitHub App, Dependabot, Actions, AI automation | Distinct actor semantics; commit trailers/email are not identity proof | No human reviewer/owner approval eligibility |
-| Unknown, null, ambiguous, missing ID, inconsistent API metadata | No reliable numeric attribution | Fail closed |
+| GitHub HTTP error | HTTP status, validated request ID and an allowlisted GitHub message | Custody fails unless the caller explicitly handles the status as part of its contract |
+| Malformed or oversized error body | HTTP status and validated request ID. Oversized data adds the 1 MiB limit diagnostic. | The error body stays out of logs |
+| Hostile request ID or unknown message | HTTP status and a generic diagnostic when available | Arbitrary header, body and transport text stay out of logs |
+| Transport, timeout, malformed response, SHA or metadata failure | A bounded diagnostic for the failed stage. Metadata mismatches identify field names. | The caller refuses the identity |
 
-**Security rationale:** GitHub API `User` is an account object type, not a verified human/personhood claim. Git signatures establish integrity/authenticity of the signed commit under the signing identity; they do not establish independence of an eligible human policy reviewer. The literal `Claude` trailer, GitHub noreply email or apparent bot name is untrusted commit text and cannot authorize an identity. GitHub-signed platform commits are not exempt from contributor accounting without separately approved evidence and governance.
+The new tests exercise the committer-lookup caller through the same bounded HTTP handler used by provisioning. Existing tests cover documented messages, successful-response size limits, timeouts, malformed JSON and unsafe response metadata. Failure cases use offline fixtures. The historical receipt provides authenticated evidence for the successful exact-SHA path. [Transport](../../scripts/github_api_transport.py) · [Custody tests](../../tests/test_custody_independence.py) · [Historical receipt](https://github.com/baobab-platform/baobab-dev/actions/runs/44683694368/artifacts/14605591489)
 
-**Options reviewed:**
-- **A: classify platform actor by signed-commit metadata.** Useful as corroborating provenance; not sufficient to waive contributor exclusion.
-- **B: REST exact-SHA reconciliation.** Keep current narrow committer-only approach and consistency checks; account ID is exclusion evidence, not human approval.
-- **C: unresolved human actor.** Refuse qualification. Do not infer IDs from name/email or AI-generated trailers.
+## GII-07 exact SHA and raw metadata
 
-**Decision:** maintain the current fail-closed model. A future role-aware resolver may explicitly distinguish `contributor`, `preparer`, `reviewer`, `owner` and `workflow initiator`, with independent identity eligibility per role and authenticated provenance; do not deploy a generic fallback or allow service Users into the trusted human set.
+The committer fallback is available only when GraphQL includes an explicitly null committer user link. It requires REST to return the same immutable commit SHA, a typed linked positive numeric User ID, and matching raw name, email and instant. Timestamp parsing accepts equivalent timezone spellings. A malformed response or disagreement fails closed. These checks retain separate evidence for commit identity and account linkage. [Custody implementation](../../scripts/custody_independence.py)
 
-## Verification and follow-up
+## GII-08 contributor and approver roles
 
-Run `python3 -m unittest discover -s tests -p 'test_gii06_safe_rest_diagnostics.py' -v` plus existing custody and provisioner tests, final-head workflow checks and security review. GII-05 historical custody, GII-09 live proof, GII-11 typed resolver, GII-13 full negatives and GII-14 transport inventory remain open in issue #81. **No claim of complete #81 closure or protected-policy authorization is made here.**
+The REST committer fallback contributes to reviewer exclusion only. GitHub's `web-flow` User ID `19864447` remains in the contributor set and is ineligible as an independent reviewer. Review eligibility also requires trusted appointments, complete contributor exclusion and a current-head effective review. Author, co-author, reviewer and owner identity use their role-specific typed evidence. Login strings, email aliases, AI trailers and commit signatures carry no approval authority. [Provisioner tests](../../tests/test_provision_protected_risk_policy.py)
+
+## Verification
+
+Run `python3 -m unittest discover -s tests -p 'test_custody_independence.py' -v` and the policy-contract workflow. Keep each refusal and the live successful receipt tied to the tested commit. The validation of other API callers and repository enforcement is tracked under GII-12–14.

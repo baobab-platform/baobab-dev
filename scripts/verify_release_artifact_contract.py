@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail-closed producer/consumer contract for DEV-10 release candidate records.
 
-Artifact containers: RC published-info-{target}; GA ga-reused-candidates.
+Artifact containers: new builds published-info-{target}; legacy GA reuse ga-reused-candidates.
 Each contains {target}.json. Downloaded merged directory must contain
 exactly four records, with no additional files or symlinks.
 """
@@ -17,11 +17,13 @@ TAG = re.compile(rf"^v{NUM}\.{NUM}\.{NUM}(?:-rc\.[1-9][0-9]*)?$")
 BASE = "ghcr.io/baobab-platform/baobab-dev:"
 
 def validate(directory: Path, tag: str, channel: str):
+    if channel not in ("rc", "ga", "ga-direct"):
+        raise ValueError("unknown release channel")
     if not TAG.fullmatch(tag):
         raise ValueError("invalid release tag")
     if channel == "rc" and "-rc." not in tag:
         raise ValueError("RC channel requires numbered RC tag")
-    if channel == "ga" and "-rc." in tag:
+    if channel in ("ga", "ga-direct") and "-rc." in tag:
         raise ValueError("GA channel requires stable tag")
     expected = {t + ".json" for t in TARGETS}
     if not directory.is_dir() or {p.name for p in directory.iterdir()} != expected:
@@ -41,7 +43,7 @@ def validate(directory: Path, tag: str, channel: str):
                 obj[key] = value
             return obj
         record = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicate)
-        required_keys = ({"target", "tag", "digest"} if channel == "rc" else
+        required_keys = ({"target", "tag", "digest"} if channel in ("rc", "ga-direct") else
                          {"target", "tag", "digest", "signer_tag", "signer_run_id"})
         if not isinstance(record, dict) or set(record) != required_keys:
             raise ValueError("unexpected candidate record schema: " + target)
@@ -70,7 +72,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--directory", required=True, type=Path)
     parser.add_argument("--tag", required=True)
-    parser.add_argument("--channel", required=True, choices=("rc", "ga"))
+    parser.add_argument("--channel", required=True, choices=("rc", "ga", "ga-direct"))
     parser.add_argument("--rc-directory", type=Path)
     parser.add_argument("--rc-tag")
     args = parser.parse_args()

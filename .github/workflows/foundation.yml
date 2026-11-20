@@ -93,7 +93,16 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: python3 scripts/audit_pr_reviewer_independence.py --pr-number "$PR_NUMBER"
+        run: |
+          python3 scripts/audit_pr_reviewer_independence.py --pr-number "$PR_NUMBER" \
+            --output "$RUNNER_TEMP/dev10-github-custody.json"
+      - name: Retain sanitized GitHub identity and API-cost evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev10-github-custody-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/dev10-github-custody.json
+          if-no-files-found: error
+          retention-days: 30
 
   # Explicit replacement for Shared's temporary 'container-scan' exception.
   # Retain full Trivy coverage; only exact known CVEs can be risk accepted.
@@ -124,7 +133,10 @@ jobs:
         if: needs.scope.outputs.container_scan == 'true'
         run: |
           set -euo pipefail
+          . config/versions.lock
           docker build --file .devcontainer/docker/Dockerfile \
+            --build-arg "UBUNTU_VERSION=$UBUNTU_VERSION" \
+            --build-arg "UBUNTU_BASE_SHA256=$UBUNTU_BASE_SHA256" \
             --build-arg VERSION=0.0.0-ci \
             --build-arg "REVISION=${GITHUB_SHA}" \
             --tag "foundation-scan:${GITHUB_SHA}" .

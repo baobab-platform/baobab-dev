@@ -74,15 +74,44 @@
       "version": "7.0.0-43.43",
       "severity": "HIGH",
       "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-98869",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-98890",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99083",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-112366",
+      "package": "picomatch",
+      "version": "4.0.5",
+      "severity": "HIGH",
+      "type": "node-pkg"
     }
   ],
-  "finding_count": 8,
-  "notes": "PROPOSAL ONLY; NOT AN APPROVED EXCEPTION. This is intended to be reusable across eligible current and future same-repository pull requests targeting main, and development-main push CI, until 2026-11-26T00:00:00Z. Fork pull requests are excluded. It is not PR-number-bound and is not available to tags, release publication/promotion, workflow_dispatch, schedules, deployments, other PR base branches, staging or production. Evidence is from PR #74 Publish run 43829121908 at source head c161821441c0d7c054514abd78a40dc25e774479 and Foundation run 43829123295. All four profiles and both architectures reported the same eight HIGH findings against linux-libc-dev=7.0.0-43.43; Trivy 0.73.0 reported no fixed versions and no secret findings. Artifact IDs, raw-report hashes, normalized-finding hashes and Trivy DB freshness metadata are recorded in docs/security/dev10-foundation-policy-review.md. Issue #54 explicitly records PR #74 as assessment-only; this proposal seeks a new reusable decision for the exact observed inventory, not retroactive PR #74 approval. The 12 November owner-authorised eight-CVE amendment named PR #62; no PR #71 authority was located. Independent approval, merged approval custody, final approved bytes and the separately provisioned SHA-256 trust anchor remain absent. Do not activate until the approved decision is merged and verified.",
+  "finding_count": 12,
+  "notes": "REVIEW ONLY; NOT AN APPROVED EXCEPTION. The exact 12-finding development-only proposal remains pending independent review. Evidence provenance, immutable source pins, inventory hashes, Canonical status input identity, and the prior source-path audit artifact reference are recorded in security/evidence/dev10-kernel-evidence.lock.json. The expanded 298-CVE source-path audit is not a Trivy scan of all 298 CVEs at package version 7.0.0-43.43: the original 295 records remain identified as historical inventory context, and the three added records are identified as the 298-CVE extension. The captured installed binary manifest is separately SHA-256 digested in the workflow artifact. All 298 source-path records remain under investigation; the nine missing paths remain discrepancies, including kernel/bpf/fixups.c for CVE-2026-98869. Path presence and same-basename candidates are not evidence of a fix, backport, or non-affectedness. No VEX, release, tag, publication, signing, promotion, staging, or production authority is granted. The proposal retains its 2026-11-26T00:00:00Z expiry and exact four-profile/two-architecture development scope. Activation still requires a separate decision PR, exact-head trusted independent approval, attributable accountable-owner concurrence, complete contributor custody, merged-byte verification, and a newly provisioned exact SHA-256 trust anchor.",
   "execution_scope": {
     "pull_request_base": "main",
     "push_ref": "refs/heads/main",
     "pull_request_head_repository": "baobab-platform/baobab-dev"
   },
   "prepared_by_id": null,
-  "record_type": "proposed_approved_form"
+  "record_type": "proposed_approved_form",
+  "evidence_lock_sha256": "f15ad8d9ded6db5d9e023faa8193eb466682fd91d364261e883530b436e05c30"
 }

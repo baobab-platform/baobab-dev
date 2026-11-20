@@ -17,9 +17,10 @@ class PromotionEnvironmentTests(unittest.TestCase):
     def setUp(self):
         self.env = {
             "name": "dev10-release-promotion",
+            "can_admins_bypass": False,
             "protection_rules": [{
                 "type": "required_reviewers", "prevent_self_review": True,
-                "reviewers": [{"type": "User", "reviewer": {"login": "independent-reviewer"}}],
+                "reviewers": [{"type": "User", "reviewer": {"login": "independent-reviewer", "id": 9001, "type": "User"}}],
             }],
             "deployment_branch_policy": {
                 "protected_branches": False, "custom_branch_policies": True,
@@ -33,6 +34,7 @@ class PromotionEnvironmentTests(unittest.TestCase):
     def test_explicit_independent_review_and_tag_admission_pass(self):
         evidence = mod.qualify(self.env, self.policies, "v1.5.0")
         self.assertEqual(evidence["required_reviewers"], 1)
+        self.assertEqual(evidence["reviewer_ids"], [9001])
         self.assertEqual(evidence["accepted_tag_patterns"], ["v*.*.*"])
 
     def test_exact_two_owner_configured_tag_patterns_required(self):
@@ -67,6 +69,10 @@ class PromotionEnvironmentTests(unittest.TestCase):
     def test_missing_or_self_approved_review_is_refused(self):
         for change in (
             lambda e: e.pop("protection_rules"),
+            lambda e: e.pop("can_admins_bypass"),
+            lambda e: e.update(can_admins_bypass=True),
+            lambda e: e["protection_rules"][0]["reviewers"].extend(e["protection_rules"][0]["reviewers"]),
+            lambda e: e["protection_rules"][0]["reviewers"][0]["reviewer"].update(id=True),
             lambda e: e["protection_rules"][0].update(prevent_self_review=False),
             lambda e: e["protection_rules"][0].update(reviewers=[]),
             lambda e: e["protection_rules"][0].update(reviewers=[{"type": "User"}]),

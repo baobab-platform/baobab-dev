@@ -14,7 +14,9 @@ class RemoteTagTests(unittest.TestCase):
     def test_lightweight(self):
         self.assertEqual(mod.assert_tag_identity(TAG,SHA,f"{SHA}\t{REF}\n"),SHA)
     def test_annotated(self):
-        self.assertEqual(mod.assert_tag_identity(TAG,SHA,f"{'b'*40}\t{REF}\n{SHA}\t{REF}^{{}}\n"),SHA)
+        advertised = f"{'b'*40}\t{REF}\n{SHA}\t{REF}^{{}}\n"
+        self.assertEqual(mod.resolved_tag_identity(TAG, advertised), SHA)
+        self.assertEqual(mod.assert_tag_identity(TAG, SHA, advertised), SHA)
     def test_moved_tag_refused(self):
         with self.assertRaises(ValueError):
             mod.assert_tag_identity(TAG,SHA,f"{'b'*40}\t{REF}\n")

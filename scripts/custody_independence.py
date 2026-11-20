@@ -8,14 +8,15 @@ import datetime as dt
 import json
 import re
 import unicodedata
-import urllib.error
 import urllib.request
 
-from github_api_transport import open_github, read_bounded
+from github_api_transport import (
+    API_ROOT, API_VERSION, GitHubAPIError, request_json, safe_github_message,
+)
 
-API_URL = "https://api.github.com/graphql"
-API_VERSION = "2022-11-28"
-PAGE_SIZE = 100
+REPOSITORY = "baobab-platform/baobab-dev"
+# GitHub links this service User to PR #76 commit dad5dc64031d05b7e7d93345f1ea553abea6c70e.
+GITHUB_WEB_FLOW_ID = 19864447
 MAX_PAGES = 100
 
 
@@ -28,13 +29,97 @@ def _require(condition, message):
         raise CustodyError(message)
 
 
+def is_positive_id(value):
+    return type(value) is int and value > 0
+
+
+def rest_user_id(actor, label):
+    _require(isinstance(actor, dict) and actor.get("type") == "User",
+             f"{label} must be a typed GitHub User")
+    user_id = actor.get("id")
+    _require(is_positive_id(user_id), f"{label} has no positive numeric GitHub user ID")
+    return user_id
+
+
+def resolve_trusted_user_ids(logins, fetch_user):
+    """Bootstrap the configured reviewer allowlist with typed, unique IDs."""
+    _require(bool(logins), "trusted reviewer allow-list is empty")
+    identities = {}
+    seen_logins = set()
+    for login in logins:
+        _require(isinstance(login, str) and re.fullmatch(r"[A-Za-z0-9-]{1,39}", login),
+                 "trusted reviewer login has invalid syntax")
+        key = login.casefold()
+        _require(key not in seen_logins, "trusted reviewer allow-list contains duplicate logins")
+        seen_logins.add(key)
+        user = fetch_user(login)
+        user_id = rest_user_id(user, "trusted reviewer")
+        current_login = user.get("login")
+        _require(isinstance(current_login, str) and current_login.casefold() == key,
+                 "trusted reviewer login resolution mismatch")
+        _require(user_id != GITHUB_WEB_FLOW_ID,
+                 "GitHub service User is ineligible for the trusted reviewer allow-list")
+        _require(user_id not in identities, "trusted reviewers resolve to duplicate numeric identities")
+        identities[user_id] = current_login
+    return identities
+
+
+def review_timestamp(value):
+    _require(isinstance(value, str) and value, "review timestamp is missing")
+    try:
+        timestamp = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        raise CustodyError("review timestamp is invalid") from None
+    _require(timestamp.tzinfo is not None, "review timestamp must include a timezone")
+    return timestamp.astimezone(dt.timezone.utc)
+
+
+def latest_user_reviews(reviews):
+    """Order effective, typed PR review records by immutable reviewer ID."""
+    _require(isinstance(reviews, list) and len(reviews) <= 10_000,
+             "incomplete or invalid review history")
+    latest = {}
+    seen_review_ids = set()
+    account_types = {}
+    for review in reviews:
+        _require(isinstance(review, dict), "malformed review evidence")
+        state = review.get("state")
+        if state == "PENDING":
+            continue
+        _require(state in ("APPROVED", "COMMENTED", "CHANGES_REQUESTED", "DISMISSED"),
+                 "review contains an unknown effective state")
+        review_id = review.get("id")
+        _require(is_positive_id(review_id), "numeric GitHub review ID is missing")
+        _require(review_id not in seen_review_ids, "duplicate GitHub review ID in history")
+        seen_review_ids.add(review_id)
+        reviewer = review.get("user")
+        _require(isinstance(reviewer, dict), "review contains no reviewer account identity")
+        reviewer_type = reviewer.get("type")
+        _require(reviewer_type in ("User", "Bot"),
+                 "review contains a non-User or untyped reviewer identity")
+        reviewer_id = reviewer.get("id")
+        _require(is_positive_id(reviewer_id), "reviewer has no positive numeric GitHub user ID")
+        _require(account_types.setdefault(reviewer_id, reviewer_type) == reviewer_type,
+                 "conflicting account type for a numeric reviewer")
+        if reviewer_type == "Bot" or reviewer_id == GITHUB_WEB_FLOW_ID:
+            continue
+        login = reviewer.get("login")
+        _require(isinstance(login, str) and re.fullmatch(r"[A-Za-z0-9-]{1,39}", login),
+                 "typed review actor has no valid GitHub login")
+        submitted = review_timestamp(review.get("submitted_at"))
+        candidate = (submitted, review_id, review)
+        if reviewer_id not in latest or candidate[:2] > latest[reviewer_id][:2]:
+            latest[reviewer_id] = candidate
+    return latest
+
+
 def _numeric_user_id(actor, label):
     _require(isinstance(actor, dict), f"{label} identity is missing")
     user = actor.get("user")
     _require(isinstance(user, dict), f"{label} is not linked to a GitHub user")
+    _require(user.get("__typename") == "User", f"{label} is not a concrete GitHub User")
     user_id = user.get("databaseId")
-    _require(type(user_id) is int and user_id > 0,
-             f"{label} has no immutable numeric GitHub user ID")
+    _require(is_positive_id(user_id), f"{label} has no immutable numeric GitHub user ID")
     return user_id
 
 
@@ -63,7 +148,7 @@ def _rest_commit_committer_user_id(token, oid, graphql_committer):
     _require(all(isinstance(value, str) and value for value in expected.values()),
              "commit committer is not linked to a GitHub user and metadata is incomplete for REST reconciliation")
     request = urllib.request.Request(
-        f"https://api.github.com/repos/baobab-platform/baobab-dev/commits/{oid}",
+        f"{API_ROOT}/repos/{REPOSITORY}/commits/{oid}",
         headers={
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json",
@@ -72,18 +157,9 @@ def _rest_commit_committer_user_id(token, oid, graphql_committer):
         },
     )
     try:
-        with open_github(request, timeout=30) as response:
-            payload = json.loads(read_bounded(response))
-    except urllib.error.HTTPError as exc:
-        raise CustodyError(_http_error_summary(exc, "REST committer lookup")) from exc
-    except urllib.error.URLError as exc:
-        raise CustodyError("REST committer lookup transport failure") from exc
-    except TimeoutError as exc:
-        raise CustodyError("REST committer lookup timed out") from exc
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise CustodyError("REST committer lookup returned invalid JSON") from exc
-    except ValueError as exc:
-        raise CustodyError(f"REST committer lookup response rejected: {_safe_detail(str(exc), 120)}") from exc
+        _, payload = request_json(request, context="REST committer lookup")
+    except GitHubAPIError as exc:
+        raise CustodyError(str(exc)) from None
 
     _require(isinstance(payload, dict) and payload.get("sha") == oid,
              "REST committer lookup returned a different commit SHA")
@@ -149,31 +225,17 @@ def _safe_detail(value, limit=240):
     )
     return " ".join(value.split()).lstrip(":%")[:limit]
 
-_SAFE_GITHUB_MESSAGES = {
-    "resource not accessible by integration": "Resource not accessible by integration",
-    "bad credentials": "Bad credentials",
-    "requires authentication": "Requires authentication",
-    "not found": "Not Found",
-    "validation failed": "Validation Failed",
-    "api rate limit exceeded": "API rate limit exceeded",
-    "secondary rate limit": "Secondary rate limit",
-    "problems parsing json": "Problems parsing JSON",
-    "unprocessable entity": "Unprocessable Entity",
-    "forbidden": "Forbidden",
-    "unauthorized": "Unauthorized",
-    "internal server error": "Internal Server Error",
-}
 _SAFE_GITHUB_ERROR_TYPES = {
     "FORBIDDEN", "NOT_FOUND", "RATE_LIMITED", "INVALID",
     "UNAUTHORIZED", "BAD_USER_INPUT", "THROTTLED",
     "SERVICE_UNAVAILABLE", "INTERNAL",
 }
-
-
-def _safe_github_message(value):
-    if not isinstance(value, str):
-        return "unrecognized GitHub error"
-    return _SAFE_GITHUB_MESSAGES.get(value.strip().casefold(), "unrecognized GitHub error")
+_GRAPHQL_FIELDS = {
+    "repository", "pullRequest", "commits", "totalCount", "pageInfo",
+    "endCursor", "hasNextPage", "nodes", "commit", "oid", "headRefOid",
+    "author", "authors", "committer", "user", "databaseId",
+    "name", "email", "date", "login",
+}
 
 
 def _graphql_error_summary(errors):
@@ -184,7 +246,7 @@ def _graphql_error_summary(errors):
         if not isinstance(error, dict):
             details.append("malformed error entry")
             continue
-        message = _safe_github_message(error.get("message"))
+        message = safe_github_message(error.get("message"))
         raw_type = error.get("type")
         error_type = (
             raw_type if isinstance(raw_type, str)
@@ -194,11 +256,11 @@ def _graphql_error_summary(errors):
         path_parts = []
         if isinstance(path, list):
             for item in path[:8]:
-                if type(item) is int and item >= 0:
+                if type(item) is int and 0 <= item <= 10_000:
                     path_parts.append(str(item))
-                elif (isinstance(item, str)
-                      and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,63}", item)
-                      and not re.search(r"(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]{20,}", item)):
+                elif isinstance(item, str) and (
+                    item in _GRAPHQL_FIELDS or re.fullmatch(r"c[0-9]{1,2}", item)
+                ):
                     path_parts.append(item)
         safe_path = ".".join(path_parts)[:240]
         parts = [message]
@@ -210,51 +272,10 @@ def _graphql_error_summary(errors):
     return "; ".join(details)
 
 
-def _http_error_summary(exc, context="GitHub API"):
-    """Return bounded HTTP diagnostics without exposing raw response data."""
-    payload = None
-    oversized = False
-    try:
-        raw = exc.read(1_048_577)
-        if len(raw) > 1_048_576:
-            oversized = True
-        elif raw:
-            payload = json.loads(raw)
-    except (AttributeError, OSError, ValueError, TypeError):
-        payload = None
-
-    message = ""
-    if oversized:
-        message = "error response exceeded the 1 MiB safety limit"
-    elif isinstance(payload, dict):
-        message = _safe_github_message(payload.get("message"))
-        errors = payload.get("errors")
-        if isinstance(errors, list):
-            messages = [
-                _safe_github_message(item.get("message")) for item in errors[:5]
-                if isinstance(item, dict) and item.get("message")
-            ]
-            if messages:
-                message = "; ".join(([message] if message else []) + messages)[:600]
-
-    request_id = ""
-    headers = getattr(exc, "headers", None)
-    candidate = headers.get("x-github-request-id", "") if headers is not None else ""
-    if isinstance(candidate, str) and re.fullmatch(r"[A-Za-z0-9-]{1,80}", candidate):
-        request_id = candidate
-
-    parts = [f"{context} HTTP {exc.code}"]
-    if message:
-        parts.append(message)
-    if request_id:
-        parts.append(f"GitHub request ID {request_id}")
-    return ": ".join(parts)
-
-
 def _graphql(token, query, variables):
     body = json.dumps({"query": query, "variables": variables}).encode("utf-8")
     request = urllib.request.Request(
-        API_URL,
+        f"{API_ROOT}/graphql",
         data=body,
         method="POST",
         headers={
@@ -266,20 +287,9 @@ def _graphql(token, query, variables):
         },
     )
     try:
-        with open_github(request, timeout=30) as response:
-            payload = json.loads(read_bounded(response))
-    except urllib.error.HTTPError as exc:
-        raise CustodyError(_http_error_summary(exc, "GitHub GraphQL")) from exc
-    except json.JSONDecodeError as exc:
-        raise CustodyError("GitHub GraphQL returned invalid JSON") from exc
-    except UnicodeDecodeError as exc:
-        raise CustodyError("GitHub GraphQL returned invalid JSON") from exc
-    except ValueError as exc:
-        raise CustodyError(_safe_detail(str(exc), 180)) from exc
-    except urllib.error.URLError as exc:
-        raise CustodyError("GitHub GraphQL transport failed") from exc
-    except TimeoutError as exc:
-        raise CustodyError("GitHub GraphQL custody request timed out") from exc
+        _, payload = request_json(request, context="GitHub GraphQL")
+    except GitHubAPIError as exc:
+        raise CustodyError(str(exc)) from None
     _require(isinstance(payload, dict), "GitHub GraphQL returned a malformed response")
     if "errors" in payload:
         raise CustodyError(_graphql_error_summary(payload["errors"]))
@@ -330,10 +340,10 @@ def _fetch_commit_records(token, commit_oids):
             variables[f"oid{index}"] = oid
             fields.append(
                 f"c{index}: object(expression: $oid{index}) {{ ... on Commit {{ "
-                "oid author { user { databaseId } } "
-                "committer { name email date user { databaseId login } } "
+                "oid author { user { __typename databaseId } } "
+                "committer { name email date user { __typename databaseId login } } "
                 "authors(first: 100) { totalCount pageInfo { hasNextPage } "
-                "nodes { user { databaseId } } } } }"
+                "nodes { user { __typename databaseId } } } } }"
             )
         query = (
             "query(" + ", ".join(declarations) + ") { "
@@ -362,11 +372,12 @@ def _add_commit_contributors(token, commit, contributors, seen_commits):
     seen_commits.add(oid)
     contributors.add(_numeric_user_id(commit.get("author"), "commit author"))
     committer = commit.get("committer")
-    committer_user = committer.get("user") if isinstance(committer, dict) else None
-    if isinstance(committer_user, dict):
-        contributors.add(_numeric_user_id(committer, "commit committer"))
-    else:
+    _require(isinstance(committer, dict) and "user" in committer,
+             "commit committer link evidence is missing")
+    if committer["user"] is None:
         contributors.add(_rest_commit_committer_user_id(token, oid, committer))
+    else:
+        contributors.add(_numeric_user_id(committer, "commit committer"))
     authors = commit.get("authors")
     _require(isinstance(authors, dict), "commit author/co-author connection is missing")
     author_nodes = authors.get("nodes")
@@ -375,7 +386,7 @@ def _add_commit_contributors(token, commit, contributors, seen_commits):
     _require(isinstance(author_nodes, list) and type(author_count) is int
              and isinstance(author_page, dict),
              "commit author/co-author connection is malformed")
-    _require(not author_page.get("hasNextPage") and len(author_nodes) == author_count,
+    _require(author_page.get("hasNextPage") is False and len(author_nodes) == author_count,
              "commit author/co-author history is incomplete")
     _require(author_count > 0, "commit has no resolvable author identity")
     for actor in author_nodes:
@@ -408,7 +419,6 @@ def collect_pr(token, pr_number, expected_head, commit_oids=None):
                  "decision PR identity or commit count changed during enumeration")
         return author_id, contributors
 
-
     query = """
     query($owner: String!, $name: String!, $number: Int!, $after: String) {
       repository(owner: $owner, name: $name) {
@@ -424,12 +434,12 @@ def collect_pr(token, pr_number, expected_head, commit_oids=None):
             nodes {
               commit {
                 oid
-                author { user { databaseId } }
-                committer { name email date user { databaseId login } }
+                author { user { __typename databaseId } }
+                committer { name email date user { __typename databaseId login } }
                 authors(first: 100) {
                   totalCount
                   pageInfo { hasNextPage }
-                  nodes { user { databaseId } }
+                  nodes { user { __typename databaseId } }
                 }
               }
             }
@@ -447,6 +457,7 @@ def collect_pr(token, pr_number, expected_head, commit_oids=None):
     author_id = None
     expected_count = None
     seen_commits = set()
+    seen_cursors = set()
     contributors = set()
 
     for _page in range(MAX_PAGES):
@@ -485,9 +496,11 @@ def collect_pr(token, pr_number, expected_head, commit_oids=None):
         if not has_next:
             _require(len(seen_commits) == expected_count,
                      f"decision PR commit history is incomplete ({len(seen_commits)}/{expected_count})")
+            _require(expected_head in seen_commits, "complete commit history omits the expected PR head")
             return author_id, contributors
-        _require(isinstance(cursor, str) and cursor,
-                 "commit pagination cursor is missing")
+        _require(bool(nodes) and isinstance(cursor, str) and cursor and cursor not in seen_cursors,
+                 "commit pagination did not advance")
+        seen_cursors.add(cursor)
         variables["after"] = cursor
 
     raise CustodyError("decision PR commit history exceeded the 10,000-commit safety limit")

@@ -1,5 +1,8 @@
 # DEV-10 kernel CVE source qualification and independent VEX authority
 
+> **18 November 2026 update:** the original 295-record / `linux-libc-dev=7.0.0-42.42` evidence below is retained as a historical baseline and is not overwritten. The current development-image source review has a separate 298-CVE inventory for `linux-libc-dev=7.0.0-43.43`, with three additional kernel advisories. `verify_dev10_vex.py` and the applicability-register builder now bind to the expanded 298-record set and exact 7.0.0-43.43 package. The additional source-path and Ubuntu-tag evidence is recorded in [the 18 November source-path review](dev10-three-cve-source-path-review-20261118.md). All 298 dispositions remain under investigation; the new records do not create VEX or risk acceptance authority.
+
+
 Status: **ENGINEERING IN PROGRESS / SECURITY HELD** (30 October 2026).
 Governing: accepted EA v2.3, EA-DEV, security ADRs, maker/checker separation.
 Primary PR: #48; independent review request: #54. This is not security approval.
@@ -17,7 +20,7 @@ Zero direct shipped UAPI path matches does not prove absence of transitive
 macros, ABI changes or vendor downstream patches.
 
 The read-only `dev10-kernel-paths` workflow now joins these sources into
-`dev10-cve-applicability-register.json` with **295 distinct CVE records**.
+`dev10-cve-applicability-register.json` with **298 distinct CVE records**.
 It refuses incomplete/mismatched source lists. Every item remains
 `under_investigation` until Ubuntu 26.04 patch provenance, backports,
 release-pocket status, compiler-visible headers, downstream userspace
@@ -87,7 +90,7 @@ https://github.com/openvex/spec/blob/main/OPENVEX-SPEC.md
 https://trivy.dev/docs/dev/guide/supply-chain/vex/oci/
 
 `scripts/verify_dev10_vex.py` is the separately testable authorisation
-filter. It consumes full, unfiltered Trivy JSON, the conservative 295-record
+filter. It consumes full, unfiltered Trivy JSON, the conservative 298-record
 register, a real signed independent decision and a protected trust bundle.
 It enforces exact digest, platform, package identity/version, full scanner
 evidence integrity, per-CVE approval references, expiry, revocation and

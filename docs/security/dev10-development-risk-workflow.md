@@ -12,7 +12,7 @@ Baobab-dev builds **internal development environments**, not application staging
 
 The protected policy implementation is being prepared to reuse one approved decision across eligible future pull requests. Eligibility is not inferred from a PR number: the GitHub event must be `pull_request`, the merge ref must match `refs/pull/<positive-number>/merge`, and the PR base branch must be `main`. Post-merge development CI may reuse the same decision only for `push` to `refs/heads/main`.
 
-The proposed policy is bounded to the exact eight HIGH Ubuntu findings for `linux-libc-dev=7.0.0-43.43`, all four image profiles, both supported Linux architectures, this repository/image repository, and expiry **2026-11-26 00:00 UTC**. It is not PR-number-bound. New/changed findings, package/version/severity drift, fixed-version signals, secrets, incomplete scan inventory, or scanner errors remain blocking.
+The proposed amendment is bounded to the exact 12 HIGH findings: 11 Ubuntu `linux-libc-dev=7.0.0-43.43` advisories (the original eight plus CVE-2026-98869, CVE-2026-98890 and CVE-2026-99083) and one `node-pkg` picomatch 4.0.5 advisory (CVE-2026-112366). It covers all four image profiles, both supported Linux architectures, this repository/image repository, and expiry **2026-11-26 00:00 UTC**. It is not PR-number-bound. New/changed findings, package/version/severity drift, fixed-version signals, secrets, incomplete scan inventory, or scanner errors remain blocking.
 
 The PR contains a proposed approved-form record (`record_type: proposed_approved_form`). Its JSON `status: approved` is the intended decision content, not evidence of effective approval. The policy is **not active** until the exact record is merged, an independent current-head approval and owner concurrence are verified, custody is proven, and the protected exact-byte SHA-256 trust anchor is provisioned. It cannot authorize tags, releases, workflow dispatch, schedules, deployments, PRs targeting another branch, staging or production. Release qualification and promotion remain separate controls.
 
@@ -27,11 +27,11 @@ The `dev10-security-policy-read` environment is used only by the manual provisio
 The decision record, independent review, custody verifier, protected default-branch controls and exact policy hash must all agree before the trust anchor is provisioned.
 
 
-The final decision candidate is in the separate PR
-https://github.com/baobab-platform/baobab-dev/pull/76. It is not active while
-that PR is open. Owner attestation and independent exact-head approval are
-still required; merge and exact-byte trust-anchor provisioning remain separate
-activation steps.
+The 12-finding amendment candidate is in the separate PR
+https://github.com/baobab-platform/baobab-dev/pull/92. It remains draft and is
+not active. Fresh independent approval on its exact head and attributable
+accountable-owner concurrence are still required; merge, custody verification
+and exact-byte trust-anchor provisioning remain separate activation steps.
 
 ## Foundation bootstrap and image-scan applicability
 
@@ -40,7 +40,7 @@ all PRs; baseline, reproducibility, runtime, environment and security gates are
 not disabled for the decision PR. The additional unfiltered DEV-10 image scan
 runs when container build inputs change (`.devcontainer/`, `config/`,
 Dockerfile-consumed scripts), the shared scanner-policy manifest
-(`.baobab/repository.yaml`) changes, or the kernel inventory changes. The
+(`.baobab/repository.yaml`) changes, or either the historical kernel inventory or expanded 298-CVE audit inventory changes. The Publish workflow also runs its full four-profile by two-architecture matrix when the 298-CVE inventory, Canonical status input, protected decision schema/record or decision evaluator changes. The
 custodian-only `scripts/provision_protected_risk_policy.py` is not an image
 input and is explicitly excluded from the image-scan trigger; its tests run in
 the dedicated policy-contract workflow. A policy-only decision PR does not

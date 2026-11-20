@@ -2,6 +2,7 @@ name: DEV-10 Trivy OpenVEX parser qualification (diagnostic only)
 # Security HELD: this deliberately tests unsigned synthetic VEX as an unsafe
 # input. It NEVER supplies this fixture to Foundation/Publish or issues approval.
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - .github/workflows/dev10-vex-scanner-qualification.yml
@@ -17,7 +18,7 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 35
     steps:
-      - name: Checkout immutable pull-request revision
+      - name: Checkout immutable diagnostic revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}

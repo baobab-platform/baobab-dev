@@ -7,10 +7,17 @@ on:
       - "tests/test_development_risk_decision_record.py"
       - "tests/test_provision_protected_risk_policy.py"
       - "tests/test_custody_independence.py"
+      - "tests/test_protected_risk_custody.py"
+      - "tests/test_audit_pr_reviewer_independence.py"
+      - "tests/test_release_eligibility.py"
       - ".github/workflows/dev10-policy-decision.yml"
       - ".github/workflows/provision-dev10-risk-policy.yml"
       - "scripts/provision_protected_risk_policy.py"
       - "scripts/custody_independence.py"
+      - "scripts/audit_pr_reviewer_independence.py"
+      - "scripts/github_api_transport.py"
+      - "scripts/verify_protected_risk_custody.py"
+      - "scripts/release_eligibility.py"
 permissions:
   contents: read
   pull-requests: read
@@ -36,7 +43,9 @@ jobs:
           python3 -B -m unittest -v \
             tests/test_development_risk_decision_record.py \
             tests/test_provision_protected_risk_policy.py \
-            tests/test_custody_independence.py
+            tests/test_custody_independence.py \
+            tests/test_protected_risk_custody.py \
+            tests/test_audit_pr_reviewer_independence.py
       - name: Validate custody GraphQL query against GitHub's live schema and response
         if: github.event_name == 'pull_request'
         env:
@@ -45,4 +54,42 @@ jobs:
           DEV10_GRAPHQL_INTEGRATION_EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          python3 -B -m unittest -v tests/test_custody_independence.py
+          python3 -B -m unittest -v \
+            tests.test_custody_independence.CompleteHistoryTests.test_live_github_graphql_schema_and_author_response
+      - name: Corroborate historical decision custody and retain the live API receipt
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 -B scripts/audit_pr_reviewer_independence.py --historical \
+            --output "$RUNNER_TEMP/dev10-historical-custody.json"
+      - name: Corroborate reviewed release-source lineage against the historical merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -B - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, "scripts")
+          from release_eligibility import reviewed_source
+
+          receipt = reviewed_source(os.environ["GH_TOKEN"],
+                                    "29db8484fead93bf5eee95f29803592d575f7d17",
+                                    {356890520, 356900102})
+          assert receipt["pr"] == 76
+          assert receipt["pr_head_sha"] == "f9fd73d4e848a7c4d3bcfbe28651e06149cdcb6d"
+          assert receipt["approvals"] == [{"review_id": 5932308847, "reviewer_id": 356900102}]
+          receipt["purpose"] = "historical read-only verification"
+          (Path(os.environ["RUNNER_TEMP"]) / "dev10-reviewed-source-receipt.json").write_text(
+              json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          PY
+      - name: Retain read-only exact SHA and reviewer evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev10-historical-custody-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/dev10-historical-custody.json
+            ${{ runner.temp }}/dev10-reviewed-source-receipt.json
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,164 @@
+# DEV-10 identity and release reconciliation
+
+**19 November 2026** | [PR #74](https://github.com/baobab-platform/baobab-dev/pull/74)
+
+The audited repository baseline was `main` at `bc6ca0a9f7d28c8baa41a903642ff808c99e84f2`. The [audited PR head](https://github.com/baobab-platform/baobab-dev/commit/8927efb349878a61c1ee6c23511575dc7d2ac2e3) was `8927efb349878a61c1ee6c23511575dc7d2ac2e3`, 609 commits ahead and zero behind. GitHub Actions used synthetic PR merge commit `d6f391be8de5ac75ced2cdbb3bff462f60e8cd80`. Source presence and check results from earlier heads carry different evidentiary weight from a qualified release at the current head.
+
+## Issue and implementation register
+
+| Authority and requirement | Audited source and ownership | Finding and disposition |
+| --- | --- | --- |
+| [#81](https://github.com/baobab-platform/baobab-dev/issues/81) GII-01 promotion actor and reviewer independence | #82, transplanted into #74 at `46f66c7595a884983299e9c8411caa155f97b927`. The verifier at the audited head matches #82's final blob. Publish retained #74's dynamic same-source RC selection. | **PARTIAL**. The workflow resolved the rerun actor through a mutable login lookup. The correction gets typed numeric identities from the exact repository, workflow, run, attempt and tagged source, then compares approved reviewers by ID. The v2 evidence format and protected deployment gate remain in use. **IMPLEMENTED BUT UNQUALIFIED** pending hosted and protected-attempt evidence. |
+| #81 GII-06 and GII-14 safe GitHub API transport | #83 and #87, `scripts/github_api_transport.py`, `scripts/custody_independence.py`, `scripts/provision_protected_risk_policy.py`, `scripts/verify_protected_risk_custody.py`. #90 proposed separate transport negatives. | **CONFIRMED**. The inherited formatter could emit arbitrary top-level error messages, transport reasons and GraphQL path strings. The scan-time verifier and diagnostic reviewer audit bypassed bounded transport. Shared transport now restricts URL and read redirects, bounds bodies, closes responses and reports only permitted diagnostics. **IMPLEMENTED BUT UNQUALIFIED**. |
+| #81 GII-07 and GII-08 exact committer corroboration | #80 baseline, #84/#87 and `scripts/custody_independence.py`. | **CONFIRMED**. The baseline could attempt REST on a malformed link and accepted missing co-author pagination state as complete. The correction requires an explicit null committer link, exact SHA, raw name/email/time agreement and a linked numeric User. Every resolved contributor, including the platform service User, remains in the exclusion set. **IMPLEMENTED BUT UNQUALIFIED**. |
+| #81 GII-08 and GII-13 read and write custody | #84, `scripts/verify_protected_risk_custody.py`, `scripts/provision_protected_risk_policy.py`. #74 already carried #84's stronger provisioner checks. | **CONFIRMED**. The read path had weaker account typing, duplicate and ordering checks, and omitted owner concurrence. Both paths now require the same exact merged bytes, ancestry, attributable owner concurrence and effective pre-merge approval independent of contributors. **IMPLEMENTED BUT UNQUALIFIED**. |
+| #81 review of maintenance release authority | #74, `scripts/release_eligibility.py`. See [maintenance review follow-up](https://github.com/baobab-platform/baobab-dev/pull/74#issuecomment-6971636994). | **CONFIRMED**. The live path imported a missing `uid` helper. It now corroborates REST/GraphQL author IDs, proves the independently reviewed declaration at the exact head and merge commit, and excludes every contributor. **IMPLEMENTED BUT UNQUALIFIED**. |
+| #81 GII-05 historical reviewer contribution | #85/#86 and [#76](https://github.com/baobab-platform/baobab-dev/pull/76). | **PARTIAL**. An independent REST and local Git reconstruction matches the historical custody evidence below. The updated policy-contract workflow also exercises the historical GraphQL join. Historic platform protection and provisioning receipts remain separately verifiable. |
+| #81 GII-02, GII-09 and GII-10 live evidence and API volume | #88 and `tests/test_custody_independence.py`. | **PARTIAL**. The fixture now uses an exact immutable service-committer SHA and independently corroborated ID. Hosted qualification, successful request receipts and per-run rate-limit measurement remain due. |
+| #81 GII-11 role model | #89, `scripts/github_identity_roles.py` on the prototype branch. | **PARTIAL**. The eight roles identify real trust boundaries. The prototype accepts caller-supplied provenance labels and deliberately leaves human eligibility unresolved. Keep it in review. The live paths continue to require role-specific GitHub evidence and the existing governed appointment. |
+| #81 GII-03 and GII-12 branch protection and bypass | `.github/CODEOWNERS`, ADR-DEV10-001, repository branch and ruleset APIs. | **BLOCKED** for protected release. `main` metadata reports `protected: false` and the branch-rules readback returned an empty array. The detailed branch-protection endpoint returned HTTP 403, leaving its admin-only settings unverified. The active [tag ruleset](https://github.com/baobab-platform/baobab-dev/rules/20470719) has the stored pattern `refs/tags/refs/tags/v*` and always-bypass roles. That pattern does not match ordinary `refs/tags/v…` release refs. |
+| [#95](https://github.com/baobab-platform/baobab-dev/issues/95) single manifest and generated files | #74, `config/resolve.sh`, `.github/workflows/update-lockfile.yml`, Publish `sanity-check`. | **CONFIRMED GAP**. Publish rejects drift and asks for a local update or a separate scheduled-branch PR. An approved same-branch writer, unprivileged fork output and manifest-only/no-op qualification remain **BLOCKED** as acceptance evidence. |
+| #95 one reusable build, security decision and protected publication | #74, Foundation container gate, Publish `build`, `release-digests`, `ga-reuse`, `publish`, `promote` and `release`. | **PARTIAL**. The workflow has exact-digest checks and same-source RC-to-GA reuse. It still builds local scan copies, has a separate Foundation image build and uses tagged RC/GA lifecycle machinery. A manifest-only change has no complete qualified path. |
+| #95 diagnostic workflow scope and rollback | #74, `dev10-onboarding.yml`, `dev10-ubuntu-source.yml`, promotion monitor, registry integrity and `docs/usage/immutable-rc-recovery.md`. | **PARTIAL**. The pinned Ubuntu history check is path-scoped. Always-on onboarding still builds historical provenance and source-evidence jobs. The rollback tooling needs a successful rehearsal with qualified digests. |
+| [#54](https://github.com/baobab-platform/baobab-dev/issues/54) independently authorized residual risk | #74 and separate draft #92. Active bytes in `security/decisions/development/foundation.json`, historical disclosure in `scripts/dev10_kernel_risk_gate.py`, strict release verifier in `scripts/verify_digest_security_decision.py`. | **BLOCKED**. The current eight-finding decision and draft twelve-finding amendment both miss the verified inventory. The release gate refuses residual HIGH/CRITICAL findings independently of development approval. |
+| [#93](https://github.com/baobab-platform/baobab-dev/issues/93) source ancestry and backport evidence | #91 plus #74's pinned-source implementation, `scripts/audit_ubuntu_kernel_fix_history.py`, `security/evidence/dev10-kernel-evidence.lock.json`. | **IMPLEMENTED BUT UNQUALIFIED**. The latest job stopped in a synthetic fixture because `git cherry-pick` does not support `-q`. Corrected the fixture and kept upstream candidate, exact tag, ancestry, backport ambiguity and package evidence as technical inputs. All 298 dispositions remain under investigation. |
+| [#55](https://github.com/baobab-platform/baobab-dev/issues/55) real developer acceptance | #74 and DEV-14, `.github/workflows/dev10-onboarding.yml`, `scripts/ci/onboarding-published-image.sh`. | **BLOCKED**. The existing v1.5.1 image yields GitHub CLI `DEV` against the strict `2.102.1` pin. A suitable candidate and genuine fresh Codespaces, private packages, native and browser consumers, rollback, and teardown remain acceptance prerequisites. |
+
+The [v1.5.1 promotion environment](https://api.github.com/repos/baobab-platform/baobab-dev/environments/dev10-release-promotion) separately reports three required reviewer entries, self-review prevention and custom deployment policies. [Deployment policy readback](https://api.github.com/repos/baobab-platform/baobab-dev/environments/dev10-release-promotion/deployment-branch-policies) shows `v*.*.*` and `v*.*.*-rc.*` as tag patterns. This evidence describes the environment. The effective branch and release-tag rules, privileged bypass settings and a new protected run still need acceptance.
+
+## Role and provenance
+
+| Role | Evidence | Use |
+| --- | --- | --- |
+| PR author | Matching REST `User.id` and GraphQL `User.databaseId` | Decision preparer attribution and mandatory exclusion |
+| Commit author | Linked User on exact GraphQL Git object | Mandatory exclusion, including the author of a merge commit |
+| Co-author | Complete GraphQL GitActor author connection with counts and page state | Mandatory exclusion |
+| Committer | Linked User on exact GraphQL Git object. An explicitly unlinked committer can use typed REST corroboration against the same SHA and raw metadata | Mandatory exclusion, including service Users |
+| Reviewer | Effective typed GitHub review, governed numeric identity, exact PR head and contributor comparison | Independent review |
+| Owner | Typed User at the appointed immutable ID, pre-merge comment and edit times | Separate accountable concurrence |
+| Workflow initiator | Runtime actor ID and typed original and triggering actors on the exact Actions run attempt | Attribution and exclusion from promotion self-review |
+| Merger | GitHub merged PR metadata, merge commit and ancestry | Merge attribution and lineage. Authority remains with the independent review and enforced controls |
+
+A GitHub User account can be operated by a service. The observed immutable web-flow ID is excluded from approval roles and remains in contributor history. Human eligibility beyond the governed appointment requires separate authenticated evidence.
+
+### Historical custody checkpoint
+
+REST returned 94 commits for #76 and local Git produced the same count over the recorded base and merged-head range, with no co-author trailers. The numeric contributor set was `{350241706, 356890520, 19864447}`. The account with ID `356890520` authored merge commit [dad5dc6](https://github.com/baobab-platform/baobab-dev/commit/dad5dc64031d05b7e7d93345f1ea553abea6c70e) and is ineligible for this review. The GitHub service User with ID `19864447` committed it and remains in the set. The distinct reviewer ID `356900102` submitted [review 5932308847](https://github.com/baobab-platform/baobab-dev/pull/76#pullrequestreview-5932308847) on exact head `f9fd73d4e848a7c4d3bcfbe28651e06149cdcb6d` at 05:28:08 SAST before the 05:36:58 SAST merge. The typed owner User ID `49340314` supplied [comment 6924572973](https://github.com/baobab-platform/baobab-dev/pull/76#issuecomment-6924572973) before merge. The final-head live GraphQL and permission-bound receipts remain part of the qualification exit.
+
+## Scanner and CI evidence
+
+[Foundation run 44480847361](https://github.com/baobab-platform/baobab-dev/actions/runs/44480847361) and [Publish run 44480846334](https://github.com/baobab-platform/baobab-dev/actions/runs/44480846334) refused the candidate. All nine downloaded archives matched GitHub's artifact SHA-256. Their review-only inventories were identical at the CVE/package/version/severity/ecosystem level. Each had **52 Ubuntu findings, 3 Critical and 49 High**, for `linux-libc-dev 7.0.0-43.43`. Forty-four fall outside the eight-finding decision and 41 fall outside #92. The draft picomatch record does not appear in these nine scans. No applicability or policy disposition follows from this inventory.
+
+| Scan | Artifact | ZIP SHA-256 |
+| --- | --- | --- |
+| Foundation final amd64 | [14510594647](https://github.com/baobab-platform/baobab-dev/actions/runs/44480847361/artifacts/14510594647) | `sha256:c862536408d7f6e256775139f4440828c0040bcdcd6c3f7e9d89dafd53c255da` |
+| final-amd64 | [14510676196](https://github.com/baobab-platform/baobab-dev/actions/runs/44480846334/artifacts/14510676196) | `sha256:dcfeb8a8a61d8812d9103d49aad0d1d7c3a5d8c0e3ab9ddc14ba1c75c090b141` |
+| final-arm64 | [14509209819](https://github.com/baobab-platform/baobab-dev/actions/runs/44480846334/artifacts/14509209819) | `sha256:25d27563c5bfe258cf1818d40bfe2ac17c31cb1b91baecac5b2c82e905f914df` |
+| frontend-amd64 | [14509607751](https://github.com/baobab-platform/baobab-dev/actions/runs/44480846334/artifacts/14509607751) | `sha256:c7e0f02884b70b298f8d9cd34f758d23c888178e8b0e2086dd06de922ce0b2db` |
+| frontend-arm64 | [14510305066](https://github.com/baobab-platform/baobab-dev/actions/runs/44480846334/artifacts/14510305066) | `sha256:98d0722edd94b9dd9a3ce9b8d597f0768726d35640edefab590c1ad4883da82d` |
+| frontend-e2e-amd64 | [14509928560](https://github.com/baobab-platform/baobab-dev/actions/runs/44480846334/artifacts/14509928560) | `sha256:cb9416089b236b8efdc68c5186ee038ba8d4c3ec48f27263d7bce9e05967bb24` |
+| frontend-e2e-arm64 | [14510400932](https://github.com/baobab-platform/baobab-dev/actions/runs/44480846334/artifacts/14510400932) | `sha256:78ed1afc3bec1455c4b3ed318b4c1b80c100656ba4837647f0a08b7c217157f3` |
+| infra-amd64 | [14510425361](https://github.com/baobab-platform/baobab-dev/actions/runs/44480846334/artifacts/14510425361) | `sha256:04c4606e07e84165b16d1a8a7305707c76ccbf72dd098eeb6acd96b74ec77bcb` |
+| infra-arm64 | [14509364727](https://github.com/baobab-platform/baobab-dev/actions/runs/44480846334/artifacts/14509364727) | `sha256:19605f85f5a98a9ce3c7a4db985fa8f51d8984bcf2ab8d039e0953597bc5b404` |
+
+[Locked onboarding run 44480846461](https://github.com/baobab-platform/baobab-dev/actions/runs/44480846461) and [Ubuntu source run 44480846347](https://github.com/baobab-platform/baobab-dev/actions/runs/44480846347) hit the same invalid Git argument in the offline backport fixtures. Historical image checks also refused the immutable v1.5.1 image. The [policy contract](https://github.com/baobab-platform/baobab-dev/actions/runs/44480846474) passed on the audited head. Final-head protected release jobs were skipped after scan refusal.
+
+The historical review findings for broad legacy risk acceptance, free-text release decisions and invalid Dockerfile healthchecks were checked in source. The legacy validator always refuses, the release verifier rejects unapproved residual risk, and all four Dockerfile stages now invoke a real shell for the process-liveness healthcheck. Runtime health for the candidate still requires a live witness. [PR #74 review threads](https://github.com/baobab-platform/baobab-dev/pull/74)
+
+
+The first corrected head, `2feaeaa8c6343b20e63ba1248b00533e860ec0cf`, passed the live exact-SHA committer, current PR identity and historical #76 checks in the [policy contract](https://github.com/baobab-platform/baobab-dev/actions/runs/44499137611). The [PR independence job](https://github.com/baobab-platform/baobab-dev/actions/runs/44499139607/job/135473965028) independently checked the complete current PR contributor set and recorded that head. This is read-only GitHub identity evidence. The release environment, final digest qualification and consumer exit criteria still apply.
+
+
+The custody workflow now retains two read-only JSON receipts. Foundation records exact current-head commit and review completeness. The policy contract separately records the immutable #76 witness and the service committer's pinned raw metadata and numeric ID. Both carry the workflow run and attempt, sanitized request IDs and GitHub rate-limit response counters. Count REST fallbacks and GraphQL requests from the receipts before considering a cache. The receipts contain no credentials or response bodies and confer no policy authority.
+
+
+GitHub artifact readback verified the SHA-256 of both custody receipts on `698a360a7d9a4fb3af0101aa43851092d466ba88`. [Historical #76 receipt 14516623800](https://github.com/baobab-platform/baobab-dev/actions/runs/44500670315/artifacts/14516623800) used two GraphQL requests, three other REST reads, and two exact-SHA REST reads including the deliberately repeated immutable fixture. [Current-head #74 receipt 14517356489](https://github.com/baobab-platform/baobab-dev/actions/runs/44500672575/artifacts/14517356489) covered 612 commits and 23 reviews using 33 GraphQL requests, two other REST reads, and one committer fallback. Minimum observed remaining allowances were 4,913 GraphQL points and 4,814 REST requests. These observations do not justify caching authorization by mutable actor attributes or between runs.
+
+The #93 evidence reader now bounds unavailable candidate retrieval, checks local commit presence without fetching arbitrary objects from a partial clone, and refuses to call a patch-ID search complete when downstream patch evidence is missing. A full history fetch and a fresh source-to-binary join remain required for the live evidence gate.
+
+## Consolidation
+
+| PR | Treatment |
+| --- | --- |
+| #82 | Closed unmerged. The numeric evidence transplant is present and was the baseline for the run-attempt correction. |
+| #83/#84 | Closed unmerged. Their merged-history diagnostics and typed-reviewer protections are present on #74. The runtime gaps identified above have focused corrections. |
+| #85/#86 | #85 closed unmerged. The three evidence-file blobs represent the same historical scope on #86. Preserve #86 for reconciliation with the live custody run. |
+| #87/#88/#90 | Retain the security analysis, live evidence design and transport matrix as review provenance. Compare remaining unique scope after #74 qualification. |
+| #89 | Keep the read-only eight-role prototype separate from live authorization pending an approved evidence contract. |
+| #91 | Keep open. The 298-record inventories and path auditor are present in #74, but its looser upstream reference parser and stale branch diff should not replace the pinned #74 implementation. Require consolidated current-head source and consumer evidence before supersession. |
+| #92 | Retain as a separate decision PR. The earlier draft fails its base schema and remains outside the current scanner inventory. Any new decision requires fresh scope, independent review, owner concurrence, exact merged bytes and protected provisioning. |
+
+## Product dependency
+
+```mermaid
+flowchart TD
+    M["Version manifest change"] --> L["Immutable lock and Python pin"]
+    L --> B["Native builds and tests"]
+    B --> S["Exact OCI digest qualification"]
+    I["Identity and custody, #81"] --> S
+    E["Source and package evidence, #93"] --> R["Scoped risk decision, #54"]
+    R --> S
+    S --> P["Protected signed publication, #95"]
+    P --> C["Codespaces and consumers, #55"]
+```
+
+The manifest-resolution increment uses the existing lockfile workflow for read-only deterministic generation. A separate job uses a repository-scoped GitHub App to append the two generated files with an exact-head lease. Forks receive a read-only artifact. Python patch versions now use the same manifest and generated checksum at build time. Protected App setup and a hosted manifest-only writeback remain required evidence. Tagged RC qualification now builds each native target once and verifies the resulting registry child by digest before signing the multi-architecture index. Native smoke tests explicitly check the runtime is non-root. GA retains its exact RC digest-reuse path. The post-merge manifest-to-release path still needs an independently approved merged source and an observed end-to-end run before adopting it for convenience tags. Registry integrity, kernel history and notification workflows can run independently of routine upgrades.
+
+The audit status of #74 is **BLOCKED** for merge and release. Identity implementation and local negatives are reviewable. Current image remediation or a separately authorized development decision, effectively enforced release controls, source evidence and real consumer acceptance remain distinct gates.
+
+
+### Release enforcement and remaining gates
+
+The tagged Publish path now reads live branch rules before any registry write. It requires an effective review rule and up-to-date checks on main, plus a tag ruleset that covers the full canonical release namespace without exclusions and restricts creation, updates and deletion. Public readback reported main unprotected, no active main branch rules, and the double-prefixed tag pattern from the register above. The promotion environment reports administrator bypass disabled and the expected tag patterns. The lockfile writer environment returned HTTP 404 on the public readback. Effective settings and the applicable bypass actor lists remain administrator-owned evidence.
+
+The reviewed 52-finding inventory still requires remediation or separate development-risk adjudication. Canonical's Ubuntu package index lists `7.0.0-43.43` for both native architectures in `resolute-updates`. No later supported package was established in this review. [Ubuntu package index](https://packages.ubuntu.com/en/linux-libc-dev)
+
+Final acceptance requires a real manifest-only PR using the approved writer, exact final-head CI and independent review, a verified signed candidate and #55's private GitHub Packages and disposable Codespaces tests. The currently released v1.5.1 image remains insufficient for new candidate acceptance. The existing immutable recovery planner and promotion journal remain available for a future witnessed rollback. [Release recovery procedure](../usage/immutable-rc-recovery.md)
+
+### Workflow trigger review
+
+| Workflow | Ordinary patch PR and merged source | Release or diagnostic event |
+| --- | --- | --- |
+| Manifest lock resolution | Manifest or generated-file paths. Read-only fork artifact or protected same-branch App writeback. | The Publish preflight checks committed resolutions on the exact release source. |
+| Publish Baobab Dev Container | Read-only frozen lock, native build and scan matrix. | Tag push qualifies exact native RC digests or reuses the same-source RC for GA. Main dispatch validates source. |
+| Foundation Repository Gates | Shared checks and contributor audit. Image inputs select the Foundation scan. | Main, schedule and dispatch keep the Foundation scan. The current Shared exception relies on this replacement. |
+| Security | PR and main source, dependency and secret checks. | Schedule and dispatch run security checks. |
+| DEV-10 locked onboarding | Lifecycle lint and source tests. | Manual dispatch reproduces v1.5.1 runtime and 41-CVE evidence. |
+| DEV-14 developer doctor | Relevant toolchain, doctor, exception and onboarding paths. | Manual dispatch. |
+| DEV-10 policy decision contract | Changes to policy declarations, custody code and evidence contracts. | Hosted #76 custody and live PR identity evidence on matching PRs. |
+| DEV-10 Protected Security Decision Qualification | — | Protected decision diagnostics by dispatch. |
+| Provision DEV-10 development risk policy | — | Separate protected provisioning dispatch with custody proof. |
+| DEV-10 Canonical release-tag source corroboration | Source-evidence paths. | Manual dispatch of the pinned Canonical and CNA evidence. |
+| DEV-10 Trivy OpenVEX parser qualification | Parser and diagnostic paths. | Manual dispatch of the unsigned parser fixture. |
+| Verify Released GHCR Contracts | Verifier-code changes. | Daily or manual observation. Exact-digest promotion readback is part of Publish. |
+| DEV-10 Protected Promotion Approval Monitor | — | Schedule and dispatch inspect pending deployments. |
+| Deploy Documentation | Documentation paths. | Main and manual deployment. |
+| Greetings | PR open event. | Issue open event. |
+
+GitHub rejected `11ba46570ed32b7db0808c10104a1f56bac02310` before Publish started because the digest smoke step duplicated an environment key. That declaration was fixed at `43c74b5713969147e3d6557e81ea2defba52816c`. GitHub then passed Frozen Lockfile Integrity and scheduled all eight native ordinary-PR scans. [Rejected workflow](https://github.com/baobab-platform/baobab-dev/actions/runs/44504270809) · [Restored Publish workflow](https://github.com/baobab-platform/baobab-dev/actions/runs/44505116986)
+
+At `2350868fc598c20391ded422d662ad6f41866fbe`, hosted locked onboarding passed lint and source tests and skipped the historical GHCR and supplemental kernel jobs. Frozen Lockfile Integrity also passed. [Onboarding run](https://github.com/baobab-platform/baobab-dev/actions/runs/44506061191) · [Publish run](https://github.com/baobab-platform/baobab-dev/actions/runs/44506061158)
+
+The tagged preflight now binds the source to its exact canonical PR merge, a typed trusted reviewer who approved the PR head before merge and is independent of its complete contributor set, and the immutable bytes of all three toolchain inputs. It records the numeric review IDs and file digests. Tag governance checks active creation, update and deletion rules. An administrator may enforce creation separately from immutability to limit the scope of a release creator's bypass. Protected promotions queue on a shared group, and rollback refuses to overwrite a live alias changed by another writer. A local rollback regression covers that refusal. A qualified prior release and a newly qualified candidate are needed for the live rollback exercise.
+
+At `cf09aabcdabb0deadbb639a0d5132fe84ca377a7`, the hosted policy contract verified the exact #76 main merge, reviewer numeric ID 356900102 and all three toolchain input digests. The downloaded receipt archive matched `sha256:0d5887c860bfe32d67ea5d50a72664b515bd879bdc515b056c8e445a87a96d5d`. Independent download of the Publish frozen-lock archive found that it omitted `.python-version`, despite the checkout passing the drift check. The upload now explicitly includes the two tracked files. Build, signing and release consume the exact verified checkout and need no lock artifact downloads. [Policy receipt 14519853751](https://github.com/baobab-platform/baobab-dev/actions/runs/44507511663/artifacts/14519853751) · [Original lock artifact 14520416160](https://github.com/baobab-platform/baobab-dev/actions/runs/44507511920/artifacts/14520416160)
+
+GitHub reports the #55 prerequisite PRs #48 and #50 merged at `eb9fb92f043c782acff5d87c77301d9a9e8b80dd`. The current reader checks found these adoption prerequisites:
+
+| Consumer | Current container pin | Node and package-manager requirements |
+| --- | --- | --- |
+| Nabhold | `1.4.4-frontend` by digest | Node 24, pnpm 11.24.0, Playwright 1.64.1 |
+| ZuriBeans | `1.5.1-frontend` by digest | Node 24, pnpm 11.24.0, Playwright 1.63.0 |
+| Thamani | `1.4.4-frontend` by digest | Node 24, pnpm 11.24.0, Playwright 1.62.1 |
+| Baobab CP | `1.5.1` by digest | Node 26 engine range, exact `v26.13.0` bootstrap check, pnpm 12.16.1 |
+
+The #74 candidate pins Node `26.13.1`, pnpm `12.21.0` and Playwright `1.65.0`. Actual compatibility, private-package access, browser execution, rollback and teardown remain **BLOCKED** pending a qualified candidate and live consumer evidence. [#55 consumer acceptance](https://github.com/baobab-platform/baobab-dev/issues/55)
+
+The version resolver now records upstream Git source commits for GitHub CLI,
+Cosign and Terraform in the generated lock. It handles annotated and
+lightweight tags and refuses a source move for an unchanged version. The
+builder fetches the exact commit and separately checks the upstream tag before
+building against the existing security module constraints. All three current
+upstream tags resolved to the same commits already used in the builder. Direct
+resolver tests with a mismatched Python publisher checksum and an unavailable
+Python version refused both inputs before any generated lock was written.

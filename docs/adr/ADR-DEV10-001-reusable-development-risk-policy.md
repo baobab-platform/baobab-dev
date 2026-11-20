@@ -6,14 +6,16 @@
 | **Date** | 2026-11-16 |
 | **Owner** | Baobab Platform security-policy owner |
 | **Repository** | `baobab-platform/baobab-dev` |
-| **Related records** | Issue #54; PRs #62, #71, #74 and #76; `docs/security/protected-artifact-risk-decisions.md` |
+| **Related records** | Issue #54; PRs #62, #71, #74, #76 and #92; `docs/security/protected-artifact-risk-decisions.md` |
 
 ## 1. Context
 
-The Ubuntu 26.04 package `linux-libc-dev=7.0.0-43.43` is reported by Trivy
-0.73.0 with eight HIGH findings across the four development image profiles and
-both supported Linux architectures. PR #74 scans are inventory evidence only;
-they are not an approval or a release qualification.
+The reconciled PR #74 scan inventory contains 12 unique HIGH findings across
+the four development image profiles and both supported Linux architectures:
+11 Ubuntu `linux-libc-dev=7.0.0-43.43` advisories (the original eight plus
+CVE-2026-98869, CVE-2026-98890 and CVE-2026-99083), and one `node-pkg`
+picomatch 4.0.5 advisory (CVE-2026-112366). PR #74 scans are inventory
+evidence only; they are not an approval or a release qualification.
 
 The 12 November issue #54 amendment explicitly names PR #62 for the eight-CVE
 treatment. It does not name PR #71. The 16 November independent review by
@@ -30,16 +32,17 @@ risk acceptance.
 
 ## 2. Decision
 
-Implement one reusable development-only decision for the exact eight findings
+Implement one reusable development-only decision for the exact 12 findings
 below, with no PR-number allowlist:
 
 - Repository: `baobab-platform/baobab-dev`
 - Image repository: `ghcr.io/baobab-platform/baobab-dev`
 - Environment: `development`
-- Package: `linux-libc-dev=7.0.0-43.43`
+- Packages: `linux-libc-dev=7.0.0-43.43` and `picomatch=4.0.5`
 - Findings: CVE-2022-50240, CVE-2025-40190, CVE-2026-68103,
   CVE-2026-72198, CVE-2026-74578, CVE-2026-89805, CVE-2026-98376,
-  CVE-2026-98420; all HIGH, Ubuntu type
+  CVE-2026-98420, CVE-2026-98869, CVE-2026-98890, CVE-2026-99083
+  (Ubuntu type), and CVE-2026-112366 (node-pkg type); all HIGH
 - Profiles: `final`, `frontend`, `frontend-e2e`, `infra`
 - Architectures: `linux/amd64`, `linux/arm64`
 - Expiry: `2026-11-26T00:00:00Z`
@@ -58,9 +61,10 @@ or redefine a finding.
 
 ## 3. Approval and identity model
 
-The final decision lives at
-`security/decisions/development/foundation.json` and is introduced by a
-separate pull request to `main`. The decision records the preparer's login as
+The final 12-finding amendment lives at
+`security/decisions/development/foundation.json` in the separate decision PR
+#92 to `main`. The current provisioned eight-finding record is not silently
+expanded by the proposal. The decision records the preparer's login as
 display metadata and the preparer's immutable numeric GitHub user ID. Its
 `approval_evidence` points to the exact decision PR.
 
@@ -214,8 +218,8 @@ not rebuild.
 
 ## 7. Bootstrap and governance
 
-The separate decision PR must pass its required checks and receive an
-independent approval on its exact final head. The shared Foundation workflow
+The separate 12-finding decision PR #92 must pass its required checks and
+receive an independent approval on its exact final head. The shared Foundation workflow
 continues to run its full profile on every event; no Foundation security,
 baseline, reproducibility, runtime or environment gate is disabled for this
 policy PR. The additional unfiltered Foundation image CVE scan runs when a PR

@@ -1,23 +1,29 @@
 #!/usr/bin/env bash
-# Rebuild upstream gh/cosign from exact reviewed release-tag commits.
+# Rebuild upstream gh, Cosign and Terraform from exact release-tag commits.
 # Release metadata comes from versions.lock; no binary is accepted as "DEV".
 set -euo pipefail
 export PATH="/build/go/bin:$PATH" GOTOOLCHAIN=local CGO_ENABLED=0
 export GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org
 
-# The lock is the sole version source. The pinned source commits below are
-# independently checked against the corresponding upstream release tags.
+# The lock supplies both versions and source commits. Verify each
+# commit independently against the corresponding upstream release tag.
 # shellcheck disable=SC1091
 . /build/versions.lock
 : "$GH_VERSION" "$COSIGN_VERSION"
 
-go version | grep -F 'go1.27.3'
+# The first build step checksum-verifies this exact compiler and installs it here.
+read -r go_version < /build/go/VERSION
+[[ "$(go env GOVERSION)" == "$go_version" ]]
 mkdir -p /out
 
 prepare_source() {
   local tool="$1" repo="$2" commit="$3" version="$4"
   local dest="/build/upstream-$tool" tag_commit source_date_epoch
 
+  [[ "$commit" =~ ^[a-f0-9]{40}$ ]] || {
+    echo "::error::Invalid locked source commit for $tool" >&2
+    return 1
+  }
   mkdir -p "$dest"
   git -C "$dest" init -q
   git -C "$dest" remote add origin "$repo"
@@ -47,8 +53,9 @@ verify_fixed_xnet() {
     cd "$dest"
     # The upstream release source is retained, with only the reviewed x/net
     # security override applied and verified against the Go checksum database.
-    go get golang.org/x/net@v0.62.0
-    go mod tidy
+    # Use the same TLS transport as the bounded module download helper.
+    GODEBUG=http2client=0 go get golang.org/x/net@v0.62.0
+    GODEBUG=http2client=0 go mod tidy
     go mod verify
     selected="$(go list -m -f '{{.Version}}' golang.org/x/net)"
     [[ "$selected" == "v0.62.0" ]] || {
@@ -60,7 +67,7 @@ verify_fixed_xnet() {
 
 build_gh() {
   local repo="https://github.com/cli/cli.git"
-  local commit="89d7dcec017194af1d6f8853176b2dae9c1da762"
+  local commit="${GH_SOURCE_COMMIT:?missing GitHub CLI source pin}"
   local dest="/build/upstream-gh" source_date_epoch
 
   source_date_epoch="$(prepare_source gh "$repo" "$commit" "$GH_VERSION")"
@@ -78,6 +85,7 @@ build_gh() {
 
   install -m 0755 "$dest/bin/gh" /out/gh
   go version -m /out/gh | tee /out/gh.buildinfo
+  [[ "$(awk 'NR == 1 { print $NF }' /out/gh.buildinfo)" == "$go_version" ]]
   grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' /out/gh.buildinfo
 
   /out/gh version > /out/gh.version 2>&1 || /out/gh --version > /out/gh.version 2>&1
@@ -86,7 +94,7 @@ build_gh() {
 
 build_cosign() {
   local repo="https://github.com/sigstore/cosign.git"
-  local commit="0e48502cf5ef34e2e60bbd3617aa19945712f705"
+  local commit="${COSIGN_SOURCE_COMMIT:?missing Cosign source pin}"
   local dest="/build/upstream-cosign" source_date_epoch
 
   source_date_epoch="$(prepare_source cosign "$repo" "$commit" "$COSIGN_VERSION")"
@@ -109,6 +117,7 @@ build_cosign() {
 
   install -m 0755 "$dest/cosign" /out/cosign
   go version -m /out/cosign | tee /out/cosign.buildinfo
+  [[ "$(awk 'NR == 1 { print $NF }' /out/cosign.buildinfo)" == "$go_version" ]]
   grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' /out/cosign.buildinfo
 
   /out/cosign version > /out/cosign.version 2>&1
@@ -136,5 +145,31 @@ build_cosign() {
   assert_version_field BuildDate "$expected_build_date"
 }
 
-build_gh
-build_cosign
+build_terraform() {
+  local repo="https://github.com/hashicorp/terraform.git"
+  local commit="${TERRAFORM_SOURCE_COMMIT:?missing Terraform source pin}"
+  local dest="/build/upstream-terraform"
+  : "${TERRAFORM_VERSION:?expected Terraform version lock}"
+  prepare_source terraform "$repo" "$commit" "$TERRAFORM_VERSION" >/dev/null
+  (
+    cd "$dest"
+    export GOFLAGS=-mod=readonly CHECKPOINT_DISABLE=1 GODEBUG=http2client=0
+    bash /build/go-mod-download-retry.sh
+    go mod verify
+    go build -trimpath -buildvcs=false \
+      -ldflags '-s -w -X github.com/hashicorp/terraform/version.dev=no' \
+      -o /out/terraform .
+    git diff --exit-code -- go.mod go.sum
+    go version -m /out/terraform > /out/terraform.buildinfo
+    [[ "$(awk 'NR == 1 { print $NF }' /out/terraform.buildinfo)" == "$go_version" ]]
+    printf 'Terraform source %s built with %s\n' "$commit" "$go_version"
+    /out/terraform version -json | grep -F "\"terraform_version\": \"${TERRAFORM_VERSION}\""
+    install -Dm 0644 LICENSE /out/licenses/terraform/LICENSE
+  )
+}
+
+case "${1:-all}" in
+  all) build_gh; build_cosign ;;
+  terraform) build_terraform ;;
+  *) echo 'Expected all or terraform' >&2; exit 2 ;;
+esac
