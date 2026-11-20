@@ -168,7 +168,7 @@ jobs:
           python3 -B scripts/audit_ubuntu_kernel_git_paths.py \
             --upstream "$RUNNER_TEMP/dev10-ubuntu-source/affected-source-files.json" \
             --ubuntu-checkout "$RUNNER_TEMP/ubuntu-linux-resolute" \
-            --installed-manifest "$RUNNER_TEMP/dev10-ubuntu-source/installed-paths.txt" \
+            --installed-manifest "$RUNNER_TEMP/dev10-ubuntu-source/amd64/installed-paths.txt" \
             --binary-source "$RUNNER_TEMP/dev10-ubuntu-source/amd64/binary-source-corroboration.json" \
             --expected-commit "$UBUNTU_TAG_COMMIT" \
             --output "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-source-paths.json"
@@ -209,7 +209,7 @@ jobs:
             --ubuntu-paths "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-source-paths.json" \
             --ubuntu-checkout "$RUNNER_TEMP/ubuntu-linux-resolute" \
             --candidate-root "$RUNNER_TEMP/kernel-fix-candidate-objects" \
-            --binary-source "$RUNNER_TEMP/dev10-ubuntu-source/binary-source-corroboration.json" \
+            --binary-source "$RUNNER_TEMP/dev10-ubuntu-source/amd64/binary-source-corroboration.json" \
             --expected-commit "$UBUNTU_TAG_COMMIT" \
             --analysis-seconds 3300 \
             --output "$output"
