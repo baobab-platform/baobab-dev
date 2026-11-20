@@ -228,6 +228,31 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         self.assertIsNone(candidate["exact_commit_ancestor_of_ubuntu_tag"])
         self.assertEqual(report["counts"], {"under_investigation": 298})
 
+    def test_candidate_fetch_retries_timeout_with_remaining_budget(self):
+        sha = "1" * 40
+        timeout = subprocess.TimeoutExpired("git fetch", 60)
+        success = subprocess.CompletedProcess([], 0, b"", b"")
+        with (mock.patch.object(m, "has_commit", side_effect=[False, True]),
+              mock.patch.object(m, "configure_candidate_remote", return_value=True),
+              mock.patch.object(m, "monotonic", side_effect=[20, 80, 81]),
+              mock.patch.object(m, "run", return_value=sha),
+              mock.patch.object(m, "fetch_candidates", side_effect=[timeout, success]) as fetch):
+            result = m.ensure_candidate_object(self.candidate_root, sha, "stable", {"stable": "upstream"},
+                                               deadline=100)
+        self.assertEqual(result, (self.candidate_root, "fetched_and_sha_verified", ""))
+        self.assertEqual([call.args[-1] for call in fetch.call_args_list], [60, 19])
+
+    def test_candidate_fetch_does_not_retry_after_budget_expires(self):
+        sha = "1" * 40
+        with (mock.patch.object(m, "has_commit", return_value=False),
+              mock.patch.object(m, "configure_candidate_remote", return_value=True),
+              mock.patch.object(m, "monotonic", side_effect=[98, 100]),
+              mock.patch.object(m, "fetch_candidates", side_effect=subprocess.TimeoutExpired("git fetch", 2)) as fetch):
+            result = m.ensure_candidate_object(self.candidate_root, sha, "stable", {"stable": "upstream"},
+                                               deadline=100)
+        self.assertEqual(result[1], "NOT_CHECKED_ANALYSIS_BUDGET_EXHAUSTED")
+        fetch.assert_called_once_with(self.candidate_root, "stable", [sha], 2)
+
     def test_timed_out_fetch_releases_only_its_shallow_lock(self):
         bin_path = self.candidate_root.parent / "bin"
         bin_path.mkdir()

@@ -218,17 +218,25 @@ def prefetch_candidates(candidate_root: Path, by_repo: dict[str, list[str]],
 
 
 def ensure_candidate_object(candidate_root: Path, sha: str, kind: str,
-                            remotes: dict[str, str]) -> tuple[Path | None, str, str]:
+                            remotes: dict[str, str], *, deadline: float) -> tuple[Path | None, str, str]:
     if has_commit(candidate_root, sha):
         return candidate_root, "present_in_candidate_object_store", ""
     if not configure_candidate_remote(candidate_root, kind, remotes[kind]):
         return None, "candidate_remote_configuration_mismatch", "candidate remote URL differs from the configured official upstream"
-    try:
-        fetched = fetch_candidates(candidate_root, kind, [sha], CANDIDATE_FETCH_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        return None, "candidate_fetch_timed_out", "upstream commit object fetch exceeded its time limit"
-    except (EvidenceError, BlockingIOError):
-        return None, "candidate_repository_busy", "upstream fetch could not acquire its candidate-store lease"
+    for attempt in range(2):
+        remaining = deadline - monotonic()
+        if remaining <= 0:
+            return None, "NOT_CHECKED_ANALYSIS_BUDGET_EXHAUSTED", "analysis budget expired before upstream fetch"
+        try:
+            fetched = fetch_candidates(candidate_root, kind, [sha], min(CANDIDATE_FETCH_TIMEOUT, remaining))
+            break
+        except subprocess.TimeoutExpired:
+            if monotonic() >= deadline:
+                return None, "NOT_CHECKED_ANALYSIS_BUDGET_EXHAUSTED", "analysis budget expired during upstream fetch"
+            if attempt == 1:
+                return None, "candidate_fetch_timed_out", "upstream commit object fetch exceeded its time limit"
+        except (EvidenceError, BlockingIOError):
+            return None, "candidate_repository_busy", "upstream fetch could not acquire its candidate-store lease"
     if fetched.returncode or not has_commit(candidate_root, sha):
         diagnostic = fetched.stderr.decode("utf-8", "replace")[:180]
         return None, "candidate_commit_unavailable", diagnostic
@@ -309,7 +317,8 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
         if object_cache is None:
             object_cache = {}
         if (kind, sha) not in object_cache:
-            object_cache[kind, sha] = ensure_candidate_object(candidate_root, sha, kind, remotes)
+            object_cache[kind, sha] = ensure_candidate_object(
+                candidate_root, sha, kind, remotes, deadline=deadline)
         candidate_repo, object_status, diagnostic = object_cache[kind, sha]
     base.update(candidate_object_status=object_status, candidate_object_diagnostic=diagnostic, assessment=object_status)
     if candidate_repo is None:
@@ -318,7 +327,7 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
              if monotonic() < deadline else None}
             for commit in trailer_commits
         ]
-        if trailer_commits:
+        if trailer_commits and object_status != "NOT_CHECKED_ANALYSIS_BUDGET_EXHAUSTED":
             base["assessment"] = "CANDIDATE_OBJECT_UNAVAILABLE_TRAILER_EVIDENCE_RETAINED"
         return base, list(row.get("upstream_paths", []))
 
