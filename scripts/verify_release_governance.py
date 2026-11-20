@@ -79,13 +79,7 @@ def verify_tag_protection(rulesets):
     return coverage
 
 
-def read_governance(token):
-    base = f"/repos/{REPOSITORY}"
-
-    def get(path):
-        return rest_request(token, "GET", base + path)[1]
-
-    verify_main(get("/branches/main"), get("/rules/branches/main"))
+def read_active_tag_rulesets(get):
     index = get("/rulesets?includes_parents=true&per_page=100")
     if not isinstance(index, list) or len(index) >= 100:
         raise GovernanceError("complete tag ruleset inventory is unavailable")
@@ -99,7 +93,17 @@ def read_governance(token):
             if not isinstance(detail, dict) or detail.get("id") != ruleset_id:
                 raise GovernanceError("tag ruleset detail does not match its immutable ID")
             active.append(detail)
-    return verify_tag_protection(active)
+    return active
+
+
+def read_governance(token):
+    base = f"/repos/{REPOSITORY}"
+
+    def get(path):
+        return rest_request(token, "GET", base + path)[1]
+
+    verify_main(get("/branches/main"), get("/rules/branches/main"))
+    return verify_tag_protection(read_active_tag_rulesets(get))
 
 
 def main():

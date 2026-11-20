@@ -17,6 +17,7 @@ from custody_independence import (
     require_independent, rest_user_id,
 )
 from github_api_transport import trace_requests
+from github_identity_roles import Classification, IdentityError, Role, Source, resolve_actor
 from provision_protected_risk_policy import (
     ProvisioningError, api_request, paginated,
     select_independent_approval, verify_owner_concurrence,
@@ -33,14 +34,18 @@ def classify_reviewer(user, author_id, contributors):
     login = user.get("login")
     if not isinstance(login, str) or not re.fullmatch(r"[A-Za-z0-9-]{1,39}(?:\[bot\])?", login):
         raise IndependenceError("reviewer login is missing or invalid")
-    reviewer_id = user.get("id")
-    if not is_positive_id(reviewer_id):
-        raise IndependenceError("unresolved numeric GitHub reviewer identity")
-    if user.get("type") in ("Bot", "App"):
-        return {"login": login, "status": "non-human-reviewer"}
+    try:
+        reviewer = resolve_actor(user, role=Role.REVIEWER, source=Source.REST_REVIEWS)
+    except IdentityError as exc:
+        raise IndependenceError(str(exc)) from None
+    reviewer_id = reviewer.user_id
+    result = {"login": login, "reviewer_id": reviewer_id, "role": reviewer.role.value,
+              "classification": reviewer.classification.value, "source": reviewer.source.value}
+    if reviewer.classification in (Classification.BOT, Classification.APP):
+        return {**result, "status": "non-human-reviewer"}
     rest_user_id(user, "reviewer")
-    if reviewer_id == GITHUB_WEB_FLOW_ID:
-        return {"login": login, "status": "service-user"}
+    if reviewer.classification is Classification.SERVICE:
+        return {**result, "status": "service-user"}
     try:
         require_independent(reviewer_id, {reviewer_id}, author_id, contributors)
     except IndependenceError:
@@ -50,8 +55,8 @@ def classify_reviewer(user, author_id, contributors):
             reason = "commit author, co-author, or committer"
         else:
             reason = "not independent"
-        return {"login": login, "status": "not-independent", "reason": reason}
-    return {"login": login, "status": "independent"}
+        return {**result, "status": "not-independent", "reason": reason}
+    return {**result, "status": "independent"}
 
 
 def audit(token, number):
@@ -105,7 +110,8 @@ def audit(token, number):
         user = review.get("user")
         result = classify_reviewer(user, author_id, contributors)
         previous = reviewers.get(user["id"])
-        if previous and previous["status"] != result["status"]:
+        if previous and (previous["status"] != result["status"]
+                         or previous["classification"] != result["classification"]):
             raise IndependenceError("conflicting account type for a numeric reviewer")
         reviewers[user["id"]] = result
     return {
@@ -188,9 +194,16 @@ def main():
             attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "")
             if not all(re.fullmatch(r"[1-9][0-9]{0,19}", value) for value in (run_id, attempt)):
                 raise IndependenceError("Actions run and attempt are required for a custody receipt")
+            checkout_sha = subprocess.run(
+                ["git", "rev-parse", "--verify", "HEAD"],
+                check=True, capture_output=True, text=True,
+            ).stdout.strip()
+            if not re.fullmatch(r"[0-9a-f]{40}", checkout_sha) or checkout_sha != os.environ.get("GITHUB_SHA"):
+                raise IndependenceError("custody receipt checkout differs from the Actions workflow SHA")
             result.update(
                 schema="dev10.github-custody-observation.v1",
-                run_id=int(run_id), run_attempt=int(attempt), api_requests=requests,
+                run_id=int(run_id), run_attempt=int(attempt), checkout_sha=checkout_sha,
+                api_requests=requests,
             )
     except (ProvisioningError, IndependenceError) as exc:
         parser.error(str(exc))

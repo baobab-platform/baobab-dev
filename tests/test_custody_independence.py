@@ -260,6 +260,38 @@ class CompleteHistoryTests(unittest.TestCase):
         self.assertNotIn("must-not-be-disclosed", str(caught.exception))
         self.assertNotIn("Forbidden", str(caught.exception))
 
+    def test_rest_http_error_bounds_body_and_request_id_diagnostics(self):
+        import io
+        from email.message import Message
+        from github_api_transport import MAX_RESPONSE_BYTES
+
+        valid_id = "ABC1:2DEF:3456:789A:B12C"
+        private = "private-fixture-value"
+        cases = (
+            (404, valid_id, f"malformed {private}".encode(), None),
+            (503, valid_id, b"x" * MAX_RESPONSE_BYTES + private.encode(), "1 MiB safety limit"),
+            (403, private, json.dumps({"message": private}).encode(), "unrecognized GitHub error"),
+        )
+        oid = "d" * 40
+        metadata = {"name": "GitHub", "email": "noreply@github.com", "date": "2026-11-17T01:29:58Z"}
+        for status, request_id, body, diagnostic in cases:
+            with self.subTest(status=status):
+                headers = Message()
+                headers["x-github-request-id"] = request_id
+                error = urllib.error.HTTPError(
+                    f"https://api.github.com/repos/baobab-platform/baobab-dev/commits/{oid}",
+                    status, private, headers, io.BytesIO(body),
+                )
+                with patch("github_api_transport.open_github", side_effect=error):
+                    with self.assertRaisesRegex(custody.CustodyError, f"HTTP {status}") as caught:
+                        custody._rest_commit_committer_user_id("fixture-token", oid, metadata)
+                message = str(caught.exception)
+                self.assertNotIn(private, message)
+                if diagnostic:
+                    self.assertIn(diagnostic, message)
+                if request_id == valid_id:
+                    self.assertIn(valid_id, message)
+
     def test_collect_pr_adds_rest_reconciled_committer_to_contributor_set(self):
         oid = HEAD
         item = commit(oid)
