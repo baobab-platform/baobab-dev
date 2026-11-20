@@ -37,7 +37,7 @@ permissions:
 jobs:
   ubuntu-downstream-paths:
     runs-on: ubuntu-26.04
-    timeout-minutes: 70
+    timeout-minutes: 150
     steps:
       - name: Checkout immutable engineering source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -170,7 +170,7 @@ jobs:
           print(f"All {expected} remain under investigation; fix/backport/UAPI binary analysis NOT complete.")
           PY
       - name: Materialize complete blobless Ubuntu tag history
-        timeout-minutes: 25
+        timeout-minutes: 55
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/ubuntu-linux-resolute"
