@@ -104,9 +104,11 @@ def extract_record(cve: str, root: Path, retrieved_at: str, raw_dir: Path) -> di
     if not release_entries:
         # Missing package entries are an evidence gap, never a negative status.
         release_evidence = "NO_UBUNTU_26_04_LINUX_SOURCE_ENTRY"
-    elif any(entry["target_binary_version_listed"] or entry["target_version_in_affected_versions"]
+    elif any(entry["target_binary_version_listed"]
              for entry in release_entries):
         release_evidence = "TARGET_BINARY_VERSION_LISTED_AS_AFFECTED"
+    elif any(entry["target_version_in_affected_versions"] for entry in release_entries):
+        release_evidence = "SOURCE_VERSION_AFFECTED_BINARY_VERSION_UNLISTED"
     else:
         release_evidence = "TARGET_BINARY_VERSION_NOT_LISTED_REQUIRES_REVIEW"
 

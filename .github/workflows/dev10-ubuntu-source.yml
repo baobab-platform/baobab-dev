@@ -2,10 +2,21 @@ name: DEV-10 Canonical release-tag source corroboration (read-only)
 # Diagnostic proof only. No VEX, no security exception, no release privileges.
 on:
   workflow_dispatch:
+    inputs:
+      scope:
+        description: Candidate history analysis scope
+        type: choice
+        default: observed
+        options:
+          - observed
+          - inventory
   pull_request:
     paths:
       - .github/workflows/dev10-ubuntu-source.yml
       - scripts/audit_ubuntu_kernel_git_paths.py
+      - scripts/reconcile_ubuntu_image_findings.py
+      - scripts/verify_ubuntu_binary_package_arch.py
+      - security/evidence/dev10-run533-leads.json
       - scripts/audit_ubuntu_kernel_fix_history.py
       - tests/test_dev10_ubuntu_kernel_fix_history.py
       - security/evidence/dev10-ubuntu-fix-history.schema.json
@@ -144,6 +155,36 @@ jobs:
           PY
           done
 
+      - name: Package case-sensitive evidence separately for each architecture
+        run: |
+          set -euo pipefail
+          mkdir "$RUNNER_TEMP/payload-archives"
+          for arch in amd64 arm64; do
+            tar -C "$RUNNER_TEMP/dev10-ubuntu-source" -cf "$RUNNER_TEMP/payload-archives/$arch.tar" "$arch"
+          done
+      - name: Retain both architecture payload archives
+        id: payload_upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev10-ubuntu-architecture-payloads
+          path: ${{ runner.temp }}/payload-archives/*.tar
+          if-no-files-found: error
+          retention-days: 30
+      - name: Download exact uploaded payload archives
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          artifact-ids: ${{ steps.payload_upload.outputs.artifact-id }}
+          merge-multiple: true
+          path: ${{ runner.temp }}/payload-readback
+      - name: Compare downloaded payloads with captured files and manifests
+        run: |
+          set -euo pipefail
+          for arch in amd64 arm64; do
+            archive="$RUNNER_TEMP/payload-readback/$arch.tar"
+            cmp "$RUNNER_TEMP/payload-archives/$arch.tar" "$archive"
+            tar --compare --file="$archive" --directory="$RUNNER_TEMP/dev10-ubuntu-source"
+          done
+
       - name: Checkout pinned Canonical Ubuntu OSV snapshot
         run: |
           set -euo pipefail
@@ -245,6 +286,8 @@ jobs:
           echo "Complete blobless Ubuntu tag history verified at $UBUNTU_TAG_COMMIT"
 
       - name: Assess upstream fixes and backports against exact Ubuntu history
+        env:
+          FIX_SCOPE: ${{ inputs.scope || 'observed' }}
         run: |
           set -euo pipefail
           output="$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-fix-history-evidence.json"
@@ -255,6 +298,7 @@ jobs:
             --candidate-root "$RUNNER_TEMP/kernel-fix-candidate-objects" \
             --binary-source "$RUNNER_TEMP/dev10-ubuntu-source/amd64/binary-source-corroboration.json" \
             --expected-commit "$UBUNTU_TAG_COMMIT" \
+            --scope "$FIX_SCOPE" \
             --analysis-seconds 3300 \
             --output "$output"
           python3 - "$output" >> "$GITHUB_STEP_SUMMARY" <<'PY'
@@ -265,6 +309,7 @@ jobs:
           print("### Ubuntu upstream fix/backport history evidence")
           print("Pinned Ubuntu tag:",report["ubuntu_source"]["tag"],report["ubuntu_source"]["commit"])
           print("Complete history commits:",report["ubuntu_source"]["reachable_commit_count"])
+          print("Selected scope and CVEs:", report["analysis_scope"], report["selected_cve_count"])
           print("Candidate commits:",report["candidate_commit_count"])
           print("Analysis budget exhausted:",report["analysis_budget_exhausted"])
           print("Assessment counts:",report["assessment_counts"])
@@ -284,6 +329,12 @@ jobs:
             ${{ runner.temp }}/dev10-ubuntu-source/ubuntu-fix-history-evidence.json.sha256
           if-no-files-found: warn
           retention-days: 30
+      - name: Reconcile observed packages and inspect the historical commit leads at the release tag
+        run: |
+          root="$RUNNER_TEMP/dev10-ubuntu-source"
+          python3 -B scripts/reconcile_ubuntu_image_findings.py --evidence "$root" \
+            --ubuntu "$RUNNER_TEMP/ubuntu-linux-resolute" --candidates "$RUNNER_TEMP/kernel-fix-candidate-objects" \
+            --output "$root/observed-binary-and-tag-witnesses.json"
       - name: Join the exact upstream and Ubuntu-tag records
         run: |
           set -euo pipefail
@@ -315,6 +366,8 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dev10-ubuntu-release-tag-source-evidence
-          path: ${{ runner.temp }}/dev10-ubuntu-source/
+          path: |
+            ${{ runner.temp }}/dev10-ubuntu-source/
+            !${{ runner.temp }}/dev10-ubuntu-source/*/deb-extracted/**
           if-no-files-found: warn
           retention-days: 30

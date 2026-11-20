@@ -1,0 +1,83 @@
+{
+  "report_sha256": "4a64540cef8aba32c35cb56e0cea312e9791b5cd4453a89b48885be86175e9a5",
+  "leads": [
+    {
+      "cve": "CVE-2022-50240",
+      "upstream": "a43cfc87caaf46710c8027a8c23b8a55f1078f19",
+      "ubuntu": "a43cfc87caaf46710c8027a8c23b8a55f1078f19",
+      "kind": "stable"
+    },
+    {
+      "cve": "CVE-2025-40190",
+      "upstream": "57295e835408d8d425bef58da5253465db3d6888",
+      "ubuntu": "57295e835408d8d425bef58da5253465db3d6888",
+      "kind": "stable"
+    },
+    {
+      "cve": "CVE-2026-68451",
+      "upstream": "013a4484f061a2b41f052e25c0015203287e63f1",
+      "ubuntu": "1cacb65c00492110d99b8c4b4817e52f4c3653bf",
+      "kind": "stable"
+    },
+    {
+      "cve": "CVE-2026-68451",
+      "upstream": "8fa3e9435a13c335efb63fb4f4e77531a0031159",
+      "ubuntu": "1cacb65c00492110d99b8c4b4817e52f4c3653bf",
+      "kind": "stable"
+    },
+    {
+      "cve": "CVE-2026-68451",
+      "upstream": "a9ae0f6dd45c3ccc1d69363f7aea8af179122730",
+      "ubuntu": "1cacb65c00492110d99b8c4b4817e52f4c3653bf",
+      "kind": "stable"
+    },
+    {
+      "cve": "CVE-2026-72198",
+      "upstream": "7ffa8f3d30236e0ab897c30bdb01224ff1fe1c89",
+      "ubuntu": "7ffa8f3d30236e0ab897c30bdb01224ff1fe1c89",
+      "kind": "stable"
+    },
+    {
+      "cve": "CVE-2026-98890",
+      "upstream": "13ff543e0b2c713aedeaadadde686686e949dc78",
+      "ubuntu": "08c60b09c8d1955d1eed05b7e3045b7d7c443c20",
+      "kind": "stable"
+    },
+    {
+      "cve": "CVE-2026-98890",
+      "upstream": "443fac3de65c76544b450b9f9903be8989150d55",
+      "ubuntu": "08c60b09c8d1955d1eed05b7e3045b7d7c443c20",
+      "kind": "stable"
+    },
+    {
+      "cve": "CVE-2026-98890",
+      "upstream": "6576baa3fdbaa91fa75e4ba27095f4b8a27349a8",
+      "ubuntu": "08c60b09c8d1955d1eed05b7e3045b7d7c443c20",
+      "kind": "stable"
+    },
+    {
+      "cve": "CVE-2026-98890",
+      "upstream": "68c92c991ddb75dfd3fd62a94a1d4d2dde44dc3c",
+      "ubuntu": "08c60b09c8d1955d1eed05b7e3045b7d7c443c20",
+      "kind": "stable"
+    },
+    {
+      "cve": "CVE-2026-98890",
+      "upstream": "b657cc98d7936c5d9ed7e0e1944ad0e1f36375bb",
+      "ubuntu": "08c60b09c8d1955d1eed05b7e3045b7d7c443c20",
+      "kind": "stable"
+    },
+    {
+      "cve": "CVE-2026-98890",
+      "upstream": "cdcfd662c67833d89ee3d912efde2eb67c8a7326",
+      "ubuntu": "08c60b09c8d1955d1eed05b7e3045b7d7c443c20",
+      "kind": "stable"
+    },
+    {
+      "cve": "CVE-2026-98890",
+      "upstream": "d865dd6de8295f2bfaa83f0f5d49d2bef1543065",
+      "ubuntu": "08c60b09c8d1955d1eed05b7e3045b7d7c443c20",
+      "kind": "stable"
+    }
+  ]
+}

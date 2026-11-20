@@ -53,6 +53,8 @@
         "architecture": { "enum": ["amd64", "arm64"] }
       }
     },
+    "analysis_scope": { "enum": ["inventory", "observed"] },
+    "selected_cve_count": { "type": "integer", "minimum": 1, "maximum": 298 },
     "candidate_commit_count": { "type": "integer", "minimum": 0 },
     "analysis_budget_seconds": { "type": "integer", "minimum": 0 },
     "analysis_budget_exhausted": { "type": "boolean" },

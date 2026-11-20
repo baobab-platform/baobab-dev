@@ -302,6 +302,28 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         self.assertEqual(report["records"][0]["candidate_count"], 0)
         self.assertEqual(report["counts"], {"under_investigation": 298})
 
+    def test_observed_scope_retains_every_deferred_reference_without_fetching(self):
+        self.lock.observed_kernel_cves = {"CVE-2026-30001"}
+        with mock.patch.object(m, "ensure_candidate_object", side_effect=AssertionError("unexpected fetch")):
+            report = self.run_audit("https://git.kernel.org/stable/c/" + "a" * 40, scope="observed")
+        self.assertEqual(report["selected_cve_count"], 1)
+        self.assertEqual(report["record_count"], 298)
+        self.assertEqual(report["records"][0]["candidates"][0]["assessment"],
+                         "DEFERRED_OUTSIDE_OBSERVED_SCOPE")
+        self.assertFalse(report["analysis_budget_exhausted"])
+
+    def test_batched_patch_ids_equal_each_individual_complete_diff(self):
+        commits = []
+        for index in range(5):
+            (self.ubuntu / "note").write_text(str(index))
+            git(self.ubuntu, "add", ".")
+            git(self.ubuntu, "commit", "-qm", "change")
+            commits.append(git(self.ubuntu, "rev-parse", "HEAD"))
+        cache = {}
+        m.prime_patch_ids(self.ubuntu, commits, cache, m.monotonic() + 30)
+        for sha in commits:
+            self.assertEqual(cache[str(self.ubuntu.resolve()), sha], m.patch_id(self.ubuntu, sha))
+
     def test_shallow_history_is_rejected(self):
         sha = git(self.ubuntu, "rev-parse", "HEAD")
         git(self.ubuntu, "tag", self.lock.ubuntu_tag, sha)

@@ -57,6 +57,14 @@ class CanonicalOSVEvidenceTests(unittest.TestCase):
             self.assertEqual(row["disposition"], "UNDER_INVESTIGATION_NO_VEX_NO_EXCEPTION")
             self.assertTrue((output.parent / "canonical-osv-raw" / "UBUNTU-CVE-2026-98869.json").exists())
 
+    def test_source_version_does_not_imply_explicit_binary_listing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cve = "CVE-2026-98869"
+            self.write(root, cve, sample(binary_version="7.0.0-42"))
+            row = audit.extract_record(cve, root, "2026-11-18T12:00:00Z", root / "raw")
+            self.assertEqual(row["release_evidence"], "SOURCE_VERSION_AFFECTED_BINARY_VERSION_UNLISTED")
+
     def test_absent_release_entry_is_an_evidence_gap_not_not_affected(self):
         data = sample()
         data["affected"] = []

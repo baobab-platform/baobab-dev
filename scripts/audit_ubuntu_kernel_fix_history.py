@@ -16,6 +16,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 from time import monotonic
 from collections import Counter
 
@@ -132,6 +133,32 @@ def cached_patch_id(repo: Path, sha: str, cache: dict) -> str | None:
     return cache[key]
 
 
+def prime_patch_ids(repo: Path, commits: list[str], cache: dict, deadline: float) -> None:
+    """Stream full commit diffs through one Git pair per batch. Never hash path-limited diffs."""
+    prefix = str(repo.resolve())
+    missing = [sha for sha in commits if (prefix, sha) not in cache]
+    for start in range(0, len(missing), 32):
+        batch = missing[start:start + 32]
+        if len(batch) < 4 or monotonic() >= deadline:
+            return
+        # Regular files avoid pipe deadlocks and unbounded in-memory patch streams.
+        with tempfile.TemporaryFile() as patches:
+            try:
+                subprocess.run(["git", "-C", str(repo), "log", "--no-walk=unsorted",
+                                "--format=commit %H", "--no-ext-diff", "--binary", "-p", *batch],
+                               stdout=patches, stderr=subprocess.DEVNULL, check=True,
+                               timeout=max(1, min(120, deadline - monotonic())))
+                patches.seek(0)
+                output = subprocess.run(["git", "patch-id", "--stable"], stdin=patches,
+                                        capture_output=True, check=True, timeout=30).stdout
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                return  # Individual, bounded lookup retains the existing failure semantics.
+        pairs = [line.split() for line in output.decode("ascii").splitlines()]
+        for pid, sha in pairs:
+            if sha in batch and SHA_RE.fullmatch(pid):
+                cache[prefix, sha] = pid
+
+
 def candidate_identity(url: str) -> tuple[str, str] | None:
     match = REF_RE.fullmatch(url) if isinstance(url, str) else None
     return (match.group(1), match.group(2)) if match else None
@@ -244,15 +271,10 @@ def history_candidates(repo: Path, tag: str, paths: list[str]) -> tuple[list[str
     return commits[:MAX_PATH_HISTORY_COMMITS], truncated
 
 
-def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
-                      url: str, kind: str, sha: str, row: dict,
-                      ubuntu_row: dict, trailer_commits: list[str],
-                      remotes: dict[str, str], history_cache: dict,
-                      patch_cache: dict, *, available_in_ubuntu: set[str], ancestors: set[str],
-                      deadline: float) -> tuple[dict, list[str]]:
-    base = {
+def candidate_record(url: str, kind: str, sha: str, remote: str) -> dict:
+    return {
         "reference": url, "candidate_commit": sha, "upstream_tree": kind,
-        "candidate_remote": remotes[kind],
+        "candidate_remote": remote,
         "exact_commit_ancestor_of_ubuntu_tag": None,
         "ubuntu_merge_base": None,
         "upstream_patch_id": None, "upstream_changed_paths": [],
@@ -261,6 +283,15 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
         "candidate_object_diagnostic": "",
         "assessment": "ANALYSIS_BUDGET_EXHAUSTED",
     }
+
+
+def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
+                      url: str, kind: str, sha: str, row: dict,
+                      ubuntu_row: dict, trailer_commits: list[str],
+                      remotes: dict[str, str], history_cache: dict,
+                      patch_cache: dict, *, available_in_ubuntu: set[str], ancestors: set[str],
+                      deadline: float, object_cache: dict | None = None) -> tuple[dict, list[str]]:
+    base = candidate_record(url, kind, sha, remotes[kind])
     if sha in ancestors:
         base.update(
             candidate_object_status="present_in_ubuntu_source_repository",
@@ -275,7 +306,11 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
     if sha in available_in_ubuntu:
         candidate_repo, object_status, diagnostic = repo, "present_in_ubuntu_source_repository", ""
     else:
-        candidate_repo, object_status, diagnostic = ensure_candidate_object(candidate_root, sha, kind, remotes)
+        if object_cache is None:
+            object_cache = {}
+        if (kind, sha) not in object_cache:
+            object_cache[kind, sha] = ensure_candidate_object(candidate_root, sha, kind, remotes)
+        candidate_repo, object_status, diagnostic = object_cache[kind, sha]
     base.update(candidate_object_status=object_status, candidate_object_diagnostic=diagnostic, assessment=object_status)
     if candidate_repo is None:
         base["backport_trailer_matches"] = [
@@ -346,6 +381,7 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
             base["assessment"] = "DOWNSTREAM_HISTORY_READ_TIMED_OUT"
             return base, sorted(search_paths)
     history, truncated = history_cache[history_key]
+    prime_patch_ids(repo, history, patch_cache, deadline)
     unavailable = 0
     examined = 0
     matches = {}
@@ -396,7 +432,7 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
 
 def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
           binary_source: dict, expected_commit: str, remotes: dict[str, str],
-          input_digests: dict, *, analysis_seconds: int = 1200) -> dict:
+          input_digests: dict, *, analysis_seconds: int = 1200, scope: str = "inventory") -> dict:
     if upstream.get("package") != "linux-libc-dev=" + LOCK.package_version:
         raise EvidenceError("upstream evidence package differs from evidence lock")
     require_binary_provenance(binary_source, LOCK)
@@ -423,8 +459,13 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
         raise EvidenceError("upstream and Ubuntu path evidence CVE identities differ")
 
     cve_order = sorted(upstream_by_cve, key=lambda cve: (cve not in LOCK.observed_kernel_cves, cve))
+    selected = set(cve_order) if scope == "inventory" else set(LOCK.observed_kernel_cves)
+    if scope not in {"observed", "inventory"} or not selected.issubset(upstream_by_cve):
+        raise EvidenceError("analysis scope differs from the reviewed inventory")
     identities: dict[str, dict[str, None]] = {}
     for cve in cve_order:
+        if cve not in selected:
+            continue
         for url in sorted(upstream_by_cve[cve].get("candidate_upstream_fix_references", [])):
             identity = candidate_identity(url)
             if identity:
@@ -449,6 +490,8 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
     all_search_paths: set[str] = set()
     history_cache: dict = {}
     patch_cache: dict = {}
+    object_cache = {}
+    results = {}
     for cve in cve_order:
         row = upstream_by_cve[cve]
         ubuntu_row = ubuntu_by_cve[cve]
@@ -461,12 +504,23 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
                 invalid.append({"reference": str(url)[:1024], "assessment": "INVALID_CANDIDATE_REFERENCE"})
                 continue
             kind, sha = identity
-            result, searched = inspect_candidate(
-                repo, candidate_root, expected_commit, url, kind, sha,
-                row, ubuntu_row, trailers.get(sha, []), remotes,
-                history_cache, patch_cache, available_in_ubuntu=available_in_ubuntu, ancestors=ancestors,
-                deadline=deadline,
-            )
+            # Path history is CVE-dependent even when the upstream SHA is shared.
+            key = (kind, sha, tuple(sorted(row.get("upstream_paths", []))),
+                   tuple(sorted({p for item in ubuntu_row.get("upstream_path_correspondence", [])
+                                 for p in item.get("same_basename_candidates", [])})))
+            if cve not in selected:
+                result, searched = candidate_record(url, kind, sha, remotes[kind]), []
+                result.update(assessment="DEFERRED_OUTSIDE_OBSERVED_SCOPE",
+                              candidate_object_status="not_requested")
+            else:
+                if key not in results:
+                    results[key] = inspect_candidate(
+                        repo, candidate_root, expected_commit, url, kind, sha, row, ubuntu_row,
+                        trailers.get(sha, []), remotes, history_cache, patch_cache,
+                        available_in_ubuntu=available_in_ubuntu, ancestors=ancestors,
+                        deadline=deadline, object_cache=object_cache)
+                result, searched = results[key]
+                result = dict(result, reference=url)
             candidates.append(result)
             all_search_paths.update(searched)
             counts[result["assessment"]] += 1
@@ -502,6 +556,8 @@ def audit(upstream: dict, ubuntu_paths: dict, repo: Path, candidate_root: Path,
                 "binary_version", "release_pocket", "architecture",
             )
         },
+        "analysis_scope": scope,
+        "selected_cve_count": len(selected),
         "candidate_commit_count": len(candidate_shas),
         "analysis_budget_seconds": analysis_seconds,
         "analysis_budget_exhausted": any("BUDGET_EXHAUSTED" in status for status in counts),
@@ -523,6 +579,7 @@ def main() -> int:
     parser.add_argument("--expected-commit", required=True)
     parser.add_argument("--stable-remote", default="https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git")
     parser.add_argument("--linus-remote", default="https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git")
+    parser.add_argument("--scope", choices=("inventory", "observed"), default="inventory")
     parser.add_argument("--analysis-seconds", type=int, default=1200)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
@@ -543,7 +600,7 @@ def main() -> int:
             json.loads(args.ubuntu_paths.read_text(encoding="utf-8")),
             args.ubuntu_checkout, args.candidate_root,
             json.loads(args.binary_source.read_text(encoding="utf-8")),
-            args.expected_commit, remotes, digests, analysis_seconds=args.analysis_seconds,
+            args.expected_commit, remotes, digests, analysis_seconds=args.analysis_seconds, scope=args.scope,
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
