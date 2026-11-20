@@ -147,3 +147,39 @@ The workflow's bounded analysis window has been increased from 1,200 to 3,300 se
 - Evidence-lock hash: **computed from exact lock-file content; CI regression verification remains required**.
 - Source history/backport and binary applicability: **not complete**. All 11 kernel findings remain under investigation until the current fix-history run is complete and an independent technical review resolves source and shipped-header exposure.
 - No VEX, risk activation, release, publication or promotion authorization is created by this report.
+
+
+## Follow-up run 44604258567 — 2026-11-20 review
+
+### Execution result and history failure
+
+Run [44604258567](https://github.com/baobab-platform/baobab-dev/actions/runs/44604258567) completed with job conclusion `failure`. The evidence-lock load and offline regression suite passed, including all five `test_dev10_evidence_lock.py` tests and all 17 `test_dev10_ubuntu_kernel_fix_history.py` tests. Binary provenance, Canonical OSV validation, upstream CNA path reproduction and Ubuntu source-path corroboration also completed.
+
+The failure is specifically the step **Materialize complete blobless Ubuntu tag history**. Its 25-minute step timeout fired while Git delta resolution was at approximately 86% (8,510,980 of 9,807,866 objects). The subsequent fix/backport assessment, exact join and final applicability-register schema validation were skipped. The fix-history JSON and its SHA-256 sidecar were not created; the corresponding upload step correctly warned that no files were found. The 3,300-second analysis budget therefore never started and must not be described as exhausted or completed in this run.
+
+The retained source/binary artifact is ID `14572291876`, outer ZIP SHA-256 `4ce0ceb594f51bad411f7fc5f68ace4cbe47c6a8eedcebdb851f6e3e34d2af19`. The downloaded ZIP independently hashes to the same value. It contains the source-path, affected-source-file, Canonical OSV, binary provenance and package payload evidence, but no new candidate-history assessment.
+
+### Additional exact binary-payload verification
+
+I extracted the amd64 `linux-libc-dev_7.0.0-43.43_amd64.deb` from artifact 14572291876 and independently verified its SHA-256 as `3a3adc14e3332fc017b1d0e4e39655298a2a977d51db6e80de533ac60137b07f`, matching the package provenance record and binary evidence lock. I then extracted the .deb and compared every row of the captured installed-content manifest against the extracted package payload:
+
+- 1,102 manifest entries checked.
+- Zero missing entries.
+- Zero file-content SHA-256 or symlink-target mismatches.
+- The manifest covers 1,039 headers and 1,102 total paths.
+
+This establishes byte-for-byte agreement between the captured installed amd64 package content and the exact downloaded .deb payload. It does **not** establish equivalence between those shipped headers and the Ubuntu source-tag headers, prove whether an inline/macro/ABI effect is reachable, or establish downstream compilation impact.
+
+The affected-source-file record still identifies no direct shipped UAPI path match for any of the 11 kernel CVEs. The three named private-header groups (CVE-2022-50240, CVE-2026-98420 and CVE-2026-98869) are absent from the package payload. The remaining indirect UAPI/ABI, compiler-transitive and downstream-consumer exposure questions remain unresolved. This run captures only amd64 binary payload evidence; the arm64 package hash remains separately pinned in the binary evidence lock but was not re-captured in this run.
+
+### Current closure state
+
+- Evidence-lock regression: **passed in run 44604258567**.
+- Source-path and exact amd64 package provenance: **captured and digest-verified**.
+- Installed amd64 package versus downloaded .deb payload: **all 1,102 manifest entries match**.
+- Full Ubuntu commit ancestry and candidate fix/backport analysis: **not run; history materialization timed out before analysis**.
+- Five Canonical OSV records without an exact binary-version entry: **still require source-to-binary applicability review**.
+- Indirect UAPI/ABI and downstream compilation exposure: **still under investigation**.
+- Arm64 binary payload re-capture and comparison: **not performed in this run**.
+
+No CVE disposition changes. All 11 kernel CVEs remain under investigation; no VEX `not_affected`, fix, backport, risk acceptance or release authorization is inferred.
