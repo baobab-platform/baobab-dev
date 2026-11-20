@@ -66,23 +66,40 @@ jobs:
           python3 -B -m unittest discover -s tests -p test_dev10_ubuntu_kernel_fix_history.py -v
           python3 -B -m unittest discover -s tests -p test_ubuntu_binary_source.py -v
           python3 -B -m unittest discover -s tests -p test_kernel_cve_paths.py -v
-      - name: Capture exact installed amd64 binary manifest
+      - name: Capture exact installed amd64 and arm64 binary manifests
         run: |
           set -euo pipefail
-          bash scripts/ci/capture-ubuntu-package-evidence.sh "$UBUNTU_KERNEL_RELEASE" amd64 \
-            "$RUNNER_TEMP/dev10-ubuntu-source"
-      - name: Verify installed Ubuntu binary-to-source package provenance
+          for architecture in amd64 arm64; do
+            bash scripts/ci/capture-ubuntu-package-evidence.sh "$UBUNTU_KERNEL_RELEASE" "$architecture" \
+              "$RUNNER_TEMP/dev10-ubuntu-source/$architecture"
+          done
+      - name: Verify installed Ubuntu binary-to-source package provenance on both architectures
         run: |
           set -euo pipefail
-          python3 -B scripts/verify_ubuntu_binary_source.py \
-            --installed-package "$RUNNER_TEMP/dev10-ubuntu-source/installed-package.txt" \
-            --apt-package-metadata "$RUNNER_TEMP/dev10-ubuntu-source/apt-package-metadata.txt" \
-            --apt-policy "$RUNNER_TEMP/dev10-ubuntu-source/apt-policy.txt" \
-            --apt-madison "$RUNNER_TEMP/dev10-ubuntu-source/apt-madison.txt" \
-            --deb-sha256 "$RUNNER_TEMP/dev10-ubuntu-source/apt-package-deb-sha256.txt" \
-            --index-sha256 "$RUNNER_TEMP/dev10-ubuntu-source/apt-package-index-sha256.txt" \
-            --base-image "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-base-image.txt" \
-            --output "$RUNNER_TEMP/dev10-ubuntu-source/binary-source-corroboration.json"
+          for architecture in amd64 arm64; do
+            python3 -B scripts/verify_ubuntu_binary_source.py \
+              --installed-package "$RUNNER_TEMP/dev10-ubuntu-source/$architecture/installed-package.txt" \
+              --apt-package-metadata "$RUNNER_TEMP/dev10-ubuntu-source/$architecture/apt-package-metadata.txt" \
+              --apt-policy "$RUNNER_TEMP/dev10-ubuntu-source/$architecture/apt-policy.txt" \
+              --apt-madison "$RUNNER_TEMP/dev10-ubuntu-source/$architecture/apt-madison.txt" \
+              --deb-sha256 "$RUNNER_TEMP/dev10-ubuntu-source/$architecture/apt-package-deb-sha256.txt" \
+              --index-sha256 "$RUNNER_TEMP/dev10-ubuntu-source/$architecture/apt-package-index-sha256.txt" \
+              --base-image "$RUNNER_TEMP/dev10-ubuntu-source/$architecture/ubuntu-base-image.txt" \
+              --output "$RUNNER_TEMP/dev10-ubuntu-source/$architecture/binary-source-corroboration.json"
+          done
+          python3 -B - "$RUNNER_TEMP/dev10-ubuntu-source" <<'PY'
+          import hashlib, json, pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          expected = {"amd64": "3a3adc14e3332fc017b1d0e4e39655298a2a977d51db6e80de533ac60137b07f",
+                      "arm64": "3d6313ac30170df8614618fd1aeb864606c378d90aa18e5d2012aad46861d753"}
+          for arch, digest in expected.items():
+              report = json.loads((root / arch / "binary-source-corroboration.json").read_text())
+              actual = (root / arch / "apt-package-deb-sha256.txt").read_text().split()[0]
+              assert actual == digest, (arch, actual, digest)
+              assert report["architecture"] == arch, (arch, report.get("architecture"))
+              assert report["binary_version"] == "7.0.0-43.43"
+          print("Both architecture-specific package payloads match the reviewed binary evidence lock.")
+          PY
       - name: Checkout pinned Canonical Ubuntu OSV snapshot
         run: |
           set -euo pipefail
@@ -127,7 +144,7 @@ jobs:
           python3 -B scripts/audit_kernel_cve_paths.py \
             --trivy docs/assessments/dev10-kernel-cves-298.tsv \
             --vendor docs/assessments/dev10-canonical-cve-status-20261118.tsv \
-            --manifest "$RUNNER_TEMP/dev10-ubuntu-source/installed-paths.txt" \
+            --manifest "$RUNNER_TEMP/dev10-ubuntu-source/amd64/installed-paths.txt" \
             --upstream-sha "$UPSTREAM_SHA" \
             --binary-package-version "$UBUNTU_KERNEL_RELEASE" \
             --upstream-root "$UPSTREAM_ROOT" \
@@ -152,10 +169,10 @@ jobs:
             --upstream "$RUNNER_TEMP/dev10-ubuntu-source/affected-source-files.json" \
             --ubuntu-checkout "$RUNNER_TEMP/ubuntu-linux-resolute" \
             --installed-manifest "$RUNNER_TEMP/dev10-ubuntu-source/installed-paths.txt" \
-            --binary-source "$RUNNER_TEMP/dev10-ubuntu-source/binary-source-corroboration.json" \
+            --binary-source "$RUNNER_TEMP/dev10-ubuntu-source/amd64/binary-source-corroboration.json" \
             --expected-commit "$UBUNTU_TAG_COMMIT" \
             --output "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-source-paths.json"
-          python3 - "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-source-paths.json" "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-base-image.txt" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          python3 - "$RUNNER_TEMP/dev10-ubuntu-source/ubuntu-source-paths.json" "$RUNNER_TEMP/dev10-ubuntu-source/amd64/ubuntu-base-image.txt" >> "$GITHUB_STEP_SUMMARY" <<'PY'
           import json,sys
           report=json.load(open(sys.argv[1]))
           expected=int(__import__("os").environ["EXPECTED_CVE_COUNT"])
