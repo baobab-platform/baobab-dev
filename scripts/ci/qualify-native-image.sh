@@ -88,6 +88,13 @@ SH
 docker exec "$container" dpkg-query -W -f='${binary:Package}\t${Version}\t${Architecture}\n' |
     LC_ALL=C sort > "$evidence/apt-packages.tsv"
 
+package_evidence=/tmp/baobab-linux-libc-dev-evidence
+docker exec -i \
+    -e "EXPECTED_ARCHITECTURE=${platform#linux/}" \
+    -e "EXPECTED_LINUX_LIBC_DEV_VERSION=$LINUX_LIBC_DEV_APT_VERSION" \
+    "$container" bash -s -- "$package_evidence" < scripts/ci/capture-image-binary-manifest.sh
+docker cp "$container:$package_evidence/." "$evidence/"
+
 deadline=$((SECONDS + 75))
 while :; do
     health=$(docker inspect --format '{{.State.Status}}/{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$container")
@@ -109,9 +116,12 @@ fi
 jq -n --arg reference "$image" --arg config "${EXPECTED_CONFIG_DIGEST:-$image_id}" --arg engine "$image_id" --arg source "$source_sha" \
     --arg platform "$platform" --arg profile "$profile" --arg lock "$lock_sha" \
     --arg archive "${SCAN_ARCHIVE_SHA256:-}" --arg base "$base_digest" \
-    --arg apt "$(sha256sum "$evidence/apt-packages.tsv" | cut -d ' ' -f1)" '
+    --arg apt "$(sha256sum "$evidence/apt-packages.tsv" | cut -d ' ' -f1)" \
+    --arg package "$(sha256sum "$evidence/linux-libc-dev.package.tsv" | cut -d ' ' -f1)" \
+    --arg manifest "$(sha256sum "$evidence/linux-libc-dev.manifest.tsv" | cut -d ' ' -f1)" '
     {schema: "baobab.dev10.native-image.v1", image_reference: $reference, image_config_digest: $config, image_engine_id: $engine,
      source_sha: $source, platform: $platform, profile: $profile, lock_sha256: $lock, ubuntu_base: $base,
      scan_archive_sha256: (if $archive == "" then null else $archive end), apt_inventory_sha256: $apt,
+     linux_libc_dev: {package_tsv_sha256: $package, manifest_tsv_sha256: $manifest},
      health: "healthy", runtime: "passed"}
 ' > "$evidence/native-image.json"

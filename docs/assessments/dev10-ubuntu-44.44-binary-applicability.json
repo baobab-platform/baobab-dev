@@ -1,0 +1,803 @@
+{
+  "cna_revision": "144020080a9c41a4da6d92280c849c9b476a58f1",
+  "disposition_limits": [
+    "Source-path correspondence does not establish fix ancestry or a backport.",
+    "Indirect UAPI, ABI and downstream compilation exposure requires review."
+  ],
+  "inventory_sha256": "a3c68b93f1e6ec88ca17c71f02913d4fef7f121ab3c47415a9ac247f04b10a6d",
+  "native_image_source_sha": null,
+  "native_images": {},
+  "package": "linux-libc-dev",
+  "package_version": "7.0.0-44.44",
+  "packages": {
+    "amd64": {
+      "documentation": [
+        "/usr/share/doc/linux-libc-dev/changelog.Debian.gz",
+        "/usr/share/doc/linux-libc-dev/copyright"
+      ],
+      "elf_or_archive_files": [],
+      "executable_mode_files": [],
+      "header_count": 1039,
+      "headers_with_nonliteral_includes": [],
+      "other_entries": [],
+      "sha256": "b1bd69037483894be260e934503e8c99debebb6d622e3d5010e79fea4108ee43"
+    },
+    "arm64": {
+      "documentation": [
+        "/usr/share/doc/linux-libc-dev/changelog.Debian.gz",
+        "/usr/share/doc/linux-libc-dev/copyright"
+      ],
+      "elf_or_archive_files": [],
+      "executable_mode_files": [],
+      "header_count": 1010,
+      "headers_with_nonliteral_includes": [],
+      "other_entries": [],
+      "sha256": "4c9e3d5345e22876a4c2b3631dc2011c8e79228e6cd0d8020ad01663e31e306e"
+    }
+  },
+  "records": [
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "164f39e3a171c6c4200d02456a68d00202e28f1f1563b78e7d65ee6a06d1d3ee",
+      "cve": "CVE-2022-50240",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "drivers/android/binder_alloc.c": "cf759893e2ad557b2e2fff23c0939ec94f86bf83",
+        "drivers/android/binder_alloc.h": "7edae3eb50f59554cc6ce0fe3be538c39aacc8f3",
+        "drivers/android/binder_alloc_selftest.c": null
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/015ac18be7de25d17d6e5f1643cb3b60bfbe859e",
+        "https://git.kernel.org/stable/c/1ec3f76a436d750fd5023caec5da0494fc2870d2",
+        "https://git.kernel.org/stable/c/27a594bc7a7c8238d239e3cdbcf2edfa3bbe9a1b",
+        "https://git.kernel.org/stable/c/622ef885a89ad04cfb76ee478fb44f051125d1f1",
+        "https://git.kernel.org/stable/c/925e6b6f82c9c80ab3c17acbde8d16f349da7d26",
+        "https://git.kernel.org/stable/c/a43cfc87caaf46710c8027a8c23b8a55f1078f19"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "e37d95f918cc146d012c1415fd038128442c51fe040acc438c43c29e2123fdd3",
+      "cve": "CVE-2025-40190",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "fs/ext4/xattr.c": "c512a7cb82e77c9b420b29dc1b84bb4752a13d9d"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/1cfb3e4ddbdc8e02e637b8852540bd4718bf4814",
+        "https://git.kernel.org/stable/c/3d6269028246f4484bfed403c947a114bb583631",
+        "https://git.kernel.org/stable/c/440b003f449a4ff2a00b08c8eab9ba5cd28f3943",
+        "https://git.kernel.org/stable/c/505e69f76ac497e788f4ea0267826ec7266b40c8",
+        "https://git.kernel.org/stable/c/57295e835408d8d425bef58da5253465db3d6888",
+        "https://git.kernel.org/stable/c/6b879c4c6bbaab03c0ad2a983953bd1410bb165e",
+        "https://git.kernel.org/stable/c/79ea7f3e11effe1bd9e753172981d9029133a278",
+        "https://git.kernel.org/stable/c/ea39e712c2f5ae148ee5515798ae03523673e002"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "58081527af326f23c5cfd309e3aa0471649f23cb2891ac0e1a5d8a092fe82603",
+      "cve": "CVE-2026-100081",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "drivers/net/xen-netback/interface.c": "a0a438881388088e4961b80fd27029a1e0e6a03f",
+        "drivers/net/xen-netback/xenbus.c": "e020f44ac2c7177f07ca3b44f5fb5b368dc5c7fc"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/0d515c409033c8e2a645a781be3ca76ab825fc8c",
+        "https://git.kernel.org/stable/c/0e786123e46d08d2247ce93a5435e45ed9f4c5d1",
+        "https://git.kernel.org/stable/c/34f0f63dc6dc11895a17bb5672451b6b11622c99",
+        "https://git.kernel.org/stable/c/96e05a8ce243e2207704e2e7a6e7d1172730f515",
+        "https://git.kernel.org/stable/c/990d123d9eaa3ac6c979eed245658676d65ce0db",
+        "https://git.kernel.org/stable/c/a6bb2f1fa62c56279bdcdadce28d1310c5e12b62",
+        "https://git.kernel.org/stable/c/bfddc420afe827d9f06458cdf8087cd602f8c9cb",
+        "https://git.kernel.org/stable/c/fb38fc58acb26d74fe8f7b19621fafaae3c040ff"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "9e3977017ed615615f95cccd3d3a778e526cd447608e71fa38ff3cc0aefe0426",
+      "cve": "CVE-2026-68103",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "drivers/gpu/drm/amd/amdgpu/amdgpu_userq.c": "cf20c57d2216c02c14114fb496039655de956747"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/1050d258c7c56066d2dcaedf8d0ef66364062adc",
+        "https://git.kernel.org/stable/c/a609b6278bf3cde17eeee6620091465521e4b02c"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "0646db92bb531173ffc3e3c1c28bb54a28c7dac13d750ac93a258e6d4f1d066e",
+      "cve": "CVE-2026-72198",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "fs/ntfs/attrib.c": null
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/097cdfd0a55df5af82c9753833f39a8bfadbcfcb",
+        "https://git.kernel.org/stable/c/6626fb859f4c4772f2f59751d23937716e03f98f",
+        "https://git.kernel.org/stable/c/7ffa8f3d30236e0ab897c30bdb01224ff1fe1c89",
+        "https://git.kernel.org/stable/c/b06b4fc2138ded8ee0b3dc602991ff6dbb10dd0a",
+        "https://git.kernel.org/stable/c/b54c9beb90e570bae17a9c18442aeeaf17165ccb"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "bbebeea31b740aa1562e2ddf8a290a059f797303da1d4a95aab23dcad2414f42",
+      "cve": "CVE-2026-74578",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "crypto/algif_skcipher.c": "35ebc3e0201b0441cbd480d41da6d7727a7f3a88"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/60eafc7b08c6689ea3ad39eff8d97aefc8a087c7",
+        "https://git.kernel.org/stable/c/73dd3bf704ca6c20639de70c08e9a10bee904a95",
+        "https://git.kernel.org/stable/c/7b91e51d0eb7cbb07f7f086f9176bd93dbbc85dd",
+        "https://git.kernel.org/stable/c/b05defc41b27c7d0c05c45f67bf5b91c28f93669",
+        "https://git.kernel.org/stable/c/bf09b0be8e851f050e98da702d247c14d81b591a",
+        "https://git.kernel.org/stable/c/d7860b682da55433b5da0591b0e4c1982ecd2689",
+        "https://git.kernel.org/stable/c/f1a87ca0843d74482402a206ea2dfb315ee9acbd",
+        "https://git.kernel.org/stable/c/fcc77d33a34cf271702e8daafb6c593e4626776d"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "74c873518bb36e431e3bafa717cfe4b2899dce04f15e64f4bef433b8ab95ddf6",
+      "cve": "CVE-2026-89805",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "drivers/gpu/drm/drm_pagemap.c": "0595a429bb292e333db168ef75e32bebc84dd829"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/10e92e18e3dab081789d868878f2ecce6166948a",
+        "https://git.kernel.org/stable/c/df72e55e754c8d449321ddddad19a8bd3cb8d032"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "e9c2d969b99b41dc5bffaa4db10e4c4b49cbed9783e98e22a05298a9560a385e",
+      "cve": "CVE-2026-98376",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "kernel/bpf/arraymap.c": "da471e58b3f3014fcbfc57a55006a0e0cd047e84",
+        "tools/testing/selftests/bpf/prog_tests/percpu_array_inner_map.c": null
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/593980175389a05793f6060aa20e626330960395"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "3a31c18f0196acf2bd56d87dae0ea761bcc825e58f8746448f5d344d08d0f2bd",
+      "cve": "CVE-2026-98420",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "fs/smb/server/connection.c": "929589651c1c3971cec8ab30c5c042e6500f88b8",
+        "fs/smb/server/connection.h": "e1aa5127376ed6e31855505b4340b0bc5cbf7c3b",
+        "fs/smb/server/mgmt/user_session.c": "97b364901dc661cc5fb9a12914f59208d99d1aec",
+        "fs/smb/server/mgmt/user_session.h": "975c5aee263bc8900e0922b2fa5b330c92f14ad6",
+        "fs/smb/server/proc.c": "5c9f3f314dbe140708f1a379229ccb9bdeb7772d",
+        "fs/smb/server/server.c": "ca5e413173f7d8af7d20b0d1a08c57fb088c877f",
+        "fs/smb/server/smb2pdu.c": "63353e42c14af45ec549404511df676e35dd9013",
+        "fs/smb/server/smb2pdu.h": "fe3517a8140428c412c769527ebf2aa229f28e1f",
+        "fs/smb/server/stats.h": "b60c30c6907708e7bbe306008b169126842d06ff"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/c99ea7855124ca1428a1e59c2b4590aaef34eacf",
+        "https://git.kernel.org/stable/c/d7fd1f98607f2cd358e583f9548bdf0173090a86"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "ece340ee63262e2194b929ca234bd8b59df2e3c7242b27ed99d8b4db3c3fe40c",
+      "cve": "CVE-2026-98869",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "include/linux/bpf_verifier.h": "fda0bb31cbad905a84ed8d711e6e49f552ec2a85",
+        "kernel/bpf/fixups.c": null,
+        "kernel/bpf/liveness.c": "998986853c61babd446e3a562c7664f7e9459de9",
+        "kernel/bpf/verifier.c": "696979074aeccc8199f15c503edbf0762c7b742c"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/7ce090afbf725e25fff29caacce1eaf8459b1117"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "e9eb59686d5fad24cc25f9e5a20d41d8e4c990af08d4284c6d5f3bf08ab219aa",
+      "cve": "CVE-2026-98890",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "drivers/net/wireless/marvell/libertas/tx.c": "27304a98787d6abee45c12d1520ecab674309efc"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/13ff543e0b2c713aedeaadadde686686e949dc78",
+        "https://git.kernel.org/stable/c/443fac3de65c76544b450b9f9903be8989150d55",
+        "https://git.kernel.org/stable/c/6576baa3fdbaa91fa75e4ba27095f4b8a27349a8",
+        "https://git.kernel.org/stable/c/68c92c991ddb75dfd3fd62a94a1d4d2dde44dc3c",
+        "https://git.kernel.org/stable/c/b657cc98d7936c5d9ed7e0e1944ad0e1f36375bb",
+        "https://git.kernel.org/stable/c/cdcfd662c67833d89ee3d912efde2eb67c8a7326",
+        "https://git.kernel.org/stable/c/d865dd6de8295f2bfaa83f0f5d49d2bef1543065"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "82fd12a63db70cb9c9971536c0b90b4a7a7cb36ea707574fdea7d24b22e0c92c",
+      "cve": "CVE-2026-99239",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "net/bluetooth/l2cap_core.c": "a265335467bfafdbe8ba303a85bdef85f6cbbe90",
+        "net/bluetooth/l2cap_sock.c": "370049179a6c21734aa40a6202fdc8827037ab51"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/10c705dd706aa93164ba41f2566f15206d6c178e",
+        "https://git.kernel.org/stable/c/52fe88e4ef87311eee32b45c65603e7c69e75e7d",
+        "https://git.kernel.org/stable/c/73820561d8cbfd3364a29b8fa77f1707f26029da",
+        "https://git.kernel.org/stable/c/820579652b24ce277e0097cd65b42bd9b7b8bf07",
+        "https://git.kernel.org/stable/c/85cc289eb08afa975375f838187369e68b429ee0",
+        "https://git.kernel.org/stable/c/86b55991d3cd690e73c5ef8d20b75ae4905b357a",
+        "https://git.kernel.org/stable/c/d3afd7803f9bc2a8c4270199497b60158b2fc647",
+        "https://git.kernel.org/stable/c/e618d928ec7f88cbeadfa3542adcac40f474e629",
+        "https://git.kernel.org/stable/c/fabaff1c59ff2cc89cb7e5bd0186a5e15f0c73b2"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "6181e7736d0eb98e2d547ba95f4d6f893d9e5b3650e01de1be197a4992a119a3",
+      "cve": "CVE-2026-99260",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "fs/ntfs/ea.c": null
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/7ed0028126b5a19f278183abbae2b3166d3ca9ac",
+        "https://git.kernel.org/stable/c/c5434e86d6c5324990017ea043bc821d115132c8"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "8494e54b1688fdbd911ad3a1baf0067c0b4f393ea68d8969e1fac468cb4851c6",
+      "cve": "CVE-2026-99270",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "net/ipv4/inet_connection_sock.c": "a4fc3298d68350bf58657b2202fdc865bd85bb88"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/97c8a3c1f73d828de43a5a88e8a9a143efb2b661",
+        "https://git.kernel.org/stable/c/b3b56e95f6fad7fa7281450b443e861d82616fdb",
+        "https://git.kernel.org/stable/c/f7fba81b00699360f96ed7d9a47b8c801e74c6f9"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "9dca5cba1222037796270fe708b6b5ad9507bb8f18dc568307873448438b01f3",
+      "cve": "CVE-2026-99272",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "fs/smb/client/smb2pdu.c": "8ab00ad74c00db403c05b4a3abb0275abe446f58"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/082ae8a34170b7388106aa0897f47405f0824946",
+        "https://git.kernel.org/stable/c/1ba1937de005e261a8858f45bfef5da7458df94c",
+        "https://git.kernel.org/stable/c/2ec9cdf469dd32bcf33073aeb30c08e9356e0ca1",
+        "https://git.kernel.org/stable/c/b949f6a0c08a57439334f39754ee7bd3c315d4a3"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "b6b20ff5c3bef4d6431e0d672ad79ee529210dc6f4ba9edace59e2e0b124b480",
+      "cve": "CVE-2026-99274",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "fs/smb/client/smb2ops.c": "599ca901879a5805ccbc66302b65868a3b9ba768"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/31f6dbb29fe17fa9595c7e8b19fd92915b03a4ca",
+        "https://git.kernel.org/stable/c/4a426ca5be7e3dedbe76575b967db04fbf01136f",
+        "https://git.kernel.org/stable/c/8e0d425b808c367f5033eb72aa4528ae18473627",
+        "https://git.kernel.org/stable/c/f5baa17a0f316c235d61623ac8e8fb32c2b3c0cc"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "ce6d10b4f93db52e00d2f96f8b10ce9b41cce75836921dc7b383a84c54f87255",
+      "cve": "CVE-2026-99275",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "fs/smb/client/smb2misc.c": "596388acb31e7bfd5609a2f5d04f4e80596fa874",
+        "fs/smb/client/smb2pdu.c": "8ab00ad74c00db403c05b4a3abb0275abe446f58"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/136128f84f13849b732ffabf24c5ee891a2033d4",
+        "https://git.kernel.org/stable/c/4d8930afa3446041358a7db33e7b23a0bb9459b5",
+        "https://git.kernel.org/stable/c/9a0b6567936c3f8fef34c4f4a995f0a1473af7d0",
+        "https://git.kernel.org/stable/c/df63e01933886153e40706483b9635b2456ad91f"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "5c0f2709055494a159e059300a2dbdbe601d76852b8d7d507400bb8f4eca9d2a",
+      "cve": "CVE-2026-99282",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "net/sched/sch_teql.c": "409ce50cc0dbc7936582d5459c4c31c680177b3f"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/2702ae318630787c640ec0d0403ffd9d95c43e9e",
+        "https://git.kernel.org/stable/c/782d6bb8f9b8e9d8591181662222bf74cd3ecf79",
+        "https://git.kernel.org/stable/c/8d5f768780e26cb82c389219ae7fdb1cd7255421",
+        "https://git.kernel.org/stable/c/fc55d92ae6a4b2e7d062cad6d4c67f6b061d9cde"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "7b451f5c00afe7bb630e0ae0b2d451f487f6b67fce7003acc34a53bea52c73b6",
+      "cve": "CVE-2026-99287",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "CRITICAL",
+      "ubuntu_source_paths": {
+        "drivers/net/xen-netback/netback.c": "3cdb7fd659db86417fd34bfd8fb045441bc8cd49"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/87fd475dc4e354088f6534285388e7b061f54b35",
+        "https://git.kernel.org/stable/c/c5f54af611ff6fe1d53fa05d8e87b469dc56122b",
+        "https://git.kernel.org/stable/c/e7ba61734d6ad6adfd5bf617052e590743211669",
+        "https://git.kernel.org/stable/c/f96f16592a32430a0582309d73a873b6d3ee2bdb"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "06be8c5aa68e9e62b1d9f00c8caa2093e781ecf78e03108ff4bfee85cbb6171d",
+      "cve": "CVE-2026-99288",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "net/ipv4/inet_connection_sock.c": "a4fc3298d68350bf58657b2202fdc865bd85bb88",
+        "net/ipv4/inet_hashtables.c": "9bfccc283fa629caa79aadfd312595b7963143b8",
+        "net/ipv4/syncookies.c": "b5f0a65c678645c14e10cb554b303797737d3b4b",
+        "net/ipv4/tcp_input.c": "53e0424b7337e0eb1134f93309fc532e110f18ed",
+        "net/ipv6/inet6_hashtables.c": "182d38e6d6d8dac30ea06b90daf8a7f328866063"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/4e2b3ef19e0e04adca38442f07dd6bc93c712bf1",
+        "https://git.kernel.org/stable/c/8e5172cbd227fae32f3313cba1f3e1b9edb5c4fd",
+        "https://git.kernel.org/stable/c/d69100340b4cae08d40f898f1b601032403f6be6",
+        "https://git.kernel.org/stable/c/eb8a2d156f2c1d862fffdfd1b3432bfbcd939879"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "79681ae4f1784cf93935a3b3de0e483a3888979726b85a03e62138d102d716df",
+      "cve": "CVE-2026-99290",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "fs/smb/server/smb2pdu.c": "63353e42c14af45ec549404511df676e35dd9013",
+        "fs/smb/server/vfs_cache.c": "3c56ecacf1787c4a28220dedf602af0d29b1b209",
+        "fs/smb/server/vfs_cache.h": "c9c4244b437fa4e340989416d31739341dfb29c8"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/248b5819591c577727930e4e255a455235fab50a",
+        "https://git.kernel.org/stable/c/5078a4e41b29acdf6be52e4a7cc8a59c2a72a471",
+        "https://git.kernel.org/stable/c/bd47ee501b6ac4a26ae41f780a43b7967302a269",
+        "https://git.kernel.org/stable/c/edacf65866a9f397438d5b9ff9f43312b29b4b3c"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "b644f111ba65a121bea5e61ba9e55201f427e297f04ae1bec05f0076ee7a86d0",
+      "cve": "CVE-2026-99292",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "fs/smb/client/cifsacl.c": "e74926489fac58b822e585bd7182f1f8dcc23923"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/a377a3645c7d0246af0bc4ef24db94bb2670bdde",
+        "https://git.kernel.org/stable/c/ba57bfe1a9fa1566757cd3f3310ccdf88f4b7673",
+        "https://git.kernel.org/stable/c/be1bcc9147facd85dc2ebe48688afde6d5590f10",
+        "https://git.kernel.org/stable/c/cde80904e285a7ac29ba2e06bc23a60b09b05f54"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "337a66fb1459de172549816565b3ab0a9a02f421a9269be0cf78811870d37043",
+      "cve": "CVE-2026-99295",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "fs/smb/client/transport.c": "14304ec7ee331cc9799aba70bbe9e4b9b33d27b8"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/51efca72345acdbedc4af76782d464bd15ba50ff",
+        "https://git.kernel.org/stable/c/558cb79cb242ce7ca8b32c4b39412d125879e8f2",
+        "https://git.kernel.org/stable/c/af78baeacd731a98531eaa3103bfe03f147cffb7",
+        "https://git.kernel.org/stable/c/ecc327edd96a65ac177379664cc0972d8a23dfa4"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "29d588c5d9ade2b187b442d51555f8813ed9a69c5ba503995db661e95994ac2c",
+      "cve": "CVE-2026-99302",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "drivers/nvme/target/rdma.c": "542138fd669f47a068b10e61eb4e3fbd13ee6d82"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/22d0eb8d7aa4e45d22491d7cc1327010f19c86b9",
+        "https://git.kernel.org/stable/c/36c3af0e94b6c385c4934c028cbca27e138ae1ee",
+        "https://git.kernel.org/stable/c/635e760169a87abf03874cd4636cd91b580cb427",
+        "https://git.kernel.org/stable/c/c17d443d1e984a0c0840692c6435cdc455936160"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "e726ba1e081705d27a5ace0fcabfbbb272ae60f583c0ae3bac6b02bd0c867337",
+      "cve": "CVE-2026-99304",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "fs/ceph/snap.c": "52b4c2684f922bfed39550311e793bfe3622cd26"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/25ae51760b751d170e29425b7851ee577e2cd5ba",
+        "https://git.kernel.org/stable/c/b3bf89767e3ca9506f1c7167cac97c41ec254d42",
+        "https://git.kernel.org/stable/c/bf8f13872959af1d87e36b7d27096a09fdcf6e47",
+        "https://git.kernel.org/stable/c/f0dbd6b9b05e919ebab668f3479aebbcd2431fce"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "38c2891285f474f2f74d60d72cfc6da025a6dc0b3be3e9f932fbd8d76cfc91e0",
+      "cve": "CVE-2026-99306",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "CRITICAL",
+      "ubuntu_source_paths": {
+        "fs/ceph/mdsmap.c": "69ff46cd02f2cd67ff593239ac79828920a6a941"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/0574e4aff8e4b28e0d5636204ed4ba2350b8701a",
+        "https://git.kernel.org/stable/c/7931e6798f419bda9ac8cf0c095323eff90a7f52",
+        "https://git.kernel.org/stable/c/c1742590d2b2fc5fb217e1a9b520108f1fe282e5",
+        "https://git.kernel.org/stable/c/e9d72cf5d1bf5b4ddfe86707ada614973d75bf64"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "4792c844ae5ba083e53449a9d525d98d58d8e7a015f26224c4f40d17a319d98c",
+      "cve": "CVE-2026-99310",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "CRITICAL",
+      "ubuntu_source_paths": {
+        "fs/nfsd/nfs4state.c": "7cf1317373927485bf2de8fedd9941cb90b2ffdf"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/202b7a6c462daa55a9f4b01f0a25eca2b8d5f2e3",
+        "https://git.kernel.org/stable/c/5336899b5491eaa2ac22c2925d87daab2b140eb3",
+        "https://git.kernel.org/stable/c/540649cb8543472f6edfe9ae8b42c04aa3bd67e9",
+        "https://git.kernel.org/stable/c/a596d1979fcb4e5011d3d48ac4d927f81c9c9cab"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {}
+        }
+      },
+      "cna_record_sha256": "5476ba920b06fb1f3411a8b0601369792851f020bbca0aa21fbbfaf65d27e828",
+      "cve": "CVE-2026-99311",
+      "disposition": "under_investigation",
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "fs/udf/inode.c": "2fbd9395a8dacba595621a77602274f4db38036e"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/0d7f6c2b3c07fa239ebc169280eba9932cc56f46",
+        "https://git.kernel.org/stable/c/0f242ca0878896df30292f4922700a32e8fdd039",
+        "https://git.kernel.org/stable/c/df713b82b4b9671c16b52b60f3412c677719e2b8",
+        "https://git.kernel.org/stable/c/f022984a4a1c18aa9c506790eb47da000dce95a7"
+      ]
+    }
+  ],
+  "schema": "baobab.dev10.kernel-header-applicability.v1",
+  "ubuntu_source_commit": "70d93713221b617bdb0f55289ffb52b99f2038cf",
+  "ubuntu_source_tag": "Ubuntu-7.0.0-44.44",
+  "versions_lock_sha256": "b8e234e92c9feb2573a48e160ca73e498ee48460488ae6b7475b64c70880f8f8"
+}

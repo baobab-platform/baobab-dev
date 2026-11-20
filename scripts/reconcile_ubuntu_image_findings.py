@@ -7,9 +7,11 @@ import re
 import subprocess
 import tarfile
 from pathlib import Path
+from time import monotonic
 
 from audit_ubuntu_kernel_fix_history import (
-    LOCK, SOURCE_REPO, cached_patch_id, changed_paths, commit_metadata, ensure_candidate_object, run,
+    CANDIDATE_FETCH_TIMEOUT, LOCK, SOURCE_REPO, cached_patch_id, changed_paths, commit_metadata,
+    ensure_candidate_object, run,
 )
 from verify_ubuntu_binary_package_arch import archive_manifest, installed_manifest
 
@@ -48,10 +50,10 @@ def source_review(witness, reviews, tag):
     return entry["observation"]
 
 
-def payload_contents(root, arch, expected):
+def payload_contents(root, arch, expected, *, version=LOCK.package_version):
     """Inspect literal includes and content signatures in the locked Debian archive."""
     folder = root / arch
-    deb = folder / f"linux-libc-dev_{LOCK.package_version}_{arch}.deb"
+    deb = folder / f"linux-libc-dev_{version}_{arch}.deb"
     if hashlib.sha256(deb.read_bytes()).hexdigest() != expected:
         raise ValueError("unreviewed Debian package")
     raw = subprocess.run(["dpkg-deb", "--fsys-tarfile", str(deb)], capture_output=True,
@@ -175,7 +177,8 @@ def tag_witnesses(repo, store, root):
         before, after = blobs(post), blobs(final)
         upstream_repo, status = repo, "exact_ancestor"
         if up != down:
-            upstream_repo, status, _ = ensure_candidate_object(store, up, kind, remotes)
+            upstream_repo, status, _ = ensure_candidate_object(
+                store, up, kind, remotes, deadline=monotonic() + CANDIDATE_FETCH_TIMEOUT)
         upstream_pid = cached_patch_id(upstream_repo, up, cache) if upstream_repo else None
         downstream_pid = cached_patch_id(repo, down, cache)
         upstream_edit = edit_digest(upstream_repo, up) if upstream_repo else None

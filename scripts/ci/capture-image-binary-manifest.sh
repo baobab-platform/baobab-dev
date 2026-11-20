@@ -3,7 +3,8 @@
 set -euo pipefail
 : "${EXPECTED_ARCHITECTURE:?expected image architecture is required}"
 : "${EXPECTED_LINUX_LIBC_DEV_VERSION:?expected linux-libc-dev version is required}"
-mkdir -p /evidence
+output="${1:-/evidence}"
+mkdir -p "$output"
 package_record="$(dpkg-query -W -f='${Status}\t${Version}\t${Architecture}\t${source:Package}\t${source:Version}\n' linux-libc-dev)"
 IFS=$'\t' read -r package_status package_version package_arch source_package source_version <<< "$package_record"
 [[ "$package_status" == "install ok installed" ]] || { echo "linux-libc-dev is not installed: $package_status" >&2; exit 2; }
@@ -14,7 +15,7 @@ IFS=$'\t' read -r package_status package_version package_arch source_package sou
 {
   printf 'status\tversion\tarchitecture\tsource_package\tsource_version\n'
   printf '%s\n' "$package_record"
-} > /evidence/linux-libc-dev.package.tsv
+} > "$output/linux-libc-dev.package.tsv"
 {
   printf 'path\tkind\tsha256\tlink_target\n'
   while IFS= read -r package_path; do
@@ -29,5 +30,5 @@ IFS=$'\t' read -r package_status package_version package_arch source_package sou
       printf '%s\tmissing\t\t\n' "$package_path"
     fi
   done < <(dpkg-query -L linux-libc-dev | LC_ALL=C sort -u)
-} > /evidence/linux-libc-dev.manifest.tsv
-echo "Captured linux-libc-dev $package_version ($package_arch) payload paths: $(($(wc -l < /evidence/linux-libc-dev.manifest.tsv) - 1))"
+} > "$output/linux-libc-dev.manifest.tsv"
+echo "Captured linux-libc-dev $package_version ($package_arch) payload paths: $(($(wc -l < "$output/linux-libc-dev.manifest.tsv") - 1))"
