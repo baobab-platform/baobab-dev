@@ -174,7 +174,10 @@ jobs:
         run: |
           set -euo pipefail
           root="$RUNNER_TEMP/ubuntu-linux-resolute"
-          git -C "$root" -c protocol.version=2 fetch --progress --unshallow --filter=blob:none --no-tags origin \
+          # Keep the complete commit graph for ancestry checks, but defer all historical
+          # trees/blobs. Path-limited history and patch-id checks lazily materialize
+          # only the trees/blobs they actually inspect.
+          git -C "$root" -c protocol.version=2 fetch --progress --unshallow --filter=tree:0 --no-tags origin \
             "refs/tags/${UBUNTU_SOURCE_TAG}:refs/tags/${UBUNTU_SOURCE_TAG}"
           test "$(git -C "$root" rev-parse --is-shallow-repository)" = "false"
           test "$(git -C "$root" rev-parse "refs/tags/${UBUNTU_SOURCE_TAG}^{commit}")" = "$UBUNTU_TAG_COMMIT"
