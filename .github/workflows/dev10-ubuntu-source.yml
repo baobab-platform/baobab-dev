@@ -78,6 +78,7 @@ jobs:
           set -euo pipefail
           for architecture in amd64 arm64; do
             python3 -B scripts/verify_ubuntu_binary_source.py \
+              --architecture "$architecture" \
               --installed-package "$RUNNER_TEMP/dev10-ubuntu-source/$architecture/installed-package.txt" \
               --apt-package-metadata "$RUNNER_TEMP/dev10-ubuntu-source/$architecture/apt-package-metadata.txt" \
               --apt-policy "$RUNNER_TEMP/dev10-ubuntu-source/$architecture/apt-policy.txt" \
