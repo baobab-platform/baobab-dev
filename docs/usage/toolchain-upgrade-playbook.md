@@ -44,17 +44,11 @@ The current PR #74 source lock resolves native pnpm 12.21.0 and Playwright 1.65.
 
 ## 2. Resolve without drift
 
-Follow existing [version management](../architecture/version-management.md):
+Edit `config/versions.yaml` and open the PR. **DEV-10 manifest lock resolution** validates the exact upstream tool versions and supplies `config/versions.lock` and `.python-version`. An unchanged `latest` entry reuses its reviewed base pin. Give a tool an explicit version for a deliberate upgrade.
 
-```bash
-# After editing config/versions.yaml for a reviewable proposal:
-./config/resolve.sh
+For a manifest-only PR from this repository, the approved lockfile GitHub App appends generated files to the same branch using the event head as a compare-and-swap lease. A fork run supplies a read-only artifact for a maintainer to adopt on a trusted branch. A change to resolver code or a build recipe needs a separately reviewed engineering PR.
 
-# After committing the exact intended lock, CI/check-only path:
-./config/resolve.sh --locked
-```
-
-Require checksum provenance and no dirty regenerated lock. Treat the lock as **data**, not executable shell. Select a supported upstream release, verify archive digest on **both** CPU architectures, and record original and replacement versions. Any mismatch fails.
+For local readback, run `./config/resolve.sh --locked` and inspect the generated diff. GitHub Actions continues to refuse stale locks. The same-branch writer requires the repository-scoped lockfile App and the protected `dev10-lockfile-write` environment. Workspace editors can use the retained artifact while setup or access is unavailable. Python patch changes require the exact publisher checksum from the release page in the same manifest edit.
 
 If a published tool is being rebuilt to fix embedded dependencies, retain the upstream source release and explicit Baobab patch provenance; do not mislabel a rebuilt binary as an untouched upstream distribution.
 

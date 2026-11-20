@@ -1,10 +1,14 @@
 """Release eligibility regressions: RC iterations and GA digest reuse."""
-import importlib.util
+import hashlib
+import json
+import os
 from pathlib import Path
+import sys
 import unittest
-spec = importlib.util.spec_from_file_location("eligibility", Path(__file__).resolve().parents[1] / "scripts/release_eligibility.py")
-mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mod)
+from unittest.mock import call, patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import release_eligibility as mod
 
 class ReleaseEligibilityTests(unittest.TestCase):
     tags = ["v1.5.0", "v1.5.1", "v1.5.2-rc.1"]
@@ -20,7 +24,16 @@ class ReleaseEligibilityTests(unittest.TestCase):
     def test_reviewed_maintenance(self):
         self.assertEqual(mod.decide("v1.5.2-rc.2", self.tags, False, False, True), "reviewed-maintenance")
     def test_ga_not_rebuilt(self):
-        self.assertEqual(mod.decide("v1.5.2", self.tags, False, False), "qualified-RC-digest-reuse")
+        channel = mod.publication_channel("v1.5.2", ["v1.5.2-rc.1"])
+        self.assertEqual(channel, "ga")
+        self.assertEqual(mod.decide("v1.5.2", self.tags, False, False, channel=channel),
+                         "qualified-RC-digest-reuse")
+    def test_new_stable_family_qualifies_without_a_numbered_rc(self):
+        channel = mod.publication_channel("v1.5.2", ["v1.5.1-rc.1", "v1.5.2-rc.0"])
+        self.assertEqual(channel, "ga-direct")
+        self.assertEqual(mod.decide("v1.5.2", self.tags[:-1], True, True, channel=channel), "changed-toolchain")
+        with self.assertRaises(mod.ReleaseEligibilityError):
+            mod.decide("v1.5.2", self.tags[:-1], False, False, channel=channel)
     def test_finalized_family_refused(self):
         with self.assertRaises(mod.ReleaseEligibilityError):
             mod.decide("v1.5.1-rc.2", self.tags, True, True)
@@ -75,7 +88,7 @@ class ReleaseEligibilityTests(unittest.TestCase):
     def test_bot_reviews_are_ignored_but_other_non_user_types_fail_closed(self):
         head = "a" * 40
         pr = {"head": {"sha": head}}
-        bot = {"id": 1, "user": {"type": "Bot", "login": "automation[bot]"},
+        bot = {"id": 1, "user": {"type": "Bot", "login": "automation[bot]", "id": 1009},
                "state": "APPROVED", "commit_id": head,
                "submitted_at": "2026-11-15T12:00:00Z"}
         with self.assertRaises(mod.ReleaseEligibilityError):
@@ -136,31 +149,102 @@ class ReleaseEligibilityTests(unittest.TestCase):
         with self.assertRaisesRegex(mod.ReleaseEligibilityError, "must include a timezone"):
             mod.verify_current_approval(pr, [review], 100)
 
-    def test_trusted_reviewer_resolution_requires_typed_users_and_unique_ids(self):
-        users = [
-            {"type": "User", "login": "one", "id": 201},
-            {"type": "User", "login": "two", "id": 201},
-        ]
-        from unittest.mock import patch
-        with patch.object(mod, "run", side_effect=[__import__("json").dumps(users[0]),
-                                                   __import__("json").dumps(users[1])]):
-            with self.assertRaisesRegex(mod.ReleaseEligibilityError, "duplicate numeric"):
-                mod.resolve_trusted_approvers(["one", "two"])
-        for account in (
-            {"type": "App", "login": "reviewer-app", "id": 201},
-            {"type": "User", "login": "reviewer", "id": True},
-            {"type": "User", "login": "different-login", "id": 201},
+    def test_release_source_requires_exact_premerge_independent_approval_and_input_bytes(self):
+        head, merge = "a" * 40, "b" * 40
+        pr = {
+            "number": 75, "head": {"sha": head}, "state": "closed", "merged": True,
+            "merged_at": "2026-11-15T11:00:00Z", "merge_commit_sha": merge,
+            "base": {"ref": "main", "repo": {"full_name": mod.REPOSITORY}},
+            "user": {"id": 100, "type": "User"},
+        }
+        review = {
+            "id": 1, "user": {"id": 201, "type": "User", "login": "checker"},
+            "state": "APPROVED", "commit_id": head, "submitted_at": "2026-11-15T09:00:00Z",
+        }
+        approved = b"reviewed"
+        for association, item, contributors, merged_bytes, diagnostic in (
+            ([pr], review, {100, 19864447}, approved, None),
+            ([], review, {100}, approved, "exact merge"),
+            ([pr, pr], review, {100}, approved, "exact merge"),
+            ([pr], dict(review, commit_id="c" * 40), {100}, approved, "current trusted"),
+            ([pr], dict(review, submitted_at="2026-11-15T12:00:00Z"), {100}, approved, "current trusted"),
+            ([pr], review, {100, 201}, approved, "independent of all PR contributors"),
+            ([pr], review, {100}, b"removed checksum", "differs from the exact reviewed bytes"),
         ):
-            with patch.object(mod, "run", return_value=__import__("json").dumps(account)):
-                with self.subTest(account=account), self.assertRaises(mod.ReleaseEligibilityError):
-                    mod.resolve_trusted_approvers(["reviewer"])
+            with (self.subTest(diagnostic=diagnostic, review=item),
+                  patch.object(mod, "paginated", side_effect=[association, [item]]) as pages,
+                  patch.object(mod, "api_request", return_value=(200, pr)),
+                  patch.object(mod, "collect_pr", return_value=(100, contributors)),
+                  patch.object(mod, "contents_bytes",
+                               side_effect=lambda _, _path, ref: approved if ref == head else merged_bytes)):
+                if diagnostic:
+                    with self.assertRaisesRegex(mod.ReleaseEligibilityError, diagnostic):
+                        mod.reviewed_source("read-token", merge, {201})
+                else:
+                    result = mod.reviewed_source("read-token", merge, {201})
+                    self.assertEqual(result["source_sha"], merge)
+                    self.assertEqual(result["pr_head_sha"], head)
+                    self.assertEqual(result["approvals"], [{"review_id": 1, "reviewer_id": 201}])
+                    self.assertEqual(result["input_sha256"], {
+                        file: hashlib.sha256(approved).hexdigest() for file in (mod.MANIFEST, *mod.GENERATED)
+                    })
+                    root = f"/repos/{mod.REPOSITORY}"
+                    self.assertEqual(pages.call_args_list, [
+                        call("read-token", f"{root}/commits/{merge}/pulls"),
+                        call("read-token", f"{root}/pulls/75/reviews"),
+                    ])
 
-    def test_review_pages_are_flattened_and_malformed_history_fails_closed(self):
-        pages = [[{"id": 1}], [{"id": 2}, {"id": 3}]]
-        self.assertEqual(mod.flatten_review_pages(pages), [{"id": 1}, {"id": 2}, {"id": 3}])
-        for invalid in ([], [{"id": 1}], [None]):
-            with self.subTest(invalid=invalid), self.assertRaises(mod.ReleaseEligibilityError):
-                mod.flatten_review_pages(invalid)
+    def test_maintenance_joins_rest_author_and_complete_contributor_custody(self):
+        head = "a" * 40
+        merge = "b" * 40
+        pr = {
+            "head": {"sha": head}, "state": "closed", "merged": True,
+            "merged_at": "2026-11-15T11:00:00Z", "merge_commit_sha": merge,
+            "base": {"ref": "main", "repo": {"full_name": mod.REPOSITORY}},
+            "user": {"id": 100, "type": "User"},
+        }
+        reviews = [{
+            "id": 1, "user": {"id": 201, "type": "User", "login": "checker"},
+            "state": "APPROVED", "commit_id": head, "submitted_at": "2026-11-15T09:00:00Z",
+        }]
+        decision = {
+            "release_family": "v1.5.2", "previous_ga": "v1.5.1", "review_pr": 77,
+            "reason": "Reviewed security rebuild using the same toolchain pins.",
+        }
+        env = {"GH_TOKEN": "test-token", "GITHUB_REPOSITORY": mod.REPOSITORY,
+               "DEV10_SECURITY_APPROVER_LOGINS": "checker"}
+        declaration = json.dumps(decision).encode()
+        files = [{"filename": mod.EXCEPTION.as_posix(), "status": "added"}]
+        for author, contributors, file_bytes, diagnostic in (
+            (100, {100, 19864447}, declaration, None),
+            (755, {100}, declaration, "numeric PR author identity differs"),
+            (100, {100, 201, 19864447}, declaration, "independent of PR contributors"),
+            (100, {100, 19864447}, b"{}", "differs from the exact reviewed bytes"),
+        ):
+            with (self.subTest(author=author, contributors=contributors),
+                  patch.dict(os.environ, env),
+                  patch.object(mod.EXCEPTION.__class__, "is_file", return_value=True),
+                  patch.object(mod.EXCEPTION.__class__, "read_bytes", return_value=declaration),
+                  patch.object(mod, "run", side_effect=[".devcontainer/docker/Dockerfile", ""]) as git,
+                  patch.object(mod, "api_request", return_value=(200, pr)),
+                  patch.object(mod, "paginated", side_effect=[reviews, files]) as pages,
+                  patch.object(mod, "contents_bytes", return_value=file_bytes),
+                  patch.object(mod, "resolve_trusted_reviewers", return_value={201: "checker"}),
+                  patch.object(mod, "collect_pr", return_value=(author, contributors)) as custody):
+                if diagnostic:
+                    with self.assertRaisesRegex(mod.ReleaseEligibilityError, diagnostic):
+                        mod.maintenance("v1.5.2", "v1.5.1")
+                else:
+                    self.assertTrue(mod.maintenance("v1.5.2", "v1.5.1"))
+                git.assert_called_with("git", "merge-base", "--is-ancestor", merge, "HEAD")
+                endpoint = f"/repos/{mod.REPOSITORY}/pulls/77"
+                self.assertEqual(pages.call_args_list, [
+                    call("test-token", endpoint + "/reviews"), call("test-token", endpoint + "/files"),
+                ])
+                if file_bytes == declaration:
+                    custody.assert_called_once_with("test-token", 77, head)
+                else:
+                    custody.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

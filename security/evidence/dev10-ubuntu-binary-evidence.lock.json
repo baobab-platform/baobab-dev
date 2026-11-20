@@ -1,0 +1,9 @@
+{
+  "schema": "baobab.dev10.ubuntu-binary-evidence-lock.v1",
+  "package": "linux-libc-dev",
+  "version": "7.0.0-43.43",
+  "sha256": {
+    "amd64": "3a3adc14e3332fc017b1d0e4e39655298a2a977d51db6e80de533ac60137b07f",
+    "arm64": "3d6313ac30170df8614618fd1aeb864606c378d90aa18e5d2012aad46861d753"
+  }
+}

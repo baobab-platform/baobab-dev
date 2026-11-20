@@ -46,9 +46,17 @@ rollback() {
   if ((rc != 0 && mutation_started != 0)); then
     echo "::error::PARTIAL GHCR PROMOTION: NO GitHub Release; audit $journal" >&2
     for ((i=${#changed_aliases[@]}-1; i>=0; i--)); do
-      local tag="${changed_aliases[i]}" old
+      local tag="${changed_aliases[i]}" old observed
       old="${prior_alias[$tag]}"
-      if [[ -z "$old" ]]; then
+      if ! observed=$(read_tag_digest "$tag"); then
+        printf 'rollback\t%s\t-\tUNKNOWN_MANUAL_RECOVERY\n' "$tag" >> "$journal"
+        echo "::error::Cannot establish current alias during restoration: $tag" >&2
+      elif [[ "$observed" == "$old" ]]; then
+        printf 'rollback\t%s\t%s\tALREADY_RESTORED\n' "$tag" "${old:--}" >> "$journal"
+      elif [[ "$observed" != "${expected[$tag]}" ]]; then
+        printf 'rollback\t%s\t%s\tCONCURRENT_ALIAS_CHANGE\n' "$tag" "${observed:--}" >> "$journal"
+        echo "::error::Alias changed after this run's write: $tag" >&2
+      elif [[ -z "$old" ]]; then
         printf 'rollback\t%s\t-\tMANUAL_RECOVERY_NEW_ALIAS\n' "$tag" >> "$journal"
       elif crane tag "$IMAGE@$old" "$tag" && [[ "$(crane digest "$IMAGE:$tag")" == "$old" ]]; then
         printf 'rollback\t%s\t%s\tRESTORED\n' "$tag" "$old" >> "$journal"
