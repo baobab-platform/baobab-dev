@@ -99,6 +99,19 @@ for tool in task yq buildx compose; do
   go version -m "/out/$binary" | tee "/out/${tool}.buildinfo"
   [[ "$(awk 'NR == 1 { print $NF }' "/out/${tool}.buildinfo")" == "$go_version" ]]
   grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' "/out/${tool}.buildinfo"
+  case "$tool" in
+    buildx|compose)
+      containerd_module=github.com/containerd/containerd/v2
+      containerd_version=$(go list -m -f '{{.Version}}' "$containerd_module")
+      awk -v module="$containerd_module" -v version="$containerd_version" '
+        $1 == "dep" && $2 == module && $3 == version && $4 ~ /^h1:/ { found = 1 }
+        END { exit !found }
+      ' "/out/${tool}.buildinfo" || {
+        echo "::error::$binary does not embed the selected $containerd_module $containerd_version" >&2
+        exit 1
+      }
+      ;;
+  esac
   if ! cmp -s go.mod "/build/security/$tool/go.mod.lock"; then
     echo "::error::Generated $tool go.mod differs from the committed lock; exact diff follows." >&2
     diff -u "/build/security/$tool/go.mod.lock" go.mod >&2 || true
