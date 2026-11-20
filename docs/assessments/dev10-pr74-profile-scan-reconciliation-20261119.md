@@ -6,11 +6,10 @@ This is an evidence reconciliation, not a VEX statement, remediation assertion, 
 
 ## Result
 
-The retained scan set contains **12 unique findings**, not 52. The earlier 52-finding count was an incorrect aggregation and must not be used for #92's scope. All eight normalized `findings.json` artifacts were downloaded and inspected. Their outer ZIP SHA-256 values match the corresponding artifact digests already recorded in `security/evidence/dev10-kernel-evidence.lock.json`.
+The eight archives retained from run `44264450503` contain **12 unique HIGH findings**. Independent download and inspection confirmed the normalized `findings.json` contents and the outer ZIP SHA-256 values pinned in `security/evidence/dev10-kernel-evidence.lock.json`.
 
 - 11 unique Ubuntu `linux-libc-dev=7.0.0-43.43` HIGH findings occur in all eight profile/architecture artifacts.
 - One unique npm `picomatch=4.0.5` HIGH finding (CVE-2026-112366) occurs in final, frontend and frontend-e2e, on both architectures. It is absent from both infra artifacts.
-- The union across all eight artifacts is exactly 12 unique finding identities.
 - Every listed finding has Trivy status `affected` and `fixed_version: null` in the normalized records. This is scanner evidence only; it does not prove upstream or vendor fix status.
 
 ## Exact eight-artifact matrix
@@ -27,6 +26,12 @@ The retained scan set contains **12 unique findings**, not 52. The earlier 52-fi
 | infra | linux/arm64 | 14410525385 | `c8c2c038ecc47931ff3fb14b34eeda4baa48c796cc7c3a58a52d23037fe4e549` | 11 | 0 | 11 |
 
 Run: `44264450503` (historical PR #74 profile scan). The ZIP digests above were independently recomputed from the downloaded artifact bytes and match the evidence-lock pins.
+
+### Later native and Foundation scans
+
+The completed runs for PR head `27a5a45f43d38f30549d5d6a254787cfd998aaa2` used synthetic checkout `898662c73882edd26bb776975a26003bb00fd77e`. All eight native builds and runtime smoke tests passed. Independent download verified the SHA-256 of all eight profile scan ZIPs and the separate Foundation ZIP. Each archive contains the same **52 unique findings** for `linux-libc-dev=7.0.0-43.43`, comprising 3 CRITICAL and 49 HIGH. Both workflows failed their scan gates. [Publish matrix and scan archives](https://github.com/baobab-platform/baobab-dev/actions/runs/44604893307) · [Foundation scan archive](https://github.com/baobab-platform/baobab-dev/actions/runs/44604896559/artifacts/14570469254)
+
+The two artifact sets share 11 finding identities. The later scans contain 41 additional kernel findings, including all three CRITICAL findings. The `picomatch` result belongs to the historical set. The draft development decision in #92 matches the historical scope. Disposition of the later findings remains open under #54. [Decision draft](https://github.com/baobab-platform/baobab-dev/pull/92) · [Risk governance](https://github.com/baobab-platform/baobab-dev/issues/54)
 
 ## Exact unique finding inventory
 

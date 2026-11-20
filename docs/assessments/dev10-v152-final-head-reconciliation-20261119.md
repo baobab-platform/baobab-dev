@@ -1,6 +1,6 @@
 # DEV-10 v1.5.2 final-head reconciliation
 
-19 November 2026 · [baobab-dev #74](https://github.com/baobab-platform/baobab-dev/pull/74)
+Updated 20 November 2026 · [baobab-dev #74](https://github.com/baobab-platform/baobab-dev/pull/74)
 
 **Release readiness — BLOCKED.** The requested toolchain versions are preserved. The unfiltered scans refuse the candidate. Independent current-head authorization and effective main and release-tag enforcement are also unresolved.
 
@@ -17,6 +17,19 @@ The initial audit fetched main at **bc6ca0a9f7d28c8baa41a903642ff808c99e84f2** a
 | [#55](https://github.com/baobab-platform/baobab-dev/issues/55) | Real Codespaces, private-package and consumer acceptance |
 
 The repository's four published targets match the Shared profile scheme. Dockerfile target **final** corresponds to **full** and has the unsuffixed version tag. DEV-14 and #55 establish the run and adoption evidence in each consuming repository. [Shared EA v2.3](https://github.com/baobab-platform/shared/tree/75b1fa96462f5e5148f842c47ace805ec8e679b5/docs/architecture) · [Shared environment contract](https://github.com/baobab-platform/shared/blob/75b1fa96462f5e5148f842c47ace805ec8e679b5/contracts/development-environment/schema.yaml)
+
+### Review by contract
+
+The security and release automation reviews requested changes on #74. The table gives each reviewer a starting point in the shared diff and qualification matrix. [Security review](https://github.com/baobab-platform/baobab-dev/pull/74#pullrequestreview-5980600326) · [Release automation review](https://github.com/baobab-platform/baobab-dev/pull/74#pullrequestreview-5980853859)
+
+| Review responsibility | Invariant and open evidence | Code and checks |
+| --- | --- | --- |
+| Image and toolchain maintenance | Manifest and lock determine all four profiles on AMD64 and ARM64. Repeat-build equivalence, the GitHub App lockfile writeback and default DevContainer isolation need qualification. | [Resolver](../../config/resolve.sh) · [Dockerfile](../../.devcontainer/docker/Dockerfile) · [DevContainer defaults](../../.devcontainer/devcontainer.json) · [Native tests](../../scripts/ci/qualify-native-image.sh) · [Lockfile writeback](../../.github/workflows/update-lockfile.yml) |
+| Vulnerability evidence | Assess each finding using its exact package, scan and architecture evidence. The historical 12-finding set and later 52-finding scans have distinct run IDs. | [Verified scan comparison](dev10-pr74-profile-scan-reconciliation-20261119.md#later-native-and-foundation-scans) · [Ubuntu source checks](../../.github/workflows/dev10-ubuntu-source.yml) |
+| Independent risk review and owner concurrence | Development scope and expiry require an exact, protected policy receipt. The draft decision remains open. | [Proposed decision](https://github.com/baobab-platform/baobab-dev/pull/92) · [Policy evaluation](../../scripts/evaluate_protected_risk_decision.py) · [Policy regression](../../tests/test_protected_risk_decision.py) |
+| Identity and policy custody | Current-head review must exclude contributors, corroborate typed IDs and bind the protected write to independent review and owner concurrence. Current release custody awaits live proof. | [Independence audit](../../scripts/audit_pr_reviewer_independence.py) · [Custody verifier](../../scripts/verify_protected_risk_custody.py) · [Custody regression](../../tests/test_protected_risk_custody.py) |
+| Release artifacts | The scanned native digests bind the runtime readback, signing, provenance and SBOMs. Qualification refuses residual HIGH and CRITICAL findings. | [Publish matrix](../../.github/workflows/publish.yml) · [Artifact contract tests](../../tests/test_release_artifact_contract.py) · [Digest security tests](../../tests/test_digest_security_decision.py) |
+| Release and environment governance | Tag publication requires effective rules, independent attempt-specific approval and immutable readback. The approved environment and disposable recovery exercise require live evidence. | [Governance verifier](../../scripts/verify_release_governance.py) · [Promotion approval tests](../../tests/test_verify_promotion_approval.py) · [Recovery procedure](../usage/immutable-rc-recovery.md) |
 
 ## 2. Manifest and lock conformance
 
@@ -79,7 +92,14 @@ The repository owner confirmed that main is intentionally unprotected for intern
 
 The release environment readback has four numeric reviewer appointments, prevents self-review and disables admin bypass. Repository tag rules use the literal doubled prefix **refs/tags/refs/tags/v***. It misses ordinary release refs. The protected branch and tag settings require effective owner-managed enforcement. Existing #74 APPROVED reviews were submitted against c4c15d363fa03ea073e5a2ac3a4908eb86c192a6. The candidate still requires an independent exact-head review. [Repository tag rules](https://github.com/baobab-platform/baobab-dev/rules/20470719)
 
-Local regression covers modified OCI bytes, wrong source, wrong scanner config identity, residual High findings and exact immutable transport. The checksum-verified crane transferred the fixture index by digest and read back the identical digest from a disposable loopback registry. Hosted PR preflight separately exercises real BuildKit OCI export and Docker import. The HEALTHCHECK, legacy exception refusals and two API cleanup findings were checked in the actual diff. The open threads remain recorded pending review of the replacement head.
+Local regression covers modified OCI bytes, wrong source, wrong scanner config identity, residual High findings and exact immutable transport. The checksum-verified crane transferred the fixture index by digest and read back the identical digest from a disposable loopback registry. Hosted PR preflight separately exercises real BuildKit OCI export and Docker import.
+
+| Open inline thread at audit | Verified implementation |
+| --- | --- |
+| [Legacy risk scope](https://github.com/baobab-platform/baobab-dev/pull/74#discussion_r4579503024) | The retired validator refuses authorization. Its remaining call path renders historical disclosure. |
+| [Free-text release decision](https://github.com/baobab-platform/baobab-dev/pull/74#discussion_r4579503037) | The digest verifier refuses free-text decisions and blocks residual HIGH and CRITICAL findings. |
+| [Dockerfile health check](https://github.com/baobab-platform/baobab-dev/pull/74#discussion_r4581848469) | All four profile health checks invoke Bash explicitly. |
+| [Redundant attempt check](https://github.com/baobab-platform/baobab-dev/pull/74#discussion_r4631930626) | The actor comparison is unconditional after the existing first-attempt guard. |
 
 ## 6. CVE and decision register
 
@@ -87,9 +107,10 @@ Local regression covers modified OCI bytes, wrong source, wrong scanner config i
 | --- | --- |
 | Historical 295 | linux-libc-dev 7.0.0-42.42, 12 Critical and 283 High. Keep the historical package and inventory distinct. [Historical inventory](dev10-kernel-cves.tsv) |
 | 298 under investigation | linux-libc-dev 7.0.0-43.43, Canonical Ubuntu-7.0.0-43.43 at f53b359683af7918c5436499948763cb726d5082. Earlier path corroboration returned 289 full correspondences and nine discrepancies. The ancestry audit enumerated 1,458 unique candidate commits. Unfinished results remain explicit. [298-source inventory](dev10-kernel-cves-298.tsv) |
-| Initial current scanner scope | Nine digest-verified artifacts report identical 52 findings for 7.0.0-43.43, 3 Critical and 49 High. Normalized inventory SHA-256 b85a53603ecdf87e5ff96109f87f31e6c404117955a5a027787a29632b21198f. [Profiles](https://github.com/baobab-platform/baobab-dev/actions/runs/44510229590) · [Foundation](https://github.com/baobab-platform/baobab-dev/actions/runs/44510231018/artifacts/14522648642) |
+| Completed 52-finding scans | Nine digest-verified artifacts at `27a5a45` report identical findings for 7.0.0-43.43, comprising 3 CRITICAL and 49 HIGH. The historical run with 12 HIGH findings remains independently verified. [Run and artifact scope](dev10-pr74-profile-scan-reconciliation-20261119.md#later-native-and-foundation-scans) |
 | Remediation trial | Both official 7.0.0-44.44 binaries verified against signed Ubuntu metadata. Package-only Trivy 0.73.0 returned the same 52 identities on both versions and architectures, with no fixed version reported. The existing version remains pinned. DB SHA-256 923c9ac4d894e62da8020926c64e7bbff80f2562944708ac6804388eb1debec9. |
 | Draft #92 | Includes 11 of the 52 kernel findings. Picomatch does not appear in this inventory, leaving 41 outside the proposal. The proposal expires 26 November 2026 at 00:00 UTC. Approvals and protected digest are pending. [Decision PR](https://github.com/baobab-platform/baobab-dev/pull/92) |
+| Rebuilt CLI dependency audit | At `6bf95ab`, the locked Go dependency scanner also refuses `containerd/v2` 2.4.1 for HIGH CVE-2026-95839. This is source dependency evidence with its own remediation and qualification. [Security dependency job](https://github.com/baobab-platform/baobab-dev/actions/runs/44678222872/job/136095065939) |
 | Release | BLOCKED by unfiltered security policy. The eight-finding development decision and the draft cannot authorize GHCR release. |
 
 The independent readback of the eight 167b962 scanner artifacts and the dedicated Foundation artifact verified all nine ZIP digests. Each retained the same exact 52 identities. The compact JSON array of sorted [CVE, package, version, severity] records hashes to **ab69f19d2186b6febcb1712bdbd343a34d133407d41d7c2d888a3455cc4ac2d1**.

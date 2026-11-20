@@ -149,7 +149,7 @@ def collect_run_approval(token, *, run_id, attempt, head_sha, actor, actor_id, t
     triggering_actor = run.get("triggering_actor")
     original_id = rest_user_id(run.get("actor"), "original workflow actor")
     triggering_id = rest_user_id(triggering_actor, "rerun-triggering actor")
-    if (original_id != actor_id or (attempt == 1 and triggering_id != original_id)
+    if (original_id != actor_id or triggering_id != original_id
             or GITHUB_WEB_FLOW_ID in (original_id, triggering_id)):
         raise EvidenceError("workflow actor IDs conflict with the release run context")
     _, reviews = rest_request(token, "GET", f"{endpoint}/approvals")
