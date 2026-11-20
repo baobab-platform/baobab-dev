@@ -100,6 +100,40 @@ jobs:
               assert report["binary_version"] == "7.0.0-43.43"
           print("Both architecture-specific package payloads match the reviewed binary evidence lock.")
           PY
+      - name: Compare captured installed manifests with exact amd64 and arm64 Debian payloads
+        run: |
+          set -euo pipefail
+          for architecture in amd64 arm64; do
+            package="$(find "$RUNNER_TEMP/dev10-ubuntu-source/$architecture" -maxdepth 1 -type f -name "linux-libc-dev_*_$architecture.deb")"
+            test -n "$package"
+            extract="$RUNNER_TEMP/dev10-ubuntu-source/$architecture/deb-extracted"
+            mkdir -p "$extract"
+            dpkg-deb -x "$package" "$extract"
+            python3 -B - "$RUNNER_TEMP/dev10-ubuntu-source/$architecture/installed-content-manifest.tsv" "$extract" "$architecture" <<'PY'
+          import hashlib, pathlib, sys
+          manifest, root, architecture = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), sys.argv[3]
+          checked = 0
+          for line in manifest.read_text().splitlines():
+              kind, raw_path, expected = line.split("\t")
+              target = root / raw_path.lstrip("/")
+              if kind == "dir":
+                  assert target.is_dir(), (architecture, raw_path, "missing directory")
+              elif kind == "file":
+                  assert target.is_file() and not target.is_symlink(), (architecture, raw_path, "missing file")
+                  actual = hashlib.sha256(target.read_bytes()).hexdigest()
+                  assert actual == expected, (architecture, raw_path, expected, actual)
+              elif kind == "symlink":
+                  assert target.is_symlink(), (architecture, raw_path, "missing symlink")
+                  actual = target.readlink().as_posix()
+                  assert actual == expected, (architecture, raw_path, expected, actual)
+              else:
+                  raise AssertionError((architecture, raw_path, kind))
+              checked += 1
+          assert checked > 0
+          print(f"{architecture}: {checked} installed manifest entries match the exact .deb payload.")
+          PY
+          done
+
       - name: Checkout pinned Canonical Ubuntu OSV snapshot
         run: |
           set -euo pipefail
