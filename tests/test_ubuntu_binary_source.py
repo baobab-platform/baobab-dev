@@ -19,6 +19,9 @@ class UbuntuBinarySourceTests(unittest.TestCase):
         capture = (ROOT / "scripts/ci/capture-ubuntu-package-evidence.sh").read_text()
         self.assertIn("bash scripts/ci/capture-ubuntu-package-evidence.sh", workflow)
         self.assertIn("for architecture in amd64 arm64", workflow)
+        self.assertIn("uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0", workflow)
+        self.assertLess(workflow.index("Register QEMU for arm64 Ubuntu package capture"),
+                        workflow.index("Capture exact installed amd64 and arm64 binary manifests"))
         self.assertIn("Compare captured installed manifests with exact amd64 and arm64 Debian payloads", workflow)
         self.assertIn("printf '%s\\n' \"$UBUNTU_IMAGE_REF\"", capture)
         self.assertNotIn("printf '%s\\\\n' \"$UBUNTU_IMAGE_REF\"", workflow)
