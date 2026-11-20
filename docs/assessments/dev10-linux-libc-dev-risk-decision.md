@@ -61,7 +61,7 @@ closed; a matching header is escalated. This is an upstream affected-files
 
 Code: scripts/audit_kernel_cve_paths.py; conservative tests:
 tests/test_kernel_cve_paths.py; workflow:
-.github/workflows/dev10-kernel-paths.yml.
+.github/workflows/dev10-ubuntu-source.yml (the consolidated, read-only upstream + Canonical tag evidence workflow).
 
 A reviewed final disposition still requires the Canonical-specific patches
 and shipped-header diff analysis for every CVE, host-kernel separation, bounded
@@ -86,7 +86,7 @@ The 47 cases include `CVE-2026-89659` (`fs/nfsd/netns.h`), `CVE-2026-89708` (`fs
 `bd2730b71a5dc7302373a7953d67dfbbe37a44ae2ede01039a63ba2df00398d4`;
 actual `installed-paths.txt` SHA256
 `688453ae46c07ec19b3bf6734eb2f23b0dfe5625c16d76d75149b8194da91fa3`.
-The artifact also includes `upstream-commit.txt`. Source and regression tests are committed as `scripts/audit_kernel_cve_paths.py` and `tests/test_kernel_cve_paths.py`; the read-only workflow is `.github/workflows/dev10-kernel-paths.yml`.
+The artifact also includes `upstream-commit.txt`. Source and regression tests are committed as `scripts/audit_kernel_cve_paths.py` and `tests/test_kernel_cve_paths.py`. The duplicate upstream-only workflow was consolidated into `.github/workflows/dev10-ubuntu-source.yml`, which captures the installed manifest once and retains the upstream and Ubuntu-tag evidence together. The original 295-CVE risk-gate input remains unchanged.
 
 **Scientific VEX/release determination remains SECURITY HELD.** The Linux CNA `programFiles` entries are upstream affected-file assertions, not complete Canonical-specific patch diffs. No direct UAPI path match supports a bounded `vulnerable_code_not_present` *candidate*, not a final exploitability verdict. An independent security reviewer must verify the Ubuntu 26.04 patch changes and binary-package derivation, indirect UAPI/ABI effects, host-kernel separation, exact resulting image digest, and an accountable expiring CVE-by-CVE decision. No blanket VEX, scanner ignores, relaxed HIGH/CRITICAL exit codes or release approval is justified by these observations.
 

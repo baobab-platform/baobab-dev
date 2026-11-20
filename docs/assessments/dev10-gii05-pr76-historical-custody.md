@@ -1,27 +1,22 @@
-# GII-05 — historical PR #76 reviewer/contributor collision
+# GII-05 historical custody of PR #76
 
-Status: **OPEN / custody not independently qualified**. This is a read-only audit aid, not a policy decision, approval, or provisioning authority.
+The authenticated audit corroborated independent exact-head approval and pre-merge owner concurrence for PR #76. The audit used the shared custody verifier and the accepted DEV-10 decision contract. [Issue #81](https://github.com/baobab-platform/baobab-dev/issues/81) · [ADR-DEV10-001](../adr/ADR-DEV10-001-reusable-development-risk-policy.md)
 
-## Evidence observed (18 November 2026)
+| Evidence | Verified historical value |
+| --- | --- |
+| Decision PR and exact head | [#76](https://github.com/baobab-platform/baobab-dev/pull/76) at `f9fd73d4e848a7c4d3bcfbe28651e06149cdcb6d` |
+| Complete history | 94 commits and eight reviews. Contributor IDs are `19864447`, `350241706`, and `356890520`. |
+| Reviewer collision | ID `356890520` authored `dad5dc64031d05b7e7d93345f1ea553abea6c70e` and is excluded from independent review. The platform committer ID `19864447` remains in the contributor set. |
+| Effective approval | Reviewer ID `356900102`, review `5932308847`, approved the exact head at `2026-11-17T03:28:08Z`. [Review](https://github.com/baobab-platform/baobab-dev/pull/76#pullrequestreview-5932308847) |
+| Owner concurrence | Owner ID `49340314` posted comment `6924572973` at `2026-11-16T17:56:59Z`. [Comment](https://github.com/baobab-platform/baobab-dev/pull/76#issuecomment-6924572973) |
+| Canonical merge | `29db8484fead93bf5eee95f29803592d575f7d17`, merged at `2026-11-17T03:36:58Z`. |
 
-- PR #76 is merged, final PR head `f9fd73d4e848a7c4d3bcfbe28651e06149cdcb6d`, with 94 commits. Its author is GitHub numeric user ID `350241706` (`wekhason`).
-- Issue #81 records commit `dad5dc64031d05b7e7d93345f1ea553abea6c70e` as authored by `sknabusiu` and committed by GitHub `web-flow`. The issue identifies this as a reviewer/contributor collision; the collision must be checked against the **complete exact-head commit history**, not only that commit.
-- The PR review timeline contains several approvals by `sknabusiu`, a later `CHANGES_REQUESTED`, and approvals by `sdnabusiu`. At least one approval by a different reviewer appears in the history, but its *current-head eligibility*, trusted numeric identity, temporal ordering and effective review state have **not** been independently established by this audit.
-- The GitHub connector's review listing exposes author logins but omits immutable numeric reviewer IDs and review commit SHA in its normalized result. This listing alone cannot prove qualifying custody.
-- The existing `custody_independence.collect_pr` enumerates commit authors, co-authors and committers, with fatal handling of incomplete histories. It should remain the authoritative collector; do not replace it with a hand-maintained contributor list.
+The policy-contract workflow ran both the historical custody and reviewed-source checks on #74 at `f860332af8442f3ad85e43109a1f243441f3e562`. The independently downloaded artifact ZIP matched SHA-256 `f75811660e4f973ef6d6872faa857dbd2556718368131d16831ee16285e5f206`. Its two receipts agree on head, contributors and effective approval. [Run 44683694368, attempt 1](https://github.com/baobab-platform/baobab-dev/actions/runs/44683694368) · [Receipt archive](https://github.com/baobab-platform/baobab-dev/actions/runs/44683694368/artifacts/14605591489)
 
-## Read-only next step
+## Review and reproduction
 
-Collect a fresh, paginated, authenticated GitHub REST/GraphQL snapshot for PR #76, including:
-1. Exact head and full commit history (every author, co-author, committer numeric ID, and all pages); confirm the observed merge-commit author.
-2. All PR review records with numeric `user.id`, state, `commit_id`, numeric review ID and `submitted_at`, plus dismissal information.
-3. Independently resolved trusted reviewer numeric IDs, and attributable pre-merge owner concurrence with timestamps.
-4. GitHub API errors, missing identities and truncated pages as **refusal**, never successful evidence.
+1. Run `python3 -m unittest discover -s tests -p 'test_audit_pr_reviewer_independence.py' -v` for the exact-head historical receipt and negative review cases.
+2. Use the policy-contract workflow to run `scripts/audit_pr_reviewer_independence.py --historical` with authenticated read-only GitHub access. Review the retained head, approval and owner evidence together.
+3. Use the custody and provisioning suites to verify paginated history, typed IDs, effective state changes, stale approvals and contributor exclusion.
 
-`scripts/audit_gii05_review_custody.py --evidence evidence.json` checks a **supplied** normalized evidence snapshot for reviewer/contributor collision and latest effective exact-head approval. Its `history_complete` flag is only an input assertion: it is **not cryptographic proof of completeness**, and the tool does not authenticate GitHub data. Use it as a regression/analysis aid alongside the existing live custody verifier, not as an authorization decision. Never feed arbitrary user-edited JSON into provisioning.
-
-The fixture tests deliberately model reviewer ID `356890520` as a contributor and ID `356900102` as a distinct reviewer; they are **synthetic qualification scenarios**, not a declaration that the historical review passed. The final outcome stays **UNVERIFIED** until independent live evidence confirms exact-head eligibility, effective review state and owner concurrence.
-
-## Controls unchanged
-
-No token or secret output; no environment changes; no protected variable write; no reviewer impersonation; no deployment approval; no merge; no weakening of exact-SHA/metadata reconciliation or contributor exclusion. Issue #81 remains open. If no independent eligible review is demonstrable, record historical governance nonconformance and require explicit owner-led remediation, without retroactively fabricating approval.
+The earlier standalone snapshot evaluator has been superseded by the shared verifier in #74. The regression cases now exercise that verifier. This is historical evidence for #76. Current repository enforcement and the authority for #92 or a release are evaluated separately. [Shared verifier](../../scripts/audit_pr_reviewer_independence.py) · [Custody negative cases](../../tests/test_custody_independence.py)

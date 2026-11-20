@@ -1,0 +1,417 @@
+{
+  "schema": "baobab.dev10.kernel-evidence-lock.v1",
+  "package_version": "7.0.0-43.43",
+  "ubuntu_tag": {
+    "name": "Ubuntu-7.0.0-43.43",
+    "commit": "f53b359683af7918c5436499948763cb726d5082"
+  },
+  "upstream_cna": {
+    "sha": "604accad567eb6e7fb4c7fdc422470c25f35f467"
+  },
+  "inventory": {
+    "path": "docs/assessments/dev10-kernel-cves-298.tsv",
+    "sha256": "251405db863a92a8156b4facedb9b5cec4b5596e45a326353e0ee2cb4e304c51",
+    "count": 298
+  },
+  "canonical_status": {
+    "path": "docs/assessments/dev10-canonical-cve-status-20261118.tsv",
+    "sha256": "49c178c145edb4b083a76b9d6218ab5a3f5f8c8d3cafbd495c7effdc11718233",
+    "count": 298
+  },
+  "binary_manifest": {
+    "sha256": "688453ae46c07ec19b3bf6734eb2f23b0dfe5625c16d76d75149b8194da91fa3",
+    "header_count": 1039,
+    "package": "linux-libc-dev=7.0.0-43.43",
+    "digest_policy": "SHA-256 computed from installed-paths.txt in the retained Ubuntu source audit artifact and rechecked on every subsequent register build",
+    "path_count": 1102
+  },
+  "evidence_runs": [
+    {
+      "run_id": 44297169413,
+      "artifact_id": 14424421569,
+      "artifact_sha256": "0eb499585db2c90c6ebdd4c69b57b0ec4a304530e348abbbc4ad252f40c675eb"
+    }
+  ],
+  "canonical_osv": {
+    "repository": "https://github.com/canonical/ubuntu-security-notices",
+    "commit": "88c00a77a1247172dd107f5dd3f24a1e1d1f57b2",
+    "snapshot_path": "osv/cve"
+  },
+  "profile_scan_run": {
+    "run_id": 44264450503,
+    "artifacts": [
+      {
+        "profile": "final",
+        "architecture": "linux/amd64",
+        "artifact_id": 14410162334,
+        "artifact_sha256": "bf84ec7debcf4063a519095c0a99205cec59d6bd37a5d4cf13d2a42d3fb144e6"
+      },
+      {
+        "profile": "final",
+        "architecture": "linux/arm64",
+        "artifact_id": 14409828180,
+        "artifact_sha256": "216213895d2305ff197819ab68c3f0c938baeac4331f5c3f9fde7a0ef900f6d2"
+      },
+      {
+        "profile": "frontend",
+        "architecture": "linux/amd64",
+        "artifact_id": 14409114266,
+        "artifact_sha256": "5a503f8aba34dea18bfff717d51004fc0807b7a3497f86f5790b28275bf16977"
+      },
+      {
+        "profile": "frontend",
+        "architecture": "linux/arm64",
+        "artifact_id": 14409493397,
+        "artifact_sha256": "1fcee6f58efa2f53643f2b0ce018f84f7097ff1a456f9413055cb41ef979b334"
+      },
+      {
+        "profile": "frontend-e2e",
+        "architecture": "linux/amd64",
+        "artifact_id": 14409399064,
+        "artifact_sha256": "8d0ce55480d49ab896526877675550a245d3ac0aed2dd66e8898888dfe3f86ff"
+      },
+      {
+        "profile": "frontend-e2e",
+        "architecture": "linux/arm64",
+        "artifact_id": 14410810129,
+        "artifact_sha256": "f71c837c32e2a79228140f31a10e5cf4c4da34050a58bba88e512b0b1d7a6732"
+      },
+      {
+        "profile": "infra",
+        "architecture": "linux/amd64",
+        "artifact_id": 14410191777,
+        "artifact_sha256": "652fc27821e383980ed001a1cad8f471cdf4cd5290c46a8d2a3df47d45c25af9"
+      },
+      {
+        "profile": "infra",
+        "architecture": "linux/arm64",
+        "artifact_id": 14410525385,
+        "artifact_sha256": "c8c2c038ecc47931ff3fb14b34eeda4baa48c796cc7c3a58a52d23037fe4e549"
+      }
+    ],
+    "foundation_scan": {
+      "run_id": 44264457504,
+      "job_id": 134665477172,
+      "artifact_id": 14410890378,
+      "artifact_sha256": "24ea09610d506fa4a439bd76a6087ef1b9ab21f3a4896a776c07035691feb3d8"
+    },
+    "package_version": "7.0.0-43.43",
+    "observed_kernel_cves": [
+      "CVE-2022-50240",
+      "CVE-2025-40190",
+      "CVE-2026-68103",
+      "CVE-2026-72198",
+      "CVE-2026-74578",
+      "CVE-2026-89805",
+      "CVE-2026-98376",
+      "CVE-2026-98420",
+      "CVE-2026-98869",
+      "CVE-2026-98890",
+      "CVE-2026-99083"
+    ],
+    "observed_node_cves": [
+      "CVE-2026-112366"
+    ],
+    "observation_note": "The eight profile/architecture Trivy artifacts all report the same 11 linux-libc-dev CVEs on 7.0.0-43.43; infra artifacts contain only those 11. The separate node-pkg finding appears in the other profile artifacts. This scan evidence is distinct from the historical 295-CVE 7.0.0-42.42 inventory."
+  },
+  "stable_base_image": {
+    "image_tag": "ghcr.io/baobab-platform/baobab-dev:1.5.1",
+    "index_digest": "sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed",
+    "release_tag": "v1.5.1",
+    "source_sha": "13493b24d6af1a9e7bddf7df9be555d1c06a635d",
+    "signer_tag": "v1.5.1-rc.2",
+    "release_run_id": 43559737080,
+    "release_reuse_job_id": 132340642392,
+    "signer_run_id": 43493272371,
+    "signer_job_id": 132138775423,
+    "signer_job_name": "Publish Multi-Arch Manifest & Cosign Sign (final)",
+    "qualification": "Historical v1.5.1 publish succeeded; independent strict readback verified all four profile indexes and both native architectures in run 44330235494. This is historical evidence, not v1.5.2 release qualification.",
+    "release_qualification": {
+      "rc_run_id": 43493272371,
+      "ga_reuse_run_id": 43559737080,
+      "release_digest_jobs": [
+        {
+          "profile": "frontend",
+          "architecture": "linux/amd64",
+          "job_id": 132129392902
+        },
+        {
+          "profile": "final",
+          "architecture": "linux/arm64",
+          "job_id": 132129392910
+        },
+        {
+          "profile": "final",
+          "architecture": "linux/amd64",
+          "job_id": 132129392965
+        },
+        {
+          "profile": "infra",
+          "architecture": "linux/amd64",
+          "job_id": 132129392995
+        },
+        {
+          "profile": "infra",
+          "architecture": "linux/arm64",
+          "job_id": 132129393017
+        },
+        {
+          "profile": "frontend",
+          "architecture": "linux/arm64",
+          "job_id": 132129393054
+        },
+        {
+          "profile": "frontend-e2e",
+          "architecture": "linux/amd64",
+          "job_id": 132129393214
+        },
+        {
+          "profile": "frontend-e2e",
+          "architecture": "linux/arm64",
+          "job_id": 132129393366
+        }
+      ],
+      "exact_release_artifacts": [
+        {
+          "profile": "final",
+          "architecture": "linux/arm64",
+          "artifact_id": 14073500151,
+          "artifact_sha256": "f81702149bd770734ced178534a379a3187d275c210b64197cd4301e0e61ba90"
+        },
+        {
+          "profile": "final",
+          "architecture": "linux/amd64",
+          "artifact_id": 14073426222,
+          "artifact_sha256": "7498e3a6febb50ede9d93685d5afca21bca6be4fca587ecbe1e79a99dcc657eb"
+        },
+        {
+          "profile": "frontend",
+          "architecture": "linux/arm64",
+          "artifact_id": 14073015534,
+          "artifact_sha256": "8fd630a368465ef1cc2cc9cff33ddefecf3e6fa58671c12685fdd8f65337833f"
+        },
+        {
+          "profile": "frontend",
+          "architecture": "linux/amd64",
+          "artifact_id": 14071904607,
+          "artifact_sha256": "21449c21079266658977b614262b91e69aa351c5f8a2c098d2e40ba9a6de794f"
+        },
+        {
+          "profile": "frontend-e2e",
+          "architecture": "linux/arm64",
+          "artifact_id": 14072846477,
+          "artifact_sha256": "445ee669dbee50b219775d793be85a6ba9413f3e4e9aff628954fc76996786d5"
+        },
+        {
+          "profile": "frontend-e2e",
+          "architecture": "linux/amd64",
+          "artifact_id": 14072272493,
+          "artifact_sha256": "3d768abffb96d5cb134b918d90e75639afc9aa211a904b5710906a88a9daa4ae"
+        },
+        {
+          "profile": "infra",
+          "architecture": "linux/amd64",
+          "artifact_id": 14072920956,
+          "artifact_sha256": "a7c2d79fe53f976c3660b767fe3431fb9dcc28208f6c91dccad9942a15d17901"
+        },
+        {
+          "profile": "infra",
+          "architecture": "linux/arm64",
+          "artifact_id": 14071598503,
+          "artifact_sha256": "f3306bc5aaf06ef6ff3a99c0dd8a136e918d5905c763e8cac2737419c2e626d6"
+        }
+      ],
+      "trivy_scan_artifacts": [
+        {
+          "profile": "final",
+          "architecture": "linux/arm64",
+          "artifact_id": 14071951194,
+          "artifact_sha256": "a72116307419bd36ff577bd7205ad301183ad8c83ebc17c2f3bd9fc78d679785"
+        },
+        {
+          "profile": "final",
+          "architecture": "linux/amd64",
+          "artifact_id": 14070604834,
+          "artifact_sha256": "d2a03534bf090fb9d9c3522bf5cfd5d045835e329e26a91b3a8887bd167da316"
+        },
+        {
+          "profile": "frontend-e2e",
+          "architecture": "linux/arm64",
+          "artifact_id": 14070629054,
+          "artifact_sha256": "7892a6f14d6695507ceb711edd939fd4d2be2fa39592c93e61dc1accf575ec9c"
+        },
+        {
+          "profile": "infra",
+          "architecture": "linux/arm64",
+          "artifact_id": 14070533474,
+          "artifact_sha256": "b3923cb04f07bb77db0bdcf8f46b7f7ca24fe1443dff4da58f445790fe7d7599"
+        },
+        {
+          "profile": "infra",
+          "architecture": "linux/amd64",
+          "artifact_id": 14071316387,
+          "artifact_sha256": "5ae9cd4f7b70a906cf1e9563ca6da1fef1f0914f7bda6fd1ffd79191c8ace110"
+        },
+        {
+          "profile": "frontend",
+          "architecture": "linux/amd64",
+          "artifact_id": 14071187073,
+          "artifact_sha256": "d47e3acfc68b8fdc89f29698690e15175911ec4e7cfdbbfc5792ebfcb843c784"
+        },
+        {
+          "profile": "frontend-e2e",
+          "architecture": "linux/amd64",
+          "artifact_id": 14069919842,
+          "artifact_sha256": "e909c79f0100788c95d7ba2d6a8b05f551fdd20eaeca11745a6ba82d0e0ccea6"
+        },
+        {
+          "profile": "frontend",
+          "architecture": "linux/arm64",
+          "artifact_id": 14069903575,
+          "artifact_sha256": "e2fd1460c06bc02d27d147c39c8687e0154cd915afa480e27458cf6fb689392a"
+        }
+      ],
+      "signed_predicate_artifacts": [
+        {
+          "profile": "frontend-e2e",
+          "artifact_id": 14073710893,
+          "artifact_sha256": "b75e1754dc9101ded25002edf8117162f2a28aec89987693f065ac9f9f82ddf4"
+        },
+        {
+          "profile": "final",
+          "artifact_id": 14073566181,
+          "artifact_sha256": "0782a71dd6b123f0e8ba6a338a39038bd3187d6f12049b48f6e4e5b90e562c0c"
+        },
+        {
+          "profile": "frontend",
+          "artifact_id": 14073136800,
+          "artifact_sha256": "4eaf5371446d380a5e8b10a4e5c3317886216904192f24cd9609dc802d71f742"
+        },
+        {
+          "profile": "infra",
+          "artifact_id": 14072657857,
+          "artifact_sha256": "1f818c8d405cbb28eee47a029fb322229621ac2eea283ea16f61162d3a047cc5"
+        }
+      ],
+      "publish_jobs": [
+        {
+          "profile": "final",
+          "job_id": 132138775423
+        },
+        {
+          "profile": "frontend",
+          "job_id": 132138775454
+        },
+        {
+          "profile": "frontend-e2e",
+          "job_id": 132138775472
+        },
+        {
+          "profile": "infra",
+          "job_id": 132138775502
+        }
+      ]
+    },
+    "independent_readback": {
+      "run_id": 44330235494,
+      "release_tag": "v1.5.1",
+      "signer_tag": "v1.5.1-rc.2",
+      "source_sha": "13493b24d6af1a9e7bddf7df9be555d1c06a635d",
+      "status": "STRICT_SIGNED_NATIVE_CONTENT_VERIFIED",
+      "image_signature_count": 5,
+      "signed_slsa_statements": 2,
+      "signed_spdx_statements": 2,
+      "release_qualification": false,
+      "profiles": {
+        "final": {
+          "artifact_id": 14439297155,
+          "artifact_sha256": "b4dfcabf04eef40b9fe2bb4fc671dd59e0f0dfe59a2da6f7958f4f5f6f768178",
+          "index_digest": "sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed",
+          "native_child_digests": {
+            "linux/amd64": "sha256:51c380e8128431dc546fdd59736ad91a02d3f6bcac2d6b9d16389f312f697c0c",
+            "linux/arm64": "sha256:1f1a90dc05e3248a8f90e1848d63aa9f5e82a078976a9a1a0d6be3c496360804"
+          }
+        },
+        "frontend": {
+          "artifact_id": 14439391830,
+          "artifact_sha256": "9a18e48105f10d806e1ef2338174e380e6dadb942735c1fce2fe2fea3eb1209a",
+          "index_digest": "sha256:388d604293fc6a2046d1abb9c7b80b32e78c6003636b091d1e9c7c827e34766d",
+          "native_child_digests": {
+            "linux/amd64": "sha256:387eefb51bb748194c10ac35e18c50faed467a8ff2ebc07697cc0dc7063c72f5",
+            "linux/arm64": "sha256:a1943251cbd035df107149e94bcd9a28d7feff8094ef911781ef8c71497e9182"
+          }
+        },
+        "frontend-e2e": {
+          "artifact_id": 14438972949,
+          "artifact_sha256": "ca5c45648e0209924044cdb21ad92e69772b1b8b18c9142f21a75d75d694bddd",
+          "index_digest": "sha256:5b4a9ce1ac819a2b125f078fef4b14837b5b65b46527087a2bb8898b4811bb0b",
+          "native_child_digests": {
+            "linux/amd64": "sha256:96d34348b0b7be9a85c024179d60481597619e15980897896c0653265c78d37e",
+            "linux/arm64": "sha256:549336dcc9405f0b657fcc4877749274a9c96d937c7c49ba2fa3fc3c0862f3b5"
+          }
+        },
+        "infra": {
+          "artifact_id": 14438583734,
+          "artifact_sha256": "74a54a878b13ebf5ce4affd11162eee3ffae8ac1cce46376b759b89ac08ddbdb",
+          "index_digest": "sha256:5b39e71dd068da12e009421012d7c3620339746c2a39839182ea1f4fe788ffda",
+          "native_child_digests": {
+            "linux/amd64": "sha256:1ca79f79867eb0fc3a4a1b0c31ccf0aa47d252915f2e01ff32d6e51d2cfb0fa7",
+            "linux/arm64": "sha256:290140edf7fc9c252befe9454119b059549c3a5ddd44cf668392d442f81657d7"
+          }
+        }
+      }
+    }
+  },
+  "stable_profile_images": {
+    "final": {
+      "release_tag": "v1.5.1",
+      "source_sha": "13493b24d6af1a9e7bddf7df9be555d1c06a635d",
+      "signer_tag": "v1.5.1-rc.2",
+      "ga_reuse_run_id": 43559737080,
+      "signer_run_id": 43493272371,
+      "image_tag": "ghcr.io/baobab-platform/baobab-dev:1.5.1",
+      "index_digest": "sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed"
+    },
+    "frontend": {
+      "release_tag": "v1.5.1",
+      "source_sha": "13493b24d6af1a9e7bddf7df9be555d1c06a635d",
+      "signer_tag": "v1.5.1-rc.2",
+      "ga_reuse_run_id": 43559737080,
+      "signer_run_id": 43493272371,
+      "image_tag": "ghcr.io/baobab-platform/baobab-dev:1.5.1-frontend",
+      "index_digest": "sha256:388d604293fc6a2046d1abb9c7b80b32e78c6003636b091d1e9c7c827e34766d"
+    },
+    "frontend-e2e": {
+      "release_tag": "v1.5.1",
+      "source_sha": "13493b24d6af1a9e7bddf7df9be555d1c06a635d",
+      "signer_tag": "v1.5.1-rc.2",
+      "ga_reuse_run_id": 43559737080,
+      "signer_run_id": 43493272371,
+      "image_tag": "ghcr.io/baobab-platform/baobab-dev:1.5.1-frontend-e2e",
+      "index_digest": "sha256:5b4a9ce1ac819a2b125f078fef4b14837b5b65b46527087a2bb8898b4811bb0b"
+    },
+    "infra": {
+      "release_tag": "v1.5.1",
+      "source_sha": "13493b24d6af1a9e7bddf7df9be555d1c06a635d",
+      "signer_tag": "v1.5.1-rc.2",
+      "ga_reuse_run_id": 43559737080,
+      "signer_run_id": 43493272371,
+      "image_tag": "ghcr.io/baobab-platform/baobab-dev:1.5.1-infra",
+      "index_digest": "sha256:5b39e71dd068da12e009421012d7c3620339746c2a39839182ea1f4fe788ffda"
+    }
+  },
+  "historical_295_inventory": {
+    "path": "docs/assessments/dev10-kernel-cves.tsv",
+    "sha256": "d79f62e624091c24f0d3636a6bb6e6134f52502ff10d9959d43f12ca0f8047d0",
+    "count": 295,
+    "package_version": "7.0.0-42.42"
+  },
+  "binary_source": {
+    "binary_package": "linux-libc-dev",
+    "binary_version": "7.0.0-43.43",
+    "architecture": "amd64",
+    "source_package": "linux",
+    "source_version": "7.0.0-43.43",
+    "release_pocket": "resolute-updates"
+  }
+}

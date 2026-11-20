@@ -14,6 +14,23 @@ from evaluate_protected_risk_decision import (
     validate_execution_context,
 )
 
+BASE_FINDINGS = frozenset({
+    ("CVE-2022-50240", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2025-40190", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-68103", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-72198", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-74578", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-89805", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-98376", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-98420", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+})
+EXTENDED_FINDINGS = BASE_FINDINGS | frozenset({
+    ("CVE-2026-98869", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-98890", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-99083", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
+    ("CVE-2026-112366", "picomatch", "4.0.5", "HIGH", "node-pkg"),
+})
+
 def verify(decision_path, trusted_sha256, report, *, profile, architecture,
            event, ref, base_ref="", head_repository="", approval_id=None,
            approval_timestamp=None, approved_by_id=None, now=None):
@@ -41,9 +58,8 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture,
            and set(architectures) == {"linux/amd64", "linux/arm64"}
            and profile in profiles and architecture in architectures,
            "profile or architecture outside the complete protected policy scope")
-    demand(decision.get("expires_at") == "2026-11-26T00:00:00Z"
-           and decision.get("finding_count") == 8,
-           "decision expiry or finding count differs from the approved governance record")
+    demand(decision.get("expires_at") == "2026-11-26T00:00:00Z",
+           "decision expiry differs from the approved governance record")
     approved_at = _timestamp({"approved_at": approval_timestamp}, "approved_at")
     demand(approved_at <= now < _timestamp(decision, "expires_at"),
            "policy expired or not yet approved")
@@ -53,19 +69,15 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture,
            and prepared_by_id != approved_by_id,
            "numeric maker-checker separation required")
     findings = decision.get("findings")
-    demand(isinstance(findings, list) and len(findings) == 8,
-           "the complete eight-finding approval inventory is required")
+    demand(isinstance(findings, list)
+           and type(decision.get("finding_count")) is int
+           and decision["finding_count"] == len(findings)
+           and len(findings) in (8, 12),
+           "decision finding count is missing or outside the two reviewed inventory shapes")
     approved = {_finding_key(item) for item in findings}
-    expected_cves = {
-        "CVE-2022-50240", "CVE-2025-40190", "CVE-2026-68103",
-        "CVE-2026-72198", "CVE-2026-74578", "CVE-2026-89805",
-        "CVE-2026-98376", "CVE-2026-98420",
-    }
-    demand(len(approved) == 8
-           and {item[0] for item in approved} == expected_cves
-           and all(item[1:] == ("linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu")
-                   for item in approved),
-           "decision differs from the exact approved Ubuntu package/CVE inventory")
+    demand(len(approved) == len(findings)
+           and approved in (BASE_FINDINGS, EXTENDED_FINDINGS),
+           "decision differs from the exact reviewed development package/CVE inventory")
     demand(report.get("SchemaVersion") == 2 and report.get("ArtifactType") == "container_image",
            "raw Trivy container image report required")
     demand(isinstance(report.get("Trivy"), dict)

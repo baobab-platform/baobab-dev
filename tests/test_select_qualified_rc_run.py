@@ -86,10 +86,12 @@ class QualifiedRcRunSelectionTests(unittest.TestCase):
                 select_qualified_rc_run(data, "v1.5.2", SHA)
 
 
-    def test_both_ga_rc_discovery_paths_fetch_all_pages(self):
+    def test_ga_selects_once_then_revalidates_the_exact_producer(self):
         workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/publish.yml").read_text()
         query = 'repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=completed&per_page=100'
-        self.assertEqual(workflow.count('gh api --paginate --slurp "' + query + '"'), 2)
+        self.assertEqual(workflow.count('gh api --paginate --slurp "' + query + '"'), 1)
+        self.assertIn("RC_RUN: ${{ needs.ga-reuse.outputs.rc_run }}", workflow)
+        self.assertIn('gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RC_RUN}" > "$RUNNER_TEMP/qualified-rc-run.json"', workflow)
         self.assertNotIn('gh api "' + query + '"', workflow)
 
 

@@ -55,6 +55,12 @@ provisioning credential from reaching candidate workflows.
 - Preserve read-only token permissions in PR workflows and never pass the
   provisioning token to PR, build, scan or release jobs.
 
+## Manifest lock writer and release settings
+
+- `dev10-lockfile-write` holds `DEV10_LOCKFILE_APP_PRIVATE_KEY`. Set the associated client ID in `DEV10_LOCKFILE_APP_CLIENT_ID` and install the approved App on this repository with Contents write. Restrict the environment to the trusted main-target context. This App only receives generated files after the trusted resolver attests the source head. Keep the App outside release-tag, main and protected policy bypass lists.
+- Main release qualification checks the effective GitHub branch rules for required independent PR review, stale-review dismissal, approval after the last push and up-to-date checks.
+- The release tag ruleset must cover the canonical release namespace. GitHub's API should show `refs/tags/v*`, including normal stable and RC tags, with creation, non-fast-forward and deletion restrictions. Inspect administrator and App bypasses separately. A clean scan or passing verifier does not authorize a settings change.
+
 ## Required activation proof
 
 1. Record the repository variable names, environment IDs, rules and required
