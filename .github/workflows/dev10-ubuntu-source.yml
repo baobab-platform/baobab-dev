@@ -66,6 +66,10 @@ jobs:
           python3 -B -m unittest discover -s tests -p test_dev10_ubuntu_kernel_fix_history.py -v
           python3 -B -m unittest discover -s tests -p test_ubuntu_binary_source.py -v
           python3 -B -m unittest discover -s tests -p test_kernel_cve_paths.py -v
+      - name: Register QEMU for arm64 Ubuntu package capture
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+        with:
+          platforms: arm64
       - name: Capture exact installed amd64 and arm64 binary manifests
         run: |
           set -euo pipefail
