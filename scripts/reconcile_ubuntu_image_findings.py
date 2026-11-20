@@ -1,8 +1,11 @@
 """Correlate the locked binary payloads and review source correspondence at the Ubuntu tag."""
 import argparse
 import hashlib
+import io
 import json
+import re
 import subprocess
+import tarfile
 from pathlib import Path
 
 from audit_ubuntu_kernel_fix_history import (
@@ -23,7 +26,72 @@ def payloads(root):
     return manifests
 
 
-def image_findings(root):
+def source_review(witness, reviews, tag):
+    """Apply a human-reviewed observation only to the precise code examined."""
+    if tag != reviews["reviewed_ubuntu_tag"]:
+        return "REVIEW_REQUIRED_TAG_CHANGED"
+    identity = {k: witness[k] for k in ("cve", "kind", "upstream", "ubuntu")}
+    if identity not in reviews["leads"]:
+        return "REVIEW_REQUIRED_UNKNOWN_LEAD"
+    if not (witness["same_ordered_edits"] and witness["stable_patch_equivalence"]):
+        return "REVIEW_REQUIRED_EDIT_EVIDENCE_INCOMPLETE"
+    entry = reviews["source_reviews"].get(witness["ubuntu"])
+    paths = witness["tag_path_comparison"]
+    if (not entry or entry["cve"] != witness["cve"] or not entry["paths"]
+            or entry["edit_sha256"] != witness["ubuntu_edit_sha256"]
+            or entry["edit_sha256"] != witness["upstream_edit_sha256"]
+            or entry["patch_id"] != witness["ubuntu_patch_id"]
+            or entry["patch_id"] != witness["upstream_patch_id"]
+            or any(paths.count(item) != 1 for item in entry["paths"])
+            or len({item["path"] for item in paths}) != len(paths)):
+        return "REVIEW_REQUIRED_PATH_EVIDENCE_CHANGED"
+    return entry["observation"]
+
+
+def payload_contents(root, arch, expected):
+    """Inspect literal includes and content signatures in the locked Debian archive."""
+    folder = root / arch
+    deb = folder / f"linux-libc-dev_{LOCK.package_version}_{arch}.deb"
+    if hashlib.sha256(deb.read_bytes()).hexdigest() != expected:
+        raise ValueError("unreviewed Debian package")
+    raw = subprocess.run(["dpkg-deb", "--fsys-tarfile", str(deb)], capture_output=True,
+                         check=True, timeout=90).stdout
+    headers, docs, other, objects, executable, computed = [], [], [], [], [], []
+    includes = {}
+    with tarfile.open(fileobj=io.BytesIO(raw)) as payload:
+        for member in payload:
+            if member.isdir():
+                continue
+            path = "/" + member.name.removeprefix("./")
+            if not member.isfile():
+                other.append(path)
+                continue
+            data = payload.extractfile(member).read()
+            if data.startswith((b"\x7fELF", b"!<arch>\n", b"!<thin>\n")):
+                objects.append(path)
+            if member.mode & 0o111:
+                executable.append(path)
+            if path.startswith("/usr/include/") and path.endswith(".h"):
+                headers.append(path)
+                # Join continued preprocessing lines before examining include directives.
+                for directive in re.findall(rb"(?m)^\s*#\s*include\s*([^\n]+)",
+                                            data.replace(b"\\\n", b"")):
+                    target = re.match(rb'[<"]([^>"]+)[>"]', directive.strip())
+                    if target:
+                        name = target[1].decode("utf-8", "replace").rsplit("/", 1)[-1]
+                        includes.setdefault(name, set()).add(path)
+                    else:
+                        computed.append(path)
+            elif path.startswith("/usr/share/doc/linux-libc-dev/"):
+                docs.append(path)
+            else:
+                other.append(path)
+    return dict(header_count=len(headers), documentation=sorted(docs), other_entries=sorted(other),
+                executable_mode_files=sorted(executable), elf_or_archive_files=sorted(objects),
+                headers_with_nonliteral_includes=sorted(set(computed))), includes
+
+
+def image_findings(root, contents=None):
     def records(name):
         rows = json.loads((root / name).read_bytes())["records"]
         index = {row["cve"]: row for row in rows}
@@ -38,6 +106,9 @@ def image_findings(root):
     osv = records("canonical-osv-evidence.json")
     paths = records("ubuntu-source-paths.json")
     manifests = payloads(root)
+    if contents is None:
+        contents = {arch: payload_contents(root, arch, digest)
+                    for arch, digest in LOCK.binary_artifact_sha256.items()}
     rows = []
     for cve in sorted(LOCK.observed_kernel_cves):
         entries = osv[cve]["ubuntu_26_04_linux_source_entries"]
@@ -54,7 +125,10 @@ def image_findings(root):
                         matches.update({p: digest for p, digest in files.items()
                                         if p.startswith("/usr/include/") and p.endswith(suffix)})
             shipped[arch] = matches
-        rows.append(dict(cve=cve, source_version_affected=any(
+        names = {Path(item["upstream_path"]).name for item in source["upstream_path_correspondence"]}
+        literal_includes = {arch: {n: sorted(index[n]) for n in sorted(names & index.keys())}
+                            for arch, (_, index) in contents.items()}
+        rows.append(dict(cve=cve, shipped_literal_include_basename_matches=literal_includes, source_version_affected=any(
             e["target_version_in_affected_versions"] for e in entries),
             binary_version_listed=any(LOCK.package_version in e["linux_libc_dev_binary_versions"]
                                       for e in entries),
@@ -113,6 +187,8 @@ def tag_witnesses(repo, store, root):
                             upstream_patch_id=upstream_pid, ubuntu_patch_id=downstream_pid,
                             tag_path_comparison=[dict(path=p, at_commit=before.get(p), at_tag=after.get(p))
                                                  for p in paths], disposition="under_investigation"))
+    for witness in records:
+        witness["reviewed_source_observation"] = source_review(witness, leads, tag)
     return records
 
 
@@ -121,7 +197,12 @@ if __name__ == "__main__":
     for opt in ("evidence", "ubuntu", "candidates", "output"):
         parser.add_argument("--" + opt, required=True, type=Path)
     args = parser.parse_args()
+    contents = {arch: payload_contents(args.evidence, arch, digest)
+                for arch, digest in LOCK.binary_artifact_sha256.items()}
+    findings = image_findings(args.evidence, contents)
+    packages = {arch: summary for arch, (summary, _) in contents.items()}
     report = dict(ubuntu_commit=LOCK.ubuntu_tag_commit, package_version=LOCK.package_version,
-                  deb_sha256=LOCK.binary_artifact_sha256, findings=image_findings(args.evidence),
+                  deb_sha256=LOCK.binary_artifact_sha256, findings=findings,
+                  installed_package_contents=packages,
                   source_witnesses=tag_witnesses(args.ubuntu, args.candidates, args.evidence))
     args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n")

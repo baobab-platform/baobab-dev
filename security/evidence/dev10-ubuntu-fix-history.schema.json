@@ -184,6 +184,9 @@
             "path_count": { "type": "integer", "minimum": 0 },
             "commit_count_examined": { "type": "integer", "minimum": 0 },
             "patch_id_unavailable_count": { "type": "integer", "minimum": 0 },
+            "patch_id_unavailable_commits": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/sha1" } },
+            "selected_paths": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+            "last_examined_commit": { "anyOf": [{ "$ref": "#/$defs/sha1" }, { "type": "null" }] },
             "truncated": { "type": "boolean" },
             "budget_exhausted": { "type": "boolean" },
             "complete_for_selected_paths": { "type": "boolean" }

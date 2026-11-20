@@ -79,5 +79,83 @@
       "ubuntu": "08c60b09c8d1955d1eed05b7e3045b7d7c443c20",
       "kind": "stable"
     }
-  ]
+  ],
+  "reviewed_ubuntu_tag": "f53b359683af7918c5436499948763cb726d5082",
+  "source_reviews": {
+    "a43cfc87caaf46710c8027a8c23b8a55f1078f19": {
+      "cve": "CVE-2022-50240",
+      "observation": "ALLOCATOR_LOOKUP_REWORKED_SELFTEST_ABSENT",
+      "paths": [
+        {
+          "at_commit": "100644 blob f555eebceef6bf4a026732baab10e1fcb636e2d1",
+          "at_tag": "100644 blob cf759893e2ad557b2e2fff23c0939ec94f86bf83",
+          "path": "drivers/android/binder_alloc.c"
+        },
+        {
+          "at_commit": "100644 blob 1e4fd37af5e03e10742b627b37a158087316c7ab",
+          "at_tag": "100644 blob 7edae3eb50f59554cc6ce0fe3be538c39aacc8f3",
+          "path": "drivers/android/binder_alloc.h"
+        },
+        {
+          "at_commit": "100644 blob 43a881073a42832feb96c906c53e0ad34d2b2970",
+          "at_tag": null,
+          "path": "drivers/android/binder_alloc_selftest.c"
+        }
+      ],
+      "edit_sha256": "b4bf499ce23c3dc93bdcca6a766e50344982933b1f122a05b34f4baac509b7dd",
+      "patch_id": "4e2ccaa6bcd9c612936d149b1b66cfb75f5af16a"
+    },
+    "57295e835408d8d425bef58da5253465db3d6888": {
+      "cve": "CVE-2025-40190",
+      "observation": "REFCOUNT_GUARD_RETAINED_AND_EXTENDED",
+      "paths": [
+        {
+          "at_commit": "100644 blob 5b680deb1c9b515bec6375ee8c738ec6b10f76f1",
+          "at_tag": "100644 blob c512a7cb82e77c9b420b29dc1b84bb4752a13d9d",
+          "path": "fs/ext4/xattr.c"
+        }
+      ],
+      "edit_sha256": "196693e019998d77ea10a2110a029722b1eee93b153f587fe37d62bfaa87b201",
+      "patch_id": "58cff690a62db9ff632b40e0572d8455852a4561"
+    },
+    "7ffa8f3d30236e0ab897c30bdb01224ff1fe1c89": {
+      "cve": "CVE-2026-72198",
+      "observation": "CLASSIC_NTFS_ATTRIB_PATH_REMAINS_REMOVED",
+      "paths": [
+        {
+          "at_commit": null,
+          "at_tag": null,
+          "path": "fs/ntfs/attrib.c"
+        }
+      ],
+      "edit_sha256": "35e957dbc1268a242a900ee5b9689dbce73c38b992be3f319220316d7b55eac2",
+      "patch_id": "16b6f37efe517509406430c9c487c0df5c935709"
+    },
+    "1cacb65c00492110d99b8c4b4817e52f4c3653bf": {
+      "cve": "CVE-2026-68451",
+      "observation": "CCA_ECC_LENGTH_GUARD_RETAINED",
+      "paths": [
+        {
+          "at_commit": "100644 blob 8a47cdc3030e68a69e11f5e3eebb905a58e1e593",
+          "at_tag": "100644 blob 2e818344a6d191df438f08b152f4f788e1b55383",
+          "path": "drivers/s390/crypto/zcrypt_ccamisc.c"
+        }
+      ],
+      "edit_sha256": "b2a0243c460bb7961243cc74b41ea6e30d77f9158ccbbef1837bef1efa007bed",
+      "patch_id": "3f723bb3b8f5dae267ef2dc50a9089b25c830d6c"
+    },
+    "08c60b09c8d1955d1eed05b7e3045b7d7c443c20": {
+      "cve": "CVE-2026-98890",
+      "observation": "HISTORICAL_SHORT_FRAME_GUARD_ABSENT_AT_TAG",
+      "paths": [
+        {
+          "at_commit": "100644 blob 13d08022e414154a369efd318c008b6f00c1dbcf",
+          "at_tag": "100644 blob 27304a98787d6abee45c12d1520ecab674309efc",
+          "path": "drivers/net/wireless/marvell/libertas/tx.c"
+        }
+      ],
+      "edit_sha256": "e1336d354d09ff11438c1a59f32d26a84796f7d669bde734ef08b3a505263338",
+      "patch_id": "f1454d62a948b343e26614f66de5bc01fbcf24ce"
+    }
+  }
 }

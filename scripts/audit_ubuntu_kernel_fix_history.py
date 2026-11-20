@@ -382,7 +382,7 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
             return base, sorted(search_paths)
     history, truncated = history_cache[history_key]
     prime_patch_ids(repo, history, patch_cache, deadline)
-    unavailable = 0
+    unavailable = []
     examined = 0
     matches = {}
     for commit in history:
@@ -391,7 +391,7 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
         downstream_pid = cached_patch_id(repo, commit, patch_cache)
         examined += 1
         if downstream_pid is None:
-            unavailable += 1
+            unavailable.append(commit)
         elif downstream_pid == pid:
             matches[commit] = downstream_pid
     for item in base["backport_trailer_matches"]:
@@ -401,11 +401,14 @@ def inspect_candidate(repo: Path, candidate_root: Path, tag: str,
         {"commit": commit, "patch_id": value} for commit, value in sorted(matches.items())
     ]
     budget_exhausted = examined != len(history)
-    complete = not truncated and not budget_exhausted and unavailable == 0
+    complete = not truncated and not budget_exhausted and not unavailable
     base["history_search"] = {
         "path_count": len(search_paths),
         "commit_count_examined": examined,
-        "patch_id_unavailable_count": unavailable,
+        "patch_id_unavailable_count": len(unavailable),
+        "patch_id_unavailable_commits": unavailable,
+        "selected_paths": list(history_key),
+        "last_examined_commit": history[examined - 1] if examined else None,
         "truncated": truncated,
         "budget_exhausted": budget_exhausted,
         "complete_for_selected_paths": complete,

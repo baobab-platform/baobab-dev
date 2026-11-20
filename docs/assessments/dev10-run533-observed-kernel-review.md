@@ -38,3 +38,25 @@ PR runs select the eleven findings from the evidence lock before fetching candid
 The architecture artifact retains two tar files with the original packages, extracted payloads, manifests and hashes. CI downloads the uploaded artifact by ID, compares both tar files byte for byte and compares their members against the runner trees. The combined source artifact keeps manifests and packages and excludes loose extracted headers.
 
 The resulting evidence supports issue #93 and the applicability review in #54. All dispositions remain under investigation.
+
+## Follow-up on the completed eleven-finding run
+
+[Hosted run 44714959258](https://github.com/baobab-platform/baobab-dev/actions/runs/44714959258) · [Fix-history ZIP](https://github.com/baobab-platform/baobab-dev/actions/runs/44714959258/artifacts/14622723038) · [Source and witness ZIP](https://github.com/baobab-platform/baobab-dev/actions/runs/44714959258/artifacts/14623786151)
+
+The targeted search covered 46 candidate commits without exhausting its time budget. It recorded 3 exact ancestors, 7 unique stable patch matches, 35 incomplete downstream patch searches and 1 truncated search. It explicitly deferred 1,412 other references. The separate witness pass checked all ten historical patch correspondences, including the three variants outside the eleven-finding scope.
+
+The downloaded ZIPs matched their Actions SHA-256 digests. The inner fix-history report SHA-256 is `382fe4f9c1bca6d2181dcdc7910093c0a04f6bf71da24533f38bf90aa3eac766`. The source-witness report SHA-256 is `61af4769c6c51824f023e41438d22e7d5a35fb91d2d9ea3bc8273d60987e7223`. For surviving C and header files the review retrieved the file contents by object ID and verified each with Git's blob hash before interpreting the guard. The path evidence for removed files comes from the checked release tree.
+
+| Finding | Observation at Ubuntu-7.0.0-43.43 |
+| --- | --- |
+| CVE-2022-50240 | Binder's allocator uses a mapped-state flag and obtains the VMA under read-side synchronization. Its allocator structure no longer stores the historical VMA pointer. The old self-test path is absent. The implementations at the ancestor and tag differ. |
+| CVE-2025-40190 | The ext4 EA inode reference-count update checks both decrement at zero and increment at the maximum, reports corruption and exits before changing the count. |
+| CVE-2026-72198 | The classic NTFS removal deleted fs/ntfs/attrib.c and the path is still absent at the tag. Changes to surrounding build files and other NTFS implementations have separate histories. |
+| CVE-2026-68451 | All three s390 variants share the same ordered edits. The Ubuntu tag still bounds the ECC key length and rejects excessive lengths before constructing the request. Later changes in the file affect alignment. This CVE belongs to the broader inventory. |
+| CVE-2026-98890 | All seven Libertas variants share the same ordered edits. Comparing the entire historical downstream file with the release-tag file shows that the tag omits the added short-frame guard. A historical match cannot support closing this finding as fixed. |
+
+The reviewed observations are tied to the tag, upstream and downstream commits, changed-line digests, stable patch IDs and exact file objects in `security/evidence/dev10-run533-leads.json`. Divergent evidence yields a review-required result.
+
+The digest-verified Debian archives contain 1,039 headers on amd64 and 1,010 on arm64, plus two documentation files per architecture. Neither archive contains an ELF object, static archive or executable-mode file. Scanning their installed headers found zero literal include operands naming a CNA-affected file for the eleven findings. The package inventory, source semantics and Canonical five/six split answer different questions. Generated interfaces, ABI effects, consumer builds and host-kernel exposure require separate evidence. The binary disposition for all eleven remains under investigation.
+
+For remaining incomplete searches the reporter now records the exact unavailable commit IDs, selected paths and last examined commit alongside the prior counts. The historical run retained counts only. The diagnostic fields apply to subsequent reports.

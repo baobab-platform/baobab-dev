@@ -217,6 +217,7 @@ class UbuntuFixHistoryTests(unittest.TestCase):
         self.assertEqual(candidate["assessment"], "DOWNSTREAM_PATCH_EVIDENCE_INCOMPLETE")
         self.assertFalse(candidate["history_search"]["complete_for_selected_paths"])
         self.assertEqual(candidate["history_search"]["patch_id_unavailable_count"], 1)
+        self.assertEqual(candidate["history_search"]["patch_id_unavailable_commits"], [downstream])
 
     def test_upstream_fetch_timeout_retains_under_investigation(self):
         sha = "1" * 40
@@ -350,6 +351,60 @@ class UbuntuFixHistoryTests(unittest.TestCase):
                     upstream, ubuntu_paths, self.ubuntu, self.candidate_root,
                     self.binary_source, "0" * 40, self.remotes, {},
                 )
+
+
+
+
+class SourceReviewTests(unittest.TestCase):
+    def test_inspects_verified_debian_bytes_and_reports_unknown_content(self):
+        import hashlib
+        from reconcile_ubuntu_image_findings import payload_contents
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            package = root / "package"
+            (package / "DEBIAN").mkdir(parents=True)
+            (package / "DEBIAN/control").write_text(
+                "Package: witness\nVersion: 1\nArchitecture: amd64\n"
+                "Maintainer: Test <test@example.invalid>\nDescription: fixture\n")
+            header = package / "usr/include/example.h"
+            header.parent.mkdir(parents=True)
+            header.write_text('#include <private/reviewed.h>\n#include GENERATED_HEADER\n')
+            tool = package / "usr/bin/example"
+            tool.parent.mkdir(parents=True)
+            tool.write_bytes(b"\x7fELF")
+            tool.chmod(0o755)
+            deb = root / "amd64" / f"linux-libc-dev_{m.LOCK.package_version}_amd64.deb"
+            deb.parent.mkdir()
+            subprocess.run(["dpkg-deb", "--build", str(package), str(deb)],
+                           capture_output=True, check=True)
+            with self.assertRaisesRegex(ValueError, "unreviewed"):
+                payload_contents(root, "amd64", "0" * 64)
+            info, includes = payload_contents(root, "amd64", hashlib.sha256(deb.read_bytes()).hexdigest())
+            self.assertEqual(includes["reviewed.h"], {"/usr/include/example.h"})
+            self.assertEqual(info["headers_with_nonliteral_includes"], ["/usr/include/example.h"])
+            self.assertEqual(info["other_entries"], ["/usr/bin/example"])
+            self.assertEqual(info["elf_or_archive_files"], info["other_entries"])
+            self.assertEqual(info["executable_mode_files"], info["other_entries"])
+
+    def test_file_evidence_is_bound_to_tag_commit_and_exact_lead(self):
+        import copy
+        import json
+        from reconcile_ubuntu_image_findings import source_review
+        rules = json.loads((ROOT / "security/evidence/dev10-run533-leads.json").read_bytes())
+        tag = rules["reviewed_ubuntu_tag"]
+        for lead in rules["leads"]:
+            entry = rules["source_reviews"][lead["ubuntu"]]
+            witness = dict(**lead, same_ordered_edits=True, stable_patch_equivalence=True,
+                           ubuntu_edit_sha256=entry["edit_sha256"], upstream_edit_sha256=entry["edit_sha256"],
+                           ubuntu_patch_id=entry["patch_id"], upstream_patch_id=entry["patch_id"],
+                           tag_path_comparison=copy.deepcopy(entry["paths"]))
+            self.assertEqual(source_review(witness, rules, tag), entry["observation"])
+            self.assertIn("REVIEW_REQUIRED", source_review(witness, rules, "0" * 40))
+            for change in ({"upstream": "a" * 40}, {"same_ordered_edits": False},
+                           {"ubuntu_patch_id": "0" * 40}, {"stable_patch_equivalence": False}, {"tag_path_comparison": []}):
+                self.assertIn("REVIEW_REQUIRED", source_review(witness | change, rules, tag))
+            witness["tag_path_comparison"][0]["at_tag"] = "different"
+            self.assertIn("REVIEW_REQUIRED", source_review(witness, rules, tag))
 
 
 if __name__ == "__main__":
