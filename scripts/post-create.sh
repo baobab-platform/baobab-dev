@@ -217,7 +217,9 @@ run_post_create() {
     # Python
     # -------------------------------------------------------------------------
 
-    if [ -f "pyproject.toml" ]; then
+    if [ "${BAOBAB_BUILD_PROFILE:-}" = "infra" ]; then
+        log "Skipping Python project dependencies: infra profile intentionally excludes Python."
+    elif [ -f "pyproject.toml" ]; then
         if [ -f "uv.lock" ] && [ -f "poetry.lock" ]; then
             die "Ambiguous Python lockfiles: select one project package manager."
         elif [ -f "uv.lock" ]; then

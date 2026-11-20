@@ -27,17 +27,25 @@ manifest:
 platform:
   ubuntu:
     version: "26.04"
+    # OCI index observed in both native build logs.
+    image_sha256: "d66b366dac61b575bee2aef07e9c26e8070096fbe84a3d4d3eb0da069b5d76db"
+    linux_libc_dev_apt_version: "7.0.0-43.43"
+    linux_libc_dev_apt_sha256_amd64: "3a3adc14e3332fc017b1d0e4e39655298a2a977d51db6e80de533ac60137b07f"
+    linux_libc_dev_apt_sha256_arm64: "3d6313ac30170df8614618fd1aeb864606c378d90aa18e5d2012aad46861d753"
 
 languages:
 
   python:
     version: "3.14.10"
     source: "python.org"
+    sha256: "de414a57119abef52784d8993e341d53aed635fc2b05c2607d9f98a2c5b72032"
 
   node:
     major: "26"
     exact: "26.13.1"
     source: "nodesource"
+    apt_sha256_amd64: "58774a0a1b128a4e22fdef604f7f300e2af7a32ccbab5c5cf18a837ae42a5cd1"
+    apt_sha256_arm64: "6f90760e65d959f5d7a52886c2f2088e7a1e308878e239e9e914e47887dfb831"
 
   flutter:
     version: "latest"
@@ -47,6 +55,11 @@ languages:
   java:
     version: "21"
     source: "apt"
+    # Signed Adoptium packages observed for the two native builds.
+    apt_version_amd64: "21.0.13.1.0+2-0"
+    apt_version_arm64: "21.0.13.0.0+9-0"
+    apt_sha256_amd64: "1e77f422f5f9b429bc47bcbc6c5a993a50435ee22b9aab03d7d04a631971efed"
+    apt_sha256_arm64: "d5a85f3fac047de577b23288e49d38bb219e267b396ffd0dfa3505f1e32d8fb9"
     # Temurin Java 21 is the shared developer default for both iDempiere v13
     # and baobab-subscriptions. iDempiere documents OpenJDK >=17; actual
     # v13 JVM/bundle and owner tests on Java 21 remain qualification gates.
@@ -65,15 +78,17 @@ languages:
     # Install_Prerequisites, live-verified 2026-09-01) require a JDK
     # (explicitly not JRE-only — "openjdk-17-jre is not sufficient because
     # it doesn't have the jar command used in some scripts"), OpenJDK 17 or
-    # later, LTS preferred. "21" here means major version only, resolved the
-    # same way postgresql.major is below — apt's own dependency resolution
-    # picks the exact point release, not this file.
+    # later, LTS preferred. The signed package versions above preserve
+    # the native builds for the selected JDK major.
 
 database:
 
   postgresql:
     major: "17"
     source: "apt"
+    apt_version: "17.12-1.pgdg26.04+1"
+    apt_sha256_amd64: "e43f02d5ed8d1b7c717ae59e35ecc9350795ec3c000d0ef39f93cc5da6f6dc4c"
+    apt_sha256_arm64: "3f2660330e4ca8093234b389ce89bbf4c697ca5aa7eda258be669def8eab1bc6"
 
 package_managers:
 
@@ -203,11 +218,14 @@ development:
   docker:
     version: "latest"
     source: "docker"
+    # Keep the reviewed concrete CLI package when re-resolving this intent.
+    apt_version: "5:29.10.0-1~ubuntu.26.04~resolute"
+    apt_sha256_amd64: "2e4e358b02e43f09944f4043060362dab267fb17a5bb1a81299e85668985e13f"
+    apt_sha256_arm64: "c90ef8996432dd9a94a94696add05166f67484b884f07bc1d89f98b1456b8b25"
 
   github_cli:
-    # Security-qualified 2.102.1 carries Go 1.27.3 and x/net 0.60.0.
-    # The newer 2.103.2 binary still embeds vulnerable Go 1.27.1/x/net.
-    # Re-evaluate this temporary explicit pin after a scanned upstream fix.
+    # The image rebuilds the pinned release source with the reviewed compiler
+    # and x/net version in scripts/build-upstream-security-clis.sh.
     version: "2.102.1"
     source: "github"
 
@@ -324,9 +342,8 @@ infra:
     # separate release gates.
     version: "1.17.1"
     source: "hashicorp"
-    # The per-architecture zip assets are checked against HashiCorp's
-    # official SHA256SUMS manifest by config/resolve.sh and rechecked
-    # during image build.
+    # The lock retains HashiCorp's archive identities. The image rebuilds
+    # the pinned release source with a security-fixed Go compiler.
   aws_cli:
     version: "2.36.38"
     source: "aws"

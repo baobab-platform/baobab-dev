@@ -19,19 +19,17 @@ owns its user credential probe and authenticated frozen install. A successful
 Actions GHCR login is not evidence that a new user's Codespace can read packages.
 Never put tokens into source, image build arguments, `.env` or shell tracing.
 
-The DEV-10 workflow resolves the published GHCR 1.5.1 stable tag (the corresponding Git tag is v1.5.1) to an immutable OCI
-index digest, then executes this checkout's actual post-create script and locked
-uv dependencies inside that exact digest as its native vscode user, on an owned copy.
-The published-image lifecycle runs on both native GitHub-hosted architectures:
-`ubuntu-26.04` (amd64) and `ubuntu-26.04-arm` (arm64).
-of a read-only source mount. A raw host UID without passwd/cache remapping is
-not treated as a valid Dev Container. It records
-the resolved image digest in the job log. Mock-CLI regressions separately prove
-that failures cannot fall back to an unlocked install. This is container/CLI
-evidence; it is not an observed fresh hosted Codespace or fleet-wide adoption.
+PRs and main runs check the lifecycle scripts and source tests. Use **Run workflow**
+on **DEV-10 locked onboarding** to reproduce the historical v1.5.1 onboarding and
+41-CVE evidence. This resolves the recorded GHCR index digest, then executes the
+current checkout's post-create script and locked uv dependencies as its native
+vscode user on a writable copy of a read-only source mount. The historical
+matrix uses `ubuntu-26.04` (amd64) and `ubuntu-26.04-arm` (arm64). Its artifact
+records the exact image digest and lifecycle result. Mock-CLI regressions
+separately prove that failed installations keep the original lock requirements.
+Fresh hosted Codespaces and their private packages need separate consumer receipts.
 
-No image version or toolchain pin changes in this increment. Existing published
-images retain their baked scripts until a reviewed release. Consumers that call
+Existing published images retain their baked scripts until a reviewed release. Consumers that call
 the image's `baobab-post-create` need that release/adoption; the repository's own
 Dev Container calls the checked-out script directly.
 

@@ -10,6 +10,7 @@ No trusted authority or missing evidence => fail closed.
 from __future__ import annotations
 
 import argparse
+import csv
 import base64
 import datetime as dt
 import hashlib
@@ -20,6 +21,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from dev10_evidence_lock import EvidenceLock, require_binary_provenance
+
+LOCK = EvidenceLock.load()
 CVE = re.compile(r"^CVE-[0-9]{4}-[0-9]{4,}$")
 SHA = re.compile(r"^[a-f0-9]{64}$")
 ALLOWED = {"vulnerable_code_not_present", "component_not_present",
@@ -133,16 +138,66 @@ def qualify(report: dict, signed: dict, trust: dict, *,
     require(time_utc(authority["valid_from"]) <= now < time_utc(authority["valid_until"]),
             "reviewer appointment inactive or expired")
     require(d.get("evidence_sha256") == hashlib.sha256(canonical(register)).hexdigest(),
-            "reviewed 295-CVE applicability evidence digest mismatch")
+            "reviewed CVE applicability evidence digest mismatch")
     require(d.get("raw_trivy_sha256") == hashlib.sha256(canonical(report)).hexdigest(),
             "reviewed scanner evidence does not match this unfiltered inventory")
     verify_signature(d, signed["signature"], authority["public_key_pem"])
     require(d["decision"] == "approved", "reviewer rejected or requested evidence")
-    require(register.get("advisory_count") == 295
-            and len(register.get("records", [])) == 295,
+    require(register.get("advisory_count") == LOCK.inventory_count
+            and len(register.get("records", [])) == LOCK.inventory_count,
             "incomplete canonical applicability register")
     by_cve = {x["cve"]: x for x in register["records"]}
-    require(len(by_cve) == 295 and all(x["approved_disposition"] is None
+    provenance = register.get("source_provenance") or {}
+    require(provenance.get("evidence_lock_sha256") == LOCK.evidence_lock_sha256,
+            "applicability register evidence-lock digest differs from reviewed lock")
+    require(provenance.get("inventory_extension_cves") == sorted(LOCK.extension_cves),
+            "applicability register inventory extension differs from reviewed lock")
+    binary_source = provenance.get("binary_source") or {}
+    try:
+        require_binary_provenance(binary_source, LOCK)
+    except ValueError as error:
+        raise PolicyError("signed applicability register: " + str(error)) from error
+    historical = provenance.get("historical_295_inventory") or {}
+    require(historical == {
+        "path": LOCK.historical_inventory_path,
+        "sha256": LOCK.historical_inventory_sha256,
+        "package_version": LOCK.historical_package_version,
+        "count": LOCK.historical_inventory_count,
+    }, "historical 295-CVE inventory provenance differs from reviewed lock")
+    historical_path = Path(__file__).resolve().parents[1] / LOCK.historical_inventory_path
+    with historical_path.open(encoding="utf-8", newline="") as stream:
+        historical_ids = {row["cve"] for row in csv.DictReader(stream, delimiter="\t")}
+    require(len(historical_ids) == LOCK.historical_inventory_count,
+            "historical 295-CVE inventory identity set is incomplete")
+    for item in register["records"]:
+        inventory = item.get("inventory_provenance") or {}
+        if item["cve"] in historical_ids:
+            require(inventory.get("origin") == "historical_295_cve_inventory"
+                    and inventory.get("historical_inventory_package_version")
+                    == LOCK.historical_package_version,
+                    "historical inventory record origin or package version is incorrect")
+        else:
+            require(item["cve"] in LOCK.extension_cves
+                    and inventory.get("origin") == "new_298_cve_extension"
+                    and inventory.get("historical_inventory_package_version") is None,
+                    "new inventory extension record origin is incorrect")
+    osv_snapshot = provenance.get("canonical_osv_snapshot") or {}
+    require(osv_snapshot.get("source_commit") == LOCK.canonical_osv_commit,
+            "Canonical OSV source commit differs from reviewed evidence lock")
+    osv_retrieved = time_utc(osv_snapshot.get("retrieved_at", ""))
+    require(osv_retrieved <= now and now - osv_retrieved <= dt.timedelta(days=7),
+            "Canonical OSV snapshot is missing, future-dated or stale")
+    for item in register["records"]:
+        osv = item.get("canonical_osv") or {}
+        require(osv.get("source_commit") == LOCK.canonical_osv_commit
+                and SHA.fullmatch(osv.get("raw_sha256") or "")
+                and osv.get("release_evidence") in {
+                    "TARGET_BINARY_VERSION_LISTED_AS_AFFECTED",
+                    "TARGET_BINARY_VERSION_NOT_LISTED_REQUIRES_REVIEW",
+                    "NO_UBUNTU_26_04_LINUX_SOURCE_ENTRY",
+                },
+                "per-CVE Canonical OSV evidence is incomplete or untrusted")
+    require(len(by_cve) == LOCK.inventory_count and all(x["approved_disposition"] is None
             for x in register["records"]), "unexpected or self-asserted register approval")
     exceptions = {}
     for row in d.get("cve_decisions", []):
@@ -183,7 +238,7 @@ def qualify(report: dict, signed: dict, trust: dict, *,
     for (cve, pkg, version), finding in raw.items():
         row = exceptions.get(cve)
         observed_purl = (finding.get("PkgIdentifier") or {}).get("PURL")
-        if (row is None or pkg != "linux-libc-dev" or version != "7.0.0-42.42"
+        if (row is None or pkg != "linux-libc-dev" or version != LOCK.package_version
                 or not isinstance(observed_purl, str)
                 or row["package_purl"] != observed_purl):
             unresolved.append((cve, pkg, version))

@@ -1,0 +1,22 @@
+name: Checkout pinned Linux CVE tracker
+description: Fetch one immutable tracker revision with a sparse CVE-year checkout.
+inputs:
+  sha:
+    description: Reviewed immutable upstream tracker commit.
+    required: true
+  inventory:
+    description: Repository-relative CVE TSV inventory.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Fetch and verify pinned CVE tracker
+      shell: bash
+      env:
+        UPSTREAM_SHA: ${{ inputs.sha }}
+        CVE_INVENTORY: ${{ inputs.inventory }}
+      run: |
+        set -euo pipefail
+        destination="$(mktemp -d "$RUNNER_TEMP/linux-vulns-checkout.XXXXXX")"
+        bash "$GITHUB_WORKSPACE/scripts/ci/checkout-linux-vulns.sh" \
+          "$UPSTREAM_SHA" "$CVE_INVENTORY" "$destination"

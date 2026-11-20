@@ -1,16 +1,15 @@
 {
   "name": "Baobab Enterprise Platform",
 
-  // Pinned to v1.5.1 (not :latest) for deterministic, reproducible parity
-  // with config/versions.lock across all workstations and CI. Published by
-  // .github/workflows/publish.yml after Cosign sign/attest + Trivy gate.
-  // NOTE: GHCR does not enforce tag immutability server-side — this tag is
-  // "immutable" only by this repo's release policy. For registry-enforced
-  // immutability, pin by digest instead/in addition:
-  //   "image": "ghcr.io/baobab-platform/baobab-dev:1.5.1@sha256:<digest>"
-  // (get <digest> from the v1.5.1 GitHub Release notes, or
-  // `docker buildx imagetools inspect ghcr.io/baobab-platform/baobab-dev:1.5.1`).
-  "image": "ghcr.io/baobab-platform/baobab-dev:1.5.1",
+  // Pin the qualified v1.5.1 GA multi-architecture OCI index by digest.
+  // The GA index reused the signed v1.5.1-rc.2 image; its exact source,
+  // native manifests, Cosign signatures, SLSA and SPDX evidence were read
+  // back independently. The tag is retained for human release identification;
+  // the digest fixes the content even if the GHCR tag is moved.
+  // Development-only baseline: this does not qualify a new release or grant
+  // staging/production authority. The bounded kernel CVE risk expires
+  // 2026-11-26T00:00:00Z; it is not vulnerability remediation.
+  "image": "ghcr.io/baobab-platform/baobab-dev:1.5.1@sha256:faf9022ef06288767651a0ec1071d5199bc2b645f2cf7ada50477774dd297eed",
   // "build": {
   //   // Repo root, not .devcontainer — Dockerfile COPYs config/ and scripts/
   //   // from the build context root.

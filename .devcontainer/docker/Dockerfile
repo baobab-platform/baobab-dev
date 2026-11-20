@@ -184,15 +184,15 @@
 #   ambiguity to resolve in the first place.
 # =============================================================================
 
-# Base image tag, single source of truth for all three stages below. Has a
-# default so CI does not need to pass --build-arg UBUNTU_VERSION for normal
-# builds; override it explicitly only for a deliberate one-off build.
+# Local build defaults match the reviewed lock. CI passes the same fields
+# from the verified lock, and base refuses a mismatching input.
 ARG UBUNTU_VERSION=26.04
+ARG UBUNTU_BASE_SHA256=d66b366dac61b575bee2aef07e9c26e8070096fbe84a3d4d3eb0da069b5d76db
 
 # -----------------------------------------------------------------------------
 # Stage: flutter-sdk — fetch + verify + prune the Flutter stable SDK
 # -----------------------------------------------------------------------------
-FROM ubuntu:${UBUNTU_VERSION} AS flutter-sdk
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS flutter-sdk
 ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -281,7 +281,7 @@ RUN set -euo pipefail; \
 # instead of silently verifying against the wrong file.
 # Security rebuild of adopted GitHub CLI, Cosign, Task and yq releases.
 # Source commits, release tags, compiler and patched dependency graphs are pinned.
-FROM ubuntu:${UBUNTU_VERSION} AS patched-go-clis
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS patched-go-clis
 ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tar git make && rm -rf /var/lib/apt/lists/*
@@ -293,7 +293,12 @@ COPY scripts/go-mod-download-retry.sh /build/go-mod-download-retry.sh
 RUN bash /build/build-security-clis.sh "${TARGETARCH}"
 RUN bash /build/build-upstream-security-clis.sh
 
-FROM ubuntu:${UBUNTU_VERSION} AS cli-tools
+# Terraform is consumed only by infra. Reuse the verified compiler without
+# making the other image targets build Terraform or install its dependencies.
+FROM patched-go-clis AS patched-terraform
+RUN bash /build/build-upstream-security-clis.sh terraform
+
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS cli-tools
 ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -392,7 +397,7 @@ RUN set -euo pipefail; \
 # -----------------------------------------------------------------------------
 # pip 26.2.2 bundles urllib3 independently of system/Poetry packages.
 # Rebuild using upstream's vendoring process and identify the downstream wheel.
-FROM ubuntu:${UBUNTU_VERSION} AS patched-pip
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS patched-pip
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git python3 python3-venv && rm -rf /var/lib/apt/lists/*
 RUN python3 -m venv /build/tools
 ENV PATH="/build/tools/bin:${PATH}" PIP_NO_CACHE_DIR=1
@@ -401,9 +406,13 @@ RUN python -m pip install --require-hashes --only-binary=:all: -r /build/require
 COPY scripts/build-security-pip.sh /build/build-security-pip.sh
 RUN bash /build/build-security-pip.sh
 
-FROM ubuntu:${UBUNTU_VERSION} AS base
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS base
 
 ARG TARGETARCH
+ARG UBUNTU_VERSION
+ARG UBUNTU_BASE_SHA256
+LABEL org.opencontainers.image.base.name="docker.io/library/ubuntu:${UBUNTU_VERSION}" \
+      org.opencontainers.image.base.digest="sha256:${UBUNTU_BASE_SHA256}"
 # -----------------------------------------------------------------------------
 # devcontainer.metadata image label — Development Environment Contract task
 # 1.4 (baobab-dev-v1_1_0-release-plan-amended.md / original plan task 1.4).
@@ -459,6 +468,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+ENV BAOBAB_CONFIG_DIR=/usr/local/share/baobab/config
+COPY config/versions.lock /usr/local/share/baobab/config/versions.lock
+COPY scripts/locked-apt.sh /usr/local/share/baobab/config/locked-apt.sh
+RUN set -euo pipefail; \
+    image_series="$UBUNTU_VERSION"; image_digest="$UBUNTU_BASE_SHA256"; \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
+    test "$image_series" = "$UBUNTU_VERSION"; test "$image_digest" = "$UBUNTU_BASE_SHA256"
+
 # -----------------------------------------------------------------------------
 # 1. Core system packages, locale, timezone
 # -----------------------------------------------------------------------------
@@ -472,13 +489,17 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean; \
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock" && apt-get update && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    headers="linux-libc-dev=${LINUX_LIBC_DEV_APT_VERSION}" && \
+    headers_sha="LINUX_LIBC_DEV_APT_SHA256_$(dpkg --print-architecture | tr '[:lower:]' '[:upper:]')" && \
+    verify_locked_apt_index "$headers" "${!headers_sha:?missing native kernel header SHA-256}" && \
+    apt-get install -y --no-install-recommends "$headers" \
       sudo curl wget git unzip zip tar jq tree nano vim less htop procps \
       ca-certificates gnupg build-essential \
       pkg-config locales tzdata xz-utils apt-transport-https \
       openssh-client dnsutils iproute2 \
-    && \
+    && verify_installed_apt_version "$headers" && \
     locale-gen en_US.UTF-8 && \
     update-locale LANG=en_US.UTF-8 LANGUAGE=en_US:en && \
     ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime && \
@@ -551,13 +572,10 @@ RUN rm -f /usr/bin/pebble && rm -rf /var/lib/pebble
 RUN mkdir -p /usr/local/share/baobab/config
 
 COPY config/versions.yaml /usr/local/share/baobab/config/versions.yaml
-COPY config/versions.lock /usr/local/share/baobab/config/versions.lock
 COPY --chmod=0755 config/resolve.sh /usr/local/share/baobab/config/resolve.sh
 COPY --chmod=0755 scripts/npm-install-retry.sh /usr/local/share/baobab/config/npm-install-retry.sh
 COPY --chmod=0755 scripts/project-pnpm.sh /usr/local/bin/baobab-project-pnpm
 COPY config/npm-build-security.json /usr/local/share/baobab/config/npm-build-security.json
-
-ENV BAOBAB_CONFIG_DIR=/usr/local/share/baobab/config
 
 
 # -----------------------------------------------------------------------------
@@ -712,12 +730,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" \
       > /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
-    # Fail early on NodeSource metadata drift, before the expensive npm/toolchain layers. \
-    NODE_CANDIDATE="$(apt-cache policy nodejs | awk '/Candidate:/ {print $2; exit}')" && \
-    test "${NODE_CANDIDATE}" = "${NODE_VERSION}-1nodesource1" || { \
-      echo "::error::NodeSource candidate differs from locked Node ${NODE_VERSION}; update config/versions.yaml and regenerate versions.lock" >&2; exit 1; \
-    }; \
-    apt-get install -y --no-install-recommends libatomic1 "nodejs=${NODE_VERSION}-1nodesource1" && \
+    node_sha="NODE_APT_SHA256_${TARGETARCH^^}" && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    node_package="nodejs=${NODE_VERSION}-1nodesource1" && \
+    verify_locked_apt_index "$node_package" "${!node_sha:?missing native Node SHA-256}" && \
+    apt-get install -y --no-install-recommends "$node_package" libatomic1 && \
+    verify_installed_apt_version "$node_package" && \
     test "$(node --version)" = "v${NODE_VERSION}" && \
     \
     # npm_install_retry() wraps the two npm-registry-published installs
@@ -1136,10 +1154,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     update-alternatives --install /usr/bin/python3 python3 "/usr/bin/python${PYTHON_MINOR}" 1 && \
     update-alternatives --install /usr/bin/python  python  /usr/bin/python3 1
 
-# DEV10-R4: Ubuntu's python3.14 apt package guarantees the minor, NOT the
-# Python 3.14.10 security patch. Fetch PSF's exact signed-release tarball with
-# its published SHA-256; compile independently on amd64 and arm64. Do not
-# report a patch level that the actual binary does not provide.
+# Build the exact manifest-selected Python 3.14 patch from the
+# publisher archive verified against its generated SHA-256 pin.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     set -euo pipefail; \
@@ -1148,11 +1164,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
       libsqlite3-dev libffi-dev liblzma-dev libncurses-dev xz-utils; \
     . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
-    test "${PYTHON_VERSION}" = "3.14.10"; \
+    [[ "${PYTHON_VERSION}" =~ ^3\.14\.[0-9]+$ && "${PYTHON_SOURCE_SHA256}" =~ ^[a-f0-9]{64}$ ]]; \
     curl --fail --location --silent --show-error \
       "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz" \
       --output /tmp/baobab-python.tar.xz; \
-    echo "de414a57119abef52784d8993e341d53aed635fc2b05c2607d9f98a2c5b72032  /tmp/baobab-python.tar.xz" | sha256sum -c -; \
+    printf '%s  %s\n' "${PYTHON_SOURCE_SHA256}" /tmp/baobab-python.tar.xz | sha256sum -c -; \
     mkdir -p /tmp/baobab-python-source; \
     tar --no-same-owner -xf /tmp/baobab-python.tar.xz -C /tmp/baobab-python-source --strip-components=1; \
     cd /tmp/baobab-python-source; \
@@ -1334,40 +1350,29 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" \
       > /etc/apt/sources.list.d/pgdg.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends \
-      postgresql-client-${POSTGRES_MAJOR} \
-      redis-tools
+    postgres_sha="POSTGRES_APT_SHA256_${TARGETARCH^^}" && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    postgres_package="postgresql-client-${POSTGRES_MAJOR}=${POSTGRES_APT_VERSION}" && \
+    verify_locked_apt_index "$postgres_package" "${!postgres_sha:?missing native PostgreSQL SHA-256}" && \
+    apt-get install -y --no-install-recommends "$postgres_package" redis-tools && \
+    verify_installed_apt_version "$postgres_package"
 
 # -----------------------------------------------------------------------------
 # 6b. Java (Eclipse Temurin JDK) + Apache Maven
 # -----------------------------------------------------------------------------
 # Needed for baobab-erp's iDempiere ERP engine migration
-# (github.com/baobab-platform/baobab-erp) — not needed by any other BAOBAB engine
-# today. iDempiere's own docs (wiki.idempiere.org/en/Install_Prerequisites,
-# live-verified 2026-09-01) require a full JDK, explicitly not JRE-only
-# ("openjdk-17-jre is not sufficient because it doesn't have the jar command
-# used in some scripts"), OpenJDK 17+ LTS preferred, plus Maven 3.9.x.
+# (github.com/baobab-platform/baobab-erp). The image supplies a full JDK and
+# an exact Maven release. Consumer builds qualify their own compatibility.
 #
 # JDK: installed from Eclipse Temurin's own apt repository (Adoptium), not
 # Ubuntu's native openjdk-17-jdk package — same reasoning already applied to
 # PostgreSQL/Docker above: an upstream-maintained repo keeps the exact
-# vendor/build consistent across Ubuntu base-image upgrades. Confirmed
-# multi-arch (amd64 + arm64) via Adoptium's own official multi-arch Docker
-# images — no per-arch checksum pair needed here, unlike the GitHub-release
-# binaries in the cli-tools stage.
+# vendor/build consistent across Ubuntu base-image upgrades. Resolve and
+# verify each native package against Adoptium's authenticated APT index.
 #
 # Maven: Apache's distribution is a pure-Java, architecture-independent
-# tarball — one asset, not a per-arch pair. Fetched from archive.apache.org
-# (not dlcdn.apache.org, which only mirrors the current release and would
-# break reproducibility once 3.9.16 is superseded) and verified via
-# sha512sum -c against MAVEN_SHA512 (Apache publishes a `.sha512` sidecar for
-# Maven releases, not `.sha256` — the one place in this Dockerfile that
-# checks a SHA-512 rather than a SHA-256, since the upstream project itself
-# only publishes the former). Pinned explicitly to 3.9.16 rather than
-# "latest" — see config/versions.yaml's development.maven comment: Maven
-# Central's own metadata currently resolves latest/release to a 4.0.0
-# pre-release, which would be incompatible with iDempiere's documented
-# Maven 3.9.x requirement.
+# tarball from archive.apache.org. Verify the exact release selected by
+# config/versions.yaml against the locked vendor SHA-512.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     install -m 0755 -d /etc/apt/keyrings && \
@@ -1380,9 +1385,13 @@ https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSI
       > /etc/apt/sources.list.d/adoptium.list && \
     apt-get update && \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
-    # Java 21 is the single image JDK for ERP iDempiere v13 and Subscriptions.
-    apt-get install -y --no-install-recommends \
-      "temurin-${JAVA_MAJOR}-jdk"
+    java_pkg="JAVA_APT_VERSION_${ARCH^^}" && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    java_package="temurin-${JAVA_MAJOR}-jdk=${!java_pkg:?missing native Java package version}" && \
+    java_sha="JAVA_APT_SHA256_${ARCH^^}" && \
+    verify_locked_apt_index "$java_package" "${!java_sha:?missing native Java SHA-256}" && \
+    apt-get install -y --no-install-recommends "$java_package" && \
+    verify_installed_apt_version "$java_package"
 
 # Adoptium's package installs under a version- and arch-suffixed path
 # (/usr/lib/jvm/temurin-${JAVA_MAJOR}-jdk-<arch>) rather than a stable one.
@@ -1410,8 +1419,8 @@ RUN set -euo pipefail; \
 # Trivy's secret scanner does raw pattern matching over file bytes, not
 # XML-comment-aware parsing, so it flags these three inert, never-executed
 # example values as HIGH-severity "Maven settings.xml password/passphrase"
-# secrets. This is the file Apache ships verbatim in every 3.9.16
-# distribution — already verified byte-for-byte via MAVEN_SHA512 below,
+# secrets. This is the file Apache ships in the Maven distribution,
+# already verified byte-for-byte via MAVEN_SHA512 below,
 # before this step ever touches it — not something this project introduced.
 #
 # Fix: strip every XML comment from settings.xml immediately after
@@ -1469,7 +1478,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
       > /etc/apt/sources.list.d/docker.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends docker-ce-cli && \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
+    docker_sha="DOCKER_APT_SHA256_${ARCH^^}" && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    docker_package="docker-ce-cli=${DOCKER_APT_VERSION}" && \
+    verify_locked_apt_index "$docker_package" "${!docker_sha:?missing native Docker SHA-256}" && \
+    apt-get install -y --no-install-recommends "$docker_package" && \
+    verify_installed_apt_version "$docker_package" && \
     install -d -m 0755 /usr/libexec/docker/cli-plugins
 
 # Install ONLY our source-pinned, security-rebuilt CLI plugin binaries.
@@ -1686,7 +1701,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
       > /etc/apt/sources.list.d/docker.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends docker-ce-cli && \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
+    docker_sha="DOCKER_APT_SHA256_${ARCH^^}" && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    docker_package="docker-ce-cli=${DOCKER_APT_VERSION}" && \
+    verify_locked_apt_index "$docker_package" "${!docker_sha:?missing native Docker SHA-256}" && \
+    apt-get install -y --no-install-recommends "$docker_package" && \
+    verify_installed_apt_version "$docker_package" && \
     install -d -m 0755 /usr/libexec/docker/cli-plugins
 
 # Install ONLY our source-pinned, security-rebuilt CLI plugin binaries.
@@ -1701,30 +1722,11 @@ RUN docker buildx version | grep -F 'v0.38.1' && docker compose version | grep -
 # -----------------------------------------------------------------------------
 # HashiCorp Terraform
 #
-# Per-architecture zip, verified against HashiCorp's own SHA256SUMS manifest
-# (config/resolve.sh fetched the specific line for this exact asset — see
-# terraform_sha256_for_asset() there) — the same sha256sum -c verification
-# shape as every GitHub-release binary in the cli-tools stage, just from
-# releases.hashicorp.com instead of GitHub's API. Terraform ships as a
-# single static binary inside the zip, extracted straight to /usr/local/bin
-# — no surrounding directory structure to strip, unlike Maven's tarball.
+# The official assets at 1.17.1 and 1.17.2 embed Go 1.26.10. Rebuild the
+# locked 1.17.1 release source with the verified compiler and Go module sums.
 # -----------------------------------------------------------------------------
-RUN set -euo pipefail; \
-    . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
-    ARCH=$(dpkg --print-architecture); \
-    if [ "$ARCH" = "amd64" ]; then \
-        TERRAFORM_ASSET="${TERRAFORM_ASSET_AMD64}"; \
-        TERRAFORM_SHA256="${TERRAFORM_SHA256_AMD64}"; \
-    else \
-        TERRAFORM_ASSET="${TERRAFORM_ASSET_ARM64}"; \
-        TERRAFORM_SHA256="${TERRAFORM_SHA256_ARM64}"; \
-    fi; \
-    curl -fsSL -o /tmp/terraform.zip \
-      "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${TERRAFORM_ASSET}"; \
-    echo "${TERRAFORM_SHA256}  /tmp/terraform.zip" | sha256sum -c -; \
-    unzip -q /tmp/terraform.zip -d /usr/local/bin; \
-    chmod +x /usr/local/bin/terraform; \
-    rm -f /tmp/terraform.zip
+COPY --from=patched-terraform /out/terraform /usr/local/bin/terraform
+COPY --from=patched-terraform /out/licenses/terraform/ /usr/share/licenses/baobab-cli/terraform/
 
 # -----------------------------------------------------------------------------
 # AWS CLI v2

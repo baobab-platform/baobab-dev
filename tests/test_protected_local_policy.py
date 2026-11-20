@@ -13,8 +13,16 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from verify_protected_policy_hash import verify
 
 NOW = dt.datetime(2026, 11, 15, tzinfo=dt.timezone.utc)
-CVES = ["CVE-2022-50240","CVE-2025-40190","CVE-2026-68103","CVE-2026-72198","CVE-2026-74578","CVE-2026-89805","CVE-2026-98376","CVE-2026-98420"]
+CVES = ["CVE-2022-50240","CVE-2025-40190","CVE-2026-68103","CVE-2026-72198","CVE-2026-74578","CVE-2026-89805","CVE-2026-98376","CVE-2026-98420","CVE-2026-98869","CVE-2026-98890","CVE-2026-99083","CVE-2026-112366"]
 FINDINGS = [{"cve":"CVE-2022-50240","package":"linux-libc-dev","version":"7.0.0-43.43","severity":"HIGH","type":"ubuntu"},{"cve":"CVE-2025-40190","package":"linux-libc-dev","version":"7.0.0-43.43","severity":"HIGH","type":"ubuntu"},{"cve":"CVE-2026-68103","package":"linux-libc-dev","version":"7.0.0-43.43","severity":"HIGH","type":"ubuntu"},{"cve":"CVE-2026-72198","package":"linux-libc-dev","version":"7.0.0-43.43","severity":"HIGH","type":"ubuntu"},{"cve":"CVE-2026-74578","package":"linux-libc-dev","version":"7.0.0-43.43","severity":"HIGH","type":"ubuntu"},{"cve":"CVE-2026-89805","package":"linux-libc-dev","version":"7.0.0-43.43","severity":"HIGH","type":"ubuntu"},{"cve":"CVE-2026-98376","package":"linux-libc-dev","version":"7.0.0-43.43","severity":"HIGH","type":"ubuntu"},{"cve":"CVE-2026-98420","package":"linux-libc-dev","version":"7.0.0-43.43","severity":"HIGH","type":"ubuntu"}]
+
+EXTRA_KERNEL_FINDINGS = [
+    {"cve": "CVE-2026-98869", "package": "linux-libc-dev", "version": "7.0.0-43.43", "severity": "HIGH", "type": "ubuntu"},
+    {"cve": "CVE-2026-98890", "package": "linux-libc-dev", "version": "7.0.0-43.43", "severity": "HIGH", "type": "ubuntu"},
+    {"cve": "CVE-2026-99083", "package": "linux-libc-dev", "version": "7.0.0-43.43", "severity": "HIGH", "type": "ubuntu"},
+]
+PICOMATCH_FINDING = {"cve": "CVE-2026-112366", "package": "picomatch", "version": "4.0.5", "severity": "HIGH", "type": "node-pkg"}
+
 
 class LocalPolicyTests(unittest.TestCase):
     def setUp(self):
@@ -31,7 +39,7 @@ class LocalPolicyTests(unittest.TestCase):
             "prepared_by": "maker", "prepared_by_id": 1,
             "approval_evidence": "https://github.com/baobab-platform/baobab-dev/pull/123",
             "expires_at": "2026-11-26T00:00:00Z",
-            "findings": copy.deepcopy(FINDINGS), "finding_count": 8,
+            "findings": copy.deepcopy(FINDINGS), "finding_count": len(FINDINGS),
         }
         self.report = {
             "SchemaVersion": 2, "ArtifactType": "container_image",
@@ -75,6 +83,49 @@ class LocalPolicyTests(unittest.TestCase):
                     approved_by_id=2, now=NOW)
                 self.assertEqual(result["findings"], 8)
 
+    def test_exact_extended_inventory_is_supported_across_profiles_and_architectures(self):
+        policy = copy.deepcopy(self.policy)
+        policy["findings"] = copy.deepcopy(FINDINGS) + copy.deepcopy(EXTRA_KERNEL_FINDINGS) + [copy.deepcopy(PICOMATCH_FINDING)]
+        policy["finding_count"] = 12
+        lock = Path(__file__).resolve().parents[1] / "security/evidence/dev10-kernel-evidence.lock.json"
+        with self.assertRaisesRegex(ValueError, "must bind the reviewed evidence lock"):
+            self.evaluate(policy=policy)
+        policy["evidence_lock_sha256"] = "0" * 64
+        with self.assertRaisesRegex(ValueError, "differs from the reviewed lock"):
+            self.evaluate(policy=policy)
+        policy["evidence_lock_sha256"] = hashlib.sha256(lock.read_bytes()).hexdigest()
+        report = copy.deepcopy(self.report)
+        report["Results"][0]["Vulnerabilities"].extend([
+            {"VulnerabilityID": item["cve"], "PkgName": item["package"],
+             "InstalledVersion": item["version"], "Severity": item["severity"]}
+            for item in EXTRA_KERNEL_FINDINGS
+        ])
+        report["Results"].append({
+            "Target": "Node.js", "Type": "node-pkg",
+            "Vulnerabilities": [{
+                "VulnerabilityID": PICOMATCH_FINDING["cve"],
+                "PkgName": PICOMATCH_FINDING["package"],
+                "InstalledVersion": PICOMATCH_FINDING["version"],
+                "Severity": PICOMATCH_FINDING["severity"],
+            }],
+        })
+        for profile in policy["profiles"]:
+            for architecture in policy["architectures"]:
+                raw = json.dumps(policy, sort_keys=True).encode()
+                with tempfile.TemporaryDirectory() as directory:
+                    path = Path(directory) / "policy.json"
+                    path.write_bytes(raw)
+                    result = verify(
+                        path, hashlib.sha256(raw).hexdigest(), report,
+                        profile=profile, architecture=architecture,
+                        event="pull_request", ref="refs/pull/123/merge",
+                        base_ref="main", head_repository="baobab-platform/baobab-dev",
+                        approval_id="github-review-123",
+                        approval_timestamp="2026-11-14T00:00:00Z",
+                        approved_by_id=2, now=NOW,
+                    )
+                self.assertEqual(result["findings"], 12)
+
     def test_foundation_workflow_uses_reusable_authenticated_policy(self):
         workflow = (ROOT / ".github/workflows/foundation.yml").read_text()
         self.assertIn("scripts/verify_protected_risk_custody.py", workflow)
@@ -94,7 +145,7 @@ class LocalPolicyTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/publish.yml").read_text()
         self.assertIn("scripts/verify_protected_policy_hash.py", workflow)
         build_start = workflow.index('name: "Build & Security Scan')
-        exact_start = workflow.index('name: "Release candidate exact-digest scan')
+        exact_start = workflow.index('name: "Qualify attested release image')
         self.assertNotIn("scripts/dev10_kernel_risk_gate.py", workflow[build_start:exact_start])
 
     def test_untrusted_policy_hash(self):
@@ -159,18 +210,24 @@ class LocalPolicyTests(unittest.TestCase):
             self.evaluate(head_repository="attacker/baobab-dev")
 
     def test_main_push_is_allowed(self):
-        self.assertEqual(self.evaluate(event="push", ref="refs/heads/main", base_ref="",
-                                    head_repository="baobab-platform/baobab-dev")["findings"], 8)
+        findings = self.evaluate(event="push", ref="refs/heads/main", base_ref="",
+                                 head_repository="baobab-platform/baobab-dev")["findings"]
+        self.assertIn(findings, {8, 12})
 
     def test_proposal_and_schema_remain_pending_and_exactly_bounded(self):
         schema = json.loads((ROOT / "security/decisions/development/foundation.schema.json").read_text())
         proposal = json.loads((ROOT / "security/decisions/development/foundation.proposal.json").read_text())
         self.assertEqual(schema["properties"]["expires_at"]["const"], "2026-11-26T00:00:00Z")
+        self.assertEqual(schema["properties"]["findings"]["minItems"], 8)
+        self.assertEqual(schema["properties"]["findings"]["maxItems"], 12)
+        self.assertEqual(schema["properties"]["finding_count"]["enum"], [8, 12])
         self.assertEqual(proposal["status"], "pending_independent_review")
         self.assertIsNone(proposal["prepared_by_id"])
         self.assertIsNone(proposal["approval_evidence"])
         self.assertEqual(proposal["execution_scope"], {"pull_request_base": "main", "pull_request_head_repository": "baobab-platform/baobab-dev", "push_ref": "refs/heads/main"})
         self.assertEqual({item["cve"] for item in proposal["findings"]}, set(CVES))
+        self.assertEqual(proposal["finding_count"], 12)
+        self.assertEqual(proposal["findings"][-1], PICOMATCH_FINDING)
         self.assertEqual(proposal["expires_at"], "2026-11-26T00:00:00Z")
 
 if __name__ == "__main__":
