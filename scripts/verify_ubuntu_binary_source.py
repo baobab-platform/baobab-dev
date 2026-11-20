@@ -103,7 +103,10 @@ def authenticated_apt_binary(args: argparse.Namespace, expected: dict, deb_hash:
 
 
 def verify(args: argparse.Namespace) -> dict:
-    expected = LOCK.binary_source
+    expected = dict(LOCK.binary_source)
+    if args.architecture not in LOCK.binary_artifact_sha256:
+        raise ValueError("requested architecture has no reviewed binary artifact digest")
+    expected["architecture"] = args.architecture
     installed = installed_fields(args.installed_package)
     for key in ("binary_package", "binary_version", "architecture",
                 "source_package", "source_version"):
@@ -156,6 +159,7 @@ def verify(args: argparse.Namespace) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--architecture", choices=("amd64", "arm64"), default="amd64")
     parser.add_argument("--installed-package", type=Path, required=True)
     parser.add_argument("--apt-package-metadata", type=Path, required=True)
     parser.add_argument("--apt-policy", type=Path, required=True)
