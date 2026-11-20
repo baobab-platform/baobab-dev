@@ -18,6 +18,8 @@ class UbuntuBinarySourceTests(unittest.TestCase):
         workflow = (ROOT / ".github/workflows/dev10-ubuntu-source.yml").read_text()
         capture = (ROOT / "scripts/ci/capture-ubuntu-package-evidence.sh").read_text()
         self.assertIn("bash scripts/ci/capture-ubuntu-package-evidence.sh", workflow)
+        self.assertIn("for architecture in amd64 arm64", workflow)
+        self.assertIn("Compare captured installed manifests with exact amd64 and arm64 Debian payloads", workflow)
         self.assertIn("printf '%s\\n' \"$UBUNTU_IMAGE_REF\"", capture)
         self.assertNotIn("printf '%s\\\\n' \"$UBUNTU_IMAGE_REF\"", workflow)
 
@@ -71,7 +73,7 @@ class UbuntuBinarySourceTests(unittest.TestCase):
                                             encoding="utf-8")
 
     def args(self):
-        return Namespace(**self.paths)
+        return Namespace(**self.paths, architecture="amd64")
 
     def test_exact_installed_binary_maps_to_locked_linux_source(self):
         result = MODULE.verify(self.args())
@@ -81,6 +83,39 @@ class UbuntuBinarySourceTests(unittest.TestCase):
         self.assertEqual(result["source_version"], MODULE.LOCK.package_version)
         self.assertEqual(result["release_pocket"], "resolute-updates")
         self.assertEqual(result["ubuntu_base_image"], "ubuntu@sha256:" + "c" * 64)
+
+    def test_exact_arm64_binary_maps_to_locked_linux_source(self):
+        version = MODULE.LOCK.package_version
+        arm64_hash = MODULE.LOCK.binary_artifact_sha256["arm64"]
+        self.paths["installed_package"].write_text(
+            "\\t".join(("linux-libc-dev", version, "arm64", "install ok installed",
+                         "linux", version)) + "\\n",
+            encoding="utf-8",
+        )
+        self.paths["apt_package_metadata"].write_text(
+            f"Package: linux-libc-dev\\nVersion: {version}\\nArchitecture: arm64\\n"
+            f"Source: linux ({version})\\nFilename: pool/main/l/linux/linux-libc-dev_{version}_arm64.deb\\n"
+            f"SHA256: {arm64_hash}\\n\\n",
+            encoding="utf-8",
+        )
+        self.paths["apt_policy"].write_text(
+            f"linux-libc-dev:\\n Installed: {version}\\n Candidate: {version}\\n"
+            f" Version table:\\n *** {version} 500\\n"
+            f"        500 http://archive.ubuntu.com/ubuntu resolute-updates/main arm64 Packages\\n",
+            encoding="utf-8",
+        )
+        self.paths["apt_madison"].write_text(
+            f"linux-libc-dev | {version} | http://archive.ubuntu.com/ubuntu "
+            "resolute-updates/main arm64 Packages\\n",
+            encoding="utf-8",
+        )
+        self.paths["deb_sha256"].write_text(
+            arm64_hash + f"  ./linux-libc-dev_{version}_arm64.deb\\n",
+            encoding="utf-8",
+        )
+        result = MODULE.verify(Namespace(**self.paths, architecture="arm64"))
+        self.assertEqual(result["architecture"], "arm64")
+        self.assertEqual(result["apt_package_deb_sha256"], arm64_hash)
 
     def test_installed_dpkg_source_mismatch_is_rejected(self):
         path = self.paths["installed_package"]
