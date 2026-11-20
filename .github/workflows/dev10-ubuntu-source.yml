@@ -70,6 +70,11 @@ jobs:
         uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
         with:
           platforms: arm64
+      - name: Verify arm64 execution through registered QEMU
+        run: |
+          set -euo pipefail
+          actual="$(docker run --rm --platform linux/arm64 ubuntu@sha256:d66b366dac61b575bee2aef07e9c26e8070096fbe84a3d4d3eb0da069b5d76db uname -m)"
+          [[ "$actual" == aarch64 ]]
       - name: Capture exact installed amd64 and arm64 binary manifests
         run: |
           set -euo pipefail
