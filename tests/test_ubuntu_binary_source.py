@@ -22,6 +22,8 @@ class UbuntuBinarySourceTests(unittest.TestCase):
         self.assertIn("uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0", workflow)
         self.assertLess(workflow.index("Register QEMU for arm64 Ubuntu package capture"),
                         workflow.index("Capture exact installed amd64 and arm64 binary manifests"))
+        self.assertIn("Verify arm64 execution through registered QEMU", workflow)
+        self.assertIn("[[ \"$actual\" == aarch64 ]]", workflow)
         self.assertIn("Compare captured installed manifests with exact amd64 and arm64 Debian payloads", workflow)
         self.assertIn("printf '%s\\n' \"$UBUNTU_IMAGE_REF\"", capture)
         self.assertNotIn("printf '%s\\\\n' \"$UBUNTU_IMAGE_REF\"", workflow)
