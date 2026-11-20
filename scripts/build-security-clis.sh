@@ -2,9 +2,10 @@
 # Build security-only variants of adopted releases, without floating resolution.
 set -euo pipefail
 arch=${1:?target architecture required}
+go_version=go1.27.4
 case "$arch" in
-  amd64) compiler_sha=65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40 ;;
-  arm64) compiler_sha=a06e99309dbcbdca1a8ccd2282c3ee146e55930886e26b4f1193269587165f49 ;;
+  amd64) compiler_sha=7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840 ;;
+  arm64) compiler_sha=3392582988a273a87ab5043ee1b2c9c17a2c3c00580bf9326c47a2e0aaaeac92 ;;
   *) echo "Unsupported architecture: $arch" >&2; exit 1 ;;
 esac
 . /build/versions.lock
@@ -15,9 +16,10 @@ fetch() {
   curl -fsSL --retry 5 --retry-all-errors "$1" -o "$2"
   printf '%s  %s\n' "$3" "$2" | sha256sum --check --strict
 }
-fetch "https://go.dev/dl/go1.27.3.linux-${arch}.tar.gz" /build/go.tar.gz "$compiler_sha"
+fetch "https://go.dev/dl/${go_version}.linux-${arch}.tar.gz" /build/go.tar.gz "$compiler_sha"
 tar -xzf /build/go.tar.gz -C /build
 export PATH="/build/go/bin:$PATH" GOTOOLCHAIN=local CGO_ENABLED=0 GOFLAGS=-mod=readonly
+[[ "$(go env GOVERSION)" == "$go_version" ]]
 mkdir -p /out
 for tool in task yq buildx compose; do
   ldflags="-s -w"
@@ -95,7 +97,7 @@ for tool in task yq buildx compose; do
   esac
   go build -trimpath -buildvcs=false -ldflags="$ldflags" -o "/out/$binary" "$package"
   go version -m "/out/$binary" | tee "/out/${tool}.buildinfo"
-  grep -F 'go1.27.3' "/out/${tool}.buildinfo"
+  [[ "$(awk 'NR == 1 { print $NF }' "/out/${tool}.buildinfo")" == "$go_version" ]]
   grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' "/out/${tool}.buildinfo"
   if ! cmp -s go.mod "/build/security/$tool/go.mod.lock"; then
     echo "::error::Generated $tool go.mod differs from the committed lock; exact diff follows." >&2

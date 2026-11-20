@@ -10,9 +10,7 @@ import subprocess
 
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 
-def assert_tag_identity(tag, expected_sha, output):
-    if not SHA.fullmatch(expected_sha):
-        raise ValueError("invalid expected commit SHA")
+def resolved_tag_identity(tag, output):
     refs = {}
     for line in output.splitlines():
         parts = line.split()
@@ -25,7 +23,13 @@ def assert_tag_identity(tag, expected_sha, output):
     peeled = direct + "^{}"
     if direct not in refs or set(refs) - {direct, peeled}:
         raise ValueError("missing or unexpected remote tag reference")
-    resolved = refs.get(peeled, refs[direct])
+    return refs.get(peeled, refs[direct])
+
+
+def assert_tag_identity(tag, expected_sha, output):
+    if not SHA.fullmatch(expected_sha):
+        raise ValueError("invalid expected commit SHA")
+    resolved = resolved_tag_identity(tag, output)
     if resolved != expected_sha:
         raise ValueError("remote release tag points to a different commit")
     return resolved
@@ -33,7 +37,9 @@ def assert_tag_identity(tag, expected_sha, output):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", required=True)
-    parser.add_argument("--sha", required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--sha")
+    mode.add_argument("--print-commit", action="store_true")
     parser.add_argument("--remote", default="origin")
     args = parser.parse_args()
     from release_tag_policy import classify
@@ -41,11 +47,14 @@ def main():
         parser.error("invalid release tag")
     try:
         response = subprocess.run(
-            ["git", "ls-remote", "--tags", args.remote,
+            ["git", "ls-remote", "--tags", "--", args.remote,
              "refs/tags/" + args.tag, "refs/tags/" + args.tag + "^{}"],
-            check=True, capture_output=True, text=True)
+            check=True, capture_output=True, text=True, timeout=45)
+        if args.print_commit:
+            print(resolved_tag_identity(args.tag, response.stdout))
+            return
         assert_tag_identity(args.tag, args.sha, response.stdout)
-    except (OSError, subprocess.CalledProcessError, ValueError) as exc:
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
         parser.error(str(exc))
     print("Immutable remote tag identity verified: " + args.tag + " -> " + args.sha)
 

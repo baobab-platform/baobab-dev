@@ -5,6 +5,7 @@ import importlib.util
 from pathlib import Path
 import sys
 import unittest
+import urllib.error
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,8 +17,11 @@ SPEC = importlib.util.spec_from_file_location(
 provisioner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(provisioner)
 
-DECISION = provisioner.json.loads(
-    (ROOT / "security/decisions/development/foundation.json").read_text()
+DECISION_BYTES = (ROOT / "security/decisions/development/foundation.json").read_bytes()
+DECISION = provisioner.json.loads(DECISION_BYTES)
+DECISION_PR = int(DECISION["approval_evidence"].rsplit("/", 1)[1])
+PROPOSAL = provisioner.json.loads(
+    (ROOT / "security/decisions/development/foundation.proposal.json").read_text()
 )
 NOW = dt.datetime(2026, 11, 17, tzinfo=dt.timezone.utc)
 HEAD = "a" * 40
@@ -35,6 +39,7 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
             "extensions": {"secret": "must-not-appear"},
         }]}
         with patch("github_api_transport._OPENER.open") as urlopen:
+            urlopen.return_value.__enter__.return_value.status = 200
             urlopen.return_value.__enter__.return_value.read.return_value = (
                 provisioner.json.dumps(response).encode()
             )
@@ -53,19 +58,19 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
         from email.message import Message
         from custody_independence import CustodyError, _graphql
         headers = Message()
-        headers["x-github-request-id"] = "ABC123-DEF456"
+        headers["x-github-request-id"] = "ABC1:2DEF:3456:789A:B12C"
         body = provisioner.json.dumps({
             "message": "Resource not accessible by integration",
             "documentation_url": "https://example.invalid/private",
         }).encode()
-        error = provisioner.urllib.error.HTTPError(
+        error = urllib.error.HTTPError(
             "https://api.github.com/graphql", 403, "Forbidden", headers, io.BytesIO(body)
         )
         with patch("github_api_transport._OPENER.open", side_effect=error):
             with self.assertRaises(CustodyError) as caught:
                 _graphql("not-a-real-token", "query { viewer { login } }", {})
         self.assertIn("HTTP 403", str(caught.exception))
-        self.assertIn("ABC123-DEF456", str(caught.exception))
+        self.assertIn("ABC1:2DEF:3456:789A:B12C", str(caught.exception))
         self.assertIn("Resource not accessible by integration", str(caught.exception))
         self.assertNotIn("documentation_url", str(caught.exception))
         self.assertNotIn("not-a-real-token", str(caught.exception))
@@ -74,42 +79,61 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
         import io
         from email.message import Message
         headers = Message()
-        headers["x-github-request-id"] = "REQ123-ABC456"
+        headers["x-github-request-id"] = "0ABC:123:456:DEF:55EE"
         body = provisioner.json.dumps({
             "message": "Resource not accessible by integration",
             "documentation_url": "https://example.invalid/private",
             "secret": "do-not-disclose",
         }).encode()
-        error = provisioner.urllib.error.HTTPError(
+        error = urllib.error.HTTPError(
             "https://api.github.com/repos/baobab-platform/baobab-dev",
             403, "Forbidden", headers, io.BytesIO(body),
         )
-        with patch.object(provisioner, "open_github", side_effect=error):
+        with patch("github_api_transport.open_github", side_effect=error):
             with self.assertRaises(provisioner.ProvisioningError) as caught:
                 provisioner.api_request(
                     "not-a-real-token", "GET", "/repos/baobab-platform/baobab-dev"
                 )
         message = str(caught.exception)
         self.assertIn("HTTP 403", message)
-        self.assertIn("REQ123-ABC456", message)
+        self.assertIn("0ABC:123:456:DEF:55EE", message)
         self.assertIn("Resource not accessible by integration", message)
         self.assertNotIn("documentation_url", message)
         self.assertNotIn("do-not-disclose", message)
         self.assertNotIn("not-a-real-token", message)
 
     def test_provisioner_transport_error_is_distinct_and_sanitized(self):
-        import urllib.error
-        with patch.object(
-            provisioner, "open_github",
-            side_effect=urllib.error.URLError("temporary DNS failure"),
+        with patch(
+            "github_api_transport.open_github",
+            side_effect=urllib.error.URLError("https://example.invalid/?value=arbitrary-secret"),
         ):
             with self.assertRaisesRegex(
                 provisioner.ProvisioningError,
-                "GitHub API GET transport failed: temporary DNS failure",
-            ):
+                "^GitHub API GET transport failed$",
+            ) as caught:
                 provisioner.api_request(
                     "not-a-real-token", "GET", "/repos/baobab-platform/baobab-dev"
                 )
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_bad_request_header_errors_are_sanitized(self):
+        with patch("github_api_transport.open_github",
+                   side_effect=ValueError("rejected header test-secret-value")):
+            with self.assertRaisesRegex(provisioner.ProvisioningError, "^GitHub API GET transport failed$"):
+                provisioner.api_request("test-secret-value", "GET", "/user")
+
+    def test_http_diagnostics_only_report_approved_fields(self):
+        import io
+        error = urllib.error.HTTPError(
+            "https://example.invalid/private", 403, "arbitrary-error",
+            {"x-github-request-id": "github_pat_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"},
+            io.BytesIO(b'{"message":"https://example.invalid/path/arbitrarysecret"}'),
+        )
+        with patch("github_api_transport.open_github", side_effect=error):
+            with self.assertRaises(provisioner.ProvisioningError) as caught:
+                provisioner.api_request("test-token", "GET", "/user")
+        self.assertEqual(str(caught.exception), "GitHub API GET HTTP 403: unrecognized GitHub error")
+        self.assertTrue(error.fp.closed)
 
     def test_sanitizer_redacts_github_token_formats(self):
         from custody_independence import _safe_detail
@@ -146,6 +170,7 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
     def test_graphql_invalid_json_fails_closed_without_echoing_body(self):
         from custody_independence import CustodyError, _graphql
         with patch("github_api_transport._OPENER.open") as urlopen:
+            urlopen.return_value.__enter__.return_value.status = 200
             urlopen.return_value.__enter__.return_value.read.return_value = b"not-json-secret"
             with self.assertRaises(CustodyError) as caught:
                 _graphql("token", "query { viewer { login } }", {})
@@ -155,7 +180,7 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
     def test_http_malformed_body_reports_status_without_echoing_body(self):
         import io
         from custody_independence import CustodyError, _graphql
-        error = provisioner.urllib.error.HTTPError(
+        error = urllib.error.HTTPError(
             "https://api.github.com/graphql", 502, "Bad Gateway", {},
             io.BytesIO(b"upstream-secret-body"),
         )
@@ -174,6 +199,7 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
             "extensions": {"secret": "must-not-appear"},
         }]}
         with patch("github_api_transport._OPENER.open") as urlopen:
+            urlopen.return_value.__enter__.return_value.status = 200
             urlopen.return_value.__enter__.return_value.read.return_value = (
                 provisioner.json.dumps(response).encode()
             )
@@ -196,6 +222,7 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
     def test_malformed_graphql_error_shape_fails_closed_with_diagnostic(self):
         from custody_independence import CustodyError, _graphql
         with patch("github_api_transport._OPENER.open") as urlopen:
+            urlopen.return_value.__enter__.return_value.status = 200
             urlopen.return_value.__enter__.return_value.read.return_value = b'{"errors":{}}'
             with self.assertRaisesRegex(CustodyError, "invalid errors field"):
                 _graphql("token", "query { viewer { login } }", {})
@@ -218,9 +245,23 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
 class DecisionContractTests(unittest.TestCase):
     def test_exact_candidate_record_is_accepted_for_provisioning(self):
         result = provisioner.validate_decision(
-            copy.deepcopy(DECISION), decision_pr=76, now=NOW
+            copy.deepcopy(DECISION), decision_pr=DECISION_PR, now=NOW
         )
         self.assertEqual(result["status"], "approved")
+
+    def test_accepts_exact_twelve_finding_amendment_candidate_shape(self):
+        candidate = copy.deepcopy(PROPOSAL)
+        candidate.update(
+            status="approved",
+            prepared_by="wekhason",
+            prepared_by_id=350241706,
+            approval_evidence="https://github.com/baobab-platform/baobab-dev/pull/85",
+        )
+        result = provisioner.validate_decision(
+            candidate, decision_pr=85, now=NOW
+        )
+        self.assertEqual(result["finding_count"], 12)
+        self.assertEqual(len(result["findings"]), 12)
 
     def test_rejects_nonapproved_revoked_or_wrong_record_type(self):
         mutations = (
@@ -233,7 +274,7 @@ class DecisionContractTests(unittest.TestCase):
                 candidate = copy.deepcopy(DECISION)
                 mutate(candidate)
                 with self.assertRaises(provisioner.ProvisioningError):
-                    provisioner.validate_decision(candidate, decision_pr=76, now=NOW)
+                    provisioner.validate_decision(candidate, decision_pr=DECISION_PR, now=NOW)
 
     def test_rejects_widened_scope_and_inventory(self):
         mutations = (
@@ -241,7 +282,7 @@ class DecisionContractTests(unittest.TestCase):
             ("wrong repository", lambda item: item.update(repository="other/repo")),
             ("release environment", lambda item: item.update(environment="production")),
             ("wrong PR evidence", lambda item: item.update(
-                approval_evidence="https://github.com/baobab-platform/baobab-dev/pull/75"
+                approval_evidence=f"https://github.com/baobab-platform/baobab-dev/pull/{DECISION_PR + 1}"
             )),
             ("wrong profile", lambda item: item["profiles"].append("release")),
             ("wrong architecture", lambda item: item["architectures"].append("linux/s390x")),
@@ -259,13 +300,13 @@ class DecisionContractTests(unittest.TestCase):
                 candidate = copy.deepcopy(DECISION)
                 mutate(candidate)
                 with self.assertRaises(provisioner.ProvisioningError):
-                    provisioner.validate_decision(candidate, decision_pr=76, now=NOW)
+                    provisioner.validate_decision(candidate, decision_pr=DECISION_PR, now=NOW)
 
     def test_rejects_expired_decision(self):
         with self.assertRaisesRegex(provisioner.ProvisioningError, "expired"):
             provisioner.validate_decision(
                 copy.deepcopy(DECISION),
-                decision_pr=76,
+                decision_pr=DECISION_PR,
                 now=dt.datetime(2026, 11, 27, tzinfo=dt.timezone.utc),
             )
 
@@ -274,7 +315,7 @@ class OwnerConcurrenceTests(unittest.TestCase):
     def test_requires_attributable_owner_comment_on_the_decision_pr(self):
         comments = [{
             "id": 6924572973,
-            "user": {"id": 49340314, "login": "bjnabs"},
+            "user": {"id": 49340314, "login": "bjnabs", "type": "User"},
             "body": "@wekhason, I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
             "created_at": "2026-11-16T14:00:00Z",
             "updated_at": "2026-11-16T14:00:00Z",
@@ -294,7 +335,7 @@ class OwnerConcurrenceTests(unittest.TestCase):
         for updated_at in ("2026-11-18T00:00:00Z", "2026-11-16T13:00:00Z"):
             comments = [{
                 "id": 6924572973,
-                "user": {"id": 49340314},
+                "user": {"id": 49340314, "type": "User"},
                 "body": "new reusable policy; owner concurrence is hereby recorded",
                 "created_at": "2026-11-16T14:00:00Z",
                 "updated_at": updated_at,
@@ -309,7 +350,7 @@ class OwnerConcurrenceTests(unittest.TestCase):
         cases = (
             [{"id": 1, "user": {"id": 350241706},
               "body": "owner concurrence is hereby recorded for the new reusable policy"}],
-            [{"id": 2, "user": {"id": 49340314},
+            [{"id": 2, "user": {"id": 49340314, "type": "User"},
               "body": "I acknowledge the new reusable policy"}],
             [],
         )
@@ -348,9 +389,13 @@ class TrustedReviewerResolutionTests(unittest.TestCase):
             ):
                 self.resolve([user])
 
+    def test_service_user_cannot_be_a_trusted_reviewer(self):
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "service User is ineligible"):
+            self.resolve([{"id": 19864447, "login": "renamed", "type": "User"}], ["renamed"])
+
     def test_rejects_duplicate_numeric_ids_for_distinct_configured_logins(self):
         with self.assertRaisesRegex(
-            provisioner.ProvisioningError, "collide on numeric GitHub ID"
+            provisioner.ProvisioningError, "duplicate numeric identities"
         ):
             self.resolve(
                 [
@@ -430,6 +475,13 @@ class IndependentApprovalTests(unittest.TestCase):
             with self.subTest(label=label), self.assertRaises(provisioner.ProvisioningError):
                 self.select(reviews, contributors=contributors, trusted=trusted)
 
+    def test_duplicate_review_ids_and_conflicting_typed_identity_are_rejected(self):
+        review = self.review(10, "APPROVED", "2026-11-16T10:00:00Z")
+        conflicting = dict(review, id=11, user=dict(review["user"], type="Bot"))
+        for reviews in ([review, review], [review, conflicting], [conflicting, review]):
+            with self.subTest(reviews=reviews), self.assertRaises(provisioner.ProvisioningError):
+                self.select(reviews)
+
     def test_rejects_unresolved_identity_unknown_state_and_naive_timestamp(self):
         malformed = [
             {"id": 1, "state": "APPROVED", "submitted_at": "2026-11-17T01:00:00Z",
@@ -444,7 +496,7 @@ class IndependentApprovalTests(unittest.TestCase):
 
 class MergedCustodyTests(unittest.TestCase):
     def setUp(self):
-        self.raw = provisioner.json.dumps(DECISION, separators=(",", ":")).encode()
+        self.raw = DECISION_BYTES
         self.encoded = provisioner.base64.b64encode(self.raw).decode()
         self.merge_sha = "b" * 40
         self.pull = {
@@ -454,7 +506,7 @@ class MergedCustodyTests(unittest.TestCase):
             "base": {"ref": "main", "repo": {"full_name": provisioner.REPOSITORY}},
             "head": {"sha": HEAD, "repo": {"full_name": provisioner.REPOSITORY}},
             "merge_commit_sha": self.merge_sha,
-            "user": {"id": AUTHOR, "login": "wekhason"},
+            "user": {"id": AUTHOR, "login": "wekhason", "type": "User"},
         }
         self.files = [{"filename": provisioner.DECISION_PATH, "status": "added"}]
         self.content = {"type": "file", "encoding": "base64", "content": self.encoded}
@@ -464,7 +516,7 @@ class MergedCustodyTests(unittest.TestCase):
         }
         self.comments = [{
             "id": 6924572973,
-            "user": {"id": 49340314, "login": "bjnabs"},
+            "user": {"id": 49340314, "login": "bjnabs", "type": "User"},
             "body": "I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
             "created_at": "2026-11-16T14:00:00Z",
             "updated_at": "2026-11-16T14:00:00Z",
@@ -495,11 +547,12 @@ class MergedCustodyTests(unittest.TestCase):
                  AUTHOR, set() if contributors is None else contributors
              )):
             return provisioner.verify_merged_custody(
-                "token", DECISION, 76, expected_head, TRUSTED
+                "token", DECISION, DECISION_PR, expected_head, TRUSTED
             )
 
     def test_verifies_merged_head_review_contributors_and_merge_ancestry(self):
         result = self.verify()
+        self.assertEqual(result["decision_pr"], DECISION_PR)
         self.assertEqual(result["decision_pr_head"], HEAD)
         self.assertEqual(result["merge_commit_sha"], self.merge_sha)
         self.assertEqual(result["approval_id"], "github-review-99")
@@ -511,6 +564,14 @@ class MergedCustodyTests(unittest.TestCase):
             self.verify(api_sequence=[(200, unmerged)])
         with self.assertRaisesRegex(provisioner.ProvisioningError, "expected head"):
             self.verify(expected_head="c" * 40)
+
+    def test_approval_and_owner_type_must_be_attributable_before_merge(self):
+        later = [dict(self.reviews[0], submitted_at="2026-11-17T02:01:00Z")]
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "no current-head"):
+            self.verify(self.api_sequence(reviews=later))
+        untyped = [dict(self.comments[0], user={"id": 49340314, "type": "Bot"})]
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "typed numeric"):
+            self.verify(self.api_sequence(comments=untyped))
 
     def test_rejects_main_bytes_different_from_reviewed_pr_bytes(self):
         changed = {
@@ -557,7 +618,7 @@ class MergedCustodyTests(unittest.TestCase):
         no_owner = self.api_sequence(comments=[])
         with self.assertRaisesRegex(provisioner.ProvisioningError, "owner concurrence"):
             self.verify(api_sequence=no_owner)
-        renamed_login = dict(self.pull, user={"id": AUTHOR, "login": "renamed-wekhason"})
+        renamed_login = dict(self.pull, user={"id": AUTHOR, "login": "renamed-wekhason", "type": "User"})
         sequence = self.api_sequence()
         sequence[0] = (200, renamed_login)
         result = self.verify(api_sequence=sequence)
@@ -668,10 +729,28 @@ class TransportHardeningTests(unittest.TestCase):
             "https://api.github.com/graphql",
             headers={"Authorization": "Bearer test-secret"},
         )
-        with self.assertRaises(urllib.error.HTTPError):
+        with self.assertRaises(urllib.error.HTTPError) as caught:
             _SameHostRedirect().redirect_request(
                 request, None, 302, "Found", {}, "https://attacker.invalid/collect"
             )
+        caught.exception.close()
+
+    def test_github_api_redirects_are_limited_to_same_origin_reads(self):
+        from urllib.request import Request
+        from github_api_transport import _SameHostRedirect
+
+        before = "https://api.github.com/example"
+        after = "https://api.github.com:443/other"
+        handler = _SameHostRedirect()
+        read = Request(before, headers={"Authorization": "Bearer test-token"})
+        redirected = handler.redirect_request(read, None, 302, "", {}, after)
+        self.assertEqual(redirected.full_url, after)
+        self.assertTrue(redirected.has_header("Authorization"))
+
+        write = Request(before, data=b"{}", method="POST", headers={"Authorization": "Bearer test-token"})
+        with self.assertRaises(urllib.error.HTTPError) as caught:
+            handler.redirect_request(write, None, 302, "", {}, after)
+        caught.exception.close()
 
     def test_github_transport_rejects_non_api_initial_destination(self):
         import urllib.request

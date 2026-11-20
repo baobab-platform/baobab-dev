@@ -16,9 +16,8 @@
 #      SBOM attestation are all still independently verifiable — not just
 #      the image bytes.
 #
-# It runs daily and after the publish workflow completes. This is deliberately
-# separate from publish.yml: publish-time verification proves correctness at
-# publication time; this workflow proves durability after publication.
+# Scheduled and on-demand checks verify durability after publication.
+# Publish checks the exact release digest during promotion.
 #
 # CHECK 5 (signature/attestation durability) reuses scripts/verify-image.sh
 # unchanged — the same script publish.yml itself runs right after signing —
@@ -50,12 +49,9 @@ on:
         description: "Optional exact release to check (vMAJOR.MINOR.PATCH-rc.N or GA); empty checks latest GA"
         type: string
         required: false
-  # On the stacked PR, prove changed integrity logic against the current
-  # released GHCR contract with read-only credentials.
+  # Exercise changed verifier logic against the released contract. Publication
+  # performs its own exact-digest readback before reporting success.
   pull_request:
-    branches:
-      - main
-      - feat/dev10-r4-lts-multiarch-candidate
     paths:
       - '.github/workflows/registry-integrity.yml'
       - 'scripts/verify-image.sh'
@@ -71,19 +67,13 @@ on:
       - 'tests/test_registry_arch_attestations.py'
       - 'tests/test_verify_release_contracts.py'
       - 'tests/test_signed_release_predicates.py'
-  workflow_run:
-    workflows:
-      - "Publish Baobab Dev Container"
-    types:
-      - completed
-
 permissions:
   actions: read
   contents: read
   packages: read
 
 concurrency:
-  # PR revisions must not suppress the independent daily/after-release observer.
+  # PR verifier tests must not suppress independent registry observations.
   group: released-ghcr-contract-integrity-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
@@ -94,11 +84,6 @@ defaults:
 jobs:
   verify-latest-stable-release:
     name: Verify latest stable release is pullable
-    # A PR's validation-only Publish completion is NOT a new stable release.
-    if: >-
-      ${{ github.event_name != 'workflow_run' ||
-          (github.event.workflow_run.conclusion == 'success' &&
-           github.event.workflow_run.event == 'push') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
 
@@ -165,21 +150,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REQUESTED_TAG: ${{ inputs.release_tag || '' }}
-          TRIGGER_TAG: ${{ github.event.workflow_run.head_branch || '' }}
-          TRIGGER_SHA: ${{ github.event.workflow_run.head_sha || '' }}
-          TRIGGER_EVENT: ${{ github.event.workflow_run.event || '' }}
         run: |
           set -euo pipefail
-          # PR/schedule defaults to latest GA. A successful tag-push
-          # workflow_run instead checks that exact published RC or GA.
+          # PR/schedule defaults to latest GA. Dispatch can select an exact tag.
           classify_release_tag() {
             python3 scripts/release_tag_policy.py --tag "$1"
           }
           tag="$REQUESTED_TAG"
-          if [[ -z "$tag" && "$TRIGGER_EVENT" == "push" ]] &&
-             trigger_kind=$(classify_release_tag "$TRIGGER_TAG" 2>/dev/null); then
-            tag="$TRIGGER_TAG"
-          fi
           if [[ -n "$tag" ]]; then
             release_kind=$(classify_release_tag "$tag") || {
               echo "::error::Unexpected release tag requested for integrity observer"; exit 1;
@@ -218,10 +195,6 @@ jobs:
           [[ "$object_type" == commit && "$object_sha" =~ ^[a-f0-9]{40}$ ]] || {
             echo "::error::Release tag does not resolve unambiguously to a commit"; exit 1;
           }
-          if [[ -n "$TRIGGER_SHA" && -n "$TRIGGER_TAG" &&
-                "$TAG_NAME" == "$TRIGGER_TAG" && "$object_sha" != "$TRIGGER_SHA" ]]; then
-            echo "::error::Release source differs from successful publishing run"; exit 1;
-          fi
           echo "source_sha=${object_sha}" >> "$GITHUB_OUTPUT"
           echo "Verifying release ${TAG_NAME}: ${RELEASE_URL} source ${object_sha}"
 

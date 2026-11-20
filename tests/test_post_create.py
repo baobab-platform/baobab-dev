@@ -11,7 +11,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/post-create.sh'
 
 
 class PostCreateTests(unittest.TestCase):
-    def run_case(self, files, *, fail='', pnpm='12.21.0', members='yes'):
+    def run_case(self, files, *, fail='', pnpm='12.21.0', members='yes', profile=''):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root/'config').mkdir()
@@ -111,10 +111,21 @@ fi
                  'IMAGE_COREPACK_HOME_EXPECTED':'/usr/local/share/baobab/corepack',
                  'TRACE':str(root/'trace'),'FAIL_TOOL':fail,'PNPM_MEMBERS':members,
                  'REAL_NODE':shutil.which('node') or '/usr/bin/node'}
+            if profile:
+                env['BAOBAB_BUILD_PROFILE'] = profile
             result=subprocess.run(['bash',str(SCRIPT),'--stage=post-create'],cwd=root,env=env,
                                   capture_output=True,text=True)
             trace=(root/'trace').read_text() if (root/'trace').exists() else ''
             return result,trace
+
+    def test_infra_profile_skips_python_dependencies_it_does_not_ship(self):
+        r, trace = self.run_case(
+            {'pyproject.toml': '[project]', 'uv.lock': 'version=1'},
+            profile='infra',
+        )
+        self.assertEqual(0, r.returncode, r.stdout + r.stderr)
+        self.assertIn('Skipping Python project dependencies: infra profile intentionally excludes Python.', r.stdout)
+        self.assertNotIn('uv sync --locked --no-managed-python', trace)
 
     def test_uv_project_never_uses_poetry_or_resolves_new_lock(self):
         r,t=self.run_case({'pyproject.toml':'[project]','uv.lock':'version=1'})

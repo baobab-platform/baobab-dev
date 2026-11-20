@@ -36,7 +36,7 @@ class ReleaseMatrixTests(unittest.TestCase):
         self.assertTrue(mod.check(ROOT, changed))
 
     def test_missing_rc_ga_branch(self):
-        changed = self.workflow.replace("is_stable_release != 'true'", "is_stable_release == 'true'")
+        changed = self.workflow.replace("publication_channel == 'ga-direct'", "publication_channel == 'invalid'")
         self.assertTrue(mod.check(ROOT, changed))
 
     def test_missing_contract_gate(self):

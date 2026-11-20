@@ -1,8 +1,15 @@
 """Tests for the read-only live PR reviewer independence classifier."""
+from contextlib import redirect_stdout
 import importlib.util
+import io
+import json
+import os
 from pathlib import Path
 import sys
+import tempfile
 import unittest
+from email.message import Message
+from unittest.mock import MagicMock, patch
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -28,9 +35,13 @@ class ReviewerAuditTests(unittest.TestCase):
         self.assertEqual(result["status"], "not-independent")
         self.assertEqual(result["reason"], "commit author, co-author, or committer")
 
-    def test_non_contributor_human_is_independent(self):
+    def test_non_contributor_user_is_independent_for_audit(self):
         result = mod.classify_reviewer({"login": "reviewer", "id": 2, "type": "User"}, 1, {3})
         self.assertEqual(result["status"], "independent")
+        self.assertEqual(result["reviewer_id"], 2)
+        self.assertEqual(result["classification"], "user_unverified_human")
+        self.assertEqual(result["role"], "reviewer")
+        self.assertEqual(result["source"], "rest_reviews")
 
     def test_bot_is_not_a_human_approval_candidate(self):
         result = mod.classify_reviewer({"login": "automation", "id": 9, "type": "Bot"}, 1, {3})
@@ -39,6 +50,104 @@ class ReviewerAuditTests(unittest.TestCase):
     def test_missing_numeric_identity_fails_closed(self):
         with self.assertRaises(mod.IndependenceError):
             mod.classify_reviewer({"login": "unknown", "type": "User"}, 1, {3})
+
+    def test_distinguishes_platform_service_and_github_app(self):
+        for actor, status, classification in (
+            ({"type": "User", "id": mod.GITHUB_WEB_FLOW_ID, "login": "web-flow"},
+             "service-user", "service"),
+            ({"type": "App", "id": 7, "login": "automation"},
+             "non-human-reviewer", "app"),
+        ):
+            with self.subTest(actor=actor):
+                result = mod.classify_reviewer(actor, 1, set())
+                self.assertEqual(result["status"], status)
+                self.assertEqual(result["classification"], classification)
+
+
+class RoleEvidenceTests(unittest.TestCase):
+    def test_role_specific_provenance(self):
+        for role, source in (
+            (mod.Role.PR_AUTHOR, mod.Source.GRAPHQL),
+            (mod.Role.COMMIT_AUTHOR, mod.Source.GRAPHQL),
+            (mod.Role.CO_AUTHOR, mod.Source.GRAPHQL),
+            (mod.Role.COMMITTER, mod.Source.REST_EXACT_SHA),
+            (mod.Role.REVIEWER, mod.Source.REST_REVIEWS),
+            (mod.Role.OWNER, mod.Source.REST_COMMENTS),
+            (mod.Role.WORKFLOW_INITIATOR, mod.Source.REST_RUN),
+            (mod.Role.MERGER, mod.Source.REST_PR),
+        ):
+            with self.subTest(role=role):
+                actor = {"__typename": "User", "databaseId": 42} if source is mod.Source.GRAPHQL else {
+                    "type": "User", "id": 42,
+                }
+                evidence = mod.resolve_actor(actor, role=role, source=source, exact_sha="d" * 40)
+                self.assertEqual((evidence.user_id, evidence.role, evidence.source), (42, role, source))
+                self.assertIs(evidence.classification, mod.Classification.USER)
+
+    def test_rest_exact_sha_fallback_is_committer_only(self):
+        actor = {"type": "User", "id": mod.GITHUB_WEB_FLOW_ID}
+        for role in mod.Role:
+            if role is not mod.Role.COMMITTER:
+                with self.subTest(role=role), self.assertRaisesRegex(mod.IdentityError, "invalid for this role"):
+                    mod.resolve_actor(actor, role=role, source=mod.Source.REST_EXACT_SHA, exact_sha="d" * 40)
+        with self.assertRaisesRegex(mod.IdentityError, "requires an exact SHA"):
+            mod.resolve_actor(actor, role=mod.Role.COMMITTER, source=mod.Source.REST_EXACT_SHA)
+        evidence = mod.resolve_actor(actor, role=mod.Role.COMMITTER, source=mod.Source.REST_EXACT_SHA,
+                                     exact_sha="d" * 40)
+        self.assertIs(evidence.classification, mod.Classification.SERVICE)
+
+    def test_refuses_malformed_and_conflicting_actor_fields(self):
+        for actor in (
+            {"type": "Mannequin", "id": 2}, {"type": "User", "id": True},
+            {"type": "User", "id": "2"}, {"type": "User", "id": 0},
+            {"type": "User", "id": 2, "databaseId": 3},
+            {"type": "User", "id": 2, "__typename": "Bot"},
+            {"__typename": "User", "databaseId": 2},
+            {"type": "Bot", "id": mod.GITHUB_WEB_FLOW_ID},
+        ):
+            with self.subTest(actor=actor), self.assertRaises(mod.IdentityError):
+                mod.resolve_actor(actor, role=mod.Role.REVIEWER, source=mod.Source.REST_REVIEWS)
+
+
+class CustodyReceiptTests(unittest.TestCase):
+    def test_only_allowlisted_response_metadata_is_retained(self):
+        from github_api_transport import rest_request, trace_requests
+
+        headers = Message()
+        headers["x-github-request-id"] = "BABC:A31:BC12:DE23"
+        headers["x-ratelimit-resource"] = "core"
+        headers["x-ratelimit-remaining"] = "49"
+        headers["x-ratelimit-reset"] = "arbitrary-secret"
+        headers["secret"] = "arbitrary-secret"
+        response = MagicMock(status=200, headers=headers)
+        response.read.return_value = b'{"message":"another-secret"}'
+        response.__enter__.return_value = response
+        with patch("github_api_transport.open_github", return_value=response):
+            with trace_requests() as observed:
+                rest_request("secret-token", "GET", "/user")
+            rest_request("secret-token", "GET", "/user")
+        self.assertEqual(observed, [{
+            "operation": "GitHub API GET", "http_status": 200,
+            "request_id": "BABC:A31:BC12:DE23", "rate_limit_resource": "core",
+            "rate_limit_remaining": 49,
+        }])
+
+    def test_cli_writes_receipt_with_exact_run_and_attempt(self):
+        evidence = {"pull_request": 76, "head_sha": mod.HISTORICAL_HEAD, "commit_count": 94}
+        env = {"GITHUB_TOKEN": "test-token", "GITHUB_RUN_ID": "10922", "GITHUB_RUN_ATTEMPT": "2"}
+        with tempfile.TemporaryDirectory() as folder:
+            output = Path(folder) / "custody.json"
+            with (patch.object(sys, "argv", ["audit", "--historical", "--output", str(output)]),
+                  patch.dict(os.environ, env),
+                  patch.object(mod, "historical_custody", return_value=evidence.copy()) as historical,
+                  redirect_stdout(io.StringIO())):
+                mod.main()
+            historical.assert_called_once_with("test-token")
+            receipt = json.loads(output.read_text())
+        self.assertEqual(receipt["head_sha"], mod.HISTORICAL_HEAD)
+        self.assertEqual(receipt["run_id"], 10922)
+        self.assertEqual(receipt["run_attempt"], 2)
+        self.assertEqual(receipt["api_requests"], [])
 
 
 if __name__ == "__main__":

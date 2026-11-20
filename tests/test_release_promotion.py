@@ -34,6 +34,10 @@ elif command == "tag":
         fail_flag = store.parent / "failed-once"
         if not fail_flag.exists():
             fail_flag.write_text(name)
+            concurrent_alias = os.environ.get("MOCK_CONCURRENT_ALIAS")
+            if concurrent_alias:
+                state[concurrent_alias] = "sha256:" + "f" * 64
+                store.write_text(json.dumps(state, sort_keys=True))
             print("simulated GHCR tag write rejection", file=sys.stderr)
             sys.exit(23)
     state[name] = ref.rsplit("@", 1)[-1]
@@ -165,6 +169,16 @@ class PromotionTests(unittest.TestCase):
         self.assertIn("RESTORED", journal)
         self.assertIn("MANUAL_RECOVERY_NEW_ALIAS", journal)
         self.assertIn("PARTIAL GHCR PROMOTION", result.stderr)
+
+    def test_rollback_preserves_aliases_advanced_by_another_writer(self):
+        self.change_test_release("v1.6.0")
+        result = self.run_promotion(MOCK_FAIL_ONCE="latest-frontend", MOCK_CONCURRENT_ALIAS="latest")
+        self.assertNotEqual(result.returncode, 0)
+        after = json.loads(self.state_path.read_text())
+        self.assertEqual(after["latest"], "sha256:" + "f" * 64)
+        self.assertEqual(after["1"], self.previous)
+        self.assertIn("CONCURRENT_ALIAS_CHANGE",
+                      (self.root / "evidence/promotion.tsv").read_text())
 
     def test_invalid_candidate_ref_or_prerelease_is_blocked(self):
         broken = self.info / "infra.json"
