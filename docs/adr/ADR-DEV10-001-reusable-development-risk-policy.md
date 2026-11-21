@@ -4,7 +4,7 @@
 |---|---|
 | **Status** | Accepted for implementation; final risk approval pending a separate decision PR |
 | **Date** | 2026-11-16 |
-| **Owner** | Baobab Platform security-policy owner |
+| **Owner** | @wekhason (GitHub user ID `350241706`), accountable DEV-10 security-policy owner; transferred from @bjnabs on 2026-11-21 ([PR #74 handover](https://github.com/baobab-platform/baobab-dev/pull/74#issuecomment-7060540592)) |
 | **Repository** | `baobab-platform/baobab-dev` |
 | **Related records** | Issue #54; PRs #62, #71, #74 and #76; `docs/security/protected-artifact-risk-decisions.md` |
 
@@ -55,6 +55,8 @@ fixed-version signals, secrets, missing inventory, scanner errors or a
 different package/version remain blocking. Partial remediation may reduce the
 observed findings to a subset of this exact approved inventory; it cannot add
 or redefine a finding.
+
+The accountable-owner handover recorded on PR #74 designates @wekhason (immutable GitHub user ID `350241706`) as successor to @bjnabs. This change updates the required identity for **future** owner-concurrence verification; it does not retroactively reattribute prior comments or independently approve any risk decision. The new owner must post their own attributable concurrence on the exact decision PR. Independent reviewer and release gates remain unchanged.
 
 ## 3. Approval and identity model
 
@@ -152,7 +154,7 @@ timestamp. The proposal file is never hashed as an authority.
 
 The provisioner also verifies attributable owner concurrence on this exact
 decision PR from the accountable owner's immutable numeric GitHub ID
-(49340314), rather than trusting the PR description. The comment must be
+(350241706), rather than trusting the PR description. The comment must be
 created and last edited before merge; the receipt records its ID and
 timestamp. This is an accountability/attribution record, not an independent
 approval and not a substitute for the trusted reviewer check. The preparer
@@ -223,7 +225,7 @@ The repository does not currently have a GitHub Teams subscription, and
 GitHub rejected review requests for the `security` and
 `platform-engineering` team slugs because those teams are not recognized as
 repository collaborators. The CODEOWNERS file therefore uses individually
-requestable accounts only: `@bjnabs` for general/platform ownership and
+requestable accounts only: `@wekhason` for general/platform ownership and
 `@sknabusiu` plus `@sdnabusiu` for security-sensitive paths. Explicit
 ownership entries cover `/security/decisions/`, `/docs/assessments/`,
 `/docs/security/` and this ADR. Do not add unavailable team slugs as owners.
