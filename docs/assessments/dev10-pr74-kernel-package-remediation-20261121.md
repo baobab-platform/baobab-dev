@@ -1,5 +1,7 @@
 # PR #74 — kernel package remediation investigation (2026-11-21)
 
+**Follow-up acquisition result:** no Canonical-supported fixed Resolute package was obtained; public catalogue and CVE tracker evidence are recorded in [Canonical fixed-package acquisition result](dev10-pr74-canonical-fixed-package-acquisition-20261121.md). The lock remains unchanged and all 30 findings remain blocking.
+
 ## Decision
 
 **No package-version change is justified by the available Canonical evidence. Keep the current package pin and keep the security gate blocking.**
