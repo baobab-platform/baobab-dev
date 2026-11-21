@@ -2,6 +2,8 @@
 
 The [per-CVE binary applicability register](dev10-ubuntu-44.44-binary-applicability.json) covers 28 findings on `linux-libc-dev=7.0.0-44.44`. The disposition count is 28 unresolved, zero confirmed affected, zero confirmed not affected and zero confirmed fixed or backported for this binary. Each record retains the CNA record digest, upstream fix references, Ubuntu source blob IDs or absences, and the architecture-specific matches. Upstream fix references identify evidence to review. The audit does not decide applicability from scanner severity or path presence alone.
 
+The [development risk assessment](dev10-ubuntu-44.44-development-risk.md) records the proposed treatment, exposure and outstanding controls for each finding.
+
 ## Package and source evidence
 
 | Input | Verified identity |
