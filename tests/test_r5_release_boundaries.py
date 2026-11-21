@@ -93,7 +93,7 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn('docker load --input "$RUNNER_TEMP/scan-image-final.tar"', build)
         self.assertIn('sha256sum --check --strict "$RUNNER_TEMP/trivy-evidence/image-archive.sha256"', build)
         self.assertIn("scripts/ci/qualify-native-image.sh", build)
-        self.assertIn("--exit-code 1", build)
+        self.assertIn("--exit-code 42", build)
 
     def test_tag_only_exact_digest_security_is_required(self):
         run = jobs()["release-digests"]
@@ -132,7 +132,7 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
         self.assertIn("raise RiskGateError", gate)
         validation = active_yaml(jobs()["build"])
         exact = active_yaml(jobs()["release-digests"])
-        self.assertIn("--exit-code 1", validation)
+        self.assertIn("--exit-code 42", validation)
         self.assertIn("--exit-code 1", exact)
         self.assertIn("--ignorefile /dev/null", validation)
         self.assertIn("--ignorefile /dev/null", exact)
@@ -208,6 +208,7 @@ class R5ReleaseBoundaryTests(unittest.TestCase):
             self.assertNotIn("DEV10_PROTECTED_DECISION_SHA256", workflow_job)
             self.assertNotIn("DEV10_SECURITY_APPROVER_LOGINS", workflow_job)
             self.assertNotIn("verify_protected_policy_hash.py", workflow_job)
+            self.assertNotIn("dev10_development_scan.py", workflow_job)
             self.assertNotIn("scripts/evaluate_protected_risk_decision.py", workflow_job)
         self.assertIn(
             "development-only acceptance is insufficient",

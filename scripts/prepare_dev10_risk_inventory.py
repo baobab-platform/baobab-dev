@@ -4,31 +4,63 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-from evaluate_protected_risk_decision import _finding_key, demand, TRIVY_VERSION
+from evaluate_protected_risk_decision import CVE, DecisionDenied, _finding_key, demand, TRIVY_VERSION
 
-def extract(report, *, scanner_version):
-    demand(report.get("SchemaVersion") == 2 and report.get("ArtifactType") == "container_image",
-           "requires raw Trivy container image report")
-    # Standard Trivy JSON does not embed the CLI version. CI verifies the
-    # pinned scanner binary independently and supplies its observed version.
+
+class FindingNeedsRemediation(DecisionDenied):
+    """The scan contains findings that a development decision cannot cover."""
+
+
+def scan_findings(report, *, scanner_version):
+    """Read the complete blocking inventory, including an explicitly clean scan."""
+    demand(isinstance(report, dict) and report.get("SchemaVersion") == 2
+           and report.get("ArtifactType") == "container_image",
+           "requires a Trivy v2 container image report")
     demand(scanner_version == TRIVY_VERSION, "unqualified scanner version")
     results = report.get("Results")
     demand(isinstance(results, list) and results, "missing scan results")
-    found = {}
+    found = set()
     for result in results:
-        demand(isinstance(result, dict), "invalid result")
-        demand(not result.get("Secrets"), "secret findings require remediation")
-        for item in result.get("Vulnerabilities") or []:
-            demand(not item.get("FixedVersion"), "fixed vulnerability must be remediated")
-            record = {"cve": item.get("VulnerabilityID"),
-                      "package": item.get("PkgName"),
-                      "version": item.get("InstalledVersion"),
-                      "severity": item.get("Severity"),
-                      "type": result.get("Type")}
-            key = _finding_key(record)
-            found[key] = record
+        demand(isinstance(result, dict) and isinstance(result.get("Target"), str)
+               and result["Target"].strip(), "invalid scan target")
+        secrets = result.get("Secrets")
+        demand(secrets is None or isinstance(secrets, list), "invalid secret inventory")
+        if secrets:
+            raise FindingNeedsRemediation("Secret findings require remediation.")
+        vulnerabilities = result.get("Vulnerabilities")
+        demand(vulnerabilities is None or isinstance(vulnerabilities, list),
+               "invalid vulnerability inventory")
+        for item in vulnerabilities or []:
+            demand(isinstance(item, dict), "invalid vulnerability finding")
+            fixed = item.get("FixedVersion")
+            demand(fixed is None or isinstance(fixed, str), "invalid fixed-version evidence")
+            if fixed:
+                raise FindingNeedsRemediation("A scanner-reported fixed version requires remediation.")
+            advisory = item.get("VulnerabilityID")
+            demand(isinstance(advisory, str) and advisory.strip(), "missing vulnerability identifier")
+            if not CVE.fullmatch(advisory):
+                raise FindingNeedsRemediation("An advisory lacks a supported CVE identity.")
+            found.add(_finding_key({
+                "cve": advisory,
+                "package": item.get("PkgName"),
+                "version": item.get("InstalledVersion"),
+                "severity": item.get("Severity"),
+                "type": result.get("Type"),
+            }))
+    return found
+
+
+def finding_records(found):
+    """Serialize exact finding identities in a stable order for review."""
+    return [dict(cve=cve, package=package, version=version, severity=severity, type=ecosystem)
+            for cve, package, version, severity, ecosystem in sorted(found)]
+
+
+def extract(report, *, scanner_version):
+    found = scan_findings(report, scanner_version=scanner_version)
     demand(found, "no residual HIGH/CRITICAL findings to propose")
-    return [found[key] for key in sorted(found)]
+    return finding_records(found)
+
 
 def main():
     parser = argparse.ArgumentParser()

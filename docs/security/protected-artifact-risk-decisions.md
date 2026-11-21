@@ -1,7 +1,8 @@
 # DEV-10 protected, artifact-bound security decisions
 
-Status: reusable policy candidate is under review on PR #76; authenticated exact-byte provisioning is implemented on that PR branch. The policy remains inactive on main until PR #76 is merged and the provisioning workflow succeeds.
-This change does not qualify PR #74 or grant release authority.
+PR #76 merged the eight-finding development decision. The scan and
+provisioning paths verify its exact bytes independently. Release authority
+requires its own qualification.
 
 ## Decision model
 
@@ -17,11 +18,11 @@ The policy deliberately does not enumerate candidate image digests. That
 allows later PRs to be evaluated automatically when their actual findings
 remain within the same approved package/CVE and operating-context boundary.
 
-Every successful evaluation is nevertheless bound to the exact image repository,
-child-manifest digest, profile, architecture, Trivy version and raw-report
-SHA-256. That output is qualification evidence for that artifact, not release
-authorization. Existing signature, SBOM, provenance, digest-continuity and
-protected RC-to-GA promotion controls remain mandatory.
+The local development scan receipt records the source commit, image config
+digest, profile, architecture, Trivy version and raw-report SHA-256. A scan of
+a Docker archive records the archive's SHA-256 as well. The separate registry
+qualification path uses the remote OCI child-manifest digest. Releases require
+signature, SBOM, provenance, digest continuity and protected promotion.
 
 ## Implementation
 
@@ -50,8 +51,9 @@ evidence URL is not, by itself, authentication.
 
 The provisioner verifies the merged PR, exact head, author/preparer numeric
 identity, changed decision path, latest effective exact-head APPROVED review,
-trusted reviewer numeric ID, complete commit author/co-author/committer
-independence, attributable owner concurrence from numeric owner ID 49340314
+trusted reviewer numeric ID distinct from the accountable owner, complete
+commit author/co-author/committer independence and attributable concurrence
+from numeric owner ID 49340314
 (created and last edited before merge), merge ancestry and byte-for-byte
 equality between the approved PR-head file and current main. It hashes the
 exact current main bytes only after those checks. The variable is create-only
@@ -116,7 +118,7 @@ A per-candidate GitHub environment approval is intentionally not used: it
 would turn routine artifact qualification into a repeated human gate. Human
 approval belongs to the risk-policy decision, not every subsequent matching PR.
 
-## Current authorization, reviewer disposition and activation state
+## Decision history and audit of 21 November 2026
 
 The 12 November issue #54 amendment explicitly names **PR #62** for the eight
 HIGH findings on `linux-libc-dev=7.0.0-43.43`; it does not name PR #71.
@@ -133,7 +135,9 @@ the final policy approval and was not an instruction to unblock CI.
 @sdnabusiu supported finalisation at 12:44 UTC but stated PR #74 was not ready
 to merge until the outstanding engineering and governance conditions pass.
 
-The separate decision PR #76 contains the candidate decision record, schema and provisioning contract. Owner concurrence is recorded by @bjnabs in PR comment #6924572973. The latest formal approval on the pre-provisioning head was by @sknabusiu (numeric ID 356890520); because this implementation adds commits to the decision PR, that approval is not treated as current-head approval. A fresh independent approval is requested after CI passes on the provisioning revision.
+The merged decision PR #76 contains the eight-finding record. The linked
+Publish run verified owner comment 6924572973 and the effective approval
+5932308847 from independent reviewer ID 356900102 on the exact decision head.
 
 The proposed policy is reusable across same-repository pull requests targeting
 `main` and pushes to `refs/heads/main`, with exactly the eight HIGH findings,
@@ -143,12 +147,16 @@ deployments, staging and production are excluded. The risk-validity clock
 (expiry) and execution boundary (event/ref/base/repository) are independent
 controls; both must pass on every evaluation.
 
-The Foundation and Publish workflows fail closed when the active decision,
-trust anchor or reviewer configuration is unavailable. No active
-`security/decisions/development/foundation.json` or trust-anchor value has
-been provisioned. The eight findings are therefore **not yet accepted**.
-PR #74 has no PR-number-specific risk exception, no VEX `not_affected` claim,
-no Trivy suppression, no remediation claim and no release waiver.
+The audited `main` revision `bc6ca0a` still invokes the legacy scanner gate.
+PR #74 at `513d53d` already uses the protected branch policy in Foundation and
+Publish. In [Publish run 44858283649](https://github.com/baobab-platform/baobab-dev/actions/runs/44858283649),
+all eight profile and architecture scans found 30 exact advisories (27 HIGH,
+3 CRITICAL) for `linux-libc-dev=7.0.0-44.44`. The retained inventory adds
+`CVE-2026-99312` and `CVE-2026-99317` to the 28-finding assessment. The linked
+final/amd64 job verified custody, then denied the scan because #76 covers eight
+HIGH findings for `7.0.0-43.43`. The proposed 12-finding decision in #92 also
+uses the older kernel-header version. The linked build, database checks and
+native runtime qualification completed. The scan denial blocks qualification.
 
 Release publication and promotion remain separate. PR-triggered runs do not
 establish final RC publication or RC-to-GA digest continuity. The existing
@@ -161,10 +169,44 @@ promotion.
 1. Create the separate decision PR with the final `foundation.json` and this exact schema. Record owner concurrence and the #62/#71 reconciliation in the PR. Obtain a current trusted independent approval on its exact head; the decision PR must pass its required checks. Any admin bypass must be explicitly attributable and recorded with reason, commit and bypassed checks.
 2. Follow the documented individual-review/manual-merge protocol because enforceable branch protection is unavailable on the current subscription. Verify current-head approval, numeric contributor independence and all CI checks; record the evidence in the PR. This is a compensating process, not technical prevention of privileged bypass.
 3. Verify the decision PR is merged to `main`; the custody verifier must confirm the PR author/preparer numeric ID, a current trusted independent reviewer, complete commit-author/co-author/committer enumeration, changed decision path and exact merged-head approval.
-4. Configure the environment-scoped `DEV10_POLICY_PROVISIONER_TOKEN` fine-grained token with Variables read/write, Contents read, Pull requests read, Issues read and Metadata read. Keep it in the existing `dev10-security-policy-read` environment, which supplies the human deployment approval. Never use a broad classic PAT or expose the token to PR workflows.
+4. Configure the fine-grained `DEV10_POLICY_PROVISIONER_TOKEN` with Variables read/write, Contents read, Pull requests read, Issues read and Metadata read. Store it in `dev10-security-policy-provision`. The preceding `dev10-security-policy-read` environment supplies human approval without access to the credential.
 5. After merge, dispatch `Provision DEV-10 development risk policy` from `main`, supplying the exact approved PR head SHA. The workflow independently verifies merged custody and exact file bytes, computes the lowercase SHA-256, creates the repository variable only if absent, and records a non-secret receipt. It refuses a different pre-existing hash. Never hash the proposal.
 6. Rerun Foundation, locked onboarding and all eight Publish profile/architecture scans. Development scans run without a manual environment pause; the evaluator still denies tags, dispatch, schedules, forks and wrong-base PRs. Keep the separate release-promotion environment protected.
 7. Keep exact-digest release qualification, signatures, SBOM/provenance, digest continuity and protected promotion independent.
+
+## Review a blocking development scan
+
+Open the Foundation or Publish job summary and locate the evidence artifact
+for its profile, architecture, commit and run attempt. `gate-result.json`
+records the gate outcome and any verified custody. `findings.json` records
+the unwaived HIGH/CRITICAL vulnerability inventory. The raw scanner output
+and the full image configuration stay on the runner.
+
+| Outcome | Operator action |
+| --- | --- |
+| Clean | The complete scan reported no blocking findings. |
+| Covered | The receipt records the active development decision and verified approval. |
+| Inventory changed | Open the prefilled owner-review issue from the job summary. Use the attached `risk-review-request.json` to start per-finding dispositions. |
+| Remediation required | Investigate secret findings, available fixes or unsupported advisory identities. |
+| Awaiting owner concurrence | Obtain attributable concurrence on the dedicated decision PR. |
+| Awaiting independent approval | Obtain a current trusted independent approval on that PR's exact head. |
+| Awaiting activation | Reconcile the decision bytes and the protected hash via the provisioning procedure. |
+| Decision inactive | Resolve expiry, revocation or pending approval with a new scoped decision. |
+| Outside development scope | Remediate the findings under the scan's applicable policy. |
+| Technical scan failure or policy verification failure | Repair the reported scanner, evidence, configuration or custody problem and rerun. |
+
+The issue form links the scan attempt and review-request hash. A repository
+operator submits it to notify the owner. Each review row starts pending.
+Record applicability and uncertainty, evidence references, available fixes,
+compensating controls and the proposed expiry before drafting a decision PR.
+The repository's current schema and create-only provisioner limit activation
+to the governed eight- or twelve-finding records. A different inventory
+requires its own reviewed policy amendment and activation procedure.
+
+After activation, run qualification from a source revision containing the
+verified decision bytes and the supported scan workflows. GitHub's rerun
+uses the original source SHA, so an older snapshot may require a new PR run
+after updating its base. Keep the previous attempt for evidence comparison.
 
 ## Operating objective
 

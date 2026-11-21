@@ -12,12 +12,15 @@
 /scripts/provision_protected_risk_policy.py @sknabusiu @sdnabusiu
 /scripts/evaluate_protected_risk_decision.py @sknabusiu @sdnabusiu
 /scripts/prepare_dev10_risk_inventory.py @sknabusiu @sdnabusiu
+/scripts/dev10_development_scan.py @sknabusiu @sdnabusiu
+/scripts/summarize-trivy-vulnerabilities.py @sknabusiu @sdnabusiu
 /scripts/verify_protected_risk_custody.py @sknabusiu @sdnabusiu
 /scripts/verify_protected_policy_hash.py @sknabusiu @sdnabusiu
 /scripts/audit_pr_reviewer_independence.py @sknabusiu @sdnabusiu
 /tests/test_custody_independence.py @sknabusiu @sdnabusiu
 /tests/test_provision_protected_risk_policy.py @sknabusiu @sdnabusiu
 /tests/test_protected_local_policy.py @sknabusiu @sdnabusiu
+/tests/test_dev10_development_scan.py @sknabusiu @sdnabusiu
 /tests/test_protected_risk_custody.py @sknabusiu @sdnabusiu
 /tests/test_protected_risk_decision.py @sknabusiu @sdnabusiu
 /tests/test_audit_pr_reviewer_independence.py @sknabusiu @sdnabusiu

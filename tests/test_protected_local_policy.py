@@ -128,9 +128,11 @@ class LocalPolicyTests(unittest.TestCase):
 
     def test_foundation_workflow_uses_reusable_authenticated_policy(self):
         workflow = (ROOT / ".github/workflows/foundation.yml").read_text()
-        self.assertIn("scripts/verify_protected_risk_custody.py", workflow)
-        self.assertIn("scripts/verify_protected_policy_hash.py", workflow)
-        self.assertNotIn("python3 scripts/dev10_kernel_risk_gate.py", workflow)
+        step = workflow.split("name: Scan unfiltered image and enforce scoped risk decision", 1)[1]
+        self.assertIn("python3 scripts/dev10_development_scan.py", step)
+        self.assertIn("vars.DEV10_PROTECTED_DECISION_SHA256", step)
+        self.assertIn("--exit-code 42", step)
+        self.assertNotIn("python3 scripts/dev10_kernel_risk_gate.py", step)
         self.assertIn("needs: scope", workflow)
         self.assertIn("needs.scope.outputs.container_scan == 'true'", workflow)
 
@@ -143,10 +145,13 @@ class LocalPolicyTests(unittest.TestCase):
 
     def test_publish_pr_build_scan_uses_reusable_policy(self):
         workflow = (ROOT / ".github/workflows/publish.yml").read_text()
-        self.assertIn("scripts/verify_protected_policy_hash.py", workflow)
         build_start = workflow.index('name: "Build & Security Scan')
         exact_start = workflow.index('name: "Qualify attested release image')
-        self.assertNotIn("scripts/dev10_kernel_risk_gate.py", workflow[build_start:exact_start])
+        development_scan = workflow[build_start:exact_start]
+        self.assertIn("python3 scripts/dev10_development_scan.py", development_scan)
+        self.assertIn("vars.DEV10_PROTECTED_DECISION_SHA256", development_scan)
+        self.assertIn("--exit-code 42", development_scan)
+        self.assertNotIn("scripts/dev10_kernel_risk_gate.py", development_scan)
 
     def test_untrusted_policy_hash(self):
         with self.assertRaises(ValueError):

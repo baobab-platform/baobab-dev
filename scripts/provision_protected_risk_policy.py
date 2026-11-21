@@ -64,6 +64,14 @@ class ProvisioningError(RuntimeError):
     """A fail-closed policy provisioning error."""
 
 
+class OwnerConcurrenceMissing(ProvisioningError):
+    """The decision lacks effective accountable-owner concurrence."""
+
+
+class IndependentApprovalMissing(ProvisioningError):
+    """The decision lacks effective independent approval on its exact head."""
+
+
 def require(condition, message):
     if not condition:
         raise ProvisioningError(message)
@@ -211,8 +219,8 @@ def verify_owner_concurrence(comments, *, merged_at):
         require(created <= updated <= merge_time,
                 "owner concurrence must be created and last edited before the decision PR merge")
         qualifying.append((updated, comment_id, created))
-    require(bool(qualifying),
-            "attributable pre-merge owner concurrence is missing from the decision PR")
+    if not qualifying:
+        raise OwnerConcurrenceMissing("attributable pre-merge owner concurrence is missing from the decision PR")
     updated, comment_id, created = max(qualifying, key=lambda item: (item[0], item[1]))
     return {
         "owner_id": OWNER_USER_ID,
@@ -236,15 +244,15 @@ def select_independent_approval(reviews, *, head, trusted_reviewers, author_id,
             continue
         if merge_time is not None and submitted > merge_time:
             continue
-        if reviewer_id not in trusted_reviewers:
+        if reviewer_id == OWNER_USER_ID or reviewer_id not in trusted_reviewers:
             continue
         try:
             require_independent(reviewer_id, set(trusted_reviewers), author_id, contributors)
         except ValueError:
             continue
         qualifying.append((submitted, review_id, reviewer_id, review))
-    require(bool(qualifying),
-            "no current-head APPROVED review by a trusted independent numeric reviewer")
+    if not qualifying:
+        raise IndependentApprovalMissing("no current-head APPROVED review by a trusted independent numeric reviewer")
     _, review_id, reviewer_id, review = max(
         qualifying, key=lambda item: (item[0], item[1])
     )
@@ -340,6 +348,7 @@ def verify_merged_custody(token, decision, decision_pr, expected_head_sha, trust
         "decision_pr": decision_pr,
         "decision_pr_head": head,
         "merge_commit_sha": merge_sha,
+        "merged_decision_sha256": hashlib.sha256(main_bytes).hexdigest(),
         "contributor_count": len(contributors),
     }
 
@@ -419,6 +428,8 @@ def main():
             token, decision, decision_pr, args.expected_head_sha, trusted_reviewers
         )
         policy_sha256 = hashlib.sha256(raw).hexdigest()
+        require(custody["merged_decision_sha256"] == policy_sha256,
+                "local decision bytes differ from verified merged custody")
         if args.dry_run:
             status = "verified_not_provisioned"
         else:
