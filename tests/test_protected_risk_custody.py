@@ -36,20 +36,24 @@ class CustodyTests(unittest.TestCase):
         }]
         self.files = [{"filename": DECISION_PATH, "status": "added"}]
 
-    def check_custody(self, contributors=None):
-        content = base64.b64encode(json.dumps(self.decision).encode()).decode()
+    def check_custody(self, contributors=None, *, raw_policy=None):
+        if raw_policy is None:
+            raw_policy = json.dumps(self.decision).encode()
+        content = base64.b64encode(raw_policy).decode()
         blob = {"type": "file", "encoding": "base64", "content": content}
-        comparison = {"status": "ahead", "merge_base_commit": {"sha": MERGE}}
+        comparison = {"status": "ahead", "merge_base_commit": {"sha": self.pull["merge_commit_sha"]}}
         reviewer = {"login": "Checker", "type": "User", "id": 2}
         evidence = [reviewer, self.pull, self.files, blob, blob, blob, comparison, self.owner, self.reviews]
+        author = self.decision["prepared_by_id"]
+        number = self.decision["approval_evidence"].rsplit("/", 1)[1]
         with (patch.object(reader, "api_request", return_value=(200, self.pull)) as first_read,
               patch.object(provisioner, "api_request", side_effect=[(200, row) for row in evidence]) as api,
-              patch.object(provisioner, "collect_pr", return_value=(1, contributors or {1})),
+              patch.object(provisioner, "collect_pr", return_value=(author, contributors or {author})),
               patch.object(provisioner, "provision_variable") as write):
             try:
                 return reader.verify_read_custody("token", self.decision, DECISION_PATH, ["checker"])
             finally:
-                first_read.assert_called_once_with("token", "GET", "/repos/baobab-platform/baobab-dev/pulls/123")
+                first_read.assert_called_once_with("token", "GET", f"/repos/baobab-platform/baobab-dev/pulls/{number}")
                 self.assertTrue(all(request.args[1] == "GET" for request in api.call_args_list))
                 write.assert_not_called()
 
@@ -61,6 +65,33 @@ class CustodyTests(unittest.TestCase):
         self.assertEqual(result["approval_pr_head"], SHA)
         self.assertEqual(result["owner_comment_id"], 8)
         self.assertEqual(result["status"], "approval_custody_verified")
+
+    def test_historical_readback_requires_exact_head_bytes_and_comment(self):
+        raw = (Path(__file__).resolve().parents[1] / DECISION_PATH).read_bytes()
+        self.decision = json.loads(raw)
+        self.pull["head"]["sha"] = self.reviews[0]["commit_id"] = provisioner.HISTORICAL_HEAD
+        self.pull["merge_commit_sha"] = provisioner.HISTORICAL_MERGE
+        self.pull["user"]["id"] = self.decision["prepared_by_id"]
+        self.owner[0]["id"] = provisioner.HISTORICAL_OWNER_COMMENT_ID
+        self.owner[0]["user"]["id"] = provisioner.HISTORICAL_OWNER_ID
+
+        result = self.check_custody(raw_policy=raw)
+        self.assertEqual(result["owner_id"], provisioner.HISTORICAL_OWNER_ID)
+        self.assertEqual(result["owner_comment_id"], provisioner.HISTORICAL_OWNER_COMMENT_ID)
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "owner concurrence"):
+            self.check_custody(raw_policy=raw + b"\n")
+        self.owner[0]["id"] += 1
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "historical decision owner comment"):
+            self.check_custody(raw_policy=raw)
+        self.owner[0]["id"] = provisioner.HISTORICAL_OWNER_COMMENT_ID
+        self.pull["head"]["sha"] = self.reviews[0]["commit_id"] = SHA
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "owner concurrence"):
+            self.check_custody(raw_policy=raw)
+
+    def test_historical_owner_cannot_concur_on_new_decision(self):
+        self.owner[0]["user"]["id"] = provisioner.HISTORICAL_OWNER_ID
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "owner concurrence"):
+            self.check_custody()
 
     def test_reviewer_contribution_refuses_readback(self):
         with self.assertRaisesRegex(provisioner.ProvisioningError, "trusted independent"):

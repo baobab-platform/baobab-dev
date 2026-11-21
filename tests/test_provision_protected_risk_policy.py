@@ -567,6 +567,15 @@ class MergedCustodyTests(unittest.TestCase):
         with self.assertRaisesRegex(provisioner.ProvisioningError, "expected head"):
             self.verify(expected_head="c" * 40)
 
+    def test_provisioning_requires_current_owner_even_for_historical_decision(self):
+        self.pull["head"]["sha"] = provisioner.HISTORICAL_HEAD
+        self.pull["merge_commit_sha"] = provisioner.HISTORICAL_MERGE
+        self.comparison["merge_base_commit"]["sha"] = provisioner.HISTORICAL_MERGE
+        self.comments[0]["id"] = provisioner.HISTORICAL_OWNER_COMMENT_ID
+        self.comments[0]["user"]["id"] = provisioner.HISTORICAL_OWNER_ID
+        with self.assertRaisesRegex(provisioner.ProvisioningError, "owner concurrence"):
+            self.verify(expected_head=provisioner.HISTORICAL_HEAD)
+
     def test_approval_and_owner_type_must_be_attributable_before_merge(self):
         later = [dict(self.reviews[0], submitted_at="2026-11-22T02:01:00Z")]
         with self.assertRaisesRegex(provisioner.ProvisioningError, "no current-head"):

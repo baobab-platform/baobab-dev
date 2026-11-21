@@ -61,6 +61,12 @@ or redefine a finding.
 
 The accountable-owner handover recorded on PR #74 designates @wekhason (immutable GitHub user ID `350241706`) as successor to @bjnabs. This change updates the required identity for **future** owner-concurrence verification; it does not retroactively reattribute prior comments or independently approve any risk decision. The new owner must post their own attributable concurrence on the exact decision PR. Independent reviewer and release gates remain unchanged.
 
+For read-only custody, consumers verify PR #76 against its original owner and
+comment only when the decision path, approved head, merge commit and exact
+decision SHA-256 all match the historical record. Provisioning requires the
+current accountable owner. Consumers still verify the active trust anchor,
+decision expiry and exact finding scope before applying the decision.
+
 ## 3. Approval and identity model
 
 The final 12-finding amendment lives at

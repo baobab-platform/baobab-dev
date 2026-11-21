@@ -44,6 +44,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   ubuntu-downstream-paths:
@@ -171,11 +172,39 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Download exact uploaded payload archives
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          artifact-ids: ${{ steps.payload_upload.outputs.artifact-id }}
-          merge-multiple: true
-          path: ${{ runner.temp }}/payload-readback
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAYLOAD_ARTIFACT_ID: ${{ steps.payload_upload.outputs.artifact-id }}
+          PAYLOAD_ARTIFACT_DIGEST: ${{ steps.payload_upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          digest="${PAYLOAD_ARTIFACT_DIGEST#sha256:}"
+          [[ "$PAYLOAD_ARTIFACT_ID" =~ ^[1-9][0-9]*$ && "$digest" =~ ^[a-f0-9]{64}$ ]]
+          archive="$RUNNER_TEMP/payload-readback.zip"
+          # The current-run listing can lag behind upload finalization. Read
+          # this exact archive by ID and verify it against the upload receipt.
+          curl --fail --silent --show-error --location --max-redirs 3 \
+            --proto '=https' --proto-redir '=https' --connect-timeout 10 --max-time 45 \
+            --retry 5 --retry-all-errors --retry-delay 2 --retry-max-time 90 \
+            -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/vnd.github+json' \
+            -o "$archive" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/artifacts/$PAYLOAD_ARTIFACT_ID/zip"
+          printf '%s  %s\n' "$digest" "$archive" | sha256sum -c --strict -
+          python3 -B - "$archive" "$RUNNER_TEMP/payload-readback" <<'PY'
+          from pathlib import Path
+          from shutil import copyfileobj
+          import sys
+          from zipfile import ZipFile
+
+          archive, output = map(Path, sys.argv[1:])
+          expected = ["amd64.tar", "arm64.tar"]
+          output.mkdir()
+          with ZipFile(archive) as bundle:
+              if sorted(bundle.namelist()) != expected:
+                  raise SystemExit("Unexpected Ubuntu architecture archive members")
+              for name in expected:
+                  with bundle.open(name) as source, (output / name).open("wb") as target:
+                      copyfileobj(source, target)
+          PY
       - name: Compare downloaded payloads with captured files and manifests
         run: |
           set -euo pipefail

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Read-only GitHub custody verification for protected DEV-10 policy consumers.
 
-The same merged-byte, owner and exact-head reviewer checks apply to both
-policy readback and provisioning. Only the provisioner can write the anchor.
+The same merged-byte and exact-head reviewer checks apply to readback and
+provisioning. Readback of the historical decision verifies its original owner.
+Only the provisioner can write the anchor.
 """
 import argparse
 import json
@@ -35,6 +36,7 @@ def verify_read_custody(token, decision, decision_path, logins):
     trusted = resolve_trusted_reviewers(token, logins)
     receipt = verify_merged_custody(
         token, decision, pr_number, head["sha"], trusted, decision_path=path.as_posix(),
+        read_only=True,
     )
     return {
         **receipt,

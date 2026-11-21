@@ -19,14 +19,13 @@ from custody_independence import (
 from github_api_transport import trace_requests
 from github_identity_roles import Classification, IdentityError, Role, Source, resolve_actor
 from provision_protected_risk_policy import (
+    HISTORICAL_HEAD, HISTORICAL_OWNER_COMMENT_ID, HISTORICAL_OWNER_ID,
     ProvisioningError, api_request, paginated,
     select_independent_approval, verify_owner_concurrence,
 )
 
 IndependenceError = CustodyError
-HISTORICAL_HEAD = "f9fd73d4e848a7c4d3bcfbe28651e06149cdcb6d"
 HISTORICAL_SERVICE_COMMIT = "dad5dc64031d05b7e7d93345f1ea553abea6c70e"
-HISTORICAL_OWNER_ID = 49340314  # @bjnabs, the accountable owner when PR #76 merged.
 
 
 def classify_reviewer(user, author_id, contributors):
@@ -163,7 +162,7 @@ def historical_custody(token):
         paginated(token, repo + "/issues/76/comments"),
         merged_at=pull["merged_at"], owner_user_id=HISTORICAL_OWNER_ID,
     )
-    if owner["owner_comment_id"] != 6924572973:
+    if owner["owner_comment_id"] != HISTORICAL_OWNER_COMMENT_ID:
         raise IndependenceError("historical PR #76 owner concurrence differs from the recorded witness")
     return {
         "pull_request": 76, "head_sha": HISTORICAL_HEAD, "commit_count": 94,

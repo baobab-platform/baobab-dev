@@ -27,5 +27,5 @@ CVE-2026-99304	linux-libc-dev	7.0.0-44.44	ubuntu	HIGH	none	Foundation amd64 and 
 CVE-2026-99306	linux-libc-dev	7.0.0-44.44	ubuntu	CRITICAL	none	Foundation amd64 and all eight Publish profiles/architectures	absent	blocked
 CVE-2026-99310	linux-libc-dev	7.0.0-44.44	ubuntu	CRITICAL	none	Foundation amd64 and all eight Publish profiles/architectures	absent	blocked
 CVE-2026-99311	linux-libc-dev	7.0.0-44.44	ubuntu	HIGH	none	Foundation amd64 and all eight Publish profiles/architectures	absent	blocked
-CVE-2026-99312	linux-libc-dev	7.0.0-44.44	ubuntu	HIGH	none	Foundation amd64 and all eight Publish profiles/architectures	not_assessed	blocked
-CVE-2026-99317	linux-libc-dev	7.0.0-44.44	ubuntu	HIGH	none	Foundation amd64 and all eight Publish profiles/architectures	not_assessed	blocked
+CVE-2026-99312	linux-libc-dev	7.0.0-44.44	ubuntu	HIGH	none	Foundation amd64 and all eight Publish profiles/architectures	not_in_historical_inventory	blocked
+CVE-2026-99317	linux-libc-dev	7.0.0-44.44	ubuntu	HIGH	none	Foundation amd64 and all eight Publish profiles/architectures	not_in_historical_inventory	blocked

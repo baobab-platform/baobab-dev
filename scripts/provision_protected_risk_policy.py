@@ -28,6 +28,12 @@ from evaluate_protected_risk_decision import DecisionDenied, validate_decision_e
 DECISION_PATH = "security/decisions/development/foundation.json"
 VARIABLE_NAME = "DEV10_PROTECTED_DECISION_SHA256"
 OWNER_USER_ID = 350241706  # @wekhason; accountable owner per PR #74 handover
+HISTORICAL_DECISION_PR = 76
+HISTORICAL_HEAD = "f9fd73d4e848a7c4d3bcfbe28651e06149cdcb6d"
+HISTORICAL_MERGE = "29db8484fead93bf5eee95f29803592d575f7d17"
+HISTORICAL_POLICY_SHA256 = "cd1a810c99743473f9e5133b4b37d2acb92d0e9b48530a86406fdfa033b2ad54"
+HISTORICAL_OWNER_ID = 49340314  # @bjnabs, the accountable owner when PR #76 merged.
+HISTORICAL_OWNER_COMMENT_ID = 6924572973
 EXPECTED_EXPIRY = "2026-11-26T00:00:00Z"
 BASE_FINDINGS = frozenset({
     ("CVE-2022-50240", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
@@ -257,7 +263,7 @@ def select_independent_approval(reviews, *, head, trusted_reviewers, author_id,
 
 
 def verify_merged_custody(token, decision, decision_pr, expected_head_sha, trusted_reviewers,
-                          *, decision_path=DECISION_PATH):
+                          *, decision_path=DECISION_PATH, read_only=False):
     require(decision.get("approval_evidence") ==
             f"https://github.com/{REPOSITORY}/pull/{decision_pr}",
             "decision approval evidence does not identify the decision PR")
@@ -325,7 +331,18 @@ def verify_merged_custody(token, decision, decision_pr, expected_head_sha, trust
     comments = paginated(
         token, f"/repos/{REPOSITORY}/issues/{decision_pr}/comments"
     )
-    owner_concurrence = verify_owner_concurrence(comments, merged_at=pull["merged_at"])
+    historical_readback = (
+        read_only and decision_pr == HISTORICAL_DECISION_PR and decision_path == DECISION_PATH
+        and head == HISTORICAL_HEAD and merge_sha == HISTORICAL_MERGE
+        and hashlib.sha256(main_bytes).hexdigest() == HISTORICAL_POLICY_SHA256
+    )
+    owner_concurrence = verify_owner_concurrence(
+        comments, merged_at=pull["merged_at"],
+        owner_user_id=HISTORICAL_OWNER_ID if historical_readback else OWNER_USER_ID,
+    )
+    if historical_readback:
+        require(owner_concurrence["owner_comment_id"] == HISTORICAL_OWNER_COMMENT_ID,
+                "historical decision owner comment differs from the recorded concurrence")
     reviews = paginated(token, base + "/reviews")
     author_id_graphql, contributors = collect_pr(token, decision_pr, head)
     require(author_id_graphql == author_id,

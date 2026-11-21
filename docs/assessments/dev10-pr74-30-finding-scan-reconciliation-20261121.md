@@ -1,5 +1,23 @@
 # PR #74 — 30-finding scan inventory reconciliation
 
+## Verified scan matrix at `331f98e`
+
+Foundation and all eight Publish scans completed at PR head
+`331f98ef2fc3a8bb74b219aa341a829dc766c91a`, merge checkout
+`1a58a74370b69dd234451c99bfe02253587b95e8`. All nine retained archives match
+their GitHub transport digests. Their sanitized Trivy reports, normalized
+results and review-only inventories agree on the same 30 findings, with 27
+HIGH, three CRITICAL, all `affected` and no fixed version. The canonical
+inventory SHA-256 is `6f95364a4c221519d29e6a95458e04918ee2495b4ae16dc6b1f272e8b84663f3`.
+[Foundation](https://github.com/baobab-platform/baobab-dev/actions/runs/44891218175) ·
+[Publish](https://github.com/baobab-platform/baobab-dev/actions/runs/44891217409) ·
+[Verified scan evidence](dev10-pr74-331f98e-scan-evidence.json)
+
+The scan ran to completion. The security gates then failed during custody
+verification because the post-handover owner check was applied to the
+historical #76 decision. The archive inventories contain no effective
+decision for these findings.
+
 ## Verified scan matrix at `6c285e49`
 
 Foundation run [44877264266](https://github.com/baobab-platform/baobab-dev/actions/runs/44877264266)
@@ -55,7 +73,7 @@ report digests identify the sanitized Trivy JSON member inside each archive.
 
 ## Exact reconciled inventory
 
-Every row below was present in all nine reports at both tested heads with
+Every row below was present in all nine reports at each recorded head with
 package `linux-libc-dev`, installed version `7.0.0-44.44`, ecosystem `ubuntu`,
 status `affected` and no scanner fixed version.
 
