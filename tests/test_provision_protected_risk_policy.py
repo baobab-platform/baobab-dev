@@ -229,7 +229,7 @@ class OwnerConcurrenceTests(unittest.TestCase):
     def test_requires_attributable_owner_comment_on_the_decision_pr(self):
         comments = [{
             "id": 6924572973,
-            "user": {"id": 49340314, "login": "bjnabs"},
+            "user": {"id": 350241706, "login": "wekhason"},
             "body": "@wekhason, I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
             "created_at": "2026-11-16T14:00:00Z",
             "updated_at": "2026-11-16T14:00:00Z",
@@ -239,7 +239,7 @@ class OwnerConcurrenceTests(unittest.TestCase):
                 comments, merged_at="2026-11-17T02:00:00Z"
             ),
             {
-                "owner_id": 49340314,
+                "owner_id": 350241706,
                 "owner_comment_id": 6924572973,
                 "owner_concurrence_at": "2026-11-16T14:00:00Z",
             },
@@ -249,7 +249,7 @@ class OwnerConcurrenceTests(unittest.TestCase):
         for updated_at in ("2026-11-18T00:00:00Z", "2026-11-16T13:00:00Z"):
             comments = [{
                 "id": 6924572973,
-                "user": {"id": 49340314},
+                "user": {"id": 350241706},
                 "body": "new reusable policy; owner concurrence is hereby recorded",
                 "created_at": "2026-11-16T14:00:00Z",
                 "updated_at": updated_at,
@@ -264,7 +264,7 @@ class OwnerConcurrenceTests(unittest.TestCase):
         cases = (
             [{"id": 1, "user": {"id": 350241706},
               "body": "owner concurrence is hereby recorded for the new reusable policy"}],
-            [{"id": 2, "user": {"id": 49340314},
+            [{"id": 2, "user": {"id": 350241706},
               "body": "I acknowledge the new reusable policy"}],
             [],
         )
@@ -358,7 +358,7 @@ class MergedCustodyTests(unittest.TestCase):
         }
         self.comments = [{
             "id": 6924572973,
-            "user": {"id": 49340314, "login": "bjnabs"},
+            "user": {"id": 350241706, "login": "wekhason"},
             "body": "I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
             "created_at": "2026-11-16T14:00:00Z",
             "updated_at": "2026-11-16T14:00:00Z",
