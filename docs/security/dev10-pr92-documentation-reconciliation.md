@@ -38,18 +38,21 @@ Owner concurrence is not independent approval. A review on an earlier head is no
 
 **Documentation clarity note:** the combination of `status: approved`, `record_type: proposed_approved_form` and inactive notes is easy to misread. The status field's intended-form semantics are described in ADR-DEV10-001, but the JSON presentation remains a reviewer usability concern. It must not be interpreted as an effective approval. Changing the field semantics requires a coordinated schema, provisioner and test change; this documentation-only reconciliation does not silently alter that contract.
 
-## 3. Runtime enforcement is not yet aligned with this proposal
+## 3. Runtime evaluator reconciliation on the PR #92 head
 
-The executable `scripts/dev10_kernel_risk_gate.py` on the reviewed base still encodes the legacy inventory and execution scope:
+The PR #92 branch now replaces the legacy hard-coded 42.42/43.43 inventories, PR #71 allowlist and v1.5.0/v1.5.1 tag scope in `scripts/dev10_kernel_risk_gate.py`. The Foundation workflow passes the exact decision file, its eight-image evidence lock, the protected repository variable, and the GitHub event/base/head-repository context to that evaluator.
 
-- `linux-libc-dev=7.0.0-42.42`: the pinned 295-CVE inventory;
-- `linux-libc-dev=7.0.0-43.43`: the separate eight-HIGH-CVE inventory;
-- PR allowlist: PR #71;
-- tagged development image refs: v1.5.0/v1.5.1 and their configured RC patterns.
+The evaluator now:
 
-It does not load or evaluate the 30-finding `foundation.json` record. The proposed record is validated by its schema/tests and consumed by the protected provisioner; that is not the same as the Foundation scan gate enforcing it.
+- authenticates the exact UTF-8 bytes of `foundation.json` against `DEV10_PROTECTED_DECISION_SHA256`; a missing, malformed or mismatched anchor denies every non-clean scan;
+- verifies the evidence-lock bytes against `foundation.json.evidence_lock_sha256` and checks that all eight profile/architecture artifacts are present;
+- validates the 30 unique five-tuple finding identities, exact package/version/ecosystem, 27 HIGH / 3 CRITICAL split, development-only scope and fixed expiry;
+- permits only same-repository pull requests targeting `main` and pushes to `refs/heads/main`; forks, tags, schedules, manual dispatch, other branches and deployment contexts are denied;
+- permits an observed subset of the exact inventory after partial remediation, but rejects unknown/changed findings, duplicate CVEs, fixed-version signals, secrets and malformed/incomplete Trivy output.
 
-Accordingly, PR #92's proposed 30-finding decision **cannot currently be represented as an active runtime exception**, and it does not make a scan of `7.0.0-44.44` pass. The runtime gate, its workflow call sites and negative tests require a separately reviewed implementation change before anyone can claim the 30-finding record is enforced by CI. Until that work is completed and authorized, the existing scan gates remain fail-closed.
+The evaluator is workflow-only and is not copied or executed by the development image. Foundation and Publish path filters now exclude that evaluator from image-build qualification triggers; scripts actually consumed by the Dockerfile remain in scope. The Foundation job still runs its evaluator regression suite on each event. This is a scope correction, not a scan suppression.
+
+**Activation remains separate.** The branch's `foundation.json` is still a proposed form. The trust anchor is not provisioned by this PR, and the evaluator does not infer approval from `status: approved`. Until the exact decision bytes are merged and ADR-DEV10-001's independent review, owner concurrence, complete custody and authorized create-only trust-anchor provisioning have been verified, any non-clean Foundation scan remains denied. This reconciliation does not claim the 30 findings are technically harmless, fixed, or `not_affected`, and it does not make PR #74's current scan pass.
 
 ## 4. Historical records versus current proposal
 
@@ -70,7 +73,7 @@ Historical scan reports, source inventories and assessments must retain the vers
 
 The following are not completed by this documentation update:
 
-1. **Runtime gate alignment:** independently implement and test the relationship between the active decision record and the Foundation scan gate. The exact candidate must remain inactive until the ADR's approval, custody, merge and provisioning conditions are met. Do not add an unreviewed PR-specific bypass.
+1. **Runtime gate verification:** run the new evaluator's positive and negative regression tests on the final PR #92 head, then independently review the evaluator, Foundation call site and event-scope enforcement. The exact candidate must remain inactive until the ADR's approval, custody, merge and provisioning conditions are met. Do not add an unreviewed PR-specific bypass.
 2. **Scanner exception metadata:** obtain an explicit owner decision on the purpose and expiry of the legacy `.baobab/repository.yaml` shared-scanner exception. Do not change its inventory to 30 or extend it based only on PR #92's proposed record.
 3. **Decision-state representation:** decide whether to retain the current intended-form `approved` status with stronger machine-readable inactive semantics, or change the schema/provisioner/tests together to use a pending state. A prose-only explanation does not eliminate the underlying presentation ambiguity.
 4. **Applicability analysis:** update the technical review for all 30 identities, with particular attention to the three CRITICALs. Record Canonical package status, Ubuntu patch/backport evidence, exact installed binary/header correspondence, downstream UAPI/ABI implications and host-kernel separation. Keep unresolved cases `under_investigation`; do not infer `not_affected` from package type or source-path absence.
@@ -79,4 +82,4 @@ The following are not completed by this documentation update:
 
 ## 6. Explicit non-claims
 
-This document does not assert that the 30 findings are harmless, fixed, non-applicable, or covered by an active exception. It does not assert that the Foundation runtime gate consumes the proposed decision. It does not approve a release, image tag, publication, signing, attestation, promotion, staging or production deployment. The exact inventory and evidence hashes above identify the candidate under review only.
+This document does not assert that the 30 findings are harmless, fixed, non-applicable, or covered by an active exception. It records the PR #92 branch's runtime evaluator implementation, but does not claim that the trust anchor has been provisioned or that the proposed decision is active. It does not approve a release, image tag, publication, signing, attestation, promotion, staging or production deployment. The exact inventory and evidence hashes above identify the candidate under review only.
