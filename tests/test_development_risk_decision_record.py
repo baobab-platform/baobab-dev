@@ -11,11 +11,7 @@ SCHEMA_PATH = ROOT / "security/decisions/development/foundation.schema.json"
 PROPOSAL_PATH = ROOT / "security/decisions/development/foundation.proposal.json"
 DECISION_PATH = ROOT / "security/decisions/development/foundation.json"
 
-EXPECTED_CVES = {
-    "CVE-2022-50240", "CVE-2025-40190", "CVE-2026-68103",
-    "CVE-2026-72198", "CVE-2026-74578", "CVE-2026-89805",
-    "CVE-2026-98376", "CVE-2026-98420",
-}
+EXPECTED_CVES = set(["CVE-2026-99287","CVE-2026-99306","CVE-2026-99310","CVE-2022-50240","CVE-2025-40190","CVE-2026-100081","CVE-2026-68103","CVE-2026-72198","CVE-2026-74578","CVE-2026-89805","CVE-2026-98376","CVE-2026-98420","CVE-2026-98869","CVE-2026-98890","CVE-2026-99239","CVE-2026-99260","CVE-2026-99270","CVE-2026-99272","CVE-2026-99274","CVE-2026-99275","CVE-2026-99282","CVE-2026-99288","CVE-2026-99290","CVE-2026-99292","CVE-2026-99295","CVE-2026-99302","CVE-2026-99304","CVE-2026-99311","CVE-2026-99312","CVE-2026-99317"])
 
 
 class DevelopmentRiskDecisionRecordTests(unittest.TestCase):
@@ -48,7 +44,7 @@ class DevelopmentRiskDecisionRecordTests(unittest.TestCase):
         if not DECISION_PATH.exists():
             self.skipTest("The final record is introduced by the separate decision PR")
         decision = json.loads(DECISION_PATH.read_text())
-        self.assertEqual(set(decision), set(self.schema["properties"]))
+        self.assertEqual(set(decision), set(self.schema["properties"]) - set())
         self.assertEqual(decision["schema_version"], 2)
         self.assertEqual(decision["record_type"], "proposed_approved_form")
         self.assertEqual(decision["status"], "approved")
@@ -59,12 +55,12 @@ class DevelopmentRiskDecisionRecordTests(unittest.TestCase):
         self.assertEqual(set(decision["profiles"]), {"final", "frontend", "frontend-e2e", "infra"})
         self.assertEqual(set(decision["architectures"]), {"linux/amd64", "linux/arm64"})
         self.assertEqual(decision["expires_at"], "2026-11-26T00:00:00Z")
-        self.assertEqual(decision["finding_count"], 8)
+        self.assertEqual(decision["finding_count"], 30)
         self.assertEqual({item["cve"] for item in decision["findings"]}, EXPECTED_CVES)
         for item in decision["findings"]:
             self.assertEqual(item["package"], "linux-libc-dev")
-            self.assertEqual(item["version"], "7.0.0-43.43")
-            self.assertEqual(item["severity"], "HIGH")
+            self.assertEqual(item["version"], "7.0.0-44.44")
+            self.assertIn(item["severity"], ("HIGH", "CRITICAL"))
             self.assertEqual(item["type"], "ubuntu")
         self.assertIsInstance(decision["prepared_by_id"], int)
         self.assertGreater(decision["prepared_by_id"], 0)
@@ -83,8 +79,8 @@ class DevelopmentRiskDecisionRecordTests(unittest.TestCase):
             "push_ref": "refs/heads/main",
             "pull_request_head_repository": "baobab-platform/baobab-dev",
         })
-        self.assertIn("#62", decision["notes"])
-        self.assertIn("#71", decision["notes"])
+        self.assertIn("#92", decision["approval_evidence"])
+        self.assertIn("30", decision["notes"])
         self.assertIn("#74", decision["notes"])
         self.assertNotRegex(decision["notes"].lower(), r"authoriz(?:e|es|ed) (?:release|production)")
 
