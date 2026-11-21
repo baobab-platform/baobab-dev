@@ -173,7 +173,7 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
 class DecisionContractTests(unittest.TestCase):
     def test_exact_candidate_record_is_accepted_for_provisioning(self):
         result = provisioner.validate_decision(
-            copy.deepcopy(DECISION), decision_pr=76, now=NOW
+            copy.deepcopy(DECISION), decision_pr=92, now=NOW
         )
         self.assertEqual(result["status"], "approved")
 
@@ -188,7 +188,7 @@ class DecisionContractTests(unittest.TestCase):
                 candidate = copy.deepcopy(DECISION)
                 mutate(candidate)
                 with self.assertRaises(provisioner.ProvisioningError):
-                    provisioner.validate_decision(candidate, decision_pr=76, now=NOW)
+                    provisioner.validate_decision(candidate, decision_pr=92, now=NOW)
 
     def test_rejects_widened_scope_and_inventory(self):
         mutations = (
@@ -204,7 +204,7 @@ class DecisionContractTests(unittest.TestCase):
             ("finding count", lambda item: item.update(finding_count=7)),
             ("new CVE", lambda item: item["findings"][0].update(cve="CVE-2099-00001")),
             ("fixed version signal inventory mutation", lambda item: item["findings"][0].update(
-                version="7.0.0-44.44"
+                version="7.0.0-43.43"
             )),
             ("duplicate finding", lambda item: item["findings"].__setitem__(1, item["findings"][0])),
             ("preparer identity", lambda item: item.update(prepared_by_id=0)),
@@ -214,13 +214,13 @@ class DecisionContractTests(unittest.TestCase):
                 candidate = copy.deepcopy(DECISION)
                 mutate(candidate)
                 with self.assertRaises(provisioner.ProvisioningError):
-                    provisioner.validate_decision(candidate, decision_pr=76, now=NOW)
+                    provisioner.validate_decision(candidate, decision_pr=92, now=NOW)
 
     def test_rejects_expired_decision(self):
         with self.assertRaisesRegex(provisioner.ProvisioningError, "expired"):
             provisioner.validate_decision(
                 copy.deepcopy(DECISION),
-                decision_pr=76,
+                decision_pr=92,
                 now=dt.datetime(2026, 11, 27, tzinfo=dt.timezone.utc),
             )
 
@@ -229,8 +229,8 @@ class OwnerConcurrenceTests(unittest.TestCase):
     def test_requires_attributable_owner_comment_on_the_decision_pr(self):
         comments = [{
             "id": 6924572973,
-            "user": {"id": 49340314, "login": "bjnabs"},
-            "body": "@wekhason, I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
+            "user": {"id": 350241706, "login": "wekhason"},
+            "body": "@wekhason, I acknowledge this exact 30-finding inventory; accountable-owner concurrence.",
             "created_at": "2026-11-16T14:00:00Z",
             "updated_at": "2026-11-16T14:00:00Z",
         }]
@@ -239,7 +239,7 @@ class OwnerConcurrenceTests(unittest.TestCase):
                 comments, merged_at="2026-11-17T02:00:00Z"
             ),
             {
-                "owner_id": 49340314,
+                "owner_id": 350241706,
                 "owner_comment_id": 6924572973,
                 "owner_concurrence_at": "2026-11-16T14:00:00Z",
             },
@@ -249,8 +249,8 @@ class OwnerConcurrenceTests(unittest.TestCase):
         for updated_at in ("2026-11-18T00:00:00Z", "2026-11-16T13:00:00Z"):
             comments = [{
                 "id": 6924572973,
-                "user": {"id": 49340314},
-                "body": "new reusable policy; owner concurrence is hereby recorded",
+                "user": {"id": 350241706},
+                "body": "exact 30-finding inventory; accountable-owner concurrence",
                 "created_at": "2026-11-16T14:00:00Z",
                 "updated_at": updated_at,
             }]
@@ -264,7 +264,7 @@ class OwnerConcurrenceTests(unittest.TestCase):
         cases = (
             [{"id": 1, "user": {"id": 350241706},
               "body": "owner concurrence is hereby recorded for the new reusable policy"}],
-            [{"id": 2, "user": {"id": 49340314},
+            [{"id": 2, "user": {"id": 350241706},
               "body": "I acknowledge the new reusable policy"}],
             [],
         )
@@ -358,8 +358,8 @@ class MergedCustodyTests(unittest.TestCase):
         }
         self.comments = [{
             "id": 6924572973,
-            "user": {"id": 49340314, "login": "bjnabs"},
-            "body": "I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
+            "user": {"id": 350241706, "login": "wekhason"},
+            "body": "I acknowledge this exact 30-finding inventory; accountable-owner concurrence.",
             "created_at": "2026-11-16T14:00:00Z",
             "updated_at": "2026-11-16T14:00:00Z",
         }]
