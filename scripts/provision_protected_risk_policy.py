@@ -27,7 +27,7 @@ from evaluate_protected_risk_decision import DecisionDenied, validate_decision_e
 
 DECISION_PATH = "security/decisions/development/foundation.json"
 VARIABLE_NAME = "DEV10_PROTECTED_DECISION_SHA256"
-OWNER_USER_ID = 49340314  # @bjnabs; accountable owner recorded in ADR-DEV10-001
+OWNER_USER_ID = 350241706  # @wekhason; accountable owner per PR #74 handover
 EXPECTED_EXPIRY = "2026-11-26T00:00:00Z"
 BASE_FINDINGS = frozenset({
     ("CVE-2022-50240", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
@@ -186,8 +186,8 @@ def resolve_trusted_reviewers(token, logins):
         raise ProvisioningError(str(exc)) from None
 
 
-def verify_owner_concurrence(comments, *, merged_at):
-    """Require attributable owner concurrence posted and last edited before merge."""
+def verify_owner_concurrence(comments, *, merged_at, owner_user_id=OWNER_USER_ID):
+    """Require attributable concurrence from the decision's owner before merge."""
     require(isinstance(comments, list), "decision PR issue-comment history is unavailable")
     merge_time = parse_utc(merged_at, "decision PR merge timestamp")
     qualifying = []
@@ -196,7 +196,7 @@ def verify_owner_concurrence(comments, *, merged_at):
             continue
         user = comment.get("user") or {}
         body = comment.get("body")
-        if (not isinstance(user, dict) or user.get("id") != OWNER_USER_ID
+        if (not isinstance(user, dict) or user.get("id") != owner_user_id
                 or not isinstance(body, str)
                 or "owner concurrence is hereby recorded" not in body.casefold()
                 or "new reusable policy" not in body.casefold()):
@@ -215,7 +215,7 @@ def verify_owner_concurrence(comments, *, merged_at):
             "attributable pre-merge owner concurrence is missing from the decision PR")
     updated, comment_id, created = max(qualifying, key=lambda item: (item[0], item[1]))
     return {
-        "owner_id": OWNER_USER_ID,
+        "owner_id": owner_user_id,
         "owner_comment_id": comment_id,
         "owner_concurrence_at": created.isoformat().replace("+00:00", "Z"),
     }

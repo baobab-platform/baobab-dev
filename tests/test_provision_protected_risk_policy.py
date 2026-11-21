@@ -314,50 +314,50 @@ class DecisionContractTests(unittest.TestCase):
 class OwnerConcurrenceTests(unittest.TestCase):
     def test_requires_attributable_owner_comment_on_the_decision_pr(self):
         comments = [{
-            "id": 6924572973,
-            "user": {"id": 49340314, "login": "bjnabs", "type": "User"},
-            "body": "@wekhason, I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
-            "created_at": "2026-11-16T14:00:00Z",
-            "updated_at": "2026-11-16T14:00:00Z",
+            "id": 101,
+            "user": {"id": 350241706, "login": "wekhason", "type": "User"},
+            "body": "I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
+            "created_at": "2026-11-22T01:00:00Z",
+            "updated_at": "2026-11-22T01:00:00Z",
         }]
         self.assertEqual(
             provisioner.verify_owner_concurrence(
-                comments, merged_at="2026-11-17T02:00:00Z"
+                comments, merged_at="2026-11-22T02:00:00Z"
             ),
             {
-                "owner_id": 49340314,
-                "owner_comment_id": 6924572973,
-                "owner_concurrence_at": "2026-11-16T14:00:00Z",
+                "owner_id": 350241706,
+                "owner_comment_id": 101,
+                "owner_concurrence_at": "2026-11-22T01:00:00Z",
             },
         )
 
     def test_rejects_owner_concurrence_created_or_edited_after_merge(self):
-        for updated_at in ("2026-11-18T00:00:00Z", "2026-11-16T13:00:00Z"):
+        for updated_at in ("2026-11-23T00:00:00Z", "2026-11-22T00:00:00Z"):
             comments = [{
-                "id": 6924572973,
-                "user": {"id": 49340314, "type": "User"},
+                "id": 101,
+                "user": {"id": 350241706, "type": "User"},
                 "body": "new reusable policy; owner concurrence is hereby recorded",
-                "created_at": "2026-11-16T14:00:00Z",
+                "created_at": "2026-11-22T01:00:00Z",
                 "updated_at": updated_at,
             }]
             with self.subTest(updated_at=updated_at), self.assertRaises(provisioner.ProvisioningError):
                 provisioner.verify_owner_concurrence(
-                    comments, merged_at="2026-11-17T02:00:00Z"
+                    comments, merged_at="2026-11-22T02:00:00Z"
                 )
 
 
     def test_rejects_other_author_or_nonconcurrence_comment(self):
         cases = (
-            [{"id": 1, "user": {"id": 350241706},
+            [{"id": 1, "user": {"id": 49340314, "type": "User"},
               "body": "owner concurrence is hereby recorded for the new reusable policy"}],
-            [{"id": 2, "user": {"id": 49340314, "type": "User"},
+            [{"id": 2, "user": {"id": 350241706, "type": "User"},
               "body": "I acknowledge the new reusable policy"}],
             [],
         )
         for comments in cases:
             with self.subTest(comments=comments), self.assertRaises(provisioner.ProvisioningError):
                 provisioner.verify_owner_concurrence(
-                    comments, merged_at="2026-11-17T02:00:00Z"
+                    comments, merged_at="2026-11-22T02:00:00Z"
                 )
 
 
@@ -502,7 +502,7 @@ class MergedCustodyTests(unittest.TestCase):
         self.pull = {
             "state": "closed",
             "merged": True,
-            "merged_at": "2026-11-17T02:00:00Z",
+            "merged_at": "2026-11-22T02:00:00Z",
             "base": {"ref": "main", "repo": {"full_name": provisioner.REPOSITORY}},
             "head": {"sha": HEAD, "repo": {"full_name": provisioner.REPOSITORY}},
             "merge_commit_sha": self.merge_sha,
@@ -515,16 +515,16 @@ class MergedCustodyTests(unittest.TestCase):
             "merge_base_commit": {"sha": self.merge_sha},
         }
         self.comments = [{
-            "id": 6924572973,
-            "user": {"id": 49340314, "login": "bjnabs", "type": "User"},
+            "id": 101,
+            "user": {"id": 350241706, "login": "wekhason", "type": "User"},
             "body": "I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
-            "created_at": "2026-11-16T14:00:00Z",
-            "updated_at": "2026-11-16T14:00:00Z",
+            "created_at": "2026-11-22T01:00:00Z",
+            "updated_at": "2026-11-22T01:00:00Z",
         }]
         self.reviews = [{
             "id": 99,
             "state": "APPROVED",
-            "submitted_at": "2026-11-17T01:29:41Z",
+            "submitted_at": "2026-11-22T01:29:41Z",
             "commit_id": HEAD,
             "user": {"id": 356890520, "login": "sknabusiu", "type": "User"},
         }]
@@ -557,6 +557,8 @@ class MergedCustodyTests(unittest.TestCase):
         self.assertEqual(result["merge_commit_sha"], self.merge_sha)
         self.assertEqual(result["approval_id"], "github-review-99")
         self.assertEqual(result["approved_by_id"], 356890520)
+        self.assertEqual(result["owner_id"], 350241706)
+        self.assertEqual(result["owner_comment_id"], 101)
 
     def test_rejects_unmerged_pr_and_wrong_approved_head(self):
         unmerged = dict(self.pull, merged=False)
@@ -566,10 +568,10 @@ class MergedCustodyTests(unittest.TestCase):
             self.verify(expected_head="c" * 40)
 
     def test_approval_and_owner_type_must_be_attributable_before_merge(self):
-        later = [dict(self.reviews[0], submitted_at="2026-11-17T02:01:00Z")]
+        later = [dict(self.reviews[0], submitted_at="2026-11-22T02:01:00Z")]
         with self.assertRaisesRegex(provisioner.ProvisioningError, "no current-head"):
             self.verify(self.api_sequence(reviews=later))
-        untyped = [dict(self.comments[0], user={"id": 49340314, "type": "Bot"})]
+        untyped = [dict(self.comments[0], user={"id": 350241706, "type": "Bot"})]
         with self.assertRaisesRegex(provisioner.ProvisioningError, "typed numeric"):
             self.verify(self.api_sequence(comments=untyped))
 

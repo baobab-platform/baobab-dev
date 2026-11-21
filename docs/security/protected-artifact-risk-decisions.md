@@ -38,6 +38,10 @@ scans the exact remote GHCR child digest and uploads only sanitized evidence.
 The raw Trivy report is never uploaded because secret findings can contain
 matched credential material.
 
+## Accountable-owner succession
+
+On 2026-11-21, @bjnabs posted an [accountable-owner handover on PR #74](https://github.com/baobab-platform/baobab-dev/pull/74#issuecomment-7060540592), designating @wekhason (GitHub numeric ID `350241706`) for DEV-10 residual-risk governance. The handover does not transfer any prior owner concurrence, risk acceptance, independent approval or release authority. Future decision PRs require fresh attributable concurrence from @wekhason; historical approvals remain attributable to their original authors. All held findings and fail-closed controls remain in force.
+
 ## Approval custody
 
 The policy SHA-256 is a trust anchor, not a hash supplied by the candidate PR.
@@ -51,7 +55,7 @@ evidence URL is not, by itself, authentication.
 The provisioner verifies the merged PR, exact head, author/preparer numeric
 identity, changed decision path, latest effective exact-head APPROVED review,
 trusted reviewer numeric ID, complete commit author/co-author/committer
-independence, attributable owner concurrence from numeric owner ID 49340314
+independence, attributable owner concurrence from numeric owner ID 350241706
 (created and last edited before merge), merge ancestry and byte-for-byte
 equality between the approved PR-head file and current main. It hashes the
 exact current main bytes only after those checks. The variable is create-only
@@ -68,7 +72,7 @@ SHA-256 and reviewer evidence.
 The policy file must live on the default branch under
 security/decisions/. CODEOWNERS assigns the protected decision and security
 documentation paths to the individually requestable accounts @sknabusiu and
-@sdnabusiu; general/platform ownership is assigned to @bjnabs. The repository
+@sdnabusiu; general/platform ownership is assigned to @wekhason. The repository
 does not currently have a GitHub Teams subscription, so unavailable team
 slugs are not listed as owners. The approval_evidence field must point to the
 merged pull request that introduced the exact decision file. The custody verifier selects the latest effective

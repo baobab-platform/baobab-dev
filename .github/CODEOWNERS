@@ -1,8 +1,8 @@
-* @bjnabs
-/.github/ @bjnabs @sknabusiu @sdnabusiu
-/.devcontainer/ @bjnabs
-/.baobab/ @bjnabs
-/Dockerfile @bjnabs @sknabusiu @sdnabusiu
+* @wekhason
+/.github/ @wekhason @sknabusiu @sdnabusiu
+/.devcontainer/ @wekhason
+/.baobab/ @wekhason
+/Dockerfile @wekhason @sknabusiu @sdnabusiu
 /SECURITY.md @sknabusiu @sdnabusiu
 /security/decisions/ @sknabusiu @sdnabusiu
 /docs/assessments/ @sknabusiu @sdnabusiu
