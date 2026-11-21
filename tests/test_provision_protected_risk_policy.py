@@ -231,8 +231,8 @@ class OwnerConcurrenceTests(unittest.TestCase):
             "id": 7063076588,
             "user": {"id": 350241706, "login": "wekhason"},
             "body": "I accept, on a temporary development-only basis, the exact 30-finding inventory; accountable-owner concurrence.",
-            "created_at": "2026-11-21T09:00:00Z",
-            "updated_at": "2026-11-21T09:00:00Z",
+            "created_at": "2026-11-21T13:10:21Z",
+            "updated_at": "2026-11-21T13:10:21Z",
         }]
         self.assertEqual(
             provisioner.verify_owner_concurrence(
@@ -251,7 +251,7 @@ class OwnerConcurrenceTests(unittest.TestCase):
                 "id": 7063076588,
                 "user": {"id": 350241706},
                 "body": "exact 30-finding inventory; accountable-owner concurrence",
-                "created_at": "2026-11-21T09:00:00Z",
+                "created_at": "2026-11-21T13:10:21Z",
                 "updated_at": updated_at,
             }]
             with self.subTest(updated_at=updated_at), self.assertRaises(provisioner.ProvisioningError):
@@ -360,8 +360,8 @@ class MergedCustodyTests(unittest.TestCase):
             "id": 7063076588,
             "user": {"id": 350241706, "login": "wekhason"},
             "body": "I accept, on a temporary development-only basis, the exact 30-finding inventory; accountable-owner concurrence.",
-            "created_at": "2026-11-21T09:00:00Z",
-            "updated_at": "2026-11-21T09:00:00Z",
+            "created_at": "2026-11-21T13:10:21Z",
+            "updated_at": "2026-11-21T13:10:21Z",
         }]
         self.reviews = [{
             "id": 99,

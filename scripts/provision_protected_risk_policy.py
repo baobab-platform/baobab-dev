@@ -110,7 +110,7 @@ def validate_decision(decision, *, decision_pr, now=None):
         )
         require(identity not in observed, "duplicate approved finding")
         observed.add(identity)
-    require({item[0] for item in observed} == EXPECTED_CVES,
+    require({item[0] for item in observed} == set(EXPECTED_CVES),
             "approved CVE set differs from the thirty reviewed findings")
     require(all(item[1] == "linux-libc-dev" and item[2] == "7.0.0-44.44" and item[3] in ("HIGH", "CRITICAL") and item[4] == "ubuntu" for item in observed) and sum(item[3] == "CRITICAL" for item in observed) == 3,
             "approved package, version, severity or ecosystem differs")
