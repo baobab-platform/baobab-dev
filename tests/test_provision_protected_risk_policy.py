@@ -436,6 +436,15 @@ class IndependentApprovalTests(unittest.TestCase):
         self.assertEqual(result["reviewer"], "sknabusiu")
         self.assertEqual(result["approved_at"], "2026-11-17T01:29:41Z")
 
+    def test_accountable_owner_cannot_supply_the_independent_approval(self):
+        owner = provisioner.OWNER_USER_ID
+        review = self.review(12, "APPROVED", "2026-11-17T01:29:41Z", reviewer_id=owner)
+        with self.assertRaises(provisioner.IndependentApprovalMissing):
+            provisioner.select_independent_approval(
+                [review], head=HEAD, trusted_reviewers={owner: "bjnabs"},
+                author_id=999, contributors={999},
+            )
+
     def test_bot_approval_never_qualifies_even_when_numeric_id_is_allowlisted(self):
         bot = self.review(10, "APPROVED", "2026-11-17T01:00:00Z")
         bot["user"] = {"id": 356890520, "login": "sknabusiu[bot]", "type": "Bot"}

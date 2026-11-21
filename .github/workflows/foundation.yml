@@ -125,6 +125,7 @@ jobs:
           set -euo pipefail
           python3 -B -m unittest -v \
             tests/test_protected_local_policy.py \
+            tests/test_dev10_development_scan.py \
             tests/test_protected_risk_custody.py \
             tests/test_custody_independence.py \
             tests/test_audit_pr_reviewer_independence.py \
@@ -158,78 +159,37 @@ jobs:
         env:
           TRUSTED_POLICY_SHA: ${{ vars.DEV10_PROTECTED_DECISION_SHA256 }}
           TRUSTED_APPROVERS: ${{ vars.DEV10_SECURITY_APPROVER_LOGINS }}
-          POLICY_EVENT: ${{ github.event_name }}
-          POLICY_REF: ${{ github.ref }}
-          POLICY_BASE_REF: ${{ github.base_ref }}
+          POLICY_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           POLICY_HEAD_REPOSITORY: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || (github.event_name == 'push' && github.repository) || '' }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           REPORT_DIR="${RUNNER_TEMP}/foundation-trivy-evidence"
           mkdir -p "$REPORT_DIR"
+          image="foundation-scan:${GITHUB_SHA}"
+          image_config_digest=$(docker image inspect --format '{{.Id}}' "$image")
           set +e
           trivy image \
             --scanners vuln,secret \
             --ignorefile /dev/null \
             --pkg-types os,library \
             --severity CRITICAL,HIGH \
-            --exit-code 1 \
+            --exit-code 42 \
             --skip-version-check \
             --format json \
             --output "${RUNNER_TEMP}/foundation-trivy-raw.json" \
-            "foundation-scan:${GITHUB_SHA}"
+            --image-src docker "$image"
           scan_rc=$?
           set -e
-          python3 scripts/summarize-trivy-vulnerabilities.py \
-            "${RUNNER_TEMP}/foundation-trivy-raw.json" \
-            "${REPORT_DIR}/findings.json" final linux/amd64
-          # Produce non-authorizing review evidence before any approval gate.
-          # Never upload the raw scan, which can contain secret-match material.
-          if (( scan_rc == 1 )); then
-            scanner_version=$(trivy --version | sed -n 's/^Version: //p' | head -1)
-            python3 scripts/prepare_dev10_risk_inventory.py \
-              --raw-trivy "${RUNNER_TEMP}/foundation-trivy-raw.json" \
-              --scanner-version "$scanner_version" \
-              --profile final --architecture linux/amd64 \
-              --output "${REPORT_DIR}/foundation.review-only.json"
-            sha256sum "${REPORT_DIR}/foundation.review-only.json" \
-              > "${REPORT_DIR}/foundation.review-only.sha256"
-          fi
-          if (( scan_rc != 0 )); then
-            if (( scan_rc != 1 )); then
-              echo "::error::Trivy tool failure is not an accepted CVE risk."
-              exit "$scan_rc"
-            fi
-            # Foundation's locally built image is not an immutable GHCR child
-            # digest. Do not counterfeit digest identity to invoke the remote
-            # evaluator. Instead authenticate the protected decision and its
-            # independent approval custody before local scan acceptance.
-            decision_file="security/decisions/development/foundation.json"
-            [[ -f "$decision_file" && -n "$TRUSTED_POLICY_SHA" && -n "$TRUSTED_APPROVERS" ]] || {
-              echo "::error::Authenticated development risk policy is not provisioned"; exit 2;
-            }
-            custody_result="${RUNNER_TEMP}/dev10-protected-policy-custody.json"
-            python3 scripts/verify_protected_risk_custody.py \
-              --decision "$decision_file" --trusted-approvers "$TRUSTED_APPROVERS" \
-              --output "$custody_result"
-            approval_id=$(jq -er '.approval_id' "$custody_result")
-            approved_at=$(jq -er '.approved_at' "$custody_result")
-            approved_by_id=$(jq -er '.approved_by_id' "$custody_result")
-            python3 scripts/verify_protected_policy_hash.py \
-              --decision "$decision_file" --trusted-sha256 "$TRUSTED_POLICY_SHA" \
-              --report "${RUNNER_TEMP}/foundation-trivy-raw.json" \
-              --profile final --architecture linux/amd64 \
-              --event "$POLICY_EVENT" --ref "$POLICY_REF" --base-ref "$POLICY_BASE_REF" \
-              --head-repository "$POLICY_HEAD_REPOSITORY" \
-              --approval-id "$approval_id" --approved-at "$approved_at" \
-              --approved-by-id "$approved_by_id" \
-              > "${REPORT_DIR}/dev10-protected-risk-acceptance.json"
-          fi
+          python3 scripts/dev10_development_scan.py \
+            --report "${RUNNER_TEMP}/foundation-trivy-raw.json" --scan-exit-code "$scan_rc" \
+            --evidence-dir "$REPORT_DIR" --profile final --architecture linux/amd64 \
+            --image-config-digest "$image_config_digest"
       - name: Retain sanitized vulnerability and risk evidence
         if: always() && needs.scope.outputs.container_scan == 'true' && (steps.risk-scan.outcome == 'success' || steps.risk-scan.outcome == 'failure')
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: dev10-foundation-container-risk-${{ github.sha }}
+          name: dev10-foundation-container-risk-${{ github.sha }}-attempt-${{ github.run_attempt }}
           path: ${{ runner.temp }}/foundation-trivy-evidence/
           if-no-files-found: error
           retention-days: 14

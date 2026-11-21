@@ -70,11 +70,21 @@ def main(argv: list[str]) -> int:
         output = Path(argv[2])
         data = json.loads(source.read_text())
         summary = summarize(data, argv[3], argv[4])
-        # Trivy --scanners vuln,secret may include credential-match payloads
-        # in Results[*].Secrets. Preserve all vulnerability metadata, but
-        # never expose secret payloads in the downloadable CI artifact.
+        # Image configuration can contain credentials in ENV, labels or build
+        # history. Keep identity and platform fields alongside the vulnerability
+        # inventory and leave secret-match payloads and config on the runner.
+        metadata = data.get("Metadata") or {}
+        if not isinstance(metadata, dict):
+            raise ValueError("Invalid Trivy image metadata")
+        config = metadata.get("ImageConfig") or {}
+        if not isinstance(config, dict):
+            raise ValueError("Invalid Trivy image configuration")
+        safe_metadata = {key: metadata[key] for key in ("OS", "ImageID", "DiffIDs", "RepoTags", "RepoDigests")
+                         if key in metadata}
+        safe_metadata["ImageConfig"] = {key: config[key] for key in ("os", "architecture") if key in config}
         safe_report = {
             **data,
+            "Metadata": safe_metadata,
             "Results": [
                 {key: value for key, value in result.items() if key != "Secrets"}
                 for result in data["Results"]

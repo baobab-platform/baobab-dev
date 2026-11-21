@@ -10,9 +10,10 @@ import json
 import re
 from pathlib import Path
 from evaluate_protected_risk_decision import (
-    load_verified_decision, _finding_key, _timestamp, demand, REPOSITORY,
+    DecisionDenied, load_verified_decision, _finding_key, _timestamp, demand, REPOSITORY,
     validate_execution_context,
 )
+from prepare_dev10_risk_inventory import scan_findings
 
 BASE_FINDINGS = frozenset({
     ("CVE-2022-50240", "linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu"),
@@ -31,15 +32,29 @@ EXTENDED_FINDINGS = BASE_FINDINGS | frozenset({
     ("CVE-2026-112366", "picomatch", "4.0.5", "HIGH", "node-pkg"),
 })
 
-def verify(decision_path, trusted_sha256, report, *, profile, architecture,
-           event, ref, base_ref="", head_repository="", approval_id=None,
-           approval_timestamp=None, approved_by_id=None, now=None):
+class InventoryChanged(DecisionDenied):
+    """A valid scan includes finding identities outside the authenticated decision."""
+
+    def __init__(self, approved, observed):
+        super().__init__("New or changed findings are outside the approved inventory.")
+        self.approved = approved
+        self.observed = observed
+
+
+class DecisionInactive(DecisionDenied):
+    """Policy bytes are authentic but the decision is outside its validity window."""
+
+
+def verify_policy(decision, actual_hash, observed, *, profile, architecture,
+                  event, ref, base_ref="", head_repository="", approval_id=None,
+                  approval_timestamp=None, approved_by_id=None, now=None):
+    """Match a validated local scan to a policy with verified bytes and custody."""
     now = now or dt.datetime.now(dt.timezone.utc)
-    decision, actual_hash = load_verified_decision(Path(decision_path), trusted_sha256)
     validate_execution_context(decision, event=event, ref=ref, base_ref=base_ref,
                                head_repository=head_repository)
-    demand(decision.get("schema_version") == 2 and decision.get("status") == "approved"
-           and decision.get("revoked_at") is None, "decision is not approved or has been revoked")
+    demand(decision.get("schema_version") == 2, "unsupported development policy schema")
+    if decision.get("status") != "approved" or decision.get("revoked_at") is not None:
+        raise DecisionInactive("The decision is pending or revoked. Obtain a new scoped decision.")
     evidence = decision.get("approval_evidence")
     demand(isinstance(approval_id, str) and bool(approval_id.strip())
            and isinstance(approval_timestamp, str) and bool(approval_timestamp.strip())
@@ -53,16 +68,18 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture,
     profiles = decision.get("profiles")
     architectures = decision.get("architectures")
     demand(isinstance(profiles, list)
+           and all(isinstance(profile, str) for profile in profiles)
            and set(profiles) == {"final", "frontend", "frontend-e2e", "infra"}
            and isinstance(architectures, list)
+           and all(isinstance(arch, str) for arch in architectures)
            and set(architectures) == {"linux/amd64", "linux/arm64"}
            and profile in profiles and architecture in architectures,
            "profile or architecture outside the complete protected policy scope")
     demand(decision.get("expires_at") == "2026-11-26T00:00:00Z",
            "decision expiry differs from the approved governance record")
     approved_at = _timestamp({"approved_at": approval_timestamp}, "approved_at")
-    demand(approved_at <= now < _timestamp(decision, "expires_at"),
-           "policy expired or not yet approved")
+    if not approved_at <= now < _timestamp(decision, "expires_at"):
+        raise DecisionInactive("The decision expired or its approval is not effective yet.")
     prepared_by_id = decision.get("prepared_by_id")
     demand(type(prepared_by_id) is int and prepared_by_id > 0
            and type(approved_by_id) is int and approved_by_id > 0
@@ -78,31 +95,20 @@ def verify(decision_path, trusted_sha256, report, *, profile, architecture,
     demand(len(approved) == len(findings)
            and approved in (BASE_FINDINGS, EXTENDED_FINDINGS),
            "decision differs from the exact reviewed development package/CVE inventory")
-    demand(report.get("SchemaVersion") == 2 and report.get("ArtifactType") == "container_image",
-           "raw Trivy container image report required")
-    demand(isinstance(report.get("Trivy"), dict)
-           and report["Trivy"].get("Version") == "0.73.0", "Trivy version mismatch")
-    results = report.get("Results")
-    demand(isinstance(results, list) and bool(results), "missing scan inventory")
-    observed = set()
-    for result in results:
-        demand(isinstance(result, dict) and isinstance(result.get("Target"), str),
-               "invalid scan target")
-        demand(not result.get("Secrets"), "secret findings are not accepted")
-        for finding in result.get("Vulnerabilities") or []:
-            demand(not finding.get("FixedVersion"), "fixed version available")
-            key = _finding_key({"cve": finding.get("VulnerabilityID"),
-                                "package": finding.get("PkgName"),
-                                "version": finding.get("InstalledVersion"),
-                                "severity": finding.get("Severity"),
-                                "type": result.get("Type")})
-            observed.add(key)
-    demand(bool(observed) and observed <= approved,
-           "new or changed findings are outside the approved inventory")
+    demand(bool(observed), "missing blocking scan inventory")
+    if observed - approved:
+        raise InventoryChanged(approved, observed)
     return {"status": "development_risk_accepted_not_remediated",
             "approval_id": approval_id, "approved_at": approval_timestamp,
             "approved_by_id": approved_by_id,
             "policy_sha256": actual_hash, "findings": len(observed)}
+
+
+def verify(decision_path, trusted_sha256, report, **scope):
+    decision, actual_hash = load_verified_decision(Path(decision_path), trusted_sha256)
+    trivy = report.get("Trivy") if isinstance(report, dict) else None
+    observed = scan_findings(report, scanner_version=trivy.get("Version") if isinstance(trivy, dict) else None)
+    return verify_policy(decision, actual_hash, observed, **scope)
 
 def main():
     p = argparse.ArgumentParser()
