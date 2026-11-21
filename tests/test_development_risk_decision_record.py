@@ -79,7 +79,7 @@ class DevelopmentRiskDecisionRecordTests(unittest.TestCase):
             "push_ref": "refs/heads/main",
             "pull_request_head_repository": "baobab-platform/baobab-dev",
         })
-        self.assertIn("#92", decision["approval_evidence"])
+        self.assertTrue(decision["approval_evidence"].endswith("/pull/92"))
         self.assertIn("30", decision["notes"])
         self.assertIn("#74", decision["notes"])
         self.assertNotRegex(decision["notes"].lower(), r"authoriz(?:e|es|ed) (?:release|production)")
