@@ -26,15 +26,11 @@ from github_api_transport import open_github, read_bounded
 REPOSITORY = "baobab-platform/baobab-dev"
 DECISION_PATH = "security/decisions/development/foundation.json"
 VARIABLE_NAME = "DEV10_PROTECTED_DECISION_SHA256"
-OWNER_USER_ID = 49340314  # @bjnabs; accountable owner recorded in ADR-DEV10-001
+OWNER_USER_ID = 350241706  # @wekhason; successor accountable owner
 API_ROOT = "https://api.github.com"
 API_VERSION = "2022-11-28"
 EXPECTED_EXPIRY = "2026-11-26T00:00:00Z"
-EXPECTED_CVES = {
-    "CVE-2022-50240", "CVE-2025-40190", "CVE-2026-68103",
-    "CVE-2026-72198", "CVE-2026-74578", "CVE-2026-89805",
-    "CVE-2026-98376", "CVE-2026-98420",
-}
+EXPECTED_CVES = ["CVE-2026-99287","CVE-2026-99306","CVE-2026-99310","CVE-2022-50240","CVE-2025-40190","CVE-2026-100081","CVE-2026-68103","CVE-2026-72198","CVE-2026-74578","CVE-2026-89805","CVE-2026-98376","CVE-2026-98420","CVE-2026-98869","CVE-2026-98890","CVE-2026-99239","CVE-2026-99260","CVE-2026-99270","CVE-2026-99272","CVE-2026-99274","CVE-2026-99275","CVE-2026-99282","CVE-2026-99288","CVE-2026-99290","CVE-2026-99292","CVE-2026-99295","CVE-2026-99302","CVE-2026-99304","CVE-2026-99311","CVE-2026-99312","CVE-2026-99317"]
 EXPECTED_SCOPE = {
     "pull_request_base": "main",
     "push_ref": "refs/heads/main",
@@ -44,7 +40,7 @@ EXPECTED_FIELDS = {
     "schema_version", "record_type", "status", "revoked_at", "repository",
     "image_repository", "environment", "execution_scope", "profiles",
     "architectures", "prepared_by", "prepared_by_id", "approval_evidence",
-    "expires_at", "findings", "finding_count", "notes",
+    "expires_at", "findings", "finding_count", "notes", "evidence_lock_sha256",
 }
 
 
@@ -95,14 +91,14 @@ def validate_decision(decision, *, decision_pr, now=None):
     expected_url = f"https://github.com/{REPOSITORY}/pull/{decision_pr}"
     require(decision["approval_evidence"] == expected_url,
             "approval evidence does not identify the decision PR")
-    require(type(decision["finding_count"]) is int and decision["finding_count"] == 8,
+    require(type(decision["finding_count"]) is int and decision["finding_count"] == 30,
             "finding count differs from approved inventory")
     require(isinstance(decision["notes"], str) and decision["notes"].strip(),
             "decision rationale is missing")
 
     findings = decision["findings"]
-    require(isinstance(findings, list) and len(findings) == 8,
-            "exact eight-finding inventory is required")
+    require(isinstance(findings, list) and len(findings) == 30,
+            "exact thirty-finding inventory is required")
     observed = set()
     for finding in findings:
         require(isinstance(finding, dict)
@@ -115,10 +111,10 @@ def validate_decision(decision, *, decision_pr, now=None):
         require(identity not in observed, "duplicate approved finding")
         observed.add(identity)
     require({item[0] for item in observed} == EXPECTED_CVES,
-            "approved CVE set differs from the eight reviewed findings")
-    require(all(item[1:] == ("linux-libc-dev", "7.0.0-43.43", "HIGH", "ubuntu")
-                for item in observed),
+            "approved CVE set differs from the thirty reviewed findings")
+    require(all(item[1] == "linux-libc-dev" and item[2] == "7.0.0-44.44" and item[3] in ("HIGH", "CRITICAL") and item[4] == "ubuntu" for item in observed) and sum(item[3] == "CRITICAL" for item in observed) == 3,
             "approved package, version, severity or ecosystem differs")
+    require(isinstance(decision["evidence_lock_sha256"], str) and re.fullmatch(r"[a-f0-9]{64}", decision["evidence_lock_sha256"]) is not None, "evidence lock digest missing or invalid")
     return decision
 
 
@@ -226,8 +222,8 @@ def verify_owner_concurrence(comments, *, merged_at):
         user = comment.get("user") or {}
         body = comment.get("body")
         if (user.get("id") != OWNER_USER_ID or not isinstance(body, str)
-                or "owner concurrence is hereby recorded" not in body.casefold()
-                or "new reusable policy" not in body.casefold()):
+                or "accountable-owner concurrence" not in body.casefold()
+                or "exact 30-finding inventory" not in body.casefold()):
             continue
         comment_id = comment.get("id")
         require(type(comment_id) is int and comment_id > 0,
