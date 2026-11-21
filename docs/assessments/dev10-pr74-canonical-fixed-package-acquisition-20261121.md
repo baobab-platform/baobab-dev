@@ -45,7 +45,7 @@ Canonical's Ubuntu Security Tracker currently reports:
 | CVE | Canonical Resolute status | Evidence consequence |
 |---|---|---|
 | CVE-2026-99312 | Vulnerable | The KVM INIT/MMU-context fix is not established in the Resolute package |
-| CVE-2026-99317 | Vulnerable | The ALSA hwdep DSP-loader race fix is not established in the Resolute package |
+| CVE-2026-99317 | Needs evaluation | Canonical has not completed the Resolute applicability assessment; this is not a fixed or unaffected disposition |
 | CVE-2026-99287 | Vulnerable | Critical xen-netback issue remains open |
 
 Sources:
