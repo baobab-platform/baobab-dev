@@ -76,6 +76,24 @@ and [classic NTFS](https://github.com/gregkh/linux/commit/7ffa8f3d30236e0ab897c3
 Effective device restrictions, mount provenance and host patch evidence for
 the actual workspaces and daemon-launched workloads remain unverified.
 
+### Hosted reference workspace observations
+
+The [development host evidence workflow](../../.github/workflows/dev10-development-host-evidence.yml)
+launches this repository's digest-pinned reference devcontainer on native
+GitHub-hosted amd64 and arm64 VMs. It captures the running kernel, relevant
+kernel config, device visibility and discretionary permissions, effective
+capabilities and seccomp, backing filesystem types, and daemon observations.
+When the workspace starts an ordinary child through its Docker socket, the
+receipt records that child's runtime and compares it with the host.
+
+The probe reads metadata and runs the reference startup with onboarding
+lifecycle commands skipped. Evidence applies to the tested VMs and their
+workspaces. A device absent from an observed namespace does not establish
+an enforced restriction. A backing filesystem type does not identify who
+controls its contents. The host kernel identity must be checked against
+applicable vendor fixes before qualifying a patched host. Codespaces and
+workstations each need evidence from their actual runtime boundary.
+
 The accountable owner's conditional concurrence was recorded against the
 earlier 28-finding scope and head `513d53d`. The last formal security review
 requested changes on `3fe034776ae1`. None of the 32 formal reviews inspected

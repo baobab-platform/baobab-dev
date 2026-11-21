@@ -1,0 +1,43 @@
+name: DEV-10 development host evidence
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/dev10-development-host-evidence.yml
+      - .devcontainer/devcontainer.json
+      - scripts/ci/collect-development-host-evidence.py
+      - scripts/ci/qualify-development-host.sh
+      - tests/test_development_host_evidence.py
+
+permissions:
+  contents: read
+
+jobs:
+  observe:
+    # The reference workspace has local Docker daemon access. Use Github's
+    # disposable VMs and a same-repository PR with no repository secrets.
+    if: github.repository == 'baobab-platform/baobab-dev' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { architecture: amd64, runner: ubuntu-26.04 }
+          - { architecture: arm64, runner: ubuntu-26.04-arm }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate sanitized evidence and mount parsing
+        run: python3 -B -m unittest -v tests/test_development_host_evidence.py
+      - name: Observe the host, reference devcontainer and its Docker-launched child
+        id: observe
+        run: bash scripts/ci/qualify-development-host.sh "$RUNNER_TEMP/development-host.json"
+      - name: Retain scoped host observations
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev10-development-host-${{ matrix.architecture }}-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/development-host.json
+          if-no-files-found: error
+          retention-days: 30
