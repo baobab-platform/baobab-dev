@@ -234,6 +234,7 @@ def main():
     host.add_argument("--child-snapshot", type=Path)
     host.add_argument("--config", type=Path, required=True)
     host.add_argument("--base-image", required=True)
+    host.add_argument("--base-image-id", required=True)
     host.add_argument("--source", required=True)
     args = parser.parse_args()
 
@@ -242,7 +243,8 @@ def main():
         print(json.dumps(data, indent=2, sort_keys=True))
         return
     if not re.fullmatch(r"[a-f0-9]{40}", args.source) or not re.fullmatch(
-            r"ghcr\.io/baobab-platform/baobab-dev:[0-9.]+@sha256:[a-f0-9]{64}", args.base_image):
+            r"ghcr\.io/baobab-platform/baobab-dev:[0-9.]+@sha256:[a-f0-9]{64}", args.base_image
+    ) or not DIGEST.fullmatch(args.base_image_id):
         parser.error("An exact source commit and immutable Baobab reference image are required")
     if not CONTAINER_ID.fullmatch(args.workspace_id) or bool(args.child_id) != bool(args.child_snapshot) or (
             args.child_id and not CONTAINER_ID.fullmatch(args.child_id)):
@@ -262,7 +264,8 @@ def main():
                 "run_id": safe_token(os.environ.get("GITHUB_RUN_ID")),
                 "run_attempt": safe_token(os.environ.get("GITHUB_RUN_ATTEMPT")),
                 "reference_config_sha256": hashlib.sha256(args.config.read_bytes()).hexdigest(),
-                "reference_base_image": args.base_image, "host": data, "workspace": workspace,
+                "reference_base_image": args.base_image, "reference_base_image_id": args.base_image_id,
+                "host": data, "workspace": workspace,
                 "docker_launched_child": child,
                 "workspace_daemon_matches_host": host_id == workspace_id if host_id and workspace_id else None,
                 "workspace_kernel_matches_host": matches_running_kernel(data, workspace_ns),

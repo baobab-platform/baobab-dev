@@ -11,11 +11,12 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   observe:
-    # The reference workspace has local Docker daemon access. Use Github's
-    # disposable VMs and a same-repository PR with no repository secrets.
+    # The reference workspace has local Docker daemon access. Use disposable
+    # GitHub VMs and a same-repository PR. Registry access is pull-only.
     if: github.repository == 'baobab-platform/baobab-dev' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
@@ -31,6 +32,10 @@ jobs:
           persist-credentials: false
       - name: Validate sanitized evidence and mount parsing
         run: python3 -B -m unittest -v tests/test_development_host_evidence.py
+      - name: Pull the exact reference image before workspace startup
+        env:
+          GHCR_READ_TOKEN: ${{ github.token }}
+        run: bash scripts/ci/qualify-development-host.sh --pull-reference
       - name: Observe the host, reference devcontainer and its Docker-launched child
         id: observe
         run: bash scripts/ci/qualify-development-host.sh "$RUNNER_TEMP/development-host.json"
