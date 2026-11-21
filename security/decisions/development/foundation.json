@@ -20,92 +20,218 @@
   "expires_at": "2026-11-26T00:00:00Z",
   "findings": [
     {
+      "cve": "CVE-2026-99287",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "CRITICAL",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99306",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "CRITICAL",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99310",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "CRITICAL",
+      "type": "ubuntu"
+    },
+    {
       "cve": "CVE-2022-50240",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2025-40190",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-100081",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-68103",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-72198",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-74578",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-89805",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-98376",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-98420",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-98869",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-98890",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
-      "cve": "CVE-2026-99083",
+      "cve": "CVE-2026-99239",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
-      "cve": "CVE-2026-112366",
-      "package": "picomatch",
-      "version": "4.0.5",
+      "cve": "CVE-2026-99260",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
-      "type": "node-pkg"
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99270",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99272",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99274",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99275",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99282",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99288",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99290",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99292",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99295",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99302",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99304",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99311",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99312",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99317",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
     }
   ],
-  "finding_count": 12,
-  "notes": "Proposed development-only decision for the exact 12 HIGH finding identities from Publish run 44264450503 at PR #74 head f2778b003fc5958647a450aa15f39f37dc8a440d. The evidence lock pins all eight profile and architecture archives. The 11 linux-libc-dev=7.0.0-43.43 identities occur in every archive. The picomatch=4.0.5 identity occurs in final, frontend and frontend-e2e on both architectures. Qualification is held. The verified Publish run 44680650163 and Foundation run 44680651187 artifacts at f45395774c1f6e0b8a0cbd0a2d1bb589338dfae1 contain 52 unique linux-libc-dev findings across the observed AMD64 and ARM64 scans. They share 11 identities with this proposal and leave 41 outside it, including 3 CRITICAL findings. Trivy reports linux-libc-dev 7.0.0-44.44 as a fixed version for 24 of those identities, including proposed CVE-2026-99083. The Foundation scan and the final and infra ARM64 Publish scans also report HIGH CVE-2026-95839 in containerd/v2 v2.4.1. These fix-version signals require remediation and fresh native scans before risk qualification. Ubuntu fix ancestry and installed-header applicability remain under investigation in issue #93. Activation requires the compatible verifier on main, an independent exact-head approval, separate attributable owner concurrence before merge, verification of the merged decision bytes and authorized provisioning as DEV10_PROTECTED_DECISION_SHA256. The scope is same-repository pull requests targeting main and pushes to refs/heads/main for the declared development profiles and architectures. The expiry is 2026-11-26T00:00:00Z. Tagged publication, signing and promotion require their own release qualification and authorization.\n\nLatest PR #74 final-head evidence update — 2026-11-20 (head 3cf5ec558c8f44657f1b8422d3861c321316fd36; workflow merge commit 0cd745bb0675ef1143e81ecfe5b3e4a482f38e76): Foundation run 44728551182 retained artifact 14626470607, outer ZIP SHA-256 e6abd8b9eba2b31f62daf444322bdacd8d7ef9b45fdcdf7726723e2a345ab29c (downloaded and verified). Its exact Trivy report contains 54 findings: 52 Ubuntu linux-libc-dev=7.0.0-43.43 findings (3 CRITICAL, 49 HIGH) and two HIGH github.com/containerd/containerd/v2 v2.4.1 matches in the Buildx and Compose binaries. Twenty-four kernel findings report fixed_version 7.0.0-44.44, including proposed CVE-2026-99083; both containerd matches report fixed versions 2.2.10, 2.3.7 and 2.4.2. The 11 proposed kernel CVE identities overlap this scan; CVE-2026-99083 has a fixed-version signal and the other 41 kernel identities are outside this proposal (3 CRITICAL, 38 HIGH). The eight current Publish scan artifacts in run 44728549298 were downloaded and independently rehashed against their GitHub artifact-container digests. Each contains 52 linux-libc-dev=7.0.0-43.43 findings (3 CRITICAL, 49 HIGH). Final and infra scans on both architectures additionally contain CVE-2026-95839 in github.com/containerd/containerd/v2 v2.4.1 (two package matches per image report). The union is 53 unique identities: 52 kernel CVEs plus CVE-2026-95839, with 3 CRITICAL and 50 HIGH. The 11 proposed kernel identities occur in every artifact; 41 additional kernel identities are outside this proposal (3 CRITICAL, 38 HIGH). Twenty-four kernel identities report fixed_version 7.0.0-44.44, including proposed CVE-2026-99083; the other 23 fixed-version kernel identities are outside this proposal. CVE-2026-112366 picomatch is absent from all eight current Publish artifacts. The historical 12-finding set from run 44264450503 remains valid only for those pinned historical artifacts; it does not describe or authorize the current scan inventory. Do not widen this decision to accept the additional findings. The Foundation inventory-preparation step rejects fixed-version signals before policy evaluation. This is a blocking remediation signal, not risk acceptance. Security run 44728550204 independently finds CVE-2026-95839 in both committed Buildx and Compose Go graphs. All eight Publish profile/architecture image scan jobs in run 44728549298 fail closed; publication and promotion stages are skipped. Do not expand this 12-identity proposal to cover the additional findings.\n\nUbuntu source/binary evidence from the same #74 final-head cycle: source corroboration run 44728549895 completed. Fix-history artifact 14628783103 outer ZIP SHA-256 5b0c609680f173adb9c3de4fede0e61fcdc044799578a52311945f3b466ef10a; inner JSON SHA-256 a91545baf6dfdc86b1d41bb65740b5f930b9a41d58778fa892b83f3995b48446. It records complete non-shallow blobless history, 298 CVE records all still under_investigation, analysis_budget_exhausted=false, and candidate-level results of 3 exact ancestry matches, 7 unique stable patch-ID correspondences, 34 downstream-patch-incomplete, 1 truncated search, 1 candidate fetch timeout, and 1,412 deferred outside the observed scope. Candidate-level results are not CVE dispositions. Architecture payload artifact 14624384652 outer ZIP SHA-256 4665cfdc72f0a09cf5d188b04cc0ca44228c23dffee575a961b56d12a92d238e contains architecture-prefixed amd64 and arm64 trees. The source-workflow log records that all 1,102 amd64 and 1,073 arm64 installed-manifest entries matched the corresponding extracted .deb payloads, including file bytes, symlink targets and directory entries, with zero missing or mismatched entries. This establishes installed-package-to-.deb payload consistency for both architectures; it does not establish source-header byte equivalence or resolve indirect UAPI/ABI/downstream compilation exposure.\n\nThe 12-finding proposal and evidence_lock_sha256 remain bound to the original eight-profile/architecture artifact set from run 44264450503 and lock digest f15ad8d9ded6db5d9e023faa8193eb466682fd91d364261e883530b436e05c30. That historical evidence binding is unchanged, but it is not a current all-findings allowlist and does not override the newer fixed-version and out-of-scope findings. This decision remains proposed and inactive pending remediation, fresh exact-scope scans, compatible implementation on main, independent exact-head approval, owner concurrence, merged-byte custody and authorized trust-anchor provisioning.\n\nLatest Publish scan artifact identities (run 44728549298; outer ZIP SHA-256 independently verified): final/linux-amd64 14625358318 149f190d9aa7128d9e5c65989adfbecd348a14e2f9971657db5bb6cdbe117ef4; final/linux-arm64 14625772361 ab546cb3b24f8e16fe5bca0130b4a5d36dce11ed1613946b6022efb7d685f43c; frontend/linux-amd64 14625857186 3aa11d184b0f7d79520afe7001ed4c303a0a95b815b0c8d11477c214eb687d8f; frontend/linux-arm64 14626265462 a0235b6f65f9b807520a2f90d833bd69b3f7a2b757d25c78e340f107f4a92c92; frontend-e2e/linux-amd64 14625169679 b45f7ee1752c04fd4345e8ec313d95deefd3f0b6bfa5708b9ac00e568c9cb368; frontend-e2e/linux-arm64 14624664383 9481bde7edc6140fd9639eaeaa10f655f719234d26795fa70d987aa6fd29ed56; infra/linux-amd64 14625837100 28a9d9db150f874758d801f3fed9e0016f0150f832caabf83ecd679fabe27708; infra/linux-arm64 14626236341 e1a358ab9a00653dd609e3a29883230dc9c38eed29082d48519da56bd611f0e0.",
+  "finding_count": 30,
+  "notes": "PROPOSED, INACTIVE, development-only temporary residual-risk decision. @wekhason (immutable GitHub ID 350241706) concurred on the exact 30 CVEs in PR #92 comment 7063076588, with 27 HIGH and 3 CRITICAL on linux-libc-dev=7.0.0-44.44. All eight current-head Publish Trivy archives from run 44898408090 at PR #74 source commit 7822a102975a153975d03106eb796c0cfabcc75a have matching 30-item normalized five-tuple inventories, digest 2b30ad504108d5192ceb747f089f9016d3bbb011a9676e55a2d52663b230d2df. The evidence_lock_sha256 is SHA-256 of exact UTF-8 bytes in security/decisions/development/foundation-eight-image-evidence-lock.json on this decision PR head; it is a new local evidence-lock format and is NOT an existing release evidence-lock schema. This is a risk acceptance, not remediation, fixed-version clearance, or VEX not_affected claim. Expires at 2026-11-26T00:00:00Z, no automatic renewal. Decision remains inactive until exact-head independent trusted review, contributor independence verification, accountable owner concurrence created before merge, merged-byte equality and authorized provisioning of DEV10_PROTECTED_DECISION_SHA256. Existing protected variable must not be overwritten or bypassed. No tag, signing, GHCR release publication, promotion, staging or production authorization follows from this development decision; release-specific qualification remains separate under ADR-DEV10-001 section 6.",
   "execution_scope": {
     "pull_request_base": "main",
     "push_ref": "refs/heads/main",
@@ -113,5 +239,5 @@
   },
   "prepared_by_id": 350241706,
   "record_type": "proposed_approved_form",
-  "evidence_lock_sha256": "f15ad8d9ded6db5d9e023faa8193eb466682fd91d364261e883530b436e05c30"
+  "evidence_lock_sha256": "f8f4773c54a66caa1a8f95a0a09653c5fb7fb0dab0c5710c82008e3fa3ed0d7a"
 }
