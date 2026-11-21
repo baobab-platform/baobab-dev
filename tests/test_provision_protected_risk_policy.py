@@ -173,7 +173,7 @@ class GraphQLCustodyDiagnosticsTests(unittest.TestCase):
 class DecisionContractTests(unittest.TestCase):
     def test_exact_candidate_record_is_accepted_for_provisioning(self):
         result = provisioner.validate_decision(
-            copy.deepcopy(DECISION), decision_pr=76, now=NOW
+            copy.deepcopy(DECISION), decision_pr=92, now=NOW
         )
         self.assertEqual(result["status"], "approved")
 
@@ -188,7 +188,7 @@ class DecisionContractTests(unittest.TestCase):
                 candidate = copy.deepcopy(DECISION)
                 mutate(candidate)
                 with self.assertRaises(provisioner.ProvisioningError):
-                    provisioner.validate_decision(candidate, decision_pr=76, now=NOW)
+                    provisioner.validate_decision(candidate, decision_pr=92, now=NOW)
 
     def test_rejects_widened_scope_and_inventory(self):
         mutations = (
@@ -204,7 +204,7 @@ class DecisionContractTests(unittest.TestCase):
             ("finding count", lambda item: item.update(finding_count=7)),
             ("new CVE", lambda item: item["findings"][0].update(cve="CVE-2099-00001")),
             ("fixed version signal inventory mutation", lambda item: item["findings"][0].update(
-                version="7.0.0-44.44"
+                version="7.0.0-43.43"
             )),
             ("duplicate finding", lambda item: item["findings"].__setitem__(1, item["findings"][0])),
             ("preparer identity", lambda item: item.update(prepared_by_id=0)),
@@ -214,13 +214,13 @@ class DecisionContractTests(unittest.TestCase):
                 candidate = copy.deepcopy(DECISION)
                 mutate(candidate)
                 with self.assertRaises(provisioner.ProvisioningError):
-                    provisioner.validate_decision(candidate, decision_pr=76, now=NOW)
+                    provisioner.validate_decision(candidate, decision_pr=92, now=NOW)
 
     def test_rejects_expired_decision(self):
         with self.assertRaisesRegex(provisioner.ProvisioningError, "expired"):
             provisioner.validate_decision(
                 copy.deepcopy(DECISION),
-                decision_pr=76,
+                decision_pr=92,
                 now=dt.datetime(2026, 11, 27, tzinfo=dt.timezone.utc),
             )
 
@@ -228,11 +228,11 @@ class DecisionContractTests(unittest.TestCase):
 class OwnerConcurrenceTests(unittest.TestCase):
     def test_requires_attributable_owner_comment_on_the_decision_pr(self):
         comments = [{
-            "id": 7060540592,
+            "id": 7063076588,
             "user": {"id": 350241706, "login": "wekhason"},
-            "body": "@wekhason, I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
-            "created_at": "2026-11-21T09:00:00Z",
-            "updated_at": "2026-11-21T09:00:00Z",
+            "body": "I accept, on a temporary development-only basis, the exact 30-finding inventory; accountable-owner concurrence.",
+            "created_at": "2026-11-21T13:10:21Z",
+            "updated_at": "2026-11-21T13:10:21Z",
         }]
         self.assertEqual(
             provisioner.verify_owner_concurrence(
@@ -240,18 +240,18 @@ class OwnerConcurrenceTests(unittest.TestCase):
             ),
             {
                 "owner_id": 350241706,
-                "owner_comment_id": 7060540592,
-                "owner_concurrence_at": "2026-11-21T09:00:00Z",
+                "owner_comment_id": 7063076588,
+                "owner_concurrence_at": "2026-11-21T13:10:21Z",
             },
         )
 
     def test_rejects_owner_concurrence_created_or_edited_after_merge(self):
         for updated_at in ("2026-11-23T00:00:00Z", "2026-11-21T08:00:00Z"):
             comments = [{
-                "id": 7060540592,
+                "id": 7063076588,
                 "user": {"id": 350241706},
-                "body": "new reusable policy; owner concurrence is hereby recorded",
-                "created_at": "2026-11-21T09:00:00Z",
+                "body": "exact 30-finding inventory; accountable-owner concurrence",
+                "created_at": "2026-11-21T13:10:21Z",
                 "updated_at": updated_at,
             }]
             with self.subTest(updated_at=updated_at), self.assertRaises(provisioner.ProvisioningError):
@@ -344,7 +344,7 @@ class MergedCustodyTests(unittest.TestCase):
         self.pull = {
             "state": "closed",
             "merged": True,
-            "merged_at": "2026-11-17T02:00:00Z",
+            "merged_at": "2026-11-22T02:00:00Z",
             "base": {"ref": "main", "repo": {"full_name": provisioner.REPOSITORY}},
             "head": {"sha": HEAD, "repo": {"full_name": provisioner.REPOSITORY}},
             "merge_commit_sha": self.merge_sha,
@@ -357,11 +357,11 @@ class MergedCustodyTests(unittest.TestCase):
             "merge_base_commit": {"sha": self.merge_sha},
         }
         self.comments = [{
-            "id": 7060540592,
+            "id": 7063076588,
             "user": {"id": 350241706, "login": "wekhason"},
-            "body": "I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
-            "created_at": "2026-11-21T09:00:00Z",
-            "updated_at": "2026-11-21T09:00:00Z",
+            "body": "I accept, on a temporary development-only basis, the exact 30-finding inventory; accountable-owner concurrence.",
+            "created_at": "2026-11-21T13:10:21Z",
+            "updated_at": "2026-11-21T13:10:21Z",
         }]
         self.reviews = [{
             "id": 99,
@@ -389,7 +389,7 @@ class MergedCustodyTests(unittest.TestCase):
                  AUTHOR, set() if contributors is None else contributors
              )):
             return provisioner.verify_merged_custody(
-                "token", DECISION, 76, expected_head, TRUSTED
+                "token", DECISION, 92, expected_head, TRUSTED
             )
 
     def test_verifies_merged_head_review_contributors_and_merge_ancestry(self):
@@ -465,6 +465,7 @@ class ImageScanScopeTests(unittest.TestCase):
         dockerfile = (ROOT / ".devcontainer/docker/Dockerfile").read_text()
         broad_scripts_match = workflow.index("scripts/*|.baobab/repository.yaml")
         for path in (
+            "scripts/dev10_kernel_risk_gate.py",
             "scripts/provision_protected_risk_policy.py",
             "scripts/custody_independence.py",
             "scripts/github_api_transport.py",

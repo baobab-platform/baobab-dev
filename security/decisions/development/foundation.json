@@ -16,73 +16,228 @@
     "linux/arm64"
   ],
   "prepared_by": "wekhason",
-  "approval_evidence": "https://github.com/baobab-platform/baobab-dev/pull/76",
+  "approval_evidence": "https://github.com/baobab-platform/baobab-dev/pull/92",
   "expires_at": "2026-11-26T00:00:00Z",
   "findings": [
     {
+      "cve": "CVE-2026-99287",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "CRITICAL",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99306",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "CRITICAL",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99310",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "CRITICAL",
+      "type": "ubuntu"
+    },
+    {
       "cve": "CVE-2022-50240",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2025-40190",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-100081",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-68103",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-72198",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-74578",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-89805",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-98376",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     },
     {
       "cve": "CVE-2026-98420",
       "package": "linux-libc-dev",
-      "version": "7.0.0-43.43",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-98869",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-98890",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99239",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99260",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99270",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99272",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99274",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99275",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99282",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99288",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99290",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99292",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99295",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99302",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99304",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99311",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99312",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
+      "severity": "HIGH",
+      "type": "ubuntu"
+    },
+    {
+      "cve": "CVE-2026-99317",
+      "package": "linux-libc-dev",
+      "version": "7.0.0-44.44",
       "severity": "HIGH",
       "type": "ubuntu"
     }
   ],
-  "finding_count": 8,
-  "notes": "PROPOSED FINAL DECISION RECORD. It becomes effective only after this exact decision PR is approved by a current trusted independent reviewer, merged into main, custody-verified, and the exact merged bytes are provisioned as DEV10_PROTECTED_DECISION_SHA256 by the authorized custodian. The 12 November issue #54 amendment names PR #62 for the eight HIGH findings on linux-libc-dev=7.0.0-43.43; @sknabusiu's 16 November review confirms #62, not #71, and supersedes the earlier #71 statement in #54. PR #71's v1.5.1 exact-digest verifier scope is not eight-CVE authority. PR #74's scans are inventory evidence only and do not create a PR-number exception. This decision is reusable across same-repository PRs targeting main and pushes to refs/heads/main only, for exactly the eight findings, four profiles and two architectures, until 2026-11-26T00:00:00Z. Fork PRs, other base branches, tags, releases, workflow_dispatch, schedules, deployments, staging and production are excluded. Partial remediation may reduce the observed findings to a subset of this exact inventory; it cannot add or redefine findings. Any fixed-version signal, secret, missing inventory, malformed report, scanner error or scope mismatch remains blocking. The actual trusted reviewer numeric ID, GitHub review ID and submitted_at timestamp are derived from the current effective GitHub review at runtime and are not embedded in these policy bytes. Owner concurrence on this new reusable decision is a required, separate attributable PR comment; it is not inferred from issue #54's 12 November amendment or from the preparer's role. The recognized accountable owner must post concurrence on this exact decision PR before merge. Issue #54's amendment was authored by @bjnabs, and issue #54 separately designates @wekhason as responsible for security-related tasks; neither historical record expressly approves this reusable decision. The PR author/preparer @wekhason cannot approve this PR. No VEX not_affected claim, Trivy suppression, remediation claim, release waiver, release-tag, publication, signing, promotion, staging or production authority is granted.",
+  "finding_count": 30,
+  "notes": "PROPOSED, INACTIVE, development-only temporary residual-risk decision. @wekhason (immutable GitHub ID 350241706) concurred on the exact 30 CVEs in PR #92 comment 7063076588, with 27 HIGH and 3 CRITICAL on linux-libc-dev=7.0.0-44.44. All eight current-head Publish Trivy archives from run 44898408090 at PR #74 source commit 7822a102975a153975d03106eb796c0cfabcc75a have matching 30-item normalized five-tuple inventories, digest 2b30ad504108d5192ceb747f089f9016d3bbb011a9676e55a2d52663b230d2df. The evidence_lock_sha256 is SHA-256 of exact UTF-8 bytes in security/decisions/development/foundation-eight-image-evidence-lock.json on this decision PR head; it is a new local evidence-lock format and is NOT an existing release evidence-lock schema. This is a risk acceptance, not remediation, fixed-version clearance, or VEX not_affected claim. Expires at 2026-11-26T00:00:00Z, no automatic renewal. Decision remains inactive until exact-head independent trusted review, contributor independence verification, accountable owner concurrence created before merge, merged-byte equality and authorized provisioning of DEV10_PROTECTED_DECISION_SHA256. Existing protected variable must not be overwritten or bypassed. No tag, signing, GHCR release publication, promotion, staging or production authorization follows from this development decision; release-specific qualification remains separate under ADR-DEV10-001 section 6.",
   "execution_scope": {
     "pull_request_base": "main",
     "push_ref": "refs/heads/main",
     "pull_request_head_repository": "baobab-platform/baobab-dev"
   },
   "prepared_by_id": 350241706,
-  "record_type": "proposed_approved_form"
+  "record_type": "proposed_approved_form",
+  "evidence_lock_sha256": "f8f4773c54a66caa1a8f95a0a09653c5fb7fb0dab0c5710c82008e3fa3ed0d7a"
 }

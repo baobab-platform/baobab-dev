@@ -1,301 +1,159 @@
-"""Negative controls for short-lived, package-scoped DEV-10 risk acceptance."""
+"""Runtime contract tests for the protected DEV-10 Foundation evaluator."""
 from __future__ import annotations
 
+import copy
 import datetime as dt
+import hashlib
 import importlib.util
 from pathlib import Path
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location(
+SPEC = importlib.util.spec_from_file_location(
     "dev10_kernel_risk_gate", ROOT / "scripts/dev10_kernel_risk_gate.py")
-mod = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(mod)
+mod = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(mod)
 
-INVENTORY = ROOT / "docs/assessments/dev10-kernel-cves.tsv"
-NOW = dt.datetime(2026, 10, 30, 10, tzinfo=dt.timezone.utc)
+DECISION = ROOT / "security/decisions/development/foundation.json"
+LOCK = ROOT / "security/decisions/development/foundation-eight-image-evidence-lock.json"
+NOW = dt.datetime(2026, 11, 21, 12, tzinfo=dt.timezone.utc)
 
 
-class DevelopmentRiskGateTests(unittest.TestCase):
+class FoundationRuntimeDecisionTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.allowed = mod.inventory(INVENTORY)
+        cls.raw = DECISION.read_bytes()
+        cls.anchor = hashlib.sha256(cls.raw).hexdigest()
+        cls.authenticated = mod.load_decision(DECISION, LOCK, cls.anchor, now=NOW)
+        cls.document = cls.authenticated["document"]
 
-    def report(self):
+    def report(self, findings=None):
+        selected = self.document["findings"] if findings is None else findings
         return {"Results": [{
-            "Target": "ubuntu 26.04", "Type": "ubuntu",
+            "Target": "ubuntu 26.04",
+            "Type": "ubuntu",
             "Vulnerabilities": [{
-                "VulnerabilityID": cve, "PkgName": "linux-libc-dev",
-                "InstalledVersion": "7.0.0-42.42", "Severity": severity,
-            } for cve, severity in self.allowed.items()],
+                "VulnerabilityID": item["cve"],
+                "PkgName": item["package"],
+                "InstalledVersion": item["version"],
+                "Severity": item["severity"],
+            } for item in selected],
         }]}
 
     def qualify(self, report=None, **extra):
-        args = dict(target="final", platform="linux/amd64",
-                    event="pull_request", ref="refs/pull/71/merge",
-                    repository="baobab-platform/baobab-dev", pr_number=71, now=NOW)
+        args = dict(
+            target="final", platform="linux/amd64", event="pull_request",
+            ref="refs/pull/74/merge", repository=mod.REPOSITORY,
+            pr_number=74, pr_base="main", head_repository=mod.REPOSITORY,
+            now=NOW,
+        )
         args.update(extra)
-        return mod.validate(report if report is not None else self.report(),
-                            self.allowed, **args)
+        return mod.validate(
+            self.report() if report is None else report,
+            self.authenticated, **args,
+        )
 
-    def test_real_inventory_approved_scope_for_pr71(self):
-        result = self.qualify()
-        self.assertEqual(result["known_cves_observed"], 295)
-        self.assertEqual(result["critical"], 12)
-        self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
+    def test_exact_decision_and_evidence_lock_are_authenticated(self):
+        self.assertEqual(len(self.authenticated["allowed"]), 30)
+        self.assertEqual(self.document["finding_count"], 30)
+        self.assertEqual(
+            hashlib.sha256(LOCK.read_bytes()).hexdigest(),
+            self.document["evidence_lock_sha256"],
+        )
 
-    def test_exact_new_ubuntu_version_eight_high_findings_accepted(self):
-        report = {"Results": [{"Target": "ubuntu 26.04", "Type": "ubuntu",
-            "Vulnerabilities": [
-                {"VulnerabilityID": cve, "PkgName": "linux-libc-dev",
-                 "InstalledVersion": "7.0.0-43.43", "Severity": "HIGH"}
-                for cve in sorted(mod.ADDITIONAL_CVES)]}]}
-        self.assertEqual(len(mod.ADDITIONAL_CVES), 8)
-        for platform in ("linux/amd64", "linux/arm64"):
-            for target in ("final", "infra", "frontend", "frontend-e2e"):
-                with self.subTest(platform=platform, target=target):
-                    decision = self.qualify(report, platform=platform, target=target)
-                    self.assertEqual(decision["version"], "7.0.0-43.43")
-                    self.assertEqual(decision["known_cves_observed"], 8)
-                    self.assertEqual(decision["critical"], 0)
-        for mutation in ("extra", "missing", "severity", "fixed", "package", "version"):
-            import copy
-            altered = copy.deepcopy(report)
-            vulns = altered["Results"][0]["Vulnerabilities"]
-            if mutation == "extra":
-                vulns.append({**vulns[0], "VulnerabilityID": "CVE-2026-999999"})
-            elif mutation == "missing":
-                vulns.pop()
-            elif mutation == "severity":
-                vulns[0]["Severity"] = "CRITICAL"
-            elif mutation == "fixed":
-                vulns[0]["FixedVersion"] = "7.0.0-44.44"
-            elif mutation == "package":
-                vulns[0]["PkgName"] = "openssl"
-            else:
-                vulns[0]["InstalledVersion"] = "7.0.0-44.44"
-            with self.subTest(mutation=mutation), self.assertRaises(mod.RiskGateError):
-                self.qualify(altered)
+    def test_missing_or_mismatched_protected_anchor_fails_closed(self):
+        for anchor in ("", "0" * 64, "not-a-sha256"):
+            with self.subTest(anchor=anchor), self.assertRaises(mod.RiskGateError):
+                mod.load_decision(DECISION, LOCK, anchor, now=NOW)
 
-    def test_only_open_pr71_is_authorised(self):
-        self.assertEqual(mod.APPROVED_DEVELOPMENT_PRS, frozenset({71}))
-        for number in (48, 50, 57, 58, 62, 63, 64, 65, 66, 67, 68, 69, 70):
-            with self.subTest(merged_pr=number), self.assertRaises(mod.RiskGateError):
-                self.qualify(pr_number=number, ref=f"refs/pull/{number}/merge")
-        for number in (71,):
-            with self.subTest(active_pr=number):
-                decision = self.qualify(pr_number=number, ref=f"refs/pull/{number}/merge")
-                self.assertEqual(decision["known_cves_observed"], 295)
-        result = self.qualify()
-        self.assertEqual(result["known_cves_observed"], 295)
-        self.assertEqual(result["expiry_utc"], "2026-11-26T00:00:00+00:00")
+    def test_decision_or_evidence_lock_byte_change_invalidates_authentication(self):
+        with tempfile.TemporaryDirectory() as directory:
+            changed_decision = Path(directory) / "foundation.json"
+            changed_decision.write_bytes(self.raw + b" ")
+            with self.assertRaisesRegex(mod.RiskGateError, "trust anchor"):
+                mod.load_decision(changed_decision, LOCK, self.anchor, now=NOW)
+            changed_lock = Path(directory) / "lock.json"
+            changed_lock.write_bytes(LOCK.read_bytes() + b" ")
+            with self.assertRaisesRegex(mod.RiskGateError, "evidence-lock bytes"):
+                mod.load_decision(DECISION, changed_lock, self.anchor, now=NOW)
 
-    def test_v151_release_family_and_expiry(self):
-        for tag in ("v1.5.1-rc.1", "v1.5.1-rc.9", "v1.5.1"):
-            with self.subTest(tag=tag):
-                decision = self.qualify(event="push", ref="refs/tags/" + tag, pr_number=0)
-                self.assertEqual(decision["known_cves_observed"], 295)
-        for tag in ("v1.5.2", "v1.5.2-rc.1", "v1.5.1-beta.1"):
-            with self.subTest(tag=tag), self.assertRaises(mod.RiskGateError):
-                self.qualify(event="push", ref="refs/tags/" + tag, pr_number=0)
+    def test_exact_thirty_finding_inventory_is_accepted_in_supported_matrix(self):
+        for profile in mod.PROFILES:
+            for platform in mod.PLATFORMS:
+                with self.subTest(profile=profile, platform=platform):
+                    result = self.qualify(target=profile, platform=platform)
+                    self.assertEqual(result["known_cves_observed"], 30)
+                    self.assertEqual(result["critical"], 3)
+                    self.assertEqual(result["decision"], "development_risk_accepted_not_remediated")
+                    self.assertEqual(result["technical_applicability"], "under_investigation")
 
-    def test_owner_authorised_pr71_only_through_new_expiry(self):
-        self.assertEqual(mod.EXPIRY, dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
-        for platform in ("linux/amd64", "linux/arm64"):
-            for target in ("final", "infra", "frontend", "frontend-e2e"):
-                with self.subTest(platform=platform, target=target):
-                    result = self.qualify(pr_number=71, ref="refs/pull/71/merge",
-                                          now=dt.datetime(2026, 11, 12, tzinfo=dt.timezone.utc),
-                                          platform=platform, target=target)
-                    self.assertEqual(result["known_cves_observed"], 295)
-                    self.assertEqual(result["expiry_utc"], "2026-11-26T00:00:00+00:00")
-        for event, ref, number in (
-            ("pull_request", "refs/pull/69/head", 68),
-            ("pull_request", "refs/pull/66/merge", 66),
-            ("pull_request", "refs/pull/65/merge", 65),
-            ("pull_request", "refs/pull/64/merge", 64),
-            ("pull_request", "refs/pull/62/merge", 62),
-            ("pull_request", "refs/pull/63/merge", 63),
-            ("pull_request", "refs/pull/58/merge", 62),
-            ("workflow_dispatch", "refs/pull/71/merge", 68),
-            ("push", "refs/tags/v1.5.2", 0),
-        ):
-            with self.subTest(event=event, ref=ref, number=number):
+    def test_partial_remediation_subset_of_exact_inventory_is_accepted(self):
+        subset = self.document["findings"][:7]
+        result = self.qualify(self.report(subset))
+        self.assertEqual(result["known_cves_observed"], 7)
+        self.assertEqual(result["critical"], 3)
+
+    def test_unknown_or_redefined_findings_are_denied(self):
+        mutations = (
+            ("unknown CVE", {"VulnerabilityID": "CVE-2026-999999"}),
+            ("wrong package", {"PkgName": "openssl"}),
+            ("wrong version", {"InstalledVersion": "7.0.0-43.43"}),
+            ("wrong severity", {"Severity": "LOW"}),
+            ("fixed version", {"FixedVersion": "7.0.0-44.44"}),
+        )
+        for label, mutation in mutations:
+            with self.subTest(label=label):
+                report = self.report()
+                report["Results"][0]["Vulnerabilities"][0].update(mutation)
                 with self.assertRaises(mod.RiskGateError):
-                    self.qualify(event=event, ref=ref, pr_number=number)
-        for field, value in (
-            ("VulnerabilityID", "CVE-2026-999999"),
-            ("PkgName", "openssl"),
-            ("InstalledVersion", "7.0.0-44.44"),
-            ("FixedVersion", "7.0.0-43.43"),
-        ):
-            report = self.report()
-            report["Results"][0]["Vulnerabilities"][0][field] = value
-            with self.subTest(field=field), self.assertRaises(mod.RiskGateError):
-                self.qualify(report, pr_number=71, ref="refs/pull/71/merge")
-        with self.assertRaises(mod.RiskGateError):
-            self.qualify(pr_number=71, ref="refs/pull/71/merge",
-                         now=dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
+                    self.qualify(report)
 
-    def test_pr58_staging_wrong_event_or_ref_never_inherits_dev_risk(self):
-        # The owner explicitly authorised this exact tag as a *development*
-        # image distribution. Its successful push/pr_number=0 case is in
-        # test_v150_exact_tag_is_distributed_dev_image_not_production.
-        for event, ref, number in (
-            ("push", "refs/tags/v1.5.0", 58),
-            ("push", "refs/tags/v1.5.2", 0),
-            ("workflow_dispatch", "refs/heads/main", 58),
-            ("deployment", "refs/heads/staging", 58),
-            ("pull_request", "refs/pull/58/head", 58),
-            ("pull_request", "refs/pull/57/merge", 58),
-            ("pull_request", "refs/pull/59/merge", 59),
-            ("pull_request", "refs/pull/48/merge", 58),
-        ):
-            with self.subTest(event=event, ref=ref, number=number):
-                with self.assertRaises(mod.RiskGateError):
-                    self.qualify(event=event, ref=ref, pr_number=number)
+    def test_duplicate_missing_or_empty_inventory_is_denied(self):
+        report = self.report()
+        report["Results"][0]["Vulnerabilities"].append(
+            copy.deepcopy(report["Results"][0]["Vulnerabilities"][0]))
+        with self.assertRaisesRegex(mod.RiskGateError, "duplicate"):
+            self.qualify(report)
+        for invalid in ({}, {"Results": []},
+                        {"Results": [{"Target": "ubuntu", "Type": "ubuntu",
+                                      "Vulnerabilities": []}]}):
+            with self.subTest(invalid=invalid), self.assertRaises(mod.RiskGateError):
+                self.qualify(invalid)
 
-    def test_tag_v150_unknown_findings_fixes_secrets_or_expiry_still_denied(self):
-        # Run every rejection against both the first RC and the final GA.
-        for release_tag in ("v1.5.0-rc.1", "v1.5.0"):
-            self._assert_rejected_tag_findings(release_tag)
-
-    def _assert_rejected_tag_findings(self, release_tag):
-        for field, value in (
-            ("VulnerabilityID", "CVE-2026-999999"), ("PkgName", "openssl"),
-            ("InstalledVersion", "7.0.0-43.43"), ("Severity", "LOW"),
-            ("FixedVersion", "7.0.0-43.43"),
-        ):
-            report = self.report()
-            report["Results"][0]["Vulnerabilities"][0][field] = value
-            with self.subTest(field=field), self.assertRaises(mod.RiskGateError):
-                self.qualify(report, event="push", ref=f"refs/tags/{release_tag}", pr_number=0)
+    def test_secret_findings_and_malformed_results_are_denied(self):
         report = self.report()
         report["Results"][0]["Secrets"] = [{"RuleID": "credential"}]
+        with self.assertRaisesRegex(mod.RiskGateError, "secret"):
+            self.qualify(report)
         with self.assertRaises(mod.RiskGateError):
-            self.qualify(report, event="push", ref=f"refs/tags/{release_tag}", pr_number=0)
-        with self.assertRaises(mod.RiskGateError):
-            self.qualify(event="push", ref=f"refs/tags/{release_tag}", pr_number=0,
-                         now=dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
+            self.qualify({"Results": [{"Target": None, "Type": "ubuntu"}]})
 
-    def test_pr58_unknown_cve_or_fix_available_still_denied(self):
-        for field, value in (
-            ("VulnerabilityID", "CVE-2026-999999"),
-            ("PkgName", "linux-tools"),
-            ("InstalledVersion", "7.0.0-43.43"),
-            ("FixedVersion", "7.0.0-43.43"),
-            ("Severity", "LOW"),
-        ):
-            with self.subTest(field=field), self.assertRaises(mod.RiskGateError):
-                report = self.report()
-                report["Results"][0]["Vulnerabilities"][0][field] = value
-                self.qualify(report, pr_number=71, ref="refs/pull/71/merge")
-        report = self.report()
-        report["Results"][0]["Secrets"] = [{"RuleID": "aws-secret"}]
-        with self.assertRaises(mod.RiskGateError):
-            self.qualify(report, pr_number=71, ref="refs/pull/71/merge")
-        with self.assertRaises(mod.RiskGateError):
-            self.qualify(pr_number=71, ref="refs/pull/71/merge",
-                         now=dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
-
-    def test_owner_authorised_rc_tags_are_dev_distribution_only(self):
-        for candidate in ("v1.5.0-rc.1", "v1.5.0-rc.2", "v1.5.0-rc.10"):
-            for platform in ("linux/amd64", "linux/arm64"):
-                for target in ("final", "infra", "frontend", "frontend-e2e"):
-                    with self.subTest(candidate=candidate, platform=platform, target=target):
-                        result = self.qualify(
-                            event="push", ref=f"refs/tags/{candidate}",
-                            pr_number=0, target=target, platform=platform)
-                        self.assertEqual(result["distribution"], "development_release_candidate")
-                        self.assertEqual(result["known_cves_observed"], 295)
-                        self.assertIn("no staging/production", result["scope"])
-
-    def test_v150_exact_tag_is_distributed_dev_image_not_production(self):
-        for target in ("final", "infra", "frontend", "frontend-e2e"):
-            for platform in ("linux/amd64", "linux/arm64"):
-                with self.subTest(target=target, platform=platform):
-                    result = self.qualify(event="push", ref="refs/tags/v1.5.0",
-                                          pr_number=0, target=target, platform=platform)
-                    self.assertEqual(result["distribution"],
-                                     "tagged_development_container")
-                    self.assertEqual(result["known_cves_observed"], 295)
-                    self.assertEqual(result["critical"], 12)
-                    self.assertIn("no staging/production", result["scope"])
-
-    def test_all_other_tag_or_deployment_contexts_denied(self):
-        self.qualify(event="push", ref="refs/heads/main", pr_number=0)
-        for event, ref, number in (
-            ("push", "refs/tags/v1.4.4", 0),
-            ("push", "refs/tags/v1.5.2", 0),
-            ("push", "refs/tags/v1.6.0", 0),
-            ("push", "refs/tags/v1.5.0-rc.0", 0),
-            ("push", "refs/tags/v1.5.0-rc.01", 0),
-            ("push", "refs/tags/v1.5.0-rc.foo", 0),
-            ("push", "refs/tags/v1.5.0-rc.1-extra", 0),
-            ("push", "refs/tags/v1.5.2-rc.1", 0),
-            ("pull_request", "refs/tags/v1.5.0", 58),
-            ("workflow_dispatch", "refs/tags/v1.5.0", 0),
-            ("deployment", "refs/tags/v1.5.0", 0),
-            ("push", "refs/heads/staging", 0),
-            ("push", "refs/heads/production", 0),
-            ("push", "refs/tags/v1.5.0", 58),
-        ):
-            with self.subTest(event=event, ref=ref, number=number):
-                with self.assertRaises(mod.RiskGateError):
-                    self.qualify(event=event, ref=ref, pr_number=number)
-        with self.assertRaises(mod.RiskGateError):
-            self.qualify(pr_number=50, ref="refs/pull/48/merge")
-
-    def test_wrong_pr_arch_and_repo_denied(self):
-        for kwargs in (
-            {"pr_number": 49}, {"platform": "linux/s390x"}, {"target": "backend"},
-            {"repository": "baobab-platform/baobab-trade"},
+    def test_only_same_repository_main_pull_requests_and_main_pushes_are_allowed(self):
+        allowed = self.qualify()
+        self.assertEqual(allowed["version"], "7.0.0-44.44")
+        self.qualify(event="push", ref="refs/heads/main", pr_number=0,
+                     pr_base="", head_repository="")
+        denied = (
+            {"event": "pull_request", "ref": "refs/pull/74/head"},
+            {"event": "pull_request", "pr_base": "release"},
+            {"event": "pull_request", "head_repository": "fork/baobab-dev"},
+            {"event": "push", "ref": "refs/heads/release", "pr_number": 0},
+            {"event": "push", "ref": "refs/tags/v1.5.2", "pr_number": 0},
             {"event": "workflow_dispatch", "ref": "refs/heads/main"},
-        ):
+            {"event": "schedule", "ref": "refs/heads/main"},
+            {"repository": "baobab-platform/other"},
+        )
+        for kwargs in denied:
             with self.subTest(kwargs=kwargs), self.assertRaises(mod.RiskGateError):
                 self.qualify(**kwargs)
 
-    def test_expired(self):
-        with self.assertRaises(mod.RiskGateError):
+    def test_expiry_and_matrix_scope_are_enforced(self):
+        with self.assertRaisesRegex(mod.RiskGateError, "expired"):
             self.qualify(now=dt.datetime(2026, 11, 26, tzinfo=dt.timezone.utc))
-
-    def test_other_cve_or_package_or_version_or_severity_denied(self):
-        for key, value in (
-            ("VulnerabilityID", "CVE-2026-999999"),
-            ("PkgName", "openssl"), ("InstalledVersion", "7.0.0-43.43"),
-            ("Severity", "LOW"), ("FixedVersion", "7.0.0-43.43"),
-        ):
-            with self.subTest(field=key), self.assertRaises(mod.RiskGateError):
-                report = self.report()
-                report["Results"][0]["Vulnerabilities"][0][key] = value
-                self.qualify(report)
-
-    def test_secret_denied(self):
-        report = self.report()
-        report["Results"][0]["Secrets"] = [{"RuleID": "credential"}]
-        with self.assertRaises(mod.RiskGateError):
-            self.qualify(report)
-
-    def test_missing_inventory_invalid_report_and_duplicate_denied(self):
-        for report in (
-            {}, {"Results": []},
-            {"Results": [{"Target": "ubuntu", "Type": "ubuntu", "Vulnerabilities": []}]},
-        ):
-            with self.subTest(report=report), self.assertRaises(mod.RiskGateError):
-                self.qualify(report)
-        report = self.report()
-        report["Results"][0]["Vulnerabilities"].append(
-            report["Results"][0]["Vulnerabilities"][0].copy())
-        with self.assertRaises(mod.RiskGateError):
-            self.qualify(report)
-
-    def test_pinned_inventory_digest_blocks_unreviewed_edit(self):
-        from tempfile import TemporaryDirectory
-        with TemporaryDirectory() as d:
-            p = Path(d) / "inventory.tsv"
-            p.write_bytes(INVENTORY.read_bytes() + b"\nCVE-2099-12345\tHIGH\tnot approved\n")
-            with self.assertRaises(mod.RiskGateError):
-                mod.inventory(p)
+        for kwargs in ({"target": "backend"}, {"platform": "linux/s390x"}):
+            with self.subTest(kwargs=kwargs), self.assertRaises(mod.RiskGateError):
+                self.qualify(**kwargs)
 
 
 if __name__ == "__main__":

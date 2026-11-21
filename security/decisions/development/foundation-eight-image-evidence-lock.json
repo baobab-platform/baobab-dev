@@ -1,0 +1,81 @@
+{
+  "schema": "dev10-current-head-eight-image-scan-lock-v1",
+  "repository": "baobab-platform/baobab-dev",
+  "pr": 74,
+  "source_commit": "7822a102975a153975d03106eb796c0cfabcc75a",
+  "publish_run_id": 44898408090,
+  "tuple_fields": [
+    "vulnerability_id",
+    "package",
+    "installed_version",
+    "severity",
+    "type"
+  ],
+  "normalized_inventory_sha256": "2b30ad504108d5192ceb747f089f9016d3bbb011a9676e55a2d52663b230d2df",
+  "artifacts": [
+    {
+      "profile": "final",
+      "architecture": "linux/amd64",
+      "artifact_id": 14705706626,
+      "archive_sha256": "78f2796ee33fb62843fca4d96102c1659fad6d91e5417b9b92bf1076c7676da3",
+      "findings_sha256": "c625380c4520304bb7a9461a77f90440d7f538eff385ac0e7cd0cfc9044b91ac",
+      "finding_count": 30
+    },
+    {
+      "profile": "final",
+      "architecture": "linux/arm64",
+      "artifact_id": 14705900180,
+      "archive_sha256": "fc26c1d788f8ed6a772963f13dcbde3f8ec44497d64aaf2f7a064c1cb0503ac5",
+      "findings_sha256": "dfc9f9b70a65fb580e02c4503d25efbe0b5d840b81a7651a6d60340ff47a4275",
+      "finding_count": 30
+    },
+    {
+      "profile": "frontend",
+      "architecture": "linux/amd64",
+      "artifact_id": 14705406112,
+      "archive_sha256": "9c13fbe8df60b1121d95e2ee0e923476379f545c6d342a0012dcef2f5c5556c4",
+      "findings_sha256": "44bc3a63e978eb939c3cf82717be4aab12c9fd0a199b2b881d20487805acb7e5",
+      "finding_count": 30
+    },
+    {
+      "profile": "frontend",
+      "architecture": "linux/arm64",
+      "artifact_id": 14704114872,
+      "archive_sha256": "71ad0dabd151064e374727804984ef292aecf6157ca5bda7daa1fd353072ab40",
+      "findings_sha256": "b7a2d7aad40d62d4569cb40078d5618923c3d877c989792cfdae48e6afa56ec5",
+      "finding_count": 30
+    },
+    {
+      "profile": "frontend-e2e",
+      "architecture": "linux/amd64",
+      "artifact_id": 14705476879,
+      "archive_sha256": "ddfb302f82fca1e12b869f966b923efa8ac2cce1a02e2f24efceb10bdd288407",
+      "findings_sha256": "e26759336bfde1501c9f0814aea5c5737825b96a196556e391d81e60ef6e37fc",
+      "finding_count": 30
+    },
+    {
+      "profile": "frontend-e2e",
+      "architecture": "linux/arm64",
+      "artifact_id": 14705690303,
+      "archive_sha256": "a5bc203ffe56daedc59ff86d489e7cfaffcbf3b638ded9924fb0b9690122bb07",
+      "findings_sha256": "850d1838d3e9df65797ed9bdf660861b5616ac04b51914059f9a0e62f13fce16",
+      "finding_count": 30
+    },
+    {
+      "profile": "infra",
+      "architecture": "linux/amd64",
+      "artifact_id": 14705317348,
+      "archive_sha256": "70762e5e78a81ce632e5baaeba4778db63260865ce33b80702b1211a2a5a2d68",
+      "findings_sha256": "8739afd571ac0cfc41473c4c76fc6d41807d1d95e3ebf22f42cf201a1158d1e8",
+      "finding_count": 30
+    },
+    {
+      "profile": "infra",
+      "architecture": "linux/arm64",
+      "artifact_id": 14705845288,
+      "archive_sha256": "2844af767c77fe1e5602868decba8723103fb1767ccf33f619c60087f77a67a9",
+      "findings_sha256": "c0211f57729ae15154b95c82477fd6b22d8b37bab40fe64b3317070a9182d016",
+      "finding_count": 30
+    }
+  ]
+}

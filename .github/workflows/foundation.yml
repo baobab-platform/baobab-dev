@@ -45,9 +45,10 @@ jobs:
           while IFS= read -r path; do
             [[ -n "$path" ]] || continue
             case "$path" in
-              # This custodian-only tool is not copied or executed by the
-              # development image; its own policy-contract workflow tests it.
-              scripts/provision_protected_risk_policy.py|scripts/custody_independence.py|scripts/github_api_transport.py)
+              # CI-only policy evaluation and custodian tooling are not copied
+              # or executed by the development image. Their contracts are tested
+              # by the policy workflow; image inputs remain in the scan scope.
+              scripts/dev10_kernel_risk_gate.py|scripts/provision_protected_risk_policy.py|scripts/custody_independence.py|scripts/github_api_transport.py)
                 ;;
               .devcontainer/*|config/*|scripts/*|.baobab/repository.yaml|docs/assessments/dev10-kernel-cves.tsv)
                 container_changed=true
@@ -111,6 +112,9 @@ jobs:
         id: risk-scan
         env:
           PR_NUMBER: "${{ github.event.pull_request.number || 0 }}"
+          PR_BASE: "${{ github.event.pull_request.base.ref || '' }}"
+          PR_HEAD_REPOSITORY: "${{ github.event.pull_request.head.repo.full_name || '' }}"
+          DEV10_PROTECTED_DECISION_SHA256: "${{ vars.DEV10_PROTECTED_DECISION_SHA256 }}"
         run: |
           set -euo pipefail
           REPORT_DIR="${RUNNER_TEMP}/foundation-trivy-evidence"
@@ -138,10 +142,13 @@ jobs:
             fi
             python3 scripts/dev10_kernel_risk_gate.py \
               --raw-trivy "${RUNNER_TEMP}/foundation-trivy-raw.json" \
-              --inventory docs/assessments/dev10-kernel-cves.tsv \
+              --decision security/decisions/development/foundation.json \
+              --evidence-lock security/decisions/development/foundation-eight-image-evidence-lock.json \
+              --protected-decision-sha256 "$DEV10_PROTECTED_DECISION_SHA256" \
               --target final --platform linux/amd64 \
               --event "${GITHUB_EVENT_NAME}" --ref "${GITHUB_REF}" \
               --repository "${GITHUB_REPOSITORY}" --pr-number "$PR_NUMBER" \
+              --pr-base "$PR_BASE" --head-repository "$PR_HEAD_REPOSITORY" \
               --output "${REPORT_DIR}/dev10-executive-risk-acceptance.json"
           fi
       - name: Retain sanitized vulnerability and risk evidence
