@@ -465,6 +465,7 @@ class ImageScanScopeTests(unittest.TestCase):
         dockerfile = (ROOT / ".devcontainer/docker/Dockerfile").read_text()
         broad_scripts_match = workflow.index("scripts/*|.baobab/repository.yaml")
         for path in (
+            "scripts/dev10_kernel_risk_gate.py",
             "scripts/provision_protected_risk_policy.py",
             "scripts/custody_independence.py",
             "scripts/github_api_transport.py",
