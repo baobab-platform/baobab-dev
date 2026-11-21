@@ -2,13 +2,32 @@
 
 ## Outcome
 
-**No Canonical-supported fixed `linux-libc-dev` package for Ubuntu Resolute was established or obtained. Do not update the lock.**
+**The signed Resolute archive still offers `7.0.0-44.44` as its newest
+supported `linux-libc-dev` binary on amd64 and arm64. No supported fixed
+package was established for the 30-finding inventory.**
 
-This is a negative acquisition result based on Canonical's current public package catalogue, Ubuntu CVE tracker records, and the Canonical Kernel Team proposed-PPA listing. A binary being downloadable, having a higher version, or appearing in a Canonical team PPA is not sufficient to establish that it is a supported Resolute update or that it contains the required security fixes.
+The refreshed audit used the official signed Release, Updates and Security
+indexes and compared both 44.44 DEB digests with the signed package entries
+and the repository lock. The earlier public catalogue and PPA observations
+below remain part of the acquisition history.
 
-## Official Ubuntu package catalogue
+## Verified official archive
 
-Canonical's public Ubuntu package search currently lists:
+| Suite | Signed metadata date (UTC) | amd64 | arm64 |
+| --- | --- | --- | --- |
+| Resolute | 23 April 2026 17:07:15 | `7.0.0-14.14` | `7.0.0-14.14` |
+| Resolute Updates | 21 November 2026 06:03:25 | `7.0.0-44.44` | `7.0.0-44.44` |
+| Resolute Security | 21 November 2026 03:47:57 | `7.0.0-43.43` | `7.0.0-43.43` |
+
+The archive key fingerprint was `F6ECB3762474EDA9D21B7022871920D1991BC93C`.
+For each architecture and suite, the Packages index bytes matched the
+SHA-256 in the signed `InRelease`. The [applicability register](dev10-ubuntu-44.44-binary-applicability.json)
+records all six checks and the full binary package fields under
+`supported_archive_snapshot`.
+
+## Earlier public package catalogue
+
+The earlier public Ubuntu package search returned the following entries.
 
 | Ubuntu suite | Version | amd64 | arm64 |
 |---|---:|---:|---:|
@@ -19,7 +38,7 @@ Canonical's public Ubuntu package search currently lists:
 
 Source: https://packages.ubuntu.com/en/linux-libc-dev
 
-The public catalogue does **not** currently list a newer fixed Resolute package than 7.0.0-43.43. The catalogue is an important public cross-check, but it is not a replacement for retaining and verifying the signed InRelease and architecture-specific Packages indexes for the exact build pocket and timestamp.
+The signed indexes above provide the current archive publication evidence.
 
 ## Proposed PPA candidates are not accepted as a remediation
 
@@ -40,12 +59,14 @@ No PPA binary was copied into the repository lock or treated as a production can
 
 ## CVE fix-status gate
 
-Canonical's Ubuntu Security Tracker currently reports:
+At Canonical tracker revision `1d6aaa3351c3619b847340743716898c3fdf11e2`, all
+30 CVEs have generic Resolute `linux` status `needed`. The refreshed public
+advisory pages render both of the newly assessed CVEs as Vulnerable.
 
 | CVE | Canonical Resolute status | Evidence consequence |
 |---|---|---|
 | CVE-2026-99312 | Vulnerable | The KVM INIT/MMU-context fix is not established in the Resolute package |
-| CVE-2026-99317 | Needs evaluation | Canonical has not completed the Resolute applicability assessment; this is not a fixed or unaffected disposition |
+| CVE-2026-99317 | Vulnerable | The ALSA hwdep fix remains needed in the generic Resolute source |
 | CVE-2026-99287 | Vulnerable | Critical xen-netback issue remains open |
 
 Sources:
@@ -53,7 +74,10 @@ Sources:
 - https://ubuntu.com/security/CVE-2026-99317
 - https://ubuntu.com/security/CVE-2026-99287
 
-The tracker records upstream fix references for CVE-2026-99312 and CVE-2026-99317, but an upstream commit reference is not proof that a particular Ubuntu binary contains the patch. In particular, CVE-2026-99312's current Resolute status is Vulnerable, and CVE-2026-99317's record also identifies the Resolute kernel as Vulnerable. Therefore neither `7.0.0-44.44` nor the newer PPA `7.3.0-11.12` can be called a fixed package on the evidence reviewed here.
+The exact Ubuntu source tag matches the forward patch context for both
+upstream fixes. The package applicability record retains the source blobs,
+patch digests and checks. The PPA version `7.3.0-11.12` still lacks a supported
+Resolute publication and exact-scope fix evidence. [Source checks](dev10-ubuntu-44.44-binary-applicability.md)
 
 ## Exact current lock — unchanged
 

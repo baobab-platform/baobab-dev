@@ -1,6 +1,26 @@
-# PR #74 — retained scan inventory reconciliation
+# PR #74 — 30-finding scan inventory reconciliation
 
-## Result
+## Verified scan matrix at `6c285e49`
+
+Foundation run [44877264266](https://github.com/baobab-platform/baobab-dev/actions/runs/44877264266)
+and Publish run [44877263421](https://github.com/baobab-platform/baobab-dev/actions/runs/44877263421)
+completed for PR head `6c285e49a37beebb4a9dcade2f1d3ff9351ad957`, tested at
+merge checkout `ae0832986cd4d2a087586b63941de79575427df9`. The Foundation
+scan and all eight Publish scans denied the same 30 `linux-libc-dev=7.0.0-44.44`
+findings. Each reported 27 HIGH and three CRITICAL findings, all `affected`,
+with empty fixed-version fields. The eight native Publish jobs passed their smoke
+checks and retained their installed-file manifests. Security qualification stays
+blocked.
+
+The [scan evidence](dev10-pr74-6c285e4-scan-evidence.json) records the verified
+GitHub archive SHA-256, retained Trivy JSON SHA-256, normalized output digest,
+image identity and exact finding inventory for each job. Each archive's digest
+matched the Actions API, and the retained Trivy JSON, normalized JSON and
+review-only inventory agreed. The workflows keep the potentially secret-bearing
+raw JSON on the runner. Its SHA-256 is recorded as reported by the workflow;
+the retained, sanitized report bytes were independently rehashed.
+
+## Earlier result at `513d53d`
 
 At PR head `513d53d6088e52c0bb6baa0979307a10c4d7e281`, the retained Foundation scan and all eight Publish profile/architecture scans agree on the exact package finding set:
 
@@ -12,13 +32,16 @@ At PR head `513d53d6088e52c0bb6baa0979307a10c4d7e281`, the retained Foundation s
 - Status: `affected` for all 30; scanner fixed version: none
 - Consistency: all nine scans have identical CVE sets and matching package/version/severity/status fields.
 
-The former 28-row inventory was incomplete. The two findings absent from its detailed applicability register are **CVE-2026-99312** and **CVE-2026-99317**. Both are recorded in the current inventory as `blocked_unassessed`. This reconciliation does not establish binary applicability, remediation, VEX status, risk acceptance or release authority.
+The earlier 28-row inventory omitted **CVE-2026-99312** and **CVE-2026-99317**.
+The [binary applicability register](dev10-ubuntu-44.44-binary-applicability.json)
+now includes both findings and keeps their disposition under investigation.
 
-## Retained raw scan artifacts
+## Earlier retained scan artifacts
 
-The artifact SHA-256 values below are GitHub's retained workflow-artifact archive digests. The raw-report SHA-256 values identify the Trivy JSON member inside each archive.
+The artifact SHA-256 values below are GitHub's retained archive digests. The
+report digests identify the sanitized Trivy JSON member inside each archive.
 
-| Workflow | Profile | Platform | Artifact ID | Artifact SHA-256 | Raw Trivy JSON SHA-256 |
+| Workflow | Profile | Platform | Artifact ID | Artifact SHA-256 | Retained Trivy JSON SHA-256 |
 |---|---|---|---:|---|---|
 | Foundation Repository Gates (run [44858284325](https://github.com/baobab-platform/baobab-dev/actions/runs/44858284325)) | foundation | linux/amd64 | 14689106900 | `efcec8a887460f55a718fb17667bf5539ba5939ad0ca5406a8a3d7622e2da0ee` | `dece0c0607b4aeb9eb2f6f9868053c4e084ec7feafdeef0634d0799528a4bd14` |
 | Publish (run [44858283649](https://github.com/baobab-platform/baobab-dev/actions/runs/44858283649)) | final | linux/amd64 | 14689441394 | `b72b51b4653aece3d4e0b8a24c8af747baaf840bff15baa3b6bb1a0da882c3ec` | `5e7cd783386810fa71f159c935d074f797dbeecf33830625ee6f870e4cca5015` |
@@ -32,7 +55,9 @@ The artifact SHA-256 values below are GitHub's retained workflow-artifact archiv
 
 ## Exact reconciled inventory
 
-Every row below was present in each of the nine retained raw reports with package `linux-libc-dev`, installed version `7.0.0-44.44`, ecosystem `ubuntu`, status `affected` and no scanner fixed version.
+Every row below was present in all nine reports at both tested heads with
+package `linux-libc-dev`, installed version `7.0.0-44.44`, ecosystem `ubuntu`,
+status `affected` and no scanner fixed version.
 
 | CVE | Package | Installed version | Severity | Scanner status | Fixed version |
 |---|---|---|---|---|---|
@@ -71,6 +96,18 @@ Every row below was present in each of the nine retained raw reports with packag
 
 The subsequent [kernel package remediation investigation](dev10-pr74-kernel-package-remediation-20261121.md) found no evidence-backed newer Canonical-supported fixed package for this inventory. The exact amd64/arm64 package pins remain unchanged; all 30 findings remain blocking.
 
-The existing detailed binary-applicability JSON has 28 records. It has no records for CVE-2026-99312 or CVE-2026-99317. This change corrects the scan inventory and makes that gap explicit; it does not fabricate CNA/source-path evidence for the missing records. Those two CVEs require their own authoritative advisory/source evidence and review before any applicability or risk disposition is proposed.
+The [development risk assessment](dev10-ubuntu-44.44-development-risk.md)
+records package, source and exposure evidence for all 30 findings. Each
+one remains blocking pending remediation or a substantiated disposition and
+its required approvals.
 
-The 30 findings remain blocking. No scanner threshold, ignore rule, VEX statement, protected decision, approval, or release gate was changed.
+## Closure sequence
+
+| Gate | Status at the audited head |
+| --- | --- |
+| 1. Reconcile current-head scans | Foundation and all eight Publish scans completed. The nine retained reports agree on 30 blocking identities. |
+| 2. Complete per-CVE evidence | All 30 have a technical record, including the two omitted CVEs. Applicability and host controls remain under investigation. |
+| 3. Check supported remediation | Six signed Canonical indexes confirm the newest supported binary is the locked 44.44 build. The generic Resolute `linux` tracker still records fixes needed for all 30. |
+| 4. Freeze an approval-ready residual scope and obtain concurrence | Blocking evidence remains for the 27 holds and each of the three earlier conditional candidates. The owner's earlier concurrence addressed only the 28-finding scope at `513d53d`. |
+| 5. Verify independent approval and activate | Blocked on a supported decision scope and the final decision-PR review. Decision PR #76 covers the older `7.0.0-43.43` inventory. |
+| 6. Qualify the final source | Pending remediation or an effective exact-scope decision. The checks at `6c285e49` establish the present failure and provide comparison evidence for the next qualification. |

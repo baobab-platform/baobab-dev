@@ -1,10 +1,16 @@
 # DEV-10 exact Ubuntu header applicability evidence
 
-**Current package-remediation decision (2026-11-21):** no newer Canonical-supported fixed binary was established for the 30-finding scan inventory. The exact 44.44 amd64/arm64 pins are intentionally unchanged and all 30 findings remain blocking. See [PR #74 kernel package remediation investigation](dev10-pr74-kernel-package-remediation-20261121.md). The 28-record applicability register below is not expanded by inference; CVE-2026-99312 and CVE-2026-99317 remain unassessed.
+The [per-CVE binary applicability register](dev10-ubuntu-44.44-binary-applicability.json)
+covers the 30 findings on `linux-libc-dev=7.0.0-44.44` observed at PR head
+`6c285e49a37beebb4a9dcade2f1d3ff9351ad957`. Each row records the Linux CNA
+record digest, upstream fix references, affected paths at the exact Ubuntu tag,
+architecture-specific package observations and Canonical's Resolute `linux`
+status. All 30 entries remain under investigation and block qualification.
 
-The [per-CVE binary applicability register](dev10-ubuntu-44.44-binary-applicability.json) contains 28 detailed records on `linux-libc-dev=7.0.0-44.44`; it is not a complete representation of the current scan inventory. The disposition count is 28 unresolved, zero confirmed affected, zero confirmed not affected and zero confirmed fixed or backported for this binary. Each record retains the CNA record digest, upstream fix references, Ubuntu source blob IDs or absences, and the architecture-specific matches. Upstream fix references identify evidence to review. The audit does not decide applicability from scanner severity or path presence alone.
-
-The [development risk assessment](dev10-ubuntu-44.44-development-risk.md) records the proposed treatment, exposure and outstanding controls for each finding. The current PR-head raw scans contain 30 unique findings; CVE-2026-99312 and CVE-2026-99317 are absent from this 28-record register and remain unassessed and blocking. See the [30-finding scan reconciliation](dev10-pr74-30-finding-scan-reconciliation-20261121.md) for immutable artifact references and exact package/version inventory.
+Use the [development risk assessment](dev10-ubuntu-44.44-development-risk.md)
+for the exposure conditions and evidence needed before a decision. The
+[30-finding scan reconciliation](dev10-pr74-30-finding-scan-reconciliation-20261121.md)
+records the exact finding identities and artifact links.
 
 ## Package and source evidence
 
@@ -17,15 +23,61 @@ The [development risk assessment](dev10-ubuntu-44.44-development-risk.md) record
 | Resolute Updates ARM64 Packages.xz | `05b44b72001edf68d31e3aa0f9bbf02a7e0f5ab0104a12d49214f47ea2d9fbc3` |
 | Resolute Updates source .dsc hash in signed index | `5e117ef9142bb272825dc10f0abab822d1d0cfb744de91d062ddbab725851986` |
 | Canonical Git tag commit | `Ubuntu-7.0.0-44.44` at `70d93713221b617bdb0f55289ffb52b99f2038cf` |
-| Linux CNA CVE repository revision | `144020080a9c41a4da6d92280c849c9b476a58f1` |
+| Linux CNA CVE repository revision | `8867880806ac4a24d2bc865afab0eceadee47a24` |
+| Canonical Ubuntu CVE tracker revision | `1d6aaa3351c3619b847340743716898c3fdf11e2` |
 
-The Ubuntu archive signatures verified against fingerprint `F6ECB3762474EDA9D21B7022871920D1991BC93C`. Both binary indexes and the source index matched their signed metadata. Both DEBs matched the signed package entries and `config/versions.lock`. Package control fields identify source `linux` at the binary version. The Canonical tag resolves to the recorded commit and its packaging changelog identifies the same release. Independent verification of the tag signer's key and a comparison of the source archive against the Git tree remain open.
+The Ubuntu archive signatures verified against fingerprint
+`F6ECB3762474EDA9D21B7022871920D1991BC93C`. Both DEBs matched the signed
+binary package entries and `config/versions.lock`. Package control fields
+identify source `linux` at the binary version. The Canonical tag resolves
+to the recorded commit and its packaging changelog identifies the same
+release.
 
-Resolute Updates offered `7.0.0-44.44` on both architectures. Resolute Security offered `7.0.0-43.43`. The checked pockets and scan inventory offered no newer supported package or fixed version for these findings.
+The signed Updates source index authenticated the exact 44.44 `.dsc`,
+original source archive and Debian diff. The reconstructed source matched
+the Ubuntu tag across all 51 unique CNA-named paths, with 49 present and
+five absent path occurrences across the 30 records. This verifies the
+source used for the per-CVE path checks. Independent verification of the tag
+signer's key and whole-tree equivalence remain open. The
+`signed_source_archive_comparison` field records the index and member hashes.
+
+The refreshed signed Resolute archive offers `7.0.0-44.44` in Updates and
+`7.0.0-43.43` in Security for both architectures. The refreshed index digests
+and both exact package entries are in `supported_archive_snapshot` in the
+register. Canonical's tracker records `needed` for the generic Resolute
+`linux` source on all 30 rows. See the [package acquisition result](dev10-pr74-canonical-fixed-package-acquisition-20261121.md).
 
 ## Applicability observations
 
-The AMD64 archive has 1,039 headers and the ARM64 archive has 1,010. Both also have package documentation. The archives contain no executable files or ELF/static archive objects. Across the 28 CVEs represented in this applicability register, the authoritative affected-path lists yield no direct exported UAPI path or literal include basename match in either archive. This source-path analysis does not cover the two additional scan findings CVE-2026-99312 and CVE-2026-99317. Five CVEs have at least one listed affected file absent from the exact Ubuntu tag. The three CRITICAL findings all have a listed implementation source file present at the tag. Those observations leave Ubuntu backport equivalence, generated headers, indirect ABI/UAPI and downstream compilation exposure open. The 28 findings remain blocking pending exact-source review and a supported remediation or independently reviewed applicability outcome.
+The AMD64 archive has 1,039 headers and the ARM64 archive has 1,010, plus
+package documentation. Both architectures lack executable files and
+ELF/static archive objects in the package. Across all 30 records, the CNA
+affected paths yield zero direct exported UAPI path or literal include
+basename matches in either native payload. Five records have a listed path
+absent from the exact Ubuntu tag. Each of the three CRITICAL findings has an
+implementation source file present there. Source path matches and absences
+leave backport equivalence, generated headers, indirect ABI/UAPI, downstream
+compilation and actual host exposure open.
+
+| Additional finding | Ubuntu tag source evidence | Related exported ABI in both DEBs |
+| --- | --- | --- |
+| [CVE-2026-99312](https://ubuntu.com/security/CVE-2026-99312) | The exact tag contains `arch/x86/kvm/x86.c`. The mainline fix `c7c288d178cb` matches the pre-fix context in a read-only patch check. The reverse check fails. | `/usr/include/linux/kvm.h` |
+| [CVE-2026-99317](https://ubuntu.com/security/CVE-2026-99317) | The tag contains `include/sound/hwdep.h` and `sound/core/hwdep.c`. The mainline fix `aee83c204f80` matches the pre-fix context. The reverse check fails. | `/usr/include/sound/asound.h` |
+
+Those checks confirm the upstream patch context in the signed package
+source files and the tag. Semantic backport analysis, host reachability and
+compensating controls remain open. The register retains the full source
+blob IDs and patch SHA-256 values.
+
+## Native payload readback at `6c285e49`
+
+All eight native Publish manifests matched the installed control fields,
+complete path sets and file hashes of the corresponding architecture DEB.
+The six daemon-scanned legs match the Docker config digest. The two
+`final` legs use the Docker archive SHA-256 to bind the scan and subsequent
+runtime load. The register records both the Trivy image ID and the Docker
+runtime image ID for those legs. The [Publish run](https://github.com/baobab-platform/baobab-dev/actions/runs/44877263421)
+retains the per-image artifacts and the register records their verified digests.
 
 ## CI evidence before native payload capture
 

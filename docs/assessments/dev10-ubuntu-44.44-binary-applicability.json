@@ -1,12 +1,95 @@
 {
-  "cna_revision": "144020080a9c41a4da6d92280c849c9b476a58f1",
+  "cna_revision": "8867880806ac4a24d2bc865afab0eceadee47a24",
   "disposition_limits": [
     "Source-path correspondence does not establish fix ancestry or a backport.",
     "Indirect UAPI, ABI and downstream compilation exposure requires review."
   ],
-  "inventory_sha256": "a3c68b93f1e6ec88ca17c71f02913d4fef7f121ab3c47415a9ac247f04b10a6d",
-  "native_image_source_sha": null,
-  "native_images": {},
+  "historical_cna_revision": "144020080a9c41a4da6d92280c849c9b476a58f1",
+  "historical_inventory_sha256": "a3c68b93f1e6ec88ca17c71f02913d4fef7f121ab3c47415a9ac247f04b10a6d",
+  "inventory_sha256": "6f95364a4c221519d29e6a95458e04918ee2495b4ae16dc6b1f272e8b84663f3",
+  "native_image_source_sha": "ae0832986cd4d2a087586b63941de79575427df9",
+  "native_images": {
+    "final/amd64": {
+      "archive_sha256": "0450867c30f987c9011bb47cacf576d64c98884716aea2604cda55d709a92818",
+      "artifact_id": 14696723902,
+      "image_config_digest": "sha256:9dc2d3b91ffa75ffda7545a06a465d0b5a8ff1ead7420f59f397a6e9340c187a",
+      "installed_paths": 1101,
+      "manifest_tsv_sha256": "24fa988477d13337fd965c254017254bc46af9cb48ed6a4d906d70e5cab1aedf",
+      "package_tsv_sha256": "a9550ff09a747fc2c43cc94e673c90f865acc34e956d937e7df67f7b09d9f533",
+      "runtime_of_scan_archive_sha256": "395aa77effd1b3af2c363bc22b7a6b5cc9088e8ab4a4346fc7516b4935021eb4",
+      "scanner_image_id": "sha256:171abe46bf30e657a4fcab4c1a2db280ce6a3b5c640eb8e7e91eb47b36de9f0f"
+    },
+    "final/arm64": {
+      "archive_sha256": "103962cc8ac6cb0521ce359c7c813f2d9ea6ac78dcef238216621451316687db",
+      "artifact_id": 14696198282,
+      "image_config_digest": "sha256:f7884f8911cbf644de2042a1ce1e06ec73f7d70b6c8e253d9f86d94ec919e011",
+      "installed_paths": 1072,
+      "manifest_tsv_sha256": "71e4a7f2b516614f29cac91857ed5ff9b69ffdfb59f217f888e4e38f1a3bcc3b",
+      "package_tsv_sha256": "84a14a14b8dd9e3a6aced020bd9ed0902a9fca4d27c83e635e81d33f58a4efbb",
+      "runtime_of_scan_archive_sha256": "6cf45235f0ad60dbdc53bd00de980f2328a2b3540416919e9d388c85ff7ca8c0",
+      "scanner_image_id": "sha256:bec4e7a98fe03ed40827b75d95c0debcbd0227820cab927446801f5a36f90258"
+    },
+    "frontend-e2e/amd64": {
+      "archive_sha256": "4b4a4a9c800543aad5aedea11e5e0f8a4b40b8c83935c6487ef4abe5a744b5ca",
+      "artifact_id": 14696843101,
+      "image_config_digest": "sha256:023c439acd08b5b6860c059f4623a8342de39848edb9f04d4183cc67f34802e3",
+      "installed_paths": 1101,
+      "manifest_tsv_sha256": "24fa988477d13337fd965c254017254bc46af9cb48ed6a4d906d70e5cab1aedf",
+      "package_tsv_sha256": "a9550ff09a747fc2c43cc94e673c90f865acc34e956d937e7df67f7b09d9f533",
+      "runtime_of_scan_archive_sha256": null,
+      "scanner_image_id": "sha256:023c439acd08b5b6860c059f4623a8342de39848edb9f04d4183cc67f34802e3"
+    },
+    "frontend-e2e/arm64": {
+      "archive_sha256": "80c78a15aa07982f44ccb53729e64f24b786b4f7f20ba79ed02f7ed43c623478",
+      "artifact_id": 14696852477,
+      "image_config_digest": "sha256:4a54c1dc94d99fa65131129a02f85ff0735c25749b14d96d4ac6408f273771ad",
+      "installed_paths": 1072,
+      "manifest_tsv_sha256": "71e4a7f2b516614f29cac91857ed5ff9b69ffdfb59f217f888e4e38f1a3bcc3b",
+      "package_tsv_sha256": "84a14a14b8dd9e3a6aced020bd9ed0902a9fca4d27c83e635e81d33f58a4efbb",
+      "runtime_of_scan_archive_sha256": null,
+      "scanner_image_id": "sha256:4a54c1dc94d99fa65131129a02f85ff0735c25749b14d96d4ac6408f273771ad"
+    },
+    "frontend/amd64": {
+      "archive_sha256": "461dd6ce808caf2f67d4ea9cfd7772ce4929d05cc9536f8d1a2f98cfcaf23b0f",
+      "artifact_id": 14696448716,
+      "image_config_digest": "sha256:8ae526eed26520cac49b01406c9b1a14dadb7a5a6e0ad0c6df97eadaf9bea5a1",
+      "installed_paths": 1101,
+      "manifest_tsv_sha256": "24fa988477d13337fd965c254017254bc46af9cb48ed6a4d906d70e5cab1aedf",
+      "package_tsv_sha256": "a9550ff09a747fc2c43cc94e673c90f865acc34e956d937e7df67f7b09d9f533",
+      "runtime_of_scan_archive_sha256": null,
+      "scanner_image_id": "sha256:8ae526eed26520cac49b01406c9b1a14dadb7a5a6e0ad0c6df97eadaf9bea5a1"
+    },
+    "frontend/arm64": {
+      "archive_sha256": "fa64ea34df4843aa605d564b937c6b021690348dfff9a6464ca830e00005a853",
+      "artifact_id": 14696977215,
+      "image_config_digest": "sha256:5f330f4a6144192de118187e9fc80eb8c453851a637742a6f7b3f51a4295c051",
+      "installed_paths": 1072,
+      "manifest_tsv_sha256": "71e4a7f2b516614f29cac91857ed5ff9b69ffdfb59f217f888e4e38f1a3bcc3b",
+      "package_tsv_sha256": "84a14a14b8dd9e3a6aced020bd9ed0902a9fca4d27c83e635e81d33f58a4efbb",
+      "runtime_of_scan_archive_sha256": null,
+      "scanner_image_id": "sha256:5f330f4a6144192de118187e9fc80eb8c453851a637742a6f7b3f51a4295c051"
+    },
+    "infra/amd64": {
+      "archive_sha256": "3e34f021dc391b3b5bb4dc3790dd15558b322b15a360201403c84abbc50782bf",
+      "artifact_id": 14696693484,
+      "image_config_digest": "sha256:f95d2d75fea28b52a369dbb2bdc7ca9644159f1acdc82fa5320db00c2f43c4f5",
+      "installed_paths": 1101,
+      "manifest_tsv_sha256": "24fa988477d13337fd965c254017254bc46af9cb48ed6a4d906d70e5cab1aedf",
+      "package_tsv_sha256": "a9550ff09a747fc2c43cc94e673c90f865acc34e956d937e7df67f7b09d9f533",
+      "runtime_of_scan_archive_sha256": null,
+      "scanner_image_id": "sha256:f95d2d75fea28b52a369dbb2bdc7ca9644159f1acdc82fa5320db00c2f43c4f5"
+    },
+    "infra/arm64": {
+      "archive_sha256": "b00585bf1af7044c12578dfa296427e1b685e0ce2e1639caf2e801c79de4c220",
+      "artifact_id": 14696304352,
+      "image_config_digest": "sha256:730f6573ced43ff3a703fcd8eecf8709c4cdcef52e68ba810b4d1fe952aeab61",
+      "installed_paths": 1072,
+      "manifest_tsv_sha256": "71e4a7f2b516614f29cac91857ed5ff9b69ffdfb59f217f888e4e38f1a3bcc3b",
+      "package_tsv_sha256": "84a14a14b8dd9e3a6aced020bd9ed0902a9fca4d27c83e635e81d33f58a4efbb",
+      "runtime_of_scan_archive_sha256": null,
+      "scanner_image_id": "sha256:730f6573ced43ff3a703fcd8eecf8709c4cdcef52e68ba810b4d1fe952aeab61"
+    }
+  },
   "package": "linux-libc-dev",
   "package_version": "7.0.0-44.44",
   "packages": {
@@ -47,9 +130,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "164f39e3a171c6c4200d02456a68d00202e28f1f1563b78e7d65ee6a06d1d3ee",
+      "canonical_resolute_linux": {
+        "record_sha256": "74a1b9e9df101301ef988028332516f50cd56424e0ec01ee5857c724958b1957",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2022-50240?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "a9efe408f15503529c18ce9ac53d37b390d441e220c8825c3d146411259c6bda",
       "cve": "CVE-2022-50240",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "164f39e3a171c6c4200d02456a68d00202e28f1f1563b78e7d65ee6a06d1d3ee",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -77,9 +167,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "e37d95f918cc146d012c1415fd038128442c51fe040acc438c43c29e2123fdd3",
+      "canonical_resolute_linux": {
+        "record_sha256": "f228bd28532535dcbd020330b1af370920d850eb871930482c3bc5db464c05e5",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2025-40190?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "7788f374f4838ddd052b6d684da23ef5f7457b34e084c3aa33dc754560de986a",
       "cve": "CVE-2025-40190",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "e37d95f918cc146d012c1415fd038128442c51fe040acc438c43c29e2123fdd3",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -107,9 +204,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "58081527af326f23c5cfd309e3aa0471649f23cb2891ac0e1a5d8a092fe82603",
+      "canonical_resolute_linux": {
+        "record_sha256": "7df4314f94663a4e8957ff46646e1d0dc20e6de3d40c0a6b5806c6d42eb5a280",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-100081?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "9fd2fc58dcc73cfd6edc8b4fd1f29b8989e7ce1790e176ce90e4f1833c838fab",
       "cve": "CVE-2026-100081",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "58081527af326f23c5cfd309e3aa0471649f23cb2891ac0e1a5d8a092fe82603",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -138,9 +242,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "9e3977017ed615615f95cccd3d3a778e526cd447608e71fa38ff3cc0aefe0426",
+      "canonical_resolute_linux": {
+        "record_sha256": "cf81de1775041d4b08c57c49938db0dc1e90cb9bae785f0d38616f1855e42400",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-68103?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "1da44bac6aa887df2721b04083977d3f50f5046fa1dc68b9ab97ee2be2d0a0e2",
       "cve": "CVE-2026-68103",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "9e3977017ed615615f95cccd3d3a778e526cd447608e71fa38ff3cc0aefe0426",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -162,9 +273,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "0646db92bb531173ffc3e3c1c28bb54a28c7dac13d750ac93a258e6d4f1d066e",
+      "canonical_resolute_linux": {
+        "record_sha256": "c80f85707a148167668edbc25b513d679bda583e75087d3b4d57850c427951aa",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-72198?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "aabbe7c565916a6f6019e7cd84540dc3a84cac75e834a86bf45264a1f68c1cc4",
       "cve": "CVE-2026-72198",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "0646db92bb531173ffc3e3c1c28bb54a28c7dac13d750ac93a258e6d4f1d066e",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -189,9 +307,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "bbebeea31b740aa1562e2ddf8a290a059f797303da1d4a95aab23dcad2414f42",
+      "canonical_resolute_linux": {
+        "record_sha256": "d6a653bcb9bf15626f94be2f3522d926c90c9a75ec6aed56c76f277a5400b01c",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-74578?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "0b7f3fb861d70111737832b4fc1eda9bf01871a6e35d35458bce1c152e8d8f66",
       "cve": "CVE-2026-74578",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "bbebeea31b740aa1562e2ddf8a290a059f797303da1d4a95aab23dcad2414f42",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -219,9 +344,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "74c873518bb36e431e3bafa717cfe4b2899dce04f15e64f4bef433b8ab95ddf6",
+      "canonical_resolute_linux": {
+        "record_sha256": "ba5c25fd137f5494989689fa245965da67fdd02329f1c85ed88a51b9860aab7f",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-89805?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "0f0b5538af0e22f22d6e89f3b0ac0b15e67b3dcfc6b010401965fe455dd1aed8",
       "cve": "CVE-2026-89805",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "74c873518bb36e431e3bafa717cfe4b2899dce04f15e64f4bef433b8ab95ddf6",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -243,9 +375,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "e9c2d969b99b41dc5bffaa4db10e4c4b49cbed9783e98e22a05298a9560a385e",
+      "canonical_resolute_linux": {
+        "record_sha256": "9adcadbc37a58c5f0d4eaef427f1d525607caabb458af7477ed3d661d0be7f03",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-98376?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "4fe70b9f2755b09280edf86ade9269da2ed6ff8de4c6937cb32d7cdf49ddf104",
       "cve": "CVE-2026-98376",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "e9c2d969b99b41dc5bffaa4db10e4c4b49cbed9783e98e22a05298a9560a385e",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -267,9 +406,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "3a31c18f0196acf2bd56d87dae0ea761bcc825e58f8746448f5d344d08d0f2bd",
+      "canonical_resolute_linux": {
+        "record_sha256": "3e609cccccc5f56d2230501bd3a2a11f69bbba32d7e398467347eae7cc3384e1",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-98420?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "3e3ab49b4a599ec52b4d75840b2c66a2c70599be78a32235791a26a59bfbaf83",
       "cve": "CVE-2026-98420",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "3a31c18f0196acf2bd56d87dae0ea761bcc825e58f8746448f5d344d08d0f2bd",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -299,9 +445,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "ece340ee63262e2194b929ca234bd8b59df2e3c7242b27ed99d8b4db3c3fe40c",
+      "canonical_resolute_linux": {
+        "record_sha256": "cb3dd71327e64b125c4813b95ef33aff4fbf1ec19122b939ee61f9137f48106d",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-98869?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "c02a775ef3ddc87806bf9293385f6624ccd8a09cfcef058e388766033f98d4aa",
       "cve": "CVE-2026-98869",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "ece340ee63262e2194b929ca234bd8b59df2e3c7242b27ed99d8b4db3c3fe40c",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -325,9 +478,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "e9eb59686d5fad24cc25f9e5a20d41d8e4c990af08d4284c6d5f3bf08ab219aa",
+      "canonical_resolute_linux": {
+        "record_sha256": "4f1b0811216cafcce2c0df2b7ac74fd99f83ba5fdaaa6b74d605db730821fad6",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-98890?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "acfc7fdd02025a9ee0848e92e2cf609ade8a8484b4b0a26c21e0765ef7ecbd12",
       "cve": "CVE-2026-98890",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "e9eb59686d5fad24cc25f9e5a20d41d8e4c990af08d4284c6d5f3bf08ab219aa",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -354,9 +514,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "82fd12a63db70cb9c9971536c0b90b4a7a7cb36ea707574fdea7d24b22e0c92c",
+      "canonical_resolute_linux": {
+        "record_sha256": "958b72759b88dc4f2da4833229abfe61029c94773b94d3fa1fab9fb035733bba",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99239?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "85d73aa5aa624b67f13fdf89bc38e2984ee1665b2dd697adeedb004c23824c6b",
       "cve": "CVE-2026-99239",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "82fd12a63db70cb9c9971536c0b90b4a7a7cb36ea707574fdea7d24b22e0c92c",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -386,9 +553,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "6181e7736d0eb98e2d547ba95f4d6f893d9e5b3650e01de1be197a4992a119a3",
+      "canonical_resolute_linux": {
+        "record_sha256": "1ac6922efd2134a710dcbd2ed844770db2103ab6621988381d6427d6c2ba9eb8",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99260?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "ae846cd8eacd8e851527bb8ec7d8bebba20c6642c1015b1d73073e43e4de8d63",
       "cve": "CVE-2026-99260",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "6181e7736d0eb98e2d547ba95f4d6f893d9e5b3650e01de1be197a4992a119a3",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -410,9 +584,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "8494e54b1688fdbd911ad3a1baf0067c0b4f393ea68d8969e1fac468cb4851c6",
+      "canonical_resolute_linux": {
+        "record_sha256": "3ecdfbb4dc61155e01a68e4aab4d3fcb9a5a7235c26da74c68ee4e0b3c5d00b5",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99270?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "c7051af4c25aebb167054f89d55af713d68f1256b0344551e99b206bf7125859",
       "cve": "CVE-2026-99270",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "8494e54b1688fdbd911ad3a1baf0067c0b4f393ea68d8969e1fac468cb4851c6",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -435,9 +616,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "9dca5cba1222037796270fe708b6b5ad9507bb8f18dc568307873448438b01f3",
+      "canonical_resolute_linux": {
+        "record_sha256": "454273efbd768438556793d55d13e4c2647bc1e786ea188199231cb98cb5af35",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99272?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "c38de7ec0dea8ec0ac63133422a3042374921fece56cd0e9535c4b71ad339705",
       "cve": "CVE-2026-99272",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "9dca5cba1222037796270fe708b6b5ad9507bb8f18dc568307873448438b01f3",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -461,9 +649,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "b6b20ff5c3bef4d6431e0d672ad79ee529210dc6f4ba9edace59e2e0b124b480",
+      "canonical_resolute_linux": {
+        "record_sha256": "c715b0125a1630e67e5ecb0a10ffa6751e702c33477a2714b24329fe52a6a789",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99274?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "497dc8f14e8e1136757095131581d65c22bdb39adee5afb770e649802cfba006",
       "cve": "CVE-2026-99274",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "b6b20ff5c3bef4d6431e0d672ad79ee529210dc6f4ba9edace59e2e0b124b480",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -487,9 +682,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "ce6d10b4f93db52e00d2f96f8b10ce9b41cce75836921dc7b383a84c54f87255",
+      "canonical_resolute_linux": {
+        "record_sha256": "85eba2e4ae0dc86fdca5e49e08473fa22cd277820a24b525b4671467a9d94b54",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99275?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "e82584cfb4254f3a13e40fcbd40068c9d92b3fd6f6a041fe3276a917fb993462",
       "cve": "CVE-2026-99275",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "ce6d10b4f93db52e00d2f96f8b10ce9b41cce75836921dc7b383a84c54f87255",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -514,9 +716,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "5c0f2709055494a159e059300a2dbdbe601d76852b8d7d507400bb8f4eca9d2a",
+      "canonical_resolute_linux": {
+        "record_sha256": "2bbb5906b47420ebe85b9d00c6730a416f8a9ef519773feda9145e450cdfa62b",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99282?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "302fb8b6ab99eb22328a43d080d1f8c8f3f6c60b0a930b20378d3294e28ee715",
       "cve": "CVE-2026-99282",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "5c0f2709055494a159e059300a2dbdbe601d76852b8d7d507400bb8f4eca9d2a",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -540,9 +749,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "7b451f5c00afe7bb630e0ae0b2d451f487f6b67fce7003acc34a53bea52c73b6",
+      "canonical_resolute_linux": {
+        "record_sha256": "ff4bcfa2916107f4b3ecb509fada09f490cf60368049a0bf21989bf427978cf8",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99287?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "5a54c8cbe71e9cea03a7992be9f6f1957475ef95d9441d47c4aa47c421f15577",
       "cve": "CVE-2026-99287",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "7b451f5c00afe7bb630e0ae0b2d451f487f6b67fce7003acc34a53bea52c73b6",
       "scanner_fixed_version": "none",
       "severity": "CRITICAL",
       "ubuntu_source_paths": {
@@ -566,9 +782,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "06be8c5aa68e9e62b1d9f00c8caa2093e781ecf78e03108ff4bfee85cbb6171d",
+      "canonical_resolute_linux": {
+        "record_sha256": "001ea5bd998e4579da908ef98997958a73591c08febb1b6c45faa2252ea295b4",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99288?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "011d7ab3b06ea6493cfb94c5bcff65569996ae488b08d57f273f949ab9fa59dc",
       "cve": "CVE-2026-99288",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "06be8c5aa68e9e62b1d9f00c8caa2093e781ecf78e03108ff4bfee85cbb6171d",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -596,9 +819,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "79681ae4f1784cf93935a3b3de0e483a3888979726b85a03e62138d102d716df",
+      "canonical_resolute_linux": {
+        "record_sha256": "ec190877858913cf8c8b44f5a1542c6097a88960ccdd1345a3256f53f1ccdf12",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99290?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "8845f33e0113596cbb7a91ed0819df484dd9965ca3b26c37518b3c79d9a2a870",
       "cve": "CVE-2026-99290",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "79681ae4f1784cf93935a3b3de0e483a3888979726b85a03e62138d102d716df",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -624,9 +854,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "b644f111ba65a121bea5e61ba9e55201f427e297f04ae1bec05f0076ee7a86d0",
+      "canonical_resolute_linux": {
+        "record_sha256": "52451c4ff30ade9542d5685930bb90f0a83f7024f15822abbb81c730c883bbf3",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99292?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "9e5f97f658d2aa67f2af2412942453fb11f55488111d055ec5888c36cd729838",
       "cve": "CVE-2026-99292",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "b644f111ba65a121bea5e61ba9e55201f427e297f04ae1bec05f0076ee7a86d0",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -650,9 +887,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "337a66fb1459de172549816565b3ab0a9a02f421a9269be0cf78811870d37043",
+      "canonical_resolute_linux": {
+        "record_sha256": "ec99f73d82793c3f2fe77657389808bcf9f510da3160c2b9007fcb440064bfe9",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99295?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "67afd5f42f9dc90f5100fc9c5473a71de30d9a895fb1c291519ca42570364cdb",
       "cve": "CVE-2026-99295",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "337a66fb1459de172549816565b3ab0a9a02f421a9269be0cf78811870d37043",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -676,9 +920,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "29d588c5d9ade2b187b442d51555f8813ed9a69c5ba503995db661e95994ac2c",
+      "canonical_resolute_linux": {
+        "record_sha256": "916bb0f640307298330f5af6c623b7ff2fc99208bcdc2f56648199d1103b2952",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99302?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "3a7c533f7f9e598626a587ef9b196f6bf19f5385a2005f37cc04080fb2ad5de0",
       "cve": "CVE-2026-99302",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "29d588c5d9ade2b187b442d51555f8813ed9a69c5ba503995db661e95994ac2c",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -702,9 +953,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "e726ba1e081705d27a5ace0fcabfbbb272ae60f583c0ae3bac6b02bd0c867337",
+      "canonical_resolute_linux": {
+        "record_sha256": "033d98ff41753f4858813dff8db0af1078c472e8689ac2b5d4501950eef8104f",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99304?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "4bd410a50df3dbbbd1f9ea1db7d7c37fc6b638c2185e2ff9d2f1ab1c272b6008",
       "cve": "CVE-2026-99304",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "e726ba1e081705d27a5ace0fcabfbbb272ae60f583c0ae3bac6b02bd0c867337",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -728,9 +986,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "38c2891285f474f2f74d60d72cfc6da025a6dc0b3be3e9f932fbd8d76cfc91e0",
+      "canonical_resolute_linux": {
+        "record_sha256": "21f9d355783f91dac43fedd58b9f0eb952e02b48ed238e6d38abb498103bec7d",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99306?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "67363fb176d622d2bf7d427ea5e3a55c38685697811c8b02557bdff61ab99c68",
       "cve": "CVE-2026-99306",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "38c2891285f474f2f74d60d72cfc6da025a6dc0b3be3e9f932fbd8d76cfc91e0",
       "scanner_fixed_version": "none",
       "severity": "CRITICAL",
       "ubuntu_source_paths": {
@@ -754,9 +1019,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "4792c844ae5ba083e53449a9d525d98d58d8e7a015f26224c4f40d17a319d98c",
+      "canonical_resolute_linux": {
+        "record_sha256": "3ef64e91dbfd366de350be0ca9a7c4f6ad18e6abcfa0bd0c7d4abb25ca5d5fd5",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99310?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "359599dec744ce374bea96377291daabc666d485bdbe9f859ebad2ef01cde455",
       "cve": "CVE-2026-99310",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "4792c844ae5ba083e53449a9d525d98d58d8e7a015f26224c4f40d17a319d98c",
       "scanner_fixed_version": "none",
       "severity": "CRITICAL",
       "ubuntu_source_paths": {
@@ -780,9 +1052,16 @@
           "headers_with_literal_include_basename_matches": {}
         }
       },
-      "cna_record_sha256": "5476ba920b06fb1f3411a8b0601369792851f020bbca0aa21fbbfaf65d27e828",
+      "canonical_resolute_linux": {
+        "record_sha256": "22d12c2611783120d10d147bd9959e53489abd3c99ffe2f8027c523430f69138",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99311?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_sha256": "9ee51ecc0198583d8f9d6a188b6de1a6060e4c360bd105b3b78b48aa91a860a3",
       "cve": "CVE-2026-99311",
       "disposition": "under_investigation",
+      "historical_cna_record_sha256": "5476ba920b06fb1f3411a8b0601369792851f020bbca0aa21fbbfaf65d27e828",
       "scanner_fixed_version": "none",
       "severity": "HIGH",
       "ubuntu_source_paths": {
@@ -794,9 +1073,276 @@
         "https://git.kernel.org/stable/c/df713b82b4b9671c16b52b60f3412c677719e2b8",
         "https://git.kernel.org/stable/c/f022984a4a1c18aa9c506790eb47da000dce95a7"
       ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {},
+          "related_exported_abi_headers": {
+            "/usr/include/linux/kvm.h": "9366b2088028207208efbaaf62a52c0bd14791bb0bd9afe05a89d46e3985268d"
+          }
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {},
+          "related_exported_abi_headers": {
+            "/usr/include/linux/kvm.h": "9366b2088028207208efbaaf62a52c0bd14791bb0bd9afe05a89d46e3985268d"
+          }
+        }
+      },
+      "canonical_resolute_linux": {
+        "record_sha256": "5615db1323d6392308f10db9038b273e8e0160a5ea30c8333d18555345b86496",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99312?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_revision": "8867880806ac4a24d2bc865afab0eceadee47a24",
+      "cna_record_sha256": "927e69ce5bb7edd93fda279a54605f8ef4d5353008852f467dbd0adffa0c2e08",
+      "cna_record_url": "https://raw.githubusercontent.com/CVEProject/cvelistV5/8867880806ac4a24d2bc865afab0eceadee47a24/cves/2026/99xxx/CVE-2026-99312.json",
+      "cve": "CVE-2026-99312",
+      "disposition": "under_investigation",
+      "mainline_fix_context_check": {
+        "forward_patch_context_matches": true,
+        "patch_sha256": "318575bd8e73b94b66a61a3d931444c7ea7b2e7e02e00623befc6575fe568fdb",
+        "reverse_patch_context_matches": false,
+        "ubuntu_source_commit": "70d93713221b617bdb0f55289ffb52b99f2038cf",
+        "upstream_commit": "c7c288d178cb0b78d3464a616b16b1aa0b316049",
+        "upstream_url": "https://git.kernel.org/linus/c7c288d178cb0b78d3464a616b16b1aa0b316049"
+      },
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "arch/x86/kvm/x86.c": "4810bee418df5a95b378d5fb38310d087aea7325"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/24f644ea26c2ebb7b14c3baa2aa92d37fde3095f",
+        "https://git.kernel.org/stable/c/c7c288d178cb0b78d3464a616b16b1aa0b316049",
+        "https://git.kernel.org/stable/c/d47bae9eb33b3ca0843a0954b7d0cafb354c99b0",
+        "https://git.kernel.org/stable/c/f55a3e4e08dc004b4bab7c1e9323d7e7e96e266a"
+      ]
+    },
+    {
+      "architectures": {
+        "amd64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {},
+          "related_exported_abi_headers": {
+            "/usr/include/sound/asound.h": "8386524aad49b022dcb4f49b947a47b7caf7cbbc3bdb05baf718dfdb98585a01"
+          }
+        },
+        "arm64": {
+          "exported_path_candidates": {},
+          "headers_with_literal_include_basename_matches": {},
+          "related_exported_abi_headers": {
+            "/usr/include/sound/asound.h": "8386524aad49b022dcb4f49b947a47b7caf7cbbc3bdb05baf718dfdb98585a01"
+          }
+        }
+      },
+      "canonical_resolute_linux": {
+        "record_sha256": "c3184fbe38c1bb4fb54af8ceaadcb6d12f3d2b6c469018d458a48b62bcc26ac5",
+        "status": "needed",
+        "tracker_commit": "1d6aaa3351c3619b847340743716898c3fdf11e2",
+        "url": "https://git.launchpad.net/ubuntu-cve-tracker/plain/active/CVE-2026-99317?id=1d6aaa3351c3619b847340743716898c3fdf11e2"
+      },
+      "cna_record_revision": "8867880806ac4a24d2bc865afab0eceadee47a24",
+      "cna_record_sha256": "f202cf5caedefff1e883dbdb329ce643368b0637cd393c6976ac17028f291e29",
+      "cna_record_url": "https://raw.githubusercontent.com/CVEProject/cvelistV5/8867880806ac4a24d2bc865afab0eceadee47a24/cves/2026/99xxx/CVE-2026-99317.json",
+      "cve": "CVE-2026-99317",
+      "disposition": "under_investigation",
+      "mainline_fix_context_check": {
+        "forward_patch_context_matches": true,
+        "patch_sha256": "2c81f3b9117d81ad1e8167d5038ace5aead42ec967cce374e611b39ba3804d44",
+        "reverse_patch_context_matches": false,
+        "ubuntu_source_commit": "70d93713221b617bdb0f55289ffb52b99f2038cf",
+        "upstream_commit": "aee83c204f80d56b4d55f53acdb8594308ddcd4a",
+        "upstream_url": "https://git.kernel.org/linus/aee83c204f80d56b4d55f53acdb8594308ddcd4a"
+      },
+      "scanner_fixed_version": "none",
+      "severity": "HIGH",
+      "ubuntu_source_paths": {
+        "include/sound/hwdep.h": "b0da633184cde50d0455fb9361cac216aaa83c45",
+        "sound/core/hwdep.c": "973d11732bfd080067dc9dde7ca4016fbf056b09"
+      },
+      "upstream_fix_candidate_references": [
+        "https://git.kernel.org/stable/c/1b94ca29b1edbbdb357c2c8a9163d1d1755e4ad2",
+        "https://git.kernel.org/stable/c/200bda52a9fd604e13c57d3a548639c13bdfb19c",
+        "https://git.kernel.org/stable/c/3634a1beb0395f02807d41a2edf4288732d3f90e",
+        "https://git.kernel.org/stable/c/aee83c204f80d56b4d55f53acdb8594308ddcd4a"
+      ]
     }
   ],
+  "scan_reconciliation": "dev10-pr74-6c285e4-scan-evidence.json",
   "schema": "baobab.dev10.kernel-header-applicability.v1",
+  "signed_source_archive_comparison": {
+    "signed_inrelease_sha256": "317b70c09179c2c9859cf9751a5fe0a983c81293444a2d10f047a1ecc28ef193",
+    "source_archive_members": [
+      {
+        "name": "linux_7.0.0.orig.tar.gz",
+        "sha256": "c6343795c8c7e4feff55f5b309365c8e0eaf49cd6abcb412e32315313f149536",
+        "size": 254937830
+      },
+      {
+        "name": "linux_7.0.0-44.44.diff.gz",
+        "sha256": "fbfcc40c9367170fb6a83e5b0528cb94a992352785ac87fc7d8cdcd9426837c3",
+        "size": 6286278
+      },
+      {
+        "name": "linux_7.0.0-44.44.dsc",
+        "sha256": "5e117ef9142bb272825dc10f0abab822d1d0cfb744de91d062ddbab725851986",
+        "size": 7845
+      }
+    ],
+    "source_archive_suite": "resolute-updates",
+    "source_package": "linux",
+    "sources_index_sha256": "e07a8178b769fcf18482e9a003106387441c40012541301b4572064dc8eeb50d",
+    "sources_index_url": "https://archive.ubuntu.com/ubuntu/dists/resolute-updates/main/source/by-hash/SHA256/e07a8178b769fcf18482e9a003106387441c40012541301b4572064dc8eeb50d",
+    "ubuntu_source_commit": "70d93713221b617bdb0f55289ffb52b99f2038cf",
+    "verified_absent_path_occurrences": 5,
+    "verified_paths": 51,
+    "verified_present_path_occurrences": 49,
+    "version": "7.0.0-44.44"
+  },
+  "supported_archive_snapshot": [
+    {
+      "arch": "amd64",
+      "packages": [
+        {
+          "architecture": "amd64",
+          "filename": "pool/main/l/linux/linux-libc-dev_7.0.0-14.14_amd64.deb",
+          "package": "linux-libc-dev",
+          "sha256": "14bf36d574df2cacf2e50fa8c1f28b4b6b574b63e9561924cc942e4c9186e57e",
+          "size": "1548426",
+          "source": "linux",
+          "version": "7.0.0-14.14"
+        }
+      ],
+      "packages_sha256": "ed9ac41cb263efaecc5a06a0742dc56570e2fb5ff94c4f2e4b2fbdcddd73cf24",
+      "packages_url": "https://archive.ubuntu.com/ubuntu/dists/resolute/main/binary-amd64/by-hash/SHA256/ed9ac41cb263efaecc5a06a0742dc56570e2fb5ff94c4f2e4b2fbdcddd73cf24",
+      "release_date": "Thu, 23 Apr 2026 17:07:15 UTC",
+      "release_sha256": "45f95ce276cdba3e41870516a130e03c58b8b7a79e9546b0efe9e526d255740c",
+      "release_url": "https://archive.ubuntu.com/ubuntu/dists/resolute/InRelease",
+      "signed_index_path": "main/binary-amd64/Packages.xz",
+      "signing_key": "F6ECB3762474EDA9D21B7022871920D1991BC93C",
+      "suite": "resolute",
+      "valid_until": null
+    },
+    {
+      "arch": "amd64",
+      "packages": [
+        {
+          "architecture": "amd64",
+          "filename": "pool/main/l/linux/linux-libc-dev_7.0.0-44.44_amd64.deb",
+          "package": "linux-libc-dev",
+          "sha256": "b1bd69037483894be260e934503e8c99debebb6d622e3d5010e79fea4108ee43",
+          "size": "1892760",
+          "source": "linux",
+          "version": "7.0.0-44.44"
+        }
+      ],
+      "packages_sha256": "845d7881a530c83680d71e692bac92648d1747925fbc79ff723abf4732f97299",
+      "packages_url": "https://archive.ubuntu.com/ubuntu/dists/resolute-updates/main/binary-amd64/by-hash/SHA256/845d7881a530c83680d71e692bac92648d1747925fbc79ff723abf4732f97299",
+      "release_date": "Sat, 21 Nov 2026  6:03:25 UTC",
+      "release_sha256": "317b70c09179c2c9859cf9751a5fe0a983c81293444a2d10f047a1ecc28ef193",
+      "release_url": "https://archive.ubuntu.com/ubuntu/dists/resolute-updates/InRelease",
+      "signed_index_path": "main/binary-amd64/Packages.xz",
+      "signing_key": "F6ECB3762474EDA9D21B7022871920D1991BC93C",
+      "suite": "resolute-updates",
+      "valid_until": null
+    },
+    {
+      "arch": "amd64",
+      "packages": [
+        {
+          "architecture": "amd64",
+          "filename": "pool/main/l/linux/linux-libc-dev_7.0.0-43.43_amd64.deb",
+          "package": "linux-libc-dev",
+          "sha256": "3a3adc14e3332fc017b1d0e4e39655298a2a977d51db6e80de533ac60137b07f",
+          "size": "1885328",
+          "source": "linux",
+          "version": "7.0.0-43.43"
+        }
+      ],
+      "packages_sha256": "b104ef6241e0731e57759cfae4e5bd205ee61101c95803550ab63d87dbd45576",
+      "packages_url": "https://archive.ubuntu.com/ubuntu/dists/resolute-security/main/binary-amd64/by-hash/SHA256/b104ef6241e0731e57759cfae4e5bd205ee61101c95803550ab63d87dbd45576",
+      "release_date": "Sat, 21 Nov 2026  3:47:57 UTC",
+      "release_sha256": "8acef826669b2c6ef17c114911cad0cbf4757c7ca4214730c2d1acd17da9c3de",
+      "release_url": "https://archive.ubuntu.com/ubuntu/dists/resolute-security/InRelease",
+      "signed_index_path": "main/binary-amd64/Packages.xz",
+      "signing_key": "F6ECB3762474EDA9D21B7022871920D1991BC93C",
+      "suite": "resolute-security",
+      "valid_until": null
+    },
+    {
+      "arch": "arm64",
+      "packages": [
+        {
+          "architecture": "arm64",
+          "filename": "pool/main/l/linux/linux-libc-dev_7.0.0-14.14_arm64.deb",
+          "package": "linux-libc-dev",
+          "sha256": "e86f6bbf7bebdc1958241b546ca9467c35fc29f57c01d4f0336c1908ca21f2fe",
+          "size": "1521622",
+          "source": "linux",
+          "version": "7.0.0-14.14"
+        }
+      ],
+      "packages_sha256": "537715817d9ed77cc919f5123edb91a48d9ae97abf05588a8f18208cc7227e08",
+      "packages_url": "https://ports.ubuntu.com/ubuntu-ports/dists/resolute/main/binary-arm64/by-hash/SHA256/537715817d9ed77cc919f5123edb91a48d9ae97abf05588a8f18208cc7227e08",
+      "release_date": "Thu, 23 Apr 2026 17:07:15 UTC",
+      "release_sha256": "45f95ce276cdba3e41870516a130e03c58b8b7a79e9546b0efe9e526d255740c",
+      "release_url": "https://ports.ubuntu.com/ubuntu-ports/dists/resolute/InRelease",
+      "signed_index_path": "main/binary-arm64/Packages.xz",
+      "signing_key": "F6ECB3762474EDA9D21B7022871920D1991BC93C",
+      "suite": "resolute",
+      "valid_until": null
+    },
+    {
+      "arch": "arm64",
+      "packages": [
+        {
+          "architecture": "arm64",
+          "filename": "pool/main/l/linux/linux-libc-dev_7.0.0-44.44_arm64.deb",
+          "package": "linux-libc-dev",
+          "sha256": "4c9e3d5345e22876a4c2b3631dc2011c8e79228e6cd0d8020ad01663e31e306e",
+          "size": "1866716",
+          "source": "linux",
+          "version": "7.0.0-44.44"
+        }
+      ],
+      "packages_sha256": "b304bf895c7e2dfc8a0f9b8eb473a71f35b9807aa897fba4b5b6fd63239e9d39",
+      "packages_url": "https://ports.ubuntu.com/ubuntu-ports/dists/resolute-updates/main/binary-arm64/by-hash/SHA256/b304bf895c7e2dfc8a0f9b8eb473a71f35b9807aa897fba4b5b6fd63239e9d39",
+      "release_date": "Sat, 21 Nov 2026  6:03:25 UTC",
+      "release_sha256": "317b70c09179c2c9859cf9751a5fe0a983c81293444a2d10f047a1ecc28ef193",
+      "release_url": "https://ports.ubuntu.com/ubuntu-ports/dists/resolute-updates/InRelease",
+      "signed_index_path": "main/binary-arm64/Packages.xz",
+      "signing_key": "F6ECB3762474EDA9D21B7022871920D1991BC93C",
+      "suite": "resolute-updates",
+      "valid_until": null
+    },
+    {
+      "arch": "arm64",
+      "packages": [
+        {
+          "architecture": "arm64",
+          "filename": "pool/main/l/linux/linux-libc-dev_7.0.0-43.43_arm64.deb",
+          "package": "linux-libc-dev",
+          "sha256": "3d6313ac30170df8614618fd1aeb864606c378d90aa18e5d2012aad46861d753",
+          "size": "1859028",
+          "source": "linux",
+          "version": "7.0.0-43.43"
+        }
+      ],
+      "packages_sha256": "b3874803c0d054b4ebb3358950d53bc649c415337c3a2dd9c2e66dae0cc53f4e",
+      "packages_url": "https://ports.ubuntu.com/ubuntu-ports/dists/resolute-security/main/binary-arm64/by-hash/SHA256/b3874803c0d054b4ebb3358950d53bc649c415337c3a2dd9c2e66dae0cc53f4e",
+      "release_date": "Sat, 21 Nov 2026  3:47:57 UTC",
+      "release_sha256": "8acef826669b2c6ef17c114911cad0cbf4757c7ca4214730c2d1acd17da9c3de",
+      "release_url": "https://ports.ubuntu.com/ubuntu-ports/dists/resolute-security/InRelease",
+      "signed_index_path": "main/binary-arm64/Packages.xz",
+      "signing_key": "F6ECB3762474EDA9D21B7022871920D1991BC93C",
+      "suite": "resolute-security",
+      "valid_until": null
+    }
+  ],
   "ubuntu_source_commit": "70d93713221b617bdb0f55289ffb52b99f2038cf",
   "ubuntu_source_tag": "Ubuntu-7.0.0-44.44",
   "versions_lock_sha256": "b8e234e92c9feb2573a48e160ca73e498ee48460488ae6b7475b64c70880f8f8"

@@ -1,0 +1,439 @@
+{
+  "findings": [
+    {
+      "cve": "CVE-2022-50240",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2025-40190",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-100081",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-68103",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-72198",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-74578",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-89805",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-98376",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-98420",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-98869",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-98890",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99239",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99260",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99270",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99272",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99274",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99275",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99282",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99287",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "CRITICAL",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99288",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99290",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99292",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99295",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99302",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99304",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99306",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "CRITICAL",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99310",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "CRITICAL",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99311",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99312",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    },
+    {
+      "cve": "CVE-2026-99317",
+      "fixed_version": "",
+      "package": "linux-libc-dev",
+      "scanner_status": "affected",
+      "severity": "HIGH",
+      "type": "ubuntu",
+      "version": "7.0.0-44.44"
+    }
+  ],
+  "findings_sha256": "6f95364a4c221519d29e6a95458e04918ee2495b4ae16dc6b1f272e8b84663f3",
+  "pull_request": 74,
+  "pull_request_head": "6c285e49a37beebb4a9dcade2f1d3ff9351ad957",
+  "schema": "baobab.dev10.current-head-scan-reconciliation.v1",
+  "scope": [
+    {
+      "archive_sha256": "1428546ea7539eab5889a432d2fb4e6c08b74095592a859409ac38e9d583f2b2",
+      "artifact_expires_at": "2026-12-05T07:01:05Z",
+      "artifact_id": 14697047314,
+      "artifact_name": "dev10-foundation-container-risk-ae0832986cd4d2a087586b63941de79575427df9",
+      "image_archive_sha256": null,
+      "image_config_digest": "sha256:2afcd70762929333ab081ca274e9b97dbf9e1c210b8191124740d6e5391e9270",
+      "image_revision_label": "ae0832986cd4d2a087586b63941de79575427df9",
+      "normalized_findings_sha256": "3f2913dd64ff169ad1baf52ade3b7e7b79a46c5847f6fe9d69c6c26c6faed7fa",
+      "platform": "linux/amd64",
+      "profile": "final",
+      "raw_trivy_sha256_reported": "640a3661da90e128428111e36124d65466d48982edbfeffd07120b5ce43cd59f",
+      "review_inventory_sha256": "b65e8034f321fb9468ea4fe3fce58254b714afd208ec33bbc4572b6a64a451bb",
+      "run_id": 44877264266,
+      "sanitized_trivy_sha256": "dac2c88f6f286d8fc96df546da22187dd7df34566a11108594b2cb78b749820a",
+      "workflow": "Foundation"
+    },
+    {
+      "archive_sha256": "1595a868bbac1d61e5494292976449d19ab4f3b6370070681c70c9054279f211",
+      "artifact_expires_at": "2026-12-21T07:05:12Z",
+      "artifact_id": 14697177021,
+      "artifact_name": "trivy-final-amd64-ae0832986cd4d2a087586b63941de79575427df9",
+      "image_archive_sha256": "395aa77effd1b3af2c363bc22b7a6b5cc9088e8ab4a4346fc7516b4935021eb4",
+      "image_config_digest": "sha256:171abe46bf30e657a4fcab4c1a2db280ce6a3b5c640eb8e7e91eb47b36de9f0f",
+      "image_revision_label": "ae0832986cd4d2a087586b63941de79575427df9",
+      "normalized_findings_sha256": "c625380c4520304bb7a9461a77f90440d7f538eff385ac0e7cd0cfc9044b91ac",
+      "platform": "linux/amd64",
+      "profile": "final",
+      "raw_trivy_sha256_reported": "2c0b0e5b361bf28c0a627e26faca6ae1d8c261cee4f9110a1b3278069bd24efb",
+      "review_inventory_sha256": "598e4500c2d10d9c5cd4deacaf331aad92db4af9dc6b7f7893a109732c0ccfbf",
+      "run_id": 44877263421,
+      "sanitized_trivy_sha256": "2945e821d1be7e80023b4ec46fd48f2fc62d0d1cd985483d8dcf6e691ac336d8",
+      "workflow": "Publish"
+    },
+    {
+      "archive_sha256": "7ce0c02854bd67380d06d4804cb84b8a24111e51172d8f317226b88509381e70",
+      "artifact_expires_at": "2026-12-21T07:00:52Z",
+      "artifact_id": 14697221295,
+      "artifact_name": "trivy-final-arm64-ae0832986cd4d2a087586b63941de79575427df9",
+      "image_archive_sha256": "6cf45235f0ad60dbdc53bd00de980f2328a2b3540416919e9d388c85ff7ca8c0",
+      "image_config_digest": "sha256:bec4e7a98fe03ed40827b75d95c0debcbd0227820cab927446801f5a36f90258",
+      "image_revision_label": "ae0832986cd4d2a087586b63941de79575427df9",
+      "normalized_findings_sha256": "dfc9f9b70a65fb580e02c4503d25efbe0b5d840b81a7651a6d60340ff47a4275",
+      "platform": "linux/arm64",
+      "profile": "final",
+      "raw_trivy_sha256_reported": "d914cc1fdbde1dfd3ef9e55dd655b318d0cd742d0efd5b6d792bca9ee7e6b6e4",
+      "review_inventory_sha256": "c50c7567f3eb99c109c1ed708b14dc4186a8f3577eb85e3cd915bea94c0ce656",
+      "run_id": 44877263421,
+      "sanitized_trivy_sha256": "7f7037ac7557627c2e40413faad40a33c0ab87e490d8d48cb4b5736c2377f361",
+      "workflow": "Publish"
+    },
+    {
+      "archive_sha256": "e6745ccb6b951707350765ce7644496c65c3904901bfcc75d1faadefa086b90a",
+      "artifact_expires_at": "2026-12-21T06:59:33Z",
+      "artifact_id": 14696518542,
+      "artifact_name": "trivy-frontend-amd64-ae0832986cd4d2a087586b63941de79575427df9",
+      "image_archive_sha256": null,
+      "image_config_digest": "sha256:8ae526eed26520cac49b01406c9b1a14dadb7a5a6e0ad0c6df97eadaf9bea5a1",
+      "image_revision_label": "ae0832986cd4d2a087586b63941de79575427df9",
+      "normalized_findings_sha256": "44bc3a63e978eb939c3cf82717be4aab12c9fd0a199b2b881d20487805acb7e5",
+      "platform": "linux/amd64",
+      "profile": "frontend",
+      "raw_trivy_sha256_reported": "4154dacc07ea6e73c983a4b768234244da2b1ce11dba4cf6d444a00818babf9e",
+      "review_inventory_sha256": "0084a5a90b7403b01ebe261d7bff4c8bfb9fa6dfe8b5e75edc413d671760b5d2",
+      "run_id": 44877263421,
+      "sanitized_trivy_sha256": "8f5746cd9001c918d0f47990fb2728475e3f047ed0f41209761bc31ec83a8e57",
+      "workflow": "Publish"
+    },
+    {
+      "archive_sha256": "e2c52a46d228344d6eee1707a7d84a56f87989c3522b20909caa4e8635c49de0",
+      "artifact_expires_at": "2026-12-21T06:58:40Z",
+      "artifact_id": 14696816501,
+      "artifact_name": "trivy-frontend-arm64-ae0832986cd4d2a087586b63941de79575427df9",
+      "image_archive_sha256": null,
+      "image_config_digest": "sha256:5f330f4a6144192de118187e9fc80eb8c453851a637742a6f7b3f51a4295c051",
+      "image_revision_label": "ae0832986cd4d2a087586b63941de79575427df9",
+      "normalized_findings_sha256": "b7a2d7aad40d62d4569cb40078d5618923c3d877c989792cfdae48e6afa56ec5",
+      "platform": "linux/arm64",
+      "profile": "frontend",
+      "raw_trivy_sha256_reported": "4708165ac6d4ac22b863e7e88ddff031125d599417393cd934fedd73c92414dd",
+      "review_inventory_sha256": "55f48cd3f5baa23348710e298775d59322bf4757b24c639077ed35b92daddfa7",
+      "run_id": 44877263421,
+      "sanitized_trivy_sha256": "3eb8d4aa9cf819f394a095f11183ee4fd22765ad7aff3d8bbd8d448e6c55a5b1",
+      "workflow": "Publish"
+    },
+    {
+      "archive_sha256": "33cea696e0e594fbdb069e2b9a7cbb44e78ec63f4ad91eab06b44d2e36a42279",
+      "artifact_expires_at": "2026-12-21T07:03:28Z",
+      "artifact_id": 14696494177,
+      "artifact_name": "trivy-frontend-e2e-amd64-ae0832986cd4d2a087586b63941de79575427df9",
+      "image_archive_sha256": null,
+      "image_config_digest": "sha256:023c439acd08b5b6860c059f4623a8342de39848edb9f04d4183cc67f34802e3",
+      "image_revision_label": "ae0832986cd4d2a087586b63941de79575427df9",
+      "normalized_findings_sha256": "e26759336bfde1501c9f0814aea5c5737825b96a196556e391d81e60ef6e37fc",
+      "platform": "linux/amd64",
+      "profile": "frontend-e2e",
+      "raw_trivy_sha256_reported": "33ee7688ab068df29237c8e9e4db8ffc2a7bf9b59c881d095f27b0cb23a2ab8d",
+      "review_inventory_sha256": "971ff23f326cf7d42821632901acd2fb011b178b4506db061921e71b7a0ff276",
+      "run_id": 44877263421,
+      "sanitized_trivy_sha256": "bdbe180309194a7fb5d4234e43e70063bb48deb39caa153d4cb9d90fafda436e",
+      "workflow": "Publish"
+    },
+    {
+      "archive_sha256": "87181eacb4b72c20733c1aad1250dfd46b8355105246251df592f7b21f29c3d6",
+      "artifact_expires_at": "2026-12-21T07:00:23Z",
+      "artifact_id": 14696747735,
+      "artifact_name": "trivy-frontend-e2e-arm64-ae0832986cd4d2a087586b63941de79575427df9",
+      "image_archive_sha256": null,
+      "image_config_digest": "sha256:4a54c1dc94d99fa65131129a02f85ff0735c25749b14d96d4ac6408f273771ad",
+      "image_revision_label": "ae0832986cd4d2a087586b63941de79575427df9",
+      "normalized_findings_sha256": "850d1838d3e9df65797ed9bdf660861b5616ac04b51914059f9a0e62f13fce16",
+      "platform": "linux/arm64",
+      "profile": "frontend-e2e",
+      "raw_trivy_sha256_reported": "c0e8f8d68c0b479d08be5844de4e9567b5031e0cea5c5d41ee980ca7f0469f28",
+      "review_inventory_sha256": "db6e6958ff5fdce56ae9c57d2f3a6f102a71ba36a7059b5c12b794f55d94f537",
+      "run_id": 44877263421,
+      "sanitized_trivy_sha256": "8c0ca6e58bd18be37aa97c0032872825429b2c7e11526a48c4444d7088fb3ff4",
+      "workflow": "Publish"
+    },
+    {
+      "archive_sha256": "61bd1412efd7cefd27349fb9888de7aec6e95cff2e75f2b55c85ab04ae1817e6",
+      "artifact_expires_at": "2026-12-21T07:05:25Z",
+      "artifact_id": 14697117708,
+      "artifact_name": "trivy-infra-amd64-ae0832986cd4d2a087586b63941de79575427df9",
+      "image_archive_sha256": null,
+      "image_config_digest": "sha256:f95d2d75fea28b52a369dbb2bdc7ca9644159f1acdc82fa5320db00c2f43c4f5",
+      "image_revision_label": "ae0832986cd4d2a087586b63941de79575427df9",
+      "normalized_findings_sha256": "8739afd571ac0cfc41473c4c76fc6d41807d1d95e3ebf22f42cf201a1158d1e8",
+      "platform": "linux/amd64",
+      "profile": "infra",
+      "raw_trivy_sha256_reported": "3c90c78dc8aac0b015fdfdce9a3d3e2cbcde12175905a5321bee2ba1ebdba198",
+      "review_inventory_sha256": "6145c85109098eabba0abf301ef5175ec193ad5a785bc65138a9dda2f4e9f06d",
+      "run_id": 44877263421,
+      "sanitized_trivy_sha256": "576589e58317cdb87fad7247e42ae247e584466a107048b76e66467feb762131",
+      "workflow": "Publish"
+    },
+    {
+      "archive_sha256": "e3362ca878526d62cc1bad9330e015e84403de6c4981d5f8027f81d087467afa",
+      "artifact_expires_at": "2026-12-21T07:00:41Z",
+      "artifact_id": 14697002326,
+      "artifact_name": "trivy-infra-arm64-ae0832986cd4d2a087586b63941de79575427df9",
+      "image_archive_sha256": null,
+      "image_config_digest": "sha256:730f6573ced43ff3a703fcd8eecf8709c4cdcef52e68ba810b4d1fe952aeab61",
+      "image_revision_label": "ae0832986cd4d2a087586b63941de79575427df9",
+      "normalized_findings_sha256": "c0211f57729ae15154b95c82477fd6b22d8b37bab40fe64b3317070a9182d016",
+      "platform": "linux/arm64",
+      "profile": "infra",
+      "raw_trivy_sha256_reported": "58b02dae332f55bbac1ed6270f8b467133e643ee00e79b6ce8b5849dbf9056d4",
+      "review_inventory_sha256": "a72c9be30668055493545a6b46cc2065057e44f221cce4e8678069c05fc4216c",
+      "run_id": 44877263421,
+      "sanitized_trivy_sha256": "6169a102a9fa6e7dec6dfaeccff34a70a7d327a4673c84f4a7529cba74daecab",
+      "workflow": "Publish"
+    }
+  ],
+  "severity_counts": {
+    "CRITICAL": 3,
+    "HIGH": 27
+  },
+  "tested_merge": "ae0832986cd4d2a087586b63941de79575427df9",
+  "trivy_version": "0.73.0"
+}

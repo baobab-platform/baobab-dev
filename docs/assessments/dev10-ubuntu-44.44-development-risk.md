@@ -2,17 +2,36 @@
 
 ## Evidence and scope
 
-**Current scan reconciliation (PR head `513d53d6088e52c0bb6baa0979307a10c4d7e281`):** retained Foundation and all eight Publish raw Trivy reports contain 30 unique findings for `linux-libc-dev=7.0.0-44.44` (3 CRITICAL, 27 HIGH). This document's detailed exposure/control review and the linked binary-applicability register cover the earlier 28-record set only. The two additional scan findings, CVE-2026-99312 and CVE-2026-99317, are not assessed here and remain **unassessed and blocking**. They must not inherit a disposition from the other CVEs. The exact artifact identities, raw-report SHA-256 values and complete 30-row inventory are recorded in [the PR #74 scan reconciliation](dev10-pr74-30-finding-scan-reconciliation-20261121.md).
+The Foundation scan and all eight Publish scans at PR head
+`6c285e49a37beebb4a9dcade2f1d3ff9351ad957` found 30 advisories for
+`linux-libc-dev=7.0.0-44.44` (27 HIGH, three CRITICAL). The results came from
+merge checkout `ae0832986cd4d2a087586b63941de79575427df9`. The
+[scan evidence](dev10-pr74-6c285e4-scan-evidence.json) records the exact
+inventory and verified artifact hashes. All 30 findings block qualification.
 
-Each row covers the Ubuntu binary `linux-libc-dev=7.0.0-44.44` in `final`, `infra`, `frontend` and `frontend-e2e` on linux/amd64 and linux/arm64 in baobab-platform/baobab-dev. Foundation and all eight Publish scans observed these same identities at PR head `3fe034776ae1fbd49a09cbe94fed32d6bc68a462`, tested merge `77e76729228b13d31a17f544966bc098f81e9bb8`. Each row inherits both architecture-specific DEB hashes, the Ubuntu source revision, and the per-CVE paths and fix references in the linked register. [Package and source identities](dev10-ubuntu-44.44-binary-applicability.md) · [Source register](dev10-ubuntu-44.44-binary-applicability.json) · [Foundation](https://github.com/baobab-platform/baobab-dev/actions/runs/44773203564) · [Publish](https://github.com/baobab-platform/baobab-dev/actions/runs/44773201975)
+Each record covers `final`, `infra`, `frontend` and `frontend-e2e` on
+linux/amd64 and linux/arm64. The [source register](dev10-ubuntu-44.44-binary-applicability.json)
+records both architecture DEB hashes, all eight matching installed-file
+manifests, pinned Linux CNA records, the exact Ubuntu source paths and the
+upstream fix candidates. Canonical's pinned CVE tracker gives generic Resolute
+`linux` status `needed` for all 30.
 
-The pinned Canonical OSV revision is `e0002e1e7efd69cfd765691383b0c2b704bf682d`. **Binary** means Canonical explicitly lists this binary version. Confidence in advisory applicability is higher for those 23 findings. **Source** means Canonical lists the Resolute source only. Binary applicability remains indeterminate for those five. The package ships headers and documentation. Its installed files matched the native architecture payload in every profile. Userspace can compile constants, structures and calls from these headers and subsequently exercise the running host kernel. Whole-tree equivalence, every downstream binary and the effective kernel configuration of every consumer have not been demonstrated.
+The earlier Canonical OSV revision `e0002e1e7efd69cfd765691383b0c2b704bf682d`
+explicitly names the binary version for the 23 **binary** findings and records
+source-only evidence for the five **source** findings. The two **tracker**
+rows below use the refreshed Resolute tracker and exact-tag source checks.
+The package ships headers and documentation. Downstream software can use
+those headers to call host kernel interfaces. Evidence of the effective host
+kernel, device and mount controls is required for each covered use case.
 
 The standard workspace runs as a non-root user but exposes the host Docker daemon and requests unconfined seccomp. Neither setting bounds what daemon-launched workloads can reach. Native smoke tests establish runtime functionality. The table identifies controls that an operator would need to verify before relying on them. Across the rows, confidence in actual host reachability is limited by missing host, mount, capability and consumer receipts. [Workspace configuration](../../.devcontainer/devcontainer.json)
 
 ## Findings and proposed treatment
 
-**Candidate** means eligible for independent consideration only under the narrow terms below. **Hold** requires additional evidence of an effective control, remediation or isolation. **Priority hold** excludes the CRITICAL finding from the proposal and identifies the specific host boundary that needs qualification. Technical binary dispositions remain unresolved. Each advisory link describes the underlying functionality.
+**Candidate** marks one of three findings identified during the earlier
+conditional review. **Hold** requires remediation or evidence of an effective
+control. **Priority hold** marks a CRITICAL finding requiring host evidence.
+All three labels carry a blocking disposition in the current inventory.
 
 | Finding | Severity and OSV scope | Development exposure and plausible impact | Control, limits and evidence required | Proposed treatment |
 |---|---|---|---|---|
@@ -44,13 +63,33 @@ The standard workspace runs as a non-root user but exposes the host Docker daemo
 | [CVE-2026-99306](https://ubuntu.com/security/CVE-2026-99306) | CRITICAL · binary | The host CephFS client processes metadata-server maps from a monitor. An invalid rank range can cause out-of-bounds stack access. A malicious or compromised monitor is a relevant precondition, with greater exposure on a legacy unauthenticated connection. | Require evidence of the host client fix or exclusion of CephFS backing mounts and client access. Verify authenticated monitor transport if Ceph is used. Authentication alone cannot protect against a compromised trusted monitor. | Priority hold |
 | [CVE-2026-99310](https://ubuntu.com/security/CVE-2026-99310) | CRITICAL · binary | A host NFSv4 server processing concurrent client state transitions can read freed state during an identity exchange. A reachable susceptible server and active client state are relevant. Service failure or kernel memory corruption can affect other users. | Verify the host and daemon-created workloads expose no susceptible NFS server, or supply host patch and export evidence. Restrict server access pending remediation. Client-side headers and non-root runtime do not qualify server state. | Priority hold |
 | [CVE-2026-99311](https://ubuntu.com/security/CVE-2026-99311) | HIGH · binary | Following a symlink on a malformed UDF filesystem can crash a susceptible host kernel. Developers may encounter this when inspecting disk images. | Exclude untrusted UDF mounts and raw device access, including daemon mounts, or verify the backing host fix. | Hold |
+| [CVE-2026-99312](https://ubuntu.com/security/CVE-2026-99312) | HIGH · tracker | A susceptible x86 KVM host can retain stale memory-management state while servicing nested virtualisation. The ABI header is present on both image architectures. The exact Ubuntu tag contains the x86 implementation and matches the upstream pre-fix context. | Verify a patched host or enforce and attest exclusion of KVM device access and nested virtualisation across workspaces and daemon-launched containers. ARM64 image builds alone leave x86 downstream targets unqualified. | Hold |
+| [CVE-2026-99317](https://ubuntu.com/security/CVE-2026-99317) | HIGH · tracker | A susceptible ALSA host can race concurrent DSP load operations through an accessible hardware-dependent sound device. Both images export the ALSA userspace ABI. The exact Ubuntu tag contains the implementation and matches the upstream pre-fix context. | Verify the host fix or attest exclusion of ALSA hardware-dependent devices, including device access granted by the Docker daemon. A header-only package and non-root workspace do not establish host isolation. | Hold |
 
-## Proposed decision for independent review
+## Evidence required before a decision
 
-Consider only **CVE-2022-50240, CVE-2025-40190 and CVE-2026-72198**, all HIGH and source-only, for the exact images and package above. Their candidate fix commits are ancestors of the Ubuntu source, with named paths unchanged since the preceding Ubuntu tag or absent at both tags. Reviewers can inspect the [Binder](https://github.com/gregkh/linux/commit/a43cfc87caaf46710c8027a8c23b8a55f1078f19), [ext4](https://github.com/gregkh/linux/commit/57295e835408d8d425bef58da5253465db3d6888) and [classic NTFS](https://github.com/gregkh/linux/commit/7ffa8f3d30236e0ab897c30bdb01224ff1fe1c89) changes. These positive source observations and the specific device/storage controls make interim development use worth considering. Downstream builds may run on a different kernel. Device restrictions, mount provenance and host patch evidence must cover the actual workspace and daemon before the owner can credit those controls.
+The earlier technical review identified **CVE-2022-50240, CVE-2025-40190 and
+CVE-2026-72198** for conditional consideration. Their source witnesses remain
+available for [Binder](https://github.com/gregkh/linux/commit/a43cfc87caaf46710c8027a8c23b8a55f1078f19),
+[ext4](https://github.com/gregkh/linux/commit/57295e835408d8d425bef58da5253465db3d6888)
+and [classic NTFS](https://github.com/gregkh/linux/commit/7ffa8f3d30236e0ab897c30bdb01224ff1fe1c89).
+Effective device restrictions, mount provenance and host patch evidence for
+the actual workspaces and daemon-launched workloads remain unverified.
 
-Proposed execution scope is same-repository PR qualification targeting main and pushes to main in development only. Proposed expiry is **2026-11-26 00:00 UTC**, selected as a short review window. This is a new proposal with no active authorization or renewal. Accountable risk owner for all rows is the Baobab Platform security-policy owner, GitHub ID **49340314** (@bjnabs). Owner concurrence is pending. The older eight-finding approval and separate twelve-finding proposal apply to different inputs.
+The accountable owner's conditional concurrence was recorded against the
+earlier 28-finding scope and head `513d53d`. The last formal security review
+requested changes on `3fe034776ae1`. None of the 32 formal reviews inspected
+was on `6c285e49`. [Owner concurrence](https://github.com/baobab-platform/baobab-dev/pull/74#issuecomment-7056442669)
+· [Security review](https://github.com/baobab-platform/baobab-dev/pull/74#pullrequestreview-5997778838)
 
-Any change to the inventory, available supported fix, package hash/version, host isolation, mounts, device access, daemon privileges, deployment architecture, image profile or consumer use requires reassessment. Expiry, missing receipts or an unexpected scan result stop use of the proposal. Within the 28-record assessed set, 25 findings remain held and three are candidates for independent consideration only. The current 30-finding scan adds CVE-2026-99312 and CVE-2026-99317, which are unassessed and blocking. Even approval of the three candidates would therefore leave the complete current scan blocked. Removing the headers would also affect the supported development toolchain: the signed updates indexes on both architectures list `linux-libc-dev` as a required dependency of `libc6-dev=2.43-2ubuntu2.7`.
+The verified signed archive contains no supported package with fixes for
+this inventory. All 30 findings remain under investigation. The 27 holds and
+the missing host evidence for the three historical candidates prevent
+freezing an approval-ready residual inventory. Both signed Updates indexes
+list `linux-libc-dev` as a dependency of `libc6-dev=2.43-2ubuntu2.7`.
 
-The decision must be prepared separately under ADR-DEV10-001 with an exact supported inventory contract, current independent review on the final decision head, separate attributable owner concurrence, custody verification and the exact merged-byte trust anchor. This assessment changes no scanner exclusions, VEX statements or protected policy bytes. Tagged release, signing, publication and promotion remain separately gated. [Governance contract](../adr/ADR-DEV10-001-reusable-development-risk-policy.md) · [Review clarification](https://github.com/baobab-platform/baobab-dev/pull/74#issuecomment-7048364247)
+Once the remaining findings have supported dispositions and the proposed
+scope is frozen, the decision needs attributable owner concurrence,
+independent approval on the exact decision head, merged custody verification
+and exact-byte activation. Full qualification follows an effective
+decision or clean remediation scans. [Governance contract](../adr/ADR-DEV10-001-reusable-development-risk-policy.md)
