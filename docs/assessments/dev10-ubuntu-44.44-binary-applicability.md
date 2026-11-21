@@ -1,8 +1,8 @@
 # DEV-10 exact Ubuntu header applicability evidence
 
-The [per-CVE binary applicability register](dev10-ubuntu-44.44-binary-applicability.json) covers 28 findings on `linux-libc-dev=7.0.0-44.44`. The disposition count is 28 unresolved, zero confirmed affected, zero confirmed not affected and zero confirmed fixed or backported for this binary. Each record retains the CNA record digest, upstream fix references, Ubuntu source blob IDs or absences, and the architecture-specific matches. Upstream fix references identify evidence to review. The audit does not decide applicability from scanner severity or path presence alone.
+The [per-CVE binary applicability register](dev10-ubuntu-44.44-binary-applicability.json) contains 28 detailed records on `linux-libc-dev=7.0.0-44.44`; it is not a complete representation of the current scan inventory. The disposition count is 28 unresolved, zero confirmed affected, zero confirmed not affected and zero confirmed fixed or backported for this binary. Each record retains the CNA record digest, upstream fix references, Ubuntu source blob IDs or absences, and the architecture-specific matches. Upstream fix references identify evidence to review. The audit does not decide applicability from scanner severity or path presence alone.
 
-The [development risk assessment](dev10-ubuntu-44.44-development-risk.md) records the proposed treatment, exposure and outstanding controls for each finding.
+The [development risk assessment](dev10-ubuntu-44.44-development-risk.md) records the proposed treatment, exposure and outstanding controls for each finding. The current PR-head raw scans contain 30 unique findings; CVE-2026-99312 and CVE-2026-99317 are absent from this 28-record register and remain unassessed and blocking. See the [30-finding scan reconciliation](dev10-pr74-30-finding-scan-reconciliation-20261121.md) for immutable artifact references and exact package/version inventory.
 
 ## Package and source evidence
 
@@ -23,7 +23,7 @@ Resolute Updates offered `7.0.0-44.44` on both architectures. Resolute Security 
 
 ## Applicability observations
 
-The AMD64 archive has 1,039 headers and the ARM64 archive has 1,010. Both also have package documentation. The archives contain no executable files or ELF/static archive objects. Across all 28 CVEs, the authoritative affected-path lists yield no direct exported UAPI path or literal include basename match in either archive. Five CVEs have at least one listed affected file absent from the exact Ubuntu tag. The three CRITICAL findings all have a listed implementation source file present at the tag. Those observations leave Ubuntu backport equivalence, generated headers, indirect ABI/UAPI and downstream compilation exposure open. The 28 findings remain blocking pending exact-source review and a supported remediation or independently reviewed applicability outcome.
+The AMD64 archive has 1,039 headers and the ARM64 archive has 1,010. Both also have package documentation. The archives contain no executable files or ELF/static archive objects. Across the 28 CVEs represented in this applicability register, the authoritative affected-path lists yield no direct exported UAPI path or literal include basename match in either archive. This source-path analysis does not cover the two additional scan findings CVE-2026-99312 and CVE-2026-99317. Five CVEs have at least one listed affected file absent from the exact Ubuntu tag. The three CRITICAL findings all have a listed implementation source file present at the tag. Those observations leave Ubuntu backport equivalence, generated headers, indirect ABI/UAPI and downstream compilation exposure open. The 28 findings remain blocking pending exact-source review and a supported remediation or independently reviewed applicability outcome.
 
 ## CI evidence before native payload capture
 
