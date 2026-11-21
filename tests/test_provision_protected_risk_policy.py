@@ -228,41 +228,41 @@ class DecisionContractTests(unittest.TestCase):
 class OwnerConcurrenceTests(unittest.TestCase):
     def test_requires_attributable_owner_comment_on_the_decision_pr(self):
         comments = [{
-            "id": 6924572973,
+            "id": 7060540592,
             "user": {"id": 350241706, "login": "wekhason"},
             "body": "@wekhason, I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
-            "created_at": "2026-11-16T14:00:00Z",
-            "updated_at": "2026-11-16T14:00:00Z",
+            "created_at": "2026-11-21T09:00:00Z",
+            "updated_at": "2026-11-21T09:00:00Z",
         }]
         self.assertEqual(
             provisioner.verify_owner_concurrence(
-                comments, merged_at="2026-11-17T02:00:00Z"
+                comments, merged_at="2026-11-22T02:00:00Z"
             ),
             {
                 "owner_id": 350241706,
-                "owner_comment_id": 6924572973,
-                "owner_concurrence_at": "2026-11-16T14:00:00Z",
+                "owner_comment_id": 7060540592,
+                "owner_concurrence_at": "2026-11-21T09:00:00Z",
             },
         )
 
     def test_rejects_owner_concurrence_created_or_edited_after_merge(self):
-        for updated_at in ("2026-11-18T00:00:00Z", "2026-11-16T13:00:00Z"):
+        for updated_at in ("2026-11-23T00:00:00Z", "2026-11-21T08:00:00Z"):
             comments = [{
-                "id": 6924572973,
+                "id": 7060540592,
                 "user": {"id": 350241706},
                 "body": "new reusable policy; owner concurrence is hereby recorded",
-                "created_at": "2026-11-16T14:00:00Z",
+                "created_at": "2026-11-21T09:00:00Z",
                 "updated_at": updated_at,
             }]
             with self.subTest(updated_at=updated_at), self.assertRaises(provisioner.ProvisioningError):
                 provisioner.verify_owner_concurrence(
-                    comments, merged_at="2026-11-17T02:00:00Z"
+                    comments, merged_at="2026-11-22T02:00:00Z"
                 )
 
 
     def test_rejects_other_author_or_nonconcurrence_comment(self):
         cases = (
-            [{"id": 1, "user": {"id": 350241706},
+            [{"id": 1, "user": {"id": 49340314},
               "body": "owner concurrence is hereby recorded for the new reusable policy"}],
             [{"id": 2, "user": {"id": 350241706},
               "body": "I acknowledge the new reusable policy"}],
@@ -271,7 +271,7 @@ class OwnerConcurrenceTests(unittest.TestCase):
         for comments in cases:
             with self.subTest(comments=comments), self.assertRaises(provisioner.ProvisioningError):
                 provisioner.verify_owner_concurrence(
-                    comments, merged_at="2026-11-17T02:00:00Z"
+                    comments, merged_at="2026-11-22T02:00:00Z"
                 )
 
 
@@ -357,11 +357,11 @@ class MergedCustodyTests(unittest.TestCase):
             "merge_base_commit": {"sha": self.merge_sha},
         }
         self.comments = [{
-            "id": 6924572973,
+            "id": 7060540592,
             "user": {"id": 350241706, "login": "wekhason"},
             "body": "I acknowledge this new reusable policy, and owner concurrence is hereby recorded.",
-            "created_at": "2026-11-16T14:00:00Z",
-            "updated_at": "2026-11-16T14:00:00Z",
+            "created_at": "2026-11-21T09:00:00Z",
+            "updated_at": "2026-11-21T09:00:00Z",
         }]
         self.reviews = [{
             "id": 99,
