@@ -69,6 +69,8 @@ Every row below was present in each of the nine retained raw reports with packag
 
 ## Assessment boundary and next required work
 
+The subsequent [kernel package remediation investigation](dev10-pr74-kernel-package-remediation-20261121.md) found no evidence-backed newer Canonical-supported fixed package for this inventory. The exact amd64/arm64 package pins remain unchanged; all 30 findings remain blocking.
+
 The existing detailed binary-applicability JSON has 28 records. It has no records for CVE-2026-99312 or CVE-2026-99317. This change corrects the scan inventory and makes that gap explicit; it does not fabricate CNA/source-path evidence for the missing records. Those two CVEs require their own authoritative advisory/source evidence and review before any applicability or risk disposition is proposed.
 
 The 30 findings remain blocking. No scanner threshold, ignore rule, VEX statement, protected decision, approval, or release gate was changed.
