@@ -21,8 +21,7 @@
     "expires_at",
     "findings",
     "finding_count",
-    "notes",
-    "evidence_lock_sha256"
+    "notes"
   ],
   "properties": {
     "schema_version": {
@@ -231,7 +230,10 @@
             "type": "integer",
             "minimum": 1
           }
-        }
+        },
+        "required": [
+          "evidence_lock_sha256"
+        ]
       }
     },
     {
