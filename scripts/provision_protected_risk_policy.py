@@ -26,7 +26,7 @@ from github_api_transport import open_github, read_bounded
 REPOSITORY = "baobab-platform/baobab-dev"
 DECISION_PATH = "security/decisions/development/foundation.json"
 VARIABLE_NAME = "DEV10_PROTECTED_DECISION_SHA256"
-OWNER_USER_ID = 49340314  # @bjnabs; accountable owner recorded in ADR-DEV10-001
+OWNER_USER_ID = 350241706  # @wekhason; accountable owner per PR #74 handover
 API_ROOT = "https://api.github.com"
 API_VERSION = "2022-11-28"
 EXPECTED_EXPIRY = "2026-11-26T00:00:00Z"
