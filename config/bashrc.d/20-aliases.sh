@@ -83,9 +83,52 @@ alias prun='poetry run'
 alias pshell='poetry shell'
 
 # Node / frontend
-alias ni='pnpm install'
-alias nd='pnpm dev'
-alias nb='pnpm build'
+# Consumer projects with an explicit packageManager use the shared, offline
+# project-pin helper. The image-native pnpm remains the fallback only when the
+# project does not declare a packageManager.
+_baobab_pnpm() {
+    [[ -f package.json ]] || {
+        pnpm "$@"
+        return $?
+    }
+
+    local manager
+    manager="$(node -e '
+const fs = require("node:fs");
+const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+if (!Object.prototype.hasOwnProperty.call(pkg, "packageManager")) {
+  process.stdout.write("absent");
+} else {
+  process.stdout.write(typeof pkg.packageManager === "string" ? pkg.packageManager : "invalid");
+}
+' 2>/dev/null)" || {
+        printf '%s\n' "[baobab] Cannot read package.json; refusing pnpm alias fallback." >&2
+        return 2
+    }
+
+    if [[ "$manager" == "absent" ]]; then
+        pnpm "$@"
+        return $?
+    fi
+    [[ "$manager" == pnpm@* ]] || {
+        printf '%s\n' "[baobab] pnpm aliases require an exact pnpm packageManager; found: $manager" >&2
+        return 2
+    }
+    command -v baobab-project-pnpm >/dev/null 2>&1 || {
+        printf '%s\n' "[baobab] baobab-project-pnpm is required for this consumer pin." >&2
+        return 127
+    }
+    baobab-project-pnpm pin >/dev/null || {
+        printf '%s\n' "[baobab] Invalid exact pnpm packageManager; refusing native pnpm fallback." >&2
+        return 2
+    }
+    baobab-project-pnpm "$@"
+    return $?
+}
+
+ni() { _baobab_pnpm install "$@"; }
+nd() { _baobab_pnpm dev "$@"; }
+nb() { _baobab_pnpm build "$@"; }
 
 # Flutter
 alias fldr='flutter doctor'

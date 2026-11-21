@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://baobab-platform.github.io/baobab-dev/schemas/dev10-ubuntu-fix-history.schema.json",
+  "title": "DEV-10 Ubuntu kernel fix-history evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "decision", "inputs", "ubuntu_source", "binary_source",
+    "candidate_commit_count", "analysis_budget_seconds", "analysis_budget_exhausted",
+    "path_search_count", "assessment_counts",
+    "record_count", "counts", "records"
+  ],
+  "properties": {
+    "schema": { "const": "baobab.dev10.ubuntu-fix-history-evidence.v1" },
+    "decision": { "const": "EVIDENCE_ONLY_NO_VEX_NO_RISK_ACCEPTANCE_NO_RELEASE_AUTHORITY" },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upstream_evidence_sha256",
+        "ubuntu_path_evidence_sha256",
+        "binary_source_evidence_sha256"
+      ],
+      "properties": {
+        "upstream_evidence_sha256": { "$ref": "#/$defs/sha256" },
+        "ubuntu_path_evidence_sha256": { "$ref": "#/$defs/sha256" },
+        "binary_source_evidence_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "ubuntu_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag", "commit", "history_complete", "shallow", "reachable_commit_count"],
+      "properties": {
+        "repository": { "const": "https://git.launchpad.net/~ubuntu-kernel/ubuntu/+source/linux/+git/resolute" },
+        "tag": { "type": "string", "minLength": 1 },
+        "commit": { "$ref": "#/$defs/sha1" },
+        "history_complete": { "const": true },
+        "shallow": { "const": false },
+        "reachable_commit_count": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "binary_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_package", "source_version", "binary_package", "binary_version", "release_pocket", "architecture"],
+      "properties": {
+        "source_package": { "const": "linux" },
+        "source_version": { "type": "string", "minLength": 1 },
+        "binary_package": { "const": "linux-libc-dev" },
+        "binary_version": { "type": "string", "minLength": 1 },
+        "release_pocket": { "type": "string", "minLength": 1 },
+        "architecture": { "enum": ["amd64", "arm64"] }
+      }
+    },
+    "analysis_scope": { "enum": ["inventory", "observed"] },
+    "selected_cve_count": { "type": "integer", "minimum": 1, "maximum": 298 },
+    "candidate_commit_count": { "type": "integer", "minimum": 0 },
+    "analysis_budget_seconds": { "type": "integer", "minimum": 0 },
+    "analysis_budget_exhausted": { "type": "boolean" },
+    "path_search_count": { "type": "integer", "minimum": 0 },
+    "assessment_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "record_count": { "const": 298 },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["under_investigation"],
+      "properties": { "under_investigation": { "const": 298 } }
+    },
+    "records": {
+      "type": "array",
+      "minItems": 298,
+      "maxItems": 298,
+      "items": { "$ref": "#/$defs/record" }
+    }
+  },
+  "$defs": {
+    "sha1": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cve", "source_package", "source_version", "binary_package",
+        "binary_version", "release_pocket", "ubuntu_release_tag",
+        "ubuntu_release_tag_commit", "candidate_count",
+        "invalid_reference_count", "candidates", "invalid_references",
+        "disposition"
+      ],
+      "properties": {
+        "cve": { "type": "string", "pattern": "^CVE-[0-9]{4}-[0-9]{4,}$" },
+        "source_package": { "const": "linux" },
+        "source_version": { "type": "string", "minLength": 1 },
+        "binary_package": { "const": "linux-libc-dev" },
+        "binary_version": { "type": "string", "minLength": 1 },
+        "release_pocket": { "type": "string", "minLength": 1 },
+        "ubuntu_release_tag": { "type": "string", "minLength": 1 },
+        "ubuntu_release_tag_commit": { "$ref": "#/$defs/sha1" },
+        "candidate_count": { "type": "integer", "minimum": 0 },
+        "invalid_reference_count": { "type": "integer", "minimum": 0 },
+        "candidates": { "type": "array", "items": { "$ref": "#/$defs/candidate" } },
+        "invalid_references": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["reference", "assessment"],
+            "properties": {
+              "reference": { "type": "string", "maxLength": 1024 },
+              "assessment": { "const": "INVALID_CANDIDATE_REFERENCE" }
+            }
+          }
+        },
+        "disposition": { "const": "under_investigation" }
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reference", "candidate_commit", "upstream_tree", "candidate_remote",
+        "candidate_object_status", "candidate_object_diagnostic", "exact_commit_ancestor_of_ubuntu_tag", "ubuntu_merge_base",
+        "upstream_patch_id", "upstream_changed_paths",
+        "backport_trailer_matches", "patch_id_matches", "assessment"
+      ],
+      "properties": {
+        "reference": { "type": "string", "maxLength": 1024 },
+        "candidate_commit": { "$ref": "#/$defs/sha1" },
+        "upstream_tree": { "enum": ["stable", "linus"] },
+        "candidate_remote": { "enum": [
+          "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git",
+          "https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git"
+        ] },
+        "candidate_object_status": { "type": "string", "minLength": 1 },
+        "candidate_object_diagnostic": { "type": "string", "maxLength": 180 },
+        "exact_commit_ancestor_of_ubuntu_tag": { "type": ["boolean", "null"] },
+        "ubuntu_merge_base": { "type": ["string", "null"], "pattern": "^[a-f0-9]{40}$" },
+        "upstream_patch_id": { "type": ["string", "null"], "pattern": "^[a-f0-9]{40}$" },
+        "upstream_changed_paths": { "type": "array", "items": { "type": "string" } },
+        "candidate_commit_metadata": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sha", "parents", "tree", "committer_unix", "subject"],
+          "properties": {
+            "sha": { "$ref": "#/$defs/sha1" },
+            "parents": { "type": "array", "items": { "$ref": "#/$defs/sha1" } },
+            "tree": { "$ref": "#/$defs/sha1" },
+            "committer_unix": { "type": "integer" },
+            "subject": { "type": "string", "maxLength": 240 }
+          }
+        },
+        "backport_trailer_matches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["commit", "patch_id"],
+            "properties": {
+              "commit": { "$ref": "#/$defs/sha1" },
+              "patch_id": { "type": ["string", "null"], "pattern": "^[a-f0-9]{40}$" }
+            }
+          }
+        },
+        "patch_id_matches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["commit", "patch_id"],
+            "properties": {
+              "commit": { "$ref": "#/$defs/sha1" },
+              "patch_id": { "$ref": "#/$defs/sha1" }
+            }
+          }
+        },
+        "history_search": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path_count", "commit_count_examined", "patch_id_unavailable_count", "truncated", "budget_exhausted", "complete_for_selected_paths"],
+          "properties": {
+            "path_count": { "type": "integer", "minimum": 0 },
+            "commit_count_examined": { "type": "integer", "minimum": 0 },
+            "patch_id_unavailable_count": { "type": "integer", "minimum": 0 },
+            "patch_id_unavailable_commits": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/sha1" } },
+            "selected_paths": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+            "last_examined_commit": { "anyOf": [{ "$ref": "#/$defs/sha1" }, { "type": "null" }] },
+            "truncated": { "type": "boolean" },
+            "budget_exhausted": { "type": "boolean" },
+            "complete_for_selected_paths": { "type": "boolean" }
+          }
+        },
+        "assessment": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

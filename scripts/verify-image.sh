@@ -57,19 +57,19 @@
 
 set -Eeuo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE="${1:-ghcr.io/baobab-platform/baobab-dev:v1.0.0}"
 RELEASE_TAG="${2:-${RELEASE_TAG:-}}"
 if [[ -z "$RELEASE_TAG" ]]; then
-  # A version tag can be inferred from a tagged image, but not a digest.
+  # A canonical GA/RC tag can be inferred from a tagged image, but not a digest.
   candidate="${IMAGE##*:}"
-  if [[ "$candidate" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ||
-        "$candidate" =~ ^v?1\.5\.[01]-rc\.[1-9][0-9]*$ ]]; then
-    RELEASE_TAG="v${candidate#v}"
+  candidate="v${candidate#v}"
+  if python3 "$SCRIPT_DIR/release_tag_policy.py" --tag "$candidate" >/dev/null 2>&1; then
+    RELEASE_TAG="$candidate"
   fi
 fi
-if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ &&
-      ! "$RELEASE_TAG" =~ ^v1\.5\.[01]-rc\.[1-9][0-9]*$ ]]; then
-  echo "::error::Specify stable semver or approved v1.5.0/v1.5.1-rc.N tag as argument 2 for digest references." >&2
+if ! python3 "$SCRIPT_DIR/release_tag_policy.py" --tag "$RELEASE_TAG" >/dev/null 2>&1; then
+  echo "::error::Specify canonical vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH-rc.N as argument 2 for digest references." >&2
   exit 1
 fi
 OIDC_ISSUER="https://token.actions.githubusercontent.com"

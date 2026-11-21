@@ -1,0 +1,177 @@
+name: DEV-10 Protected Security Decision Qualification
+# Read-only qualification of an exact GHCR child digest. Policy approval is separate.
+on:
+  workflow_dispatch:
+    inputs:
+      image_digest:
+        description: Immutable GHCR child digest (sha256:...)
+        required: true
+        type: string
+      profile:
+        description: Image profile
+        required: true
+        type: choice
+        options: [final, frontend, frontend-e2e, infra]
+      architecture:
+        description: Platform represented by the child digest
+        required: true
+        type: choice
+        options: [linux/amd64, linux/arm64]
+      decision_path:
+        description: Optional protected policy JSON under security/decisions/
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: read
+
+jobs:
+  protected-qualification:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 25
+    environment: dev10-security-policy-read
+    env:
+      IMAGE_REPOSITORY: ghcr.io/${{ github.repository }}
+      TRIVY_VERSION: "0.73.0"
+    steps:
+      - name: Reject non-default-branch workflow source
+        env:
+          EVENT_REF: ${{ github.ref }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          test "$EVENT_REF" = "refs/heads/$DEFAULT_BRANCH" || {
+            echo "::error::Security qualification must execute protected default-branch code"; exit 1;
+          }
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Validate candidate digest and optional protected policy path
+        env:
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          DECISION_PATH: ${{ inputs.decision_path }}
+        run: |
+          set -euo pipefail
+          [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || {
+            echo "::error::An immutable sha256 child digest is required"; exit 2;
+          }
+          if [[ -n "$DECISION_PATH" ]]; then
+            python3 - <<'PY'
+          import os
+          from pathlib import Path
+          value = os.environ["DECISION_PATH"]
+          path = Path(value)
+          if path.is_absolute() or ".." in path.parts or not value.startswith("security/decisions/") or path.suffix != ".json" or not path.is_file():
+              raise SystemExit("invalid protected decision path")
+          PY
+          fi
+
+      - name: Verify evaluator negative controls
+        run: python3 -B -m unittest discover -s tests -p 'test_protected_risk*.py' -v
+
+      - name: Verify independent approval custody for selected risk policy
+        if: inputs.decision_path != ''
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DECISION_PATH: ${{ inputs.decision_path }}
+          TRUSTED_APPROVERS: ${{ vars.DEV10_SECURITY_APPROVER_LOGINS }}
+        run: |
+          set -euo pipefail
+          test -n "$TRUSTED_APPROVERS" || {
+            echo "::error::Protected approver allow-list is not provisioned"; exit 2;
+          }
+          python3 scripts/verify_protected_risk_custody.py \
+            --decision "$DECISION_PATH" \
+            --trusted-approvers "$TRUSTED_APPROVERS"
+
+      - name: Install checksum-verified Trivy
+        run: |
+          set -euo pipefail
+          [[ "$(uname -m)" == "x86_64" ]] || {
+            echo "::error::This qualification runner requires the pinned Linux AMD64 Trivy artifact"; exit 1;
+          }
+          asset="trivy_"$TRIVY_VERSION"_Linux-64bit.tar.gz"
+          checksum="2edd39da482bb4e9831962487b68f68e3928ec3137794757f54d00383d79547b"
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://github.com/aquasecurity/trivy/releases/download/v$TRIVY_VERSION/$asset" \
+            --output "$RUNNER_TEMP/$asset"
+          printf '%s  %s\n' "$checksum" "$RUNNER_TEMP/$asset" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP" trivy
+          sudo install -m 0755 "$RUNNER_TEMP/trivy" /usr/local/bin/trivy
+          trivy --version
+          trivy --version | grep -F "Version: $TRIVY_VERSION" >/dev/null || {
+            echo '::error::Unexpected Trivy version'; exit 2;
+          }
+
+      - name: Authenticate to GHCR and scan the exact child digest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+        run: |
+          set -euo pipefail
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          mkdir -p "$RUNNER_TEMP/evidence"
+          # Raw report stays local because Trivy secret findings may contain credential material.
+          trivy image --no-progress --exit-code 0 \
+            --scanners vuln,secret --pkg-types os,library \
+            --severity HIGH,CRITICAL --ignorefile /dev/null \
+            --format json --output "$RUNNER_TEMP/trivy-raw.json" \
+            "$IMAGE_REPOSITORY@$IMAGE_DIGEST"
+
+      - name: Evaluate policy against exact scan evidence
+        id: evaluate
+        env:
+          DECISION_PATH: ${{ inputs.decision_path }}
+          DECISION_SHA: ${{ vars.DEV10_PROTECTED_DECISION_SHA256 }}
+          IMAGE_DIGEST: ${{ inputs.image_digest }}
+          PROFILE: ${{ inputs.profile }}
+          ARCHITECTURE: ${{ inputs.architecture }}
+        run: |
+          set -euo pipefail
+          args=(
+            --report "$RUNNER_TEMP/trivy-raw.json"
+            --image-repository "$IMAGE_REPOSITORY"
+            --digest "$IMAGE_DIGEST"
+            --profile "$PROFILE"
+            --architecture "$ARCHITECTURE"
+            --environment development
+            --expected-trivy-version "$TRIVY_VERSION"
+            --result-output "$RUNNER_TEMP/evidence/decision-result.json"
+          )
+          if [[ -n "$DECISION_PATH" ]]; then
+            args+=(--decision "$DECISION_PATH")
+          fi
+          if [[ -n "$DECISION_SHA" ]]; then
+            args+=(--trusted-decision-sha256 "$DECISION_SHA")
+          fi
+          python3 scripts/evaluate_protected_risk_decision.py "${args[@]}"
+
+      - name: Produce sanitized Trivy evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ ! -s "$RUNNER_TEMP/trivy-raw.json" ]]; then
+            echo '::notice::No Trivy report exists; no findings summary generated'
+            exit 0
+          fi
+          python3 scripts/summarize-trivy-vulnerabilities.py \
+            "$RUNNER_TEMP/trivy-raw.json" \
+            "$RUNNER_TEMP/evidence/findings.json" \
+            "${{ inputs.profile }}" "${{ inputs.architecture }}"
+
+      - name: Retain sanitized qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: protected-security-decision-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/evidence/decision-result.json
+            ${{ runner.temp }}/evidence/findings.json
+            ${{ runner.temp }}/evidence/trivy-vulnerabilities.json
+          if-no-files-found: warn
+          retention-days: 30

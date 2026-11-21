@@ -6,14 +6,16 @@
 | **Date** | 2026-11-16 |
 | **Owner** | @wekhason (GitHub user ID `350241706`), accountable DEV-10 security-policy owner; transferred from @bjnabs on 2026-11-21 ([PR #74 handover](https://github.com/baobab-platform/baobab-dev/pull/74#issuecomment-7060540592)) |
 | **Repository** | `baobab-platform/baobab-dev` |
-| **Related records** | Issue #54; PRs #62, #71, #74 and #76; `docs/security/protected-artifact-risk-decisions.md` |
+| **Related records** | Issue #54; PRs #62, #71, #74, #76 and #92; `docs/security/protected-artifact-risk-decisions.md` |
 
 ## 1. Context
 
-The Ubuntu 26.04 package `linux-libc-dev=7.0.0-43.43` is reported by Trivy
-0.73.0 with eight HIGH findings across the four development image profiles and
-both supported Linux architectures. PR #74 scans are inventory evidence only;
-they are not an approval or a release qualification.
+The reconciled PR #74 scan inventory contains 12 unique HIGH findings across
+the four development image profiles and both supported Linux architectures:
+11 Ubuntu `linux-libc-dev=7.0.0-43.43` advisories (the original eight plus
+CVE-2026-98869, CVE-2026-98890 and CVE-2026-99083), and one `node-pkg`
+picomatch 4.0.5 advisory (CVE-2026-112366). PR #74 scans are inventory
+evidence only; they are not an approval or a release qualification.
 
 The 12 November issue #54 amendment explicitly names PR #62 for the eight-CVE
 treatment. It does not name PR #71. The 16 November independent review by
@@ -30,16 +32,17 @@ risk acceptance.
 
 ## 2. Decision
 
-Implement one reusable development-only decision for the exact eight findings
+Implement one reusable development-only decision for the exact 12 findings
 below, with no PR-number allowlist:
 
 - Repository: `baobab-platform/baobab-dev`
 - Image repository: `ghcr.io/baobab-platform/baobab-dev`
 - Environment: `development`
-- Package: `linux-libc-dev=7.0.0-43.43`
+- Packages: `linux-libc-dev=7.0.0-43.43` and `picomatch=4.0.5`
 - Findings: CVE-2022-50240, CVE-2025-40190, CVE-2026-68103,
   CVE-2026-72198, CVE-2026-74578, CVE-2026-89805, CVE-2026-98376,
-  CVE-2026-98420; all HIGH, Ubuntu type
+  CVE-2026-98420, CVE-2026-98869, CVE-2026-98890, CVE-2026-99083
+  (Ubuntu type), and CVE-2026-112366 (node-pkg type); all HIGH
 - Profiles: `final`, `frontend`, `frontend-e2e`, `infra`
 - Architectures: `linux/amd64`, `linux/arm64`
 - Expiry: `2026-11-26T00:00:00Z`
@@ -58,11 +61,18 @@ or redefine a finding.
 
 The accountable-owner handover recorded on PR #74 designates @wekhason (immutable GitHub user ID `350241706`) as successor to @bjnabs. This change updates the required identity for **future** owner-concurrence verification; it does not retroactively reattribute prior comments or independently approve any risk decision. The new owner must post their own attributable concurrence on the exact decision PR. Independent reviewer and release gates remain unchanged.
 
+For read-only custody, consumers verify PR #76 against its original owner and
+comment only when the decision path, approved head, merge commit and exact
+decision SHA-256 all match the historical record. Provisioning requires the
+current accountable owner. Consumers still verify the active trust anchor,
+decision expiry and exact finding scope before applying the decision.
+
 ## 3. Approval and identity model
 
-The final decision lives at
-`security/decisions/development/foundation.json` and is introduced by a
-separate pull request to `main`. The decision records the preparer's login as
+The final 12-finding amendment lives at
+`security/decisions/development/foundation.json` in the separate decision PR
+#92 to `main`. The current provisioned eight-finding record is not silently
+expanded by the proposal. The decision records the preparer's login as
 display metadata and the preparer's immutable numeric GitHub user ID. Its
 `approval_evidence` points to the exact decision PR.
 
@@ -81,10 +91,17 @@ evidence:
    identities, incomplete history and malformed IDs fail closed.
 
 The configured `DEV10_SECURITY_APPROVER_LOGINS` values are used only to
-resolve the trusted reviewers to numeric GitHub IDs. Login and email are not
-identity comparison keys. A GitHub service account is not silently excluded:
-if its numeric identity appears as a committer, it is included in the
-contributor set. If GraphQL returns a null `GitActor.user` for a committer,
+resolve the trusted reviewers to numeric GitHub IDs. Each Users API response
+must be explicitly typed `User`; duplicate configured logins resolving to
+the same numeric ID are rejected rather than silently collapsed. Effective PR
+review records must also identify a typed `User`; Bot, App, missing and
+unknown actor types cannot qualify as approvals. GitHub's `User` type is an
+account classification, not proof that the account is a natural person. The
+trusted numeric-ID allowlist remains a manually governed appointment and must
+not be populated from commit email, display name, service labels or AI-agent
+claims. Login and email are not identity comparison keys. A GitHub service
+account is not silently excluded: if its numeric identity appears as a
+committer, it is included in the contributor set. If GraphQL returns a null `GitActor.user` for a committer,
 the verifier may reconcile that one identity against the REST commit endpoint
 for the exact same immutable commit SHA. It must require exact equality of the
 GraphQL and REST committer name and email, and equality of the timestamp as a
@@ -124,15 +141,23 @@ read/write`, `Contents: read`, `Pull requests: read`, `Issues: read` and
 `Metadata: read`. Repository variables require the distinct `Variables`
 permission; the workflow `GITHUB_TOKEN` permission model does not provide
 that permission, so substituting `Actions: write` would not authorize this
-write. Ensure `DEV10_SECURITY_APPROVER_LOGINS` is available to the new
-provisioning job as a repository variable or as a variable on the dedicated
-provisioning environment; an environment-scoped variable on the approval-only
-environment is not inherited. The token is never printed or written to an artifact. A short-lived
-GitHub App installation token would be preferable, but no configured
-repository app/token issuer is part of this accepted implementation; that
-migration is deferred rather than represented as complete. The configured
-`DEV10_SECURITY_APPROVER_LOGINS` variable resolves trusted reviewer logins to
-immutable numeric GitHub IDs.
+write. Configure `DEV10_SECURITY_APPROVER_LOGINS` as a **repository-level Actions
+variable**. The Foundation and Publish scan jobs consume this value without
+selecting a GitHub environment, so an environment-scoped-only value is not
+available to them. The provisioning job must consume the same repository-level
+value; do not create an environment-level variable with the same name, which
+could shadow the repository value in the provisioning job. Do not attach the
+provisioning environment to PR scan jobs to make this value available.
+
+Keep `DEV10_POLICY_PROVISIONER_TOKEN` as a secret on the dedicated
+`dev10-security-policy-provision` environment only. The approval-only
+`dev10-security-policy-read` environment must not receive that credential.
+The token is never printed or written to an artifact. A short-lived GitHub App
+installation token would be preferable, but no configured repository
+app/token issuer is part of this accepted implementation; that migration is
+deferred rather than represented as complete. The configured
+`DEV10_SECURITY_APPROVER_LOGINS` repository variable resolves trusted
+reviewer logins to immutable numeric GitHub IDs.
 
 Before changing the repository variable, the provisioner verifies that the
 decision PR is merged into `main`, the PR head equals the explicitly supplied
@@ -201,8 +226,8 @@ not rebuild.
 
 ## 7. Bootstrap and governance
 
-The separate decision PR must pass its required checks and receive an
-independent approval on its exact final head. The shared Foundation workflow
+The separate 12-finding decision PR #92 must pass its required checks and
+receive an independent approval on its exact final head. The shared Foundation workflow
 continues to run its full profile on every event; no Foundation security,
 baseline, reproducibility, runtime or environment gate is disabled for this
 policy PR. The additional unfiltered Foundation image CVE scan runs when a PR

@@ -122,43 +122,49 @@ The `docs/` directory is designed to be published through **GitHub Pages**, maki
 * Acknowledgements *(coming soon)*
 
 
-## DEV-10 R4 candidate — v1.5.0 (not released)
+## DEV-10 R4 stable baseline — v1.5.1 (published)
 
-PR [#57](https://github.com/baobab-platform/baobab-dev/pull/57) proposes
-**Python 3.14.10, Node 26.13.0, native pnpm 12.16.1, Corepack 0.36.0,
-Temurin Java 21, PostgreSQL 17 client and Playwright 1.64.1**. These are
-a **candidate toolchain**, not a published image or a blanket migration
-mandate for consumers currently pinned to Node 24 / pnpm 11.
+The published DEV-10 v1.5.1 image baseline is **Python 3.14.10, Node 26.13.1,
+native pnpm 12.21.0, Corepack 0.36.0, Temurin Java 21, PostgreSQL 17 client
+and Playwright 1.65.0**. Consumers of v1.5.1 and later must align to at least
+this baseline: use the exact Node pin in `.node-version` and an exact pnpm 12
+`packageManager` pin. The image deliberately fails closed on a mismatch;
+Corepack is independently installed and is not the pnpm provisioning path.
 
-**pnpm 12 reproducibility:** The image uses the verified native pnpm
-executable (not a Corepack pnpm shim), with `pnpm_config_pm_on_fail=error`.
-A mismatched consumer `packageManager` version must fail, not download
-unreviewed binaries. pnpm 12 requires npm registry metadata when first
-creating a lockfile with a `packageManager` pin; CI first creates and
-caches that lock from a non-interactive ordinary install, then validates
-the same lock with `--frozen-lockfile --offline` and Docker
-`--network none`. Negative cases reject a wrong pin and an invalid lock.
+**pnpm 12 reproducibility:** The image uses the native pnpm release binary,
+not a Corepack pnpm shim, with `pnpm_config_pm_on_fail=error`. The resolver
+verifies both official Linux assets against the publisher's SLSA provenance
+for the exact pnpm release workflow and tag, then recomputes their SHA-256
+values. The Docker build rechecks those hashes. A mismatched consumer
+`packageManager` version must fail, not download unreviewed binaries.
+pnpm 12 requires npm registry metadata when first creating a lockfile with a
+`packageManager` pin; CI performs a non-interactive bootstrap and validates
+the same lock with `--frozen-lockfile --offline` and Docker `--network none`.
 See [provisioning qualification script](scripts/qualify-pnpm-provisioning.sh).
 No network-disabled *cold* lock generation is claimed.
 
-The manifest is `config/versions.yaml`; `config/versions.lock` captures
-exact resolved values. A reproducible source resolver, both image
-architectures, strict image scans, non-interactive pnpm frozen installs,
-native consumer tests and user-owned Codespaces/private-package
-qualification are separate gates. The
+The manifest is `config/versions.yaml`; `config/versions.lock` captures the
+exact resolved values. Source tests, both image architectures, strict image
+scans, frozen installs, native consumer tests and user-owned Codespaces/private
+package qualification remain separate release gates. The
 [PR #57 qualification register](docs/assessments/dev10-r4-pr57-qualification-20261103.md)
-records current evidence and blockers.
+is historical evidence for the earlier candidate, not current release approval.
 
-**Release boundary:** the scoped development acceptance for 295
-`linux-libc-dev=7.0.0-42.42` findings expires **13 November 2026 00:00 UTC**
-and does not authorise a `v1.5.0-rc.1` or `v1.5.0` image publish.
-The candidate RC tag is validation-only (no GHCR publish or signing);\nthe stable GA tag retains the publish path. The tag-time pipeline must
-stay fail-closed until a vendor fix or an
-independently attributable, exact-CVE/digest release decision is recorded.
-Do not use an RC tag to bypass the same security and provenance gates.
+**Release security boundary:** a prior, time-limited risk acceptance does not
+extend to later package versions or PRs. The current `linux-libc-dev` findings
+for `7.0.0-43.43` require an independently attributable, exact-CVE/digest
+decision or remediation; see the
+[risk decision](docs/assessments/dev10-linux-libc-dev-risk-decision.md) and
+[PR #74 assessment](docs/assessments/dev10-pr74-repo-wide-assessment-20261114.md).
+Do not use an RC tag to bypass security, provenance or consumer-qualification gates.
+
 
 ## Foundation 4
 
-This repository dogfoods `ghcr.io/baobab-platform/baobab-dev:1.4.4`. Its SHA-pinned
-Foundation gate validates the environment contract and scans both source and
-the development-container build. Consumers must pin v1.4.1 profiles explicitly.
+This repository dogfoods the published `ghcr.io/baobab-platform/baobab-dev:1.5.1`
+stable image. Its SHA-pinned Foundation gate validates the environment contract
+and scans both source and the development-container build. Consumers should pin
+the matching versioned profile tag (`1.5.1`, `1.5.1-frontend`,
+`1.5.1-frontend-e2e`, or `1.5.1-infra`) and, where reproducibility matters,
+record the corresponding OCI index digest. GHCR tag names alone are not a
+server-enforced immutability guarantee.

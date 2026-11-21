@@ -10,6 +10,14 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_PNPM_CMD=""
+if [ -x "${SCRIPT_DIR}/project-pnpm.sh" ]; then
+    PROJECT_PNPM_CMD="${SCRIPT_DIR}/project-pnpm.sh"
+elif command -v baobab-project-pnpm >/dev/null 2>&1; then
+    PROJECT_PNPM_CMD="$(command -v baobab-project-pnpm)"
+fi
+
 ###############################################################################
 # Colours
 ###############################################################################
@@ -109,7 +117,30 @@ printf "  %-18s %s\n" "uv"       "$(version uv)"
 printf "  %-18s %s\n" "Node.js"  "$(version node)"
 printf "  %-18s %s\n" "Expected" "${NODE_MAJOR}.x"
 
-printf "  %-18s %s\n" "pnpm"     "$(version pnpm)"
+pnpm_display() {
+    if [[ -f package.json && -f pnpm-lock.yaml ]]; then
+        if [[ -z "${PROJECT_PNPM_CMD}" ]]; then
+            echo "project helper unavailable"
+            return
+        fi
+        local pin actual
+        pin="$("${PROJECT_PNPM_CMD}" pin 2>/dev/null || true)"
+        if [[ -z "$pin" ]]; then
+            echo "invalid project pin"
+            return
+        fi
+        actual="$("${PROJECT_PNPM_CMD}" --version 2>/dev/null || true)"
+        if [[ "$actual" == "$pin" ]]; then
+            printf '%s (project)' "$actual"
+        else
+            printf '%s (not prepared)' "$pin"
+        fi
+        return
+    fi
+    (cd / && version pnpm)
+}
+
+printf "  %-18s %s\n" "pnpm"     "$(pnpm_display)"
 printf "  %-18s %s\n" "Flutter"  "$(version flutter "flutter --version")"
 printf "  %-18s %s\n" "Expected" "${FLUTTER_VERSION}"
 

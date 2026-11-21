@@ -7,36 +7,19 @@
 #   2. Concurrency: cancels superseded PR/branch runs; never cancels main/tags.
 #   3. Least privilege: global `contents: read`, elevated per job only.
 #   4. Native Buildx SBOM (sbom: true) + SLSA provenance (provenance: true).
-#   5. Trivy gates refuse new/unapproved CRITICAL/HIGH CVEs. v1.5.0-rc.N
-#      and v1.5.0 DEVELOPMENT distributions may use issue #54's pinned,
-#      time-limited owner-directed residual-risk decision, never silent ignores.
+#   5. Trivy gates refuse new/unapproved CRITICAL/HIGH CVEs. Any residual-risk
+#      decision is exact-ref, package/CVE, digest and time scoped; it is never
+#      inferred from a tag family or implemented as a silent scanner ignore.
 #   6. Keyless Cosign signing/attestation via GitHub OIDC — no static keys.
 #      Cosign CLI v3.x since 2026-08-23 (see "Install Cosign CLI tool" below
 #      for why this was a forced, non-optional major-version upgrade).
 #   7. Tag-gated publish, shift-left security — see policies below.
 #
-# PUBLISH TRIGGER POLICY:
-#   Build and unrestricted Trivy checks run on PR, main and tag pushes.
-#   A reviewed stable semver tag, or specifically v1.5.0-rc.N, may push,
-#   scan exact GHCR digests, sign and publish a GitHub Release. RCs are
-#   GitHub prereleases and publish only versioned RC tags (never aliases);
-#   stable v1.5.0 promotes versioned + latest/major/minor consumer aliases.
-#   Manual workflow_dispatch is validation-only
-#   on main; it cannot substitute an alternate tag or source revision.
-#   Every checkout uses github.sha, the GitHub-supplied immutable event SHA.
-#   This closes CodeQL actions/cache-poisoning/poisonable-step (#2) by never
-#   executing a caller-chosen ref in the default-branch dispatch context.
-#
-# SECURITY SCAN TRIGGER POLICY (shift-left):
-#   The Trivy gate ("Build local single-manifest image for scanning"
-#   through "Scan built container with Trivy") is DELIBERATELY NOT
-#   tag-gated — it runs on every image-affecting PR, `main` push, and tag push, so a bad
-#   dependency or base-image bump is caught before merge, not at release
-#   time. Added cost is minimal: it reuses the `type=gha` build cache and
-#   the cached vulnerability DB. It still re-runs at tag time too, as
-#   defense-in-depth against a CVE disclosed between merge and release.
-#   Registry push, the real build's `push:` flag, digest export/upload,
-#   the smoke test, and the whole `publish` job remain tag-gated.
+# Resolve the exact checkout, then build and test each native OCI layout.
+# Strict scans and independent approval precede the first GHCR write.
+# A stable release may reuse an already-qualified same-source RC family.
+# PRs, main pushes and main dispatches only validate. Tag publication
+# uses the reviewed immutable event SHA and applies versioned tags before aliases.
 #
 # TRIVY CLI FLAGS (pinned TRIVY_VERSION=0.73.0):
 #   `--pkg-types os,library` replaces the deprecated `--vuln-type`
@@ -54,20 +37,9 @@
 #   `--skip-version-check` drops Trivy's own unrelated, unpinned
 #   "newer CLI available" network check.
 #
-# TRIVY SCAN TARGET:
-#   `sbom: true` + `provenance: true` make even a single-platform build
-#   emit an OCI Image INDEX (real manifest + a separate "unknown/unknown"
-#   attestation manifest) — documented BuildKit behavior (moby/buildkit,
-#   docker/buildx#1964; also goharbor/harbor#22848, stacklok/dockyard#215).
-#   Trivy can't resolve that index directly, so "Build local
-#   single-manifest image for scanning" re-exports the same build (no
-#   attestations, same builder/cache, nothing rebuilt) purely as an
-#   unambiguous local scan target — `load: true` into the Docker daemon
-#   for most targets, or an OCI tarball (`type=oci` + `trivy image
-#   --input`) for `final`, whose daemon-loaded footprint alone was enough
-#   to blow past GitHub-hosted runners' per-job disk quota (see that
-#   step's comment for the full root-cause writeup). The real published
-#   artifact keeps its full SBOM + provenance untouched either way.
+# Registry release builds carry BuildKit SBOM and provenance. Resolve the
+# exact child by platform, use it for the scan and native runtime tests, then
+# pass the unchanged single-platform index to the signing and merge jobs.
 #
 # PERFORMANCE:
 #   Trivy's vulnerability DB (~500MB+) is cached via our own SHA-pinned
@@ -90,23 +62,50 @@ on:
     paths:
       - ".devcontainer/**"
       - "config/**"
+      - ".python-version"
       - "scripts/**"
       - "!scripts/provision_protected_risk_policy.py"
       - "!scripts/custody_independence.py"
       - "!scripts/github_api_transport.py"
+      - "tests/**"
+      - ".github/workflows/publish.yml"
+      # Security inventory and policy-contract changes must requalify all
+      # eight profile/architecture image scans; they are not image rebuild
+      # inputs, but they can change whether an image is releasable.
+      - "docs/assessments/dev10-kernel-cves-298.tsv"
+      - "docs/assessments/dev10-canonical-cve-status-20261118.tsv"
+      - "security/evidence/**"
+      - "security/decisions/development/foundation.schema.json"
+      - "security/decisions/development/foundation.json"
+      - "security/decisions/development/foundation.proposal.json"
+      - "scripts/evaluate_protected_risk_decision.py"
+      - "scripts/verify_protected_policy_hash.py"
 
   pull_request:
-    branches:
-      - main
-      # Stacked R5 review is based on the R4 candidate (#57), not main.
-      - feat/dev10-r4-lts-multiarch-candidate
+    # Run on every PR base branch. Release publication remains tag-gated in
+    # the jobs below; branch-name allowlists here otherwise strand stacked
+    # security integration branches when their base branch is renamed/merged.
     paths:
       - ".devcontainer/**"
       - "config/**"
+      - ".python-version"
       - "scripts/**"
       - "!scripts/provision_protected_risk_policy.py"
       - "!scripts/custody_independence.py"
       - "!scripts/github_api_transport.py"
+      - "tests/**"
+      - ".github/workflows/publish.yml"
+      # Security inventory and policy-contract changes must requalify all
+      # eight profile/architecture image scans; they are not image rebuild
+      # inputs, but they can change whether an image is releasable.
+      - "docs/assessments/dev10-kernel-cves-298.tsv"
+      - "docs/assessments/dev10-canonical-cve-status-20261118.tsv"
+      - "security/evidence/**"
+      - "security/decisions/development/foundation.schema.json"
+      - "security/decisions/development/foundation.json"
+      - "security/decisions/development/foundation.proposal.json"
+      - "scripts/evaluate_protected_risk_decision.py"
+      - "scripts/verify_protected_policy_hash.py"
 
   # Manual validation is main-only. Rebuilding an arbitrary tag in the
   # privileged dispatch context is forbidden; publishing requires a tag push.
@@ -144,18 +143,21 @@ jobs:
     runs-on: ubuntu-26.04
     timeout-minutes: 20
 
-    # `contents: read` only. CHANGED: this job no longer auto-commits
-    # anything (see "Fail on lockfile drift" below), so it no longer needs
-    # `contents: write`.
+    # GitHub review evidence and release ancestry are read-only.
     permissions:
       contents: read
+      pull-requests: read
 
     outputs:
-      # is_release: GA tag or explicitly approved v1.5.0-rc.N tag.
+      # is_release: canonical GA or numbered RC tag; security eligibility is a separate gate.
       # is_stable_release: GA tag only. Manual dispatch stays read-only.
       release_tag: ${{ steps.release-context.outputs.release_tag }}
       is_release: ${{ steps.release-context.outputs.is_release }}
       is_stable_release: ${{ steps.release-context.outputs.is_stable_release }}
+      publication_channel: ${{ steps.release-eligibility.outputs.channel }}
+      contributor_ids: ${{ steps.release-eligibility.outputs.contributor_ids }}
+      ubuntu_version: ${{ steps.ubuntu-base.outputs.version }}
+      ubuntu_digest: ${{ steps.ubuntu-base.outputs.digest }}
 
     steps:
       # Resolve release status without checking out caller-selected refs.
@@ -178,11 +180,8 @@ jobs:
           fi
 
           if [[ "$GITHUB_EVENT_NAME" == "push" && "$GITHUB_REF" == refs/tags/* ]]; then
-            if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
-               [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*$ ]]; then
-              echo "::error::Only GA or numbered RC semver can publish; other prereleases are denied."
-              exit 1
-            fi
+            # release_tag_policy.py is the single syntax/channel authority.
+            # The following ancestry gate invokes it before any build job starts.
             echo "release_tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
             echo "is_release=true" >> "$GITHUB_OUTPUT"
             echo "is_stable_release=$(is_stable_release "$GITHUB_REF_NAME")" >> "$GITHUB_OUTPUT"
@@ -196,6 +195,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
+          fetch-depth: 0
           persist-credentials: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -205,9 +205,16 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin main
           python3 scripts/release_tag_policy.py --tag "$GITHUB_REF_NAME" >/dev/null
+          python3 scripts/verify_remote_release_tag.py --tag "$GITHUB_REF_NAME" --sha "$GITHUB_SHA"
           git merge-base --is-ancestor "${GITHUB_SHA}" origin/main || {
             echo '::error::Release tag commit is not reachable from main'; exit 1;
           }
+      - name: Verify live main and release tag governance before registry access
+        if: steps.release-context.outputs.is_release == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 -B scripts/verify_release_governance.py
+
       # Pinned + checksummed (not "latest") per this project's binary-pinning
       # convention (config/resolve.sh). CI-bootstrap tooling only — parses
       # config/versions.yaml before versions.lock exists, so intentionally
@@ -224,14 +231,60 @@ jobs:
           sudo install -m 0755 /tmp/yq /usr/local/bin/yq
           rm -f /tmp/yq
 
-      - name: DEV-10 R5 negative unit tests (release contracts + Trivy DB freshness)
+      # Releases require a reviewed manifest/lock change or an authorized maintenance record.
+      - name: DEV-10 release-family eligibility
+        id: release-eligibility
+        if: steps.release-context.outputs.is_release == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEV10_SECURITY_APPROVER_LOGINS: ${{ vars.DEV10_SECURITY_APPROVER_LOGINS }}
         run: |
           set -euo pipefail
-          python3 -m unittest -v tests/test_go_mod_download_retry.py tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_verify_image_identity.py tests/test_verify_release_environment.py tests/test_verify_promotion_approval.py tests/test_release_tag_policy.py tests/test_release_promotion.py tests/test_r5_release_boundaries.py tests/test_signed_release_predicates.py tests/test_legacy_provenance.py
+          git fetch --no-tags origin '+refs/tags/v*:refs/tags/v*'
+          python3 scripts/release_eligibility.py --tag "$GITHUB_REF_NAME" \
+            --source-sha "$GITHUB_SHA" --source-evidence "$RUNNER_TEMP/reviewed-release-source.json" \
+            > "$RUNNER_TEMP/release-eligibility.json"
+          jq -er '"channel=" + .channel' "$RUNNER_TEMP/release-eligibility.json" >> "$GITHUB_OUTPUT"
+          jq -c '.contributor_ids' "$RUNNER_TEMP/reviewed-release-source.json" | sed 's/^/contributor_ids=/' >> "$GITHUB_OUTPUT"
+
+      - name: Retain exact release PR and input provenance
+        if: steps.release-context.outputs.is_release == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: reviewed-release-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/reviewed-release-source.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: DEV-10 release eligibility regression tests
+        run: python3 -m unittest -v tests/test_release_eligibility.py
+
+      # Mandatory on PR, main, tag and manual validation. Run before any
+      # image build/publish job can consume the sanity-check result.
+      # Covers exact workflow OIDC identity, RC inference and fail-closed
+      # malformed/future tag rejection without requiring live GHCR access.
+      - name: DEV-10 mandatory pre-tag release matrix
+        run: |
+          set -euo pipefail
+          python3 scripts/preflight_release_matrix.py
+          python3 -m unittest -v tests/test_preflight_release_matrix.py
+
+      - name: DEV-10 release identity preflight (positive and negative)
+        run: |
+          set -euo pipefail
+          bash -n scripts/verify-image.sh scripts/test-verify-image-release-identity.sh
+          bash scripts/test-verify-image-release-identity.sh
+
+      - name: DEV-10 R5 negative unit tests (registry retry, RC selection, release contracts and Trivy DB freshness)
+        run: |
+          set -euo pipefail
+          python3 -m unittest -v tests/test_fetch_complete_oci_index_retry.py tests/test_select_qualified_rc_run.py tests/test_toolchain_version_pins.py tests/test_dev10_lockfile_pr.py tests/test_go_mod_download_retry.py tests/test_pnpm_release_asset_attestation.py tests/test_trivy_db_freshness.py tests/test_verify_release_contracts.py tests/test_release_artifact_contract.py tests/test_actions_artifact_containers.py tests/test_attested_release_layout.py tests/test_independent_oci_index.py tests/test_digest_security_decision.py tests/test_immutable_rc_recovery.py tests/test_verify_remote_release_tag.py tests/test_verify_image_identity.py tests/test_verify_release_environment.py tests/test_verify_release_governance.py tests/test_verify_promotion_approval.py tests/test_release_tag_policy.py tests/test_release_promotion.py tests/test_r5_release_boundaries.py tests/test_signed_release_predicates.py tests/test_legacy_provenance.py tests/test_protected_risk_decision.py tests/test_protected_local_policy.py tests/test_protected_risk_custody.py tests/test_custody_independence.py tests/test_audit_pr_reviewer_independence.py
       - name: Verify committed resolutions and upstream asset checksums
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
+          : "${GH_TOKEN:?GitHub CLI requires the Actions token in GH_TOKEN}"
           chmod +x config/resolve.sh
           ./config/resolve.sh --locked
 
@@ -244,43 +297,71 @@ jobs:
             echo "drift=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # Lockfile drift is now ALWAYS a hard failure — on PRs, branch
-      # pushes, tag pushes, and manual main validations alike. CHANGED:
-      # this pipeline previously auto-committed resolved drift on branch
-      # pushes via git-auto-commit-action, and only hard-failed on tag
-      # pushes. That auto-commit was removed:
-      #   1. Publishing pipelines should be deterministic and not mutate
-      #      source as a side effect of building it.
-      #   2. A `pull_request` run — including from a fork — auto-committing
-      #      with `secrets.GITHUB_TOKEN` was a real risk surface: a fork's
-      #      token can't push back to the base repo anyway, so the step
-      #      would either silently no-op or fail in a way easy to mistake
-      #      for a genuine problem.
-      #   3. It duplicated `.github/workflows/update-lockfile.yml`, which
-      #      already does this properly on a schedule + manual dispatch,
-      #      opening a reviewable PR rather than committing directly.
-      # Auto-resolution now lives exclusively in that dedicated workflow;
-      # this job only verifies and fails loudly.
       - name: Fail on lockfile drift
         if: steps.drift-check.outputs.drift == 'true'
         run: |
-          echo "::error:: config/versions.lock is out of date with config/versions.yaml on immutable commit '$GITHUB_SHA'."
-          echo "::error:: This pipeline no longer auto-commits resolved lockfiles. Run config/resolve.sh locally, or trigger .github/workflows/update-lockfile.yml, review and merge the resulting PR, then re-run."
+          echo "::error::The committed lock or Python pin is stale on this source commit."
+          echo "::error::Check DEV-10 manifest lock resolution. Forks retain both files for maintainer follow-up."
           exit 1
 
-      # Hand off the upstream-verified committed resolution via artifact.
-      # Both verification and build check out the same immutable event SHA. Uploaded
-      # unconditionally — pull_request and non-release builds alike still
-      # need a lockfile.
+      - name: Verify the locked Ubuntu index contains both native architectures
+        id: ubuntu-base
+        run: |
+          set -euo pipefail
+          . config/versions.lock
+          [[ "$UBUNTU_BASE_SHA256" =~ ^[0-9a-f]{64}$ ]]
+          docker buildx imagetools inspect --raw "docker.io/library/ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256}" \
+            > "$RUNNER_TEMP/ubuntu-index.json"
+          printf '%s  %s\n' "$UBUNTU_BASE_SHA256" "$RUNNER_TEMP/ubuntu-index.json" | sha256sum --check --strict
+          jq -e '
+            [.manifests[] | select(.platform.os == "linux" and (.platform.architecture == "amd64" or .platform.architecture == "arm64")) | .platform.architecture]
+            | sort == ["amd64", "arm64"]
+          ' "$RUNNER_TEMP/ubuntu-index.json" >/dev/null
+          printf 'version=%s\ndigest=%s\n' "$UBUNTU_VERSION" "$UBUNTU_BASE_SHA256" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Buildx for the read-only OCI transfer contract test
+        if: github.event_name == 'pull_request'
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Verify real BuildKit OCI export and Docker import
+        if: github.event_name == 'pull_request'
+        env:
+          UBUNTU_VERSION: ${{ steps.ubuntu-base.outputs.version }}
+          UBUNTU_BASE_SHA256: ${{ steps.ubuntu-base.outputs.digest }}
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/oci-transfer-probe"
+          mkdir -p "$root/context"
+          cat > "$root/context/Dockerfile" <<EOF
+          FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256}
+          ENV BAOBAB_BUILD_PROFILE=full
+          LABEL org.opencontainers.image.revision=$GITHUB_SHA
+          EOF
+          docker buildx build --platform linux/amd64 --sbom=true --provenance=mode=max,version=v1 \
+            --output "type=oci,oci-mediatypes=true,tar=false,oci-artifact=false,dest=$root/oci" \
+            --metadata-file "$root/metadata.json" "$root/context"
+          python3 scripts/attested_release_layout.py prepare --layout "$root/oci" \
+            --target final --architecture amd64 --source "$GITHUB_SHA" \
+            --lock "$(sha256sum config/versions.lock | cut -d ' ' -f1)" \
+            --index "$(jq -er '."containerimage.digest"' "$root/metadata.json")" \
+            --archive "$root/native.tar" --plan "$root/plan.json"
+          docker load --input "$root/native.tar"
+          engine_id=$(docker image inspect --format '{{.Id}}' baobab-dev:scan)
+          printf 'Imported native identity %s\n' "$engine_id"
+          jq -e --arg actual "$engine_id" '.config_digest == $actual or .child_digest == $actual' "$root/plan.json"
+
+      # Retain the inputs verified on the immutable event SHA. Downstream jobs
+      # use their checkout of those same bytes.
       - name: Upload resolved lockfile
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: resolved-lockfile
           path: |
             config/versions.lock
             .python-version
+          include-hidden-files: true
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 30
 
   # Job 2: Multi-Arch Container Build & Vulnerability Scan Gate
   # Builds amd64/arm64 images and runs the Trivy CVE/secret gate on every
@@ -291,32 +372,51 @@ jobs:
   ga-reuse:
     name: Reuse qualified RC OCI digests for GA
     needs: sanity-check
-    if: needs.sanity-check.outputs.is_release == 'true' && needs.sanity-check.outputs.is_stable_release == 'true'
+    if: needs.sanity-check.outputs.publication_channel == 'ga'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
       actions: read
+    outputs:
+      rc_run: ${{ steps.reuse.outputs.rc_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
       - name: Reuse immutable RC artifacts
+        id: reuse
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RC_RUN: ${{ vars.DEV10_QUALIFIED_RC_RUN_ID }}
           TAG: ${{ needs.sanity-check.outputs.release_tag }}
         run: |
           set -euo pipefail
-          [[ "$RC_RUN" =~ ^[1-9][0-9]*$ ]] || exit 1
           mkdir -p "$RUNNER_TEMP/rc" "$RUNNER_TEMP/ga"
+          # Resolve the latest successful Publish run for the exact GA source
+          # commit and version family. No mutable repository variable is
+          # trusted to nominate an RC run.
+          # Fetch every page; the selector checks total_count against the
+          # combined response so a qualifying older run cannot be silently missed.
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/workflows/publish.yml/runs?head_sha=${GITHUB_SHA}&event=push&status=completed&per_page=100" \
+            > "$RUNNER_TEMP/publish-runs.json"
+          RC_RUN=$(python3 scripts/select_qualified_rc_run.py \
+            --input "$RUNNER_TEMP/publish-runs.json" --tag "$TAG" --sha "$GITHUB_SHA")
+          [[ "$RC_RUN" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::Could not resolve a qualified same-commit RC run"; exit 1;
+          }
+          echo "Reusing RC run $RC_RUN for $TAG at $GITHUB_SHA"
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RC_RUN}" > "$RUNNER_TEMP/run.json"
           for target in final frontend frontend-e2e infra; do
             gh run download "$RC_RUN" --repo "$GITHUB_REPOSITORY" --name "published-info-$target" --dir "$RUNNER_TEMP/rc"
           done
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/runs/${RC_RUN}/artifacts?per_page=100" > "$RUNNER_TEMP/rc-artifact-pages.json"
+          python3 scripts/verify_actions_artifact_containers.py \
+            --input "$RUNNER_TEMP/rc-artifact-pages.json" --channel rc \
+            --run-id "$RC_RUN" --sha "$GITHUB_SHA"
           python3 scripts/prepare_ga_reuse.py --run "$RUNNER_TEMP/run.json" --records "$RUNNER_TEMP/rc" --tag "$TAG" --sha "$GITHUB_SHA" --output "$RUNNER_TEMP/ga"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+          echo "rc_run=$RC_RUN" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ga-reused-candidates
           path: ${{ runner.temp }}/ga/*.json
@@ -326,23 +426,15 @@ jobs:
   build:
     name: "Build & Security Scan (${{ matrix.target }}, ${{ matrix.platform }})"
     needs: sanity-check
-    if: needs.sanity-check.outputs.is_stable_release != 'true'
+    if: needs.sanity-check.outputs.is_release != 'true'
 
     # RATIONALE: Route arm64 builds to native ARM GitHub-hosted runners for faster performance.
     runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
     timeout-minutes: 120
 
-    # `packages: write` — needed to push image layers/metadata by digest.
-    # Granted job-wide (GitHub Actions has no per-step scoping); only
-    # exercised on tag pushes. CORRECTED (was stale): this used to say only
-    # `final` pushed and frontend/frontend-e2e "never push in this job yet"
-    # — that was true during the TIER 1 rollout but is no longer accurate.
-    # All three targets now push on tag pushes (see the real build step's
-    # `push:` logic and outputs below); PR/main runs still never push, so
-    # this permission remains unused (but present, since GitHub Actions has
-    # no per-step scoping) outside tag pushes.
     permissions:
       contents: read
+      pull-requests: read
 
     # TIER 1 (baobab-dev-v1_1_0-release-plan-amended.md tasks 1.9/1.10;
     # ADR-0001): build and Trivy-scan every Dockerfile target on every
@@ -408,20 +500,12 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
           df -h /
 
-      # Overwrites whatever versions.lock the checkout brought in with the
-      # exact one sanity-check resolved earlier in THIS run (see "Upload
-      # resolved lockfile" in sanity-check for why).
-      - name: Download resolved lockfile
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: resolved-lockfile
-          path: .
-
       # - name: Setup QEMU Emulation
       # uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
 
       - name: Setup Docker Buildx Engine
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        id: local-builder
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # DEV-10 R5: read-only validation. Registry credentials and digest
       # publication are moved to a separate privileged tag-only job.
@@ -431,61 +515,29 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
-      # Build local single-manifest image for scanning
-      # See "TRIVY SCAN TARGET" above: the real push-by-digest build (with
-      # sbom/provenance) produces a 2-manifest OCI index Trivy can't resolve
-      # directly. This re-exports the identical build — same builder/cache,
-      # nothing rebuilt — with no attestations, purely as an unambiguous
-      # local scan target. Runs on EVERY trigger AND every target (not
-      # gated at all) — this is the whole point of Tier 1: frontend/
-      # frontend-e2e get the same continuous Trivy coverage `final` already
-      # had, even though they don't publish yet. Neither output type below
-      # touches GHCR, so no registry auth needed.
-      #
-      # `final` scans from an OCI tarball (`type=oci,dest=...`) instead of
-      # `load: true`. ROOT-CAUSED (baobab-platform/baobab-dev#31 CI, reproduced
-      # across five separate runs): `load: true` fully materializes a
-      # SECOND complete copy of `final` (Python+Node+Flutter+Java+Maven+
-      # Docker CLI — by far the heaviest target) into the Docker daemon's
-      # own storage, on top of the first build above, before Trivy's
-      # ~922MB Java DB download even starts. GitHub-hosted runners enforce
-      # a per-job disk quota separate from the underlying disk's reported
-      # free space — confirmed live: `docker builder prune -af` reclaimed
-      # exactly 0B (there was no stray buildx build cache to free — that
-      # was never the actual consumer) while `df -h /` still showed 18G
-      # free, yet the job kept failing with `disk quota exceeded` (EDQUOT,
-      # not `ENOSPC`/"no space left on device") partway through the Java
-      # DB download or the subsequent file-analysis pass — the signature
-      # of a hard per-job ceiling, not genuine disk exhaustion. `final` has
-      # no use for a daemon-loaded local image on a PR/branch run anyway:
-      # its own smoke test only runs on a real tag push and pulls the
-      # REGISTRY digest (see "Execute container smoke test (final)"
-      # below), never `baobab-dev:scan`. Writing an OCI tarball instead
-      # avoids that second full daemon-loaded copy entirely; `trivy image
-      # --input` (see "Scan built container with Trivy" below) reads it
-      # directly. frontend/frontend-e2e/infra keep `load: true` — they've
-      # never hit this quota and DO need a locally-loaded `baobab-dev:scan`
-      # for their own smoke test ("Execute container smoke test (non-final
-      # targets)" below).
+      # Keep the largest native image as a Docker archive until Trivy finishes.
+      # Loading it later, after freeing this job's builder cache, reuses the same build.
       - name: Build local single-manifest image for scanning
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        id: build-local-image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: ./.devcontainer/docker/Dockerfile
           target: ${{ matrix.target }}
           build-args: |
+            UBUNTU_VERSION=${{ needs.sanity-check.outputs.ubuntu_version }}
+            UBUNTU_BASE_SHA256=${{ needs.sanity-check.outputs.ubuntu_digest }}
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             VERSION=${{ steps.meta.outputs.version }}
             REVISION=${{ github.sha }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
           tags: baobab-dev:scan
-          outputs: ${{ matrix.target == 'final' && format('type=oci,dest={0}/scan-image-final.tar', runner.temp) || 'type=docker' }}
+          outputs: ${{ matrix.target == 'final' && format('type=docker,dest={0}/scan-image-final.tar', runner.temp) || 'type=docker' }}
           cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
-          # Keep only target-result layers: mode=max exhausted the configured
-          # GHA cache budget on multi-architecture PR builds. Cache export is
-          # opportunistic and must not fail an otherwise valid image build.
-          cache-to: type=gha,mode=min,scope=${{ matrix.target }}-${{ matrix.platform }},ignore-error=true
+          # PRs only restore caches. Publish target layers once, on main,
+          # so eight PR workers cannot exhaust the repository cache budget.
+          cache-to: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('type=gha,mode=min,scope={0}-{1},ignore-error=true', matrix.target, matrix.platform) || '' }}
 
       # Cache Trivy vulnerability database
       # Trivy re-downloads its ~500MB+ DB on every scan by default.
@@ -549,56 +601,31 @@ jobs:
             --cache "$TRIVY_CACHE_DIR" \
             --evidence "$RUNNER_TEMP/trivy-db-freshness.json"
 
-      # Flags (Trivy 0.73.0): `--pkg-types` replaces deprecated
-      # `--vuln-type` (renamed v0.54.0). `--scanners vuln,secret` is
-      # explicit rather than relying on Trivy's default set. Both DBs are explicitly refreshed and verified. `--skip-version-check` drops Trivy's
-      # own unrelated network check. Not tag-gated (see "SECURITY SCAN
-      # TRIGGER POLICY" above): this is now the primary gate on every
-      # PR/`main` push, with the tag push re-running it as defense-in-depth.
-      #
-      # Scan target: `final` reads the OCI layout DIRECTORY extracted from
-      # the tarball written by "Build local single-manifest image for
-      # scanning" above via `--input`; every other target scans the LOCAL
-      # `baobab-dev:scan` image by name, not the registry digest — see
-      # "TRIVY SCAN TARGET" above. No `--platform` needed either way since a
-      # local single-manifest source has nothing to disambiguate.
-      #
-      # FIX: `trivy image --input <path>` does NOT accept an OCI archive as
-      # a single tar file directly — confirmed live: it tried both parsers
-      # in sequence and failed both ("unable to open ... as a Docker image:
-      # file manifest.json not found in tar" — that's the docker-archive
-      # parser, which expects docker save's layout, not OCI's; "unable to
-      # open ... as an OCI Image: stat .../index.json: not a directory" —
-      # that's the OCI parser, which does `stat <path>/index.json`, i.e. it
-      # expects `<path>` to already be an unpacked OCI Image Layout
-      # DIRECTORY (oci-layout, index.json, blobs/), not the tarball buildx
-      # wrote it as. Untarring first satisfies that exact check. The
-      # tarball is removed as soon as it's extracted (never coexists with
-      # the directory for long) and the directory is removed right after
-      # the scan — nothing later in this job needs either, and `final` is
-      # the one target where every byte of headroom matters (see the
-      # previous step's comment on the disk-quota root cause).
+      # Trivy reads the largest profile from its Docker archive.
       - name: Scan built container with Trivy
         id: trivy-scan
+        env:
+          TRUSTED_POLICY_SHA: ${{ vars.DEV10_PROTECTED_DECISION_SHA256 }}
+          TRUSTED_APPROVERS: ${{ vars.DEV10_SECURITY_APPROVER_LOGINS }}
+          POLICY_EVENT: ${{ github.event_name }}
+          POLICY_REF: ${{ github.ref }}
+          POLICY_BASE_REF: ${{ github.base_ref }}
+          POLICY_HEAD_REPOSITORY: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name || (github.event_name == 'push' && github.repository) || '' }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [[ "${{ matrix.target }}" == "final" ]]; then
-            SCAN_TAR="${{ runner.temp }}/scan-image-final.tar"
-            SCAN_DIR="${{ runner.temp }}/scan-image-final"
-            mkdir -p "${SCAN_DIR}"
-            tar -xf "${SCAN_TAR}" -C "${SCAN_DIR}"
-            rm -f "${SCAN_TAR}"
-            SCAN_SOURCE_ARGS=(--input "${SCAN_DIR}")
-          else
-            SCAN_SOURCE_ARGS=(baobab-dev:scan)
-          fi
-
-          # The same unfiltered HIGH/CRITICAL scan is the blocking gate.
-          # Persist vulnerability JSON even when vulnerabilities make Trivy exit 1.
-          # Raw Trivy output can contain secret-match payloads: never upload it.
-          # Never reinterpret missing/invalid report evidence as success.
+          # Retain only sanitized report evidence. The raw report may contain
+          # secret matches and stays on the runner.
           REPORT_DIR="${RUNNER_TEMP}/trivy-evidence"
           mkdir -p "${REPORT_DIR}"
+          if [[ "${{ matrix.target }}" == "final" ]]; then
+            SCAN_TAR="$RUNNER_TEMP/scan-image-final.tar"
+            sha256sum "$SCAN_TAR" > "$REPORT_DIR/image-archive.sha256"
+            SCAN_SOURCE_ARGS=(--input "$SCAN_TAR")
+          else
+            docker image inspect --format '{{.Id}}' baobab-dev:scan > "$REPORT_DIR/image-config-digest.txt"
+            SCAN_SOURCE_ARGS=(--image-src docker baobab-dev:scan)
+          fi
           set +e
           trivy image \
             --scanners vuln,secret \
@@ -619,32 +646,55 @@ jobs:
             "${REPORT_DIR}/findings.json" \
             "${{ matrix.target }}" "${{ matrix.platform }}"
 
-          if [[ "${{ matrix.target }}" == "final" ]]; then
-            rm -rf "${SCAN_DIR}"
+          # Review-only evidence is generated before protected acceptance.
+          # It cannot authorize publishing, promotion or residual risk.
+          if (( scan_rc == 1 )); then
+            scanner_version=$(trivy --version | sed -n 's/^Version: //p' | head -1)
+            python3 scripts/prepare_dev10_risk_inventory.py \
+              --raw-trivy "${RUNNER_TEMP}/trivy-raw.json" \
+              --scanner-version "$scanner_version" \
+              --profile "${{ matrix.target }}" --architecture "${{ matrix.platform }}" \
+              --output "${REPORT_DIR}/risk-policy.review-only.json"
+            sha256sum "${REPORT_DIR}/risk-policy.review-only.json" \
+              > "${REPORT_DIR}/risk-policy.review-only.sha256"
           fi
           if (( scan_rc != 0 )); then
             # The owner-approved, short-lived DEV-10 risk treatment is *not* VEX
             # "not_affected"; validate the complete unfiltered scanner report.
             # Unknown CVEs, packages, secrets and expired approval fail;
-            # only exact v1.5.0 tagged DEV CONTAINER distribution is in scope.
+            # only pull requests targeting main and pushes to main are in scope; release tags and dispatch are denied.
             if (( scan_rc != 1 )); then
               echo "::error::Trivy scan execution failed (exit ${scan_rc}); not a vulnerability risk decision."
               exit "${scan_rc}"
             fi
-            python3 scripts/dev10_kernel_risk_gate.py \
-              --raw-trivy "${RUNNER_TEMP}/trivy-raw.json" \
-              --inventory docs/assessments/dev10-kernel-cves.tsv \
-              --target "${{ matrix.target }}" --platform "${{ matrix.platform }}" \
-              --event "${GITHUB_EVENT_NAME}" --ref "${GITHUB_REF}" \
-              --repository "${GITHUB_REPOSITORY}" \
-              --pr-number "${{ github.event.pull_request.number || 0 }}" \
-              --output "${REPORT_DIR}/dev10-executive-risk-acceptance.json"
-            echo "::warning::Unfixed kernel-source advisories remain; DEVELOPMENT risk accepted under issue #54, not remediated."
+            # Authenticated, reusable development policy only. Never infer
+            # approval from a PR ref, release tag or free-text reviewer.
+            decision_file="security/decisions/development/foundation.json"
+            [[ -f "$decision_file" && -n "$TRUSTED_POLICY_SHA" && -n "$TRUSTED_APPROVERS" ]] || {
+              echo "::error::Protected development policy/hash/reviewer custody unavailable"; exit 2;
+            }
+            custody_result="${RUNNER_TEMP}/dev10-protected-policy-custody.json"
+            python3 scripts/verify_protected_risk_custody.py \
+              --decision "$decision_file" --trusted-approvers "$TRUSTED_APPROVERS" \
+              --output "$custody_result"
+            approval_id=$(jq -er '.approval_id' "$custody_result")
+            approved_at=$(jq -er '.approved_at' "$custody_result")
+            approved_by_id=$(jq -er '.approved_by_id' "$custody_result")
+            python3 scripts/verify_protected_policy_hash.py \
+              --decision "$decision_file" --trusted-sha256 "$TRUSTED_POLICY_SHA" \
+              --report "${RUNNER_TEMP}/trivy-raw.json" \
+              --profile "${{ matrix.target }}" --architecture "${{ matrix.platform }}" \
+              --event "$POLICY_EVENT" --ref "$POLICY_REF" --base-ref "$POLICY_BASE_REF" \
+              --head-repository "$POLICY_HEAD_REPOSITORY" \
+              --approval-id "$approval_id" --approved-at "$approved_at" \
+              --approved-by-id "$approved_by_id" \
+              > "${REPORT_DIR}/dev10-protected-risk-acceptance.json"
+            echo "::warning::Authenticated development-only residual risk accepted; NOT remediated or release-authorized."
           fi
 
       - name: Retain unfiltered Trivy vulnerability evidence
         if: ${{ always() && steps.trivy-scan.outcome != 'skipped' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: trivy-${{ matrix.target }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}-${{ github.sha }}
           path: |
@@ -653,54 +703,54 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # Exact registry-digest smoke tests for all profiles and architectures
-      # now belong to the privileged release-digests job.
-      # Container Smoke Test (every non-final target — local scan image)
-      # Runs against the already-`load: true`-ed local `baobab-dev:scan`
-      # image rather than the registry digest, so it needs no tag gating
-      # and no registry auth — cheap enough to run on every PR/push, not
-      # just at publish time. `final` gets an additional registry-digest
-      # smoke test above since that path already existed; frontend,
-      # frontend-e2e, and (2026-09-03) infra all push for real too but
-      # don't have an equivalent registry-digest smoke test of their own —
-      # this local check still validates FUNCTIONAL correctness
-      # (BAOBAB_BUILD_PROFILE gating, right tools present), just not the
-      # exact bytes GHCR served. Genuinely target-agnostic (`!= 'final'`,
-      # not an enumerated list) — a future target needs no change here.
-      - name: Execute container smoke test (non-final targets)
-        if: matrix.target != 'final' && matrix.platform == 'linux/amd64'
-        run: |
-          docker run --rm baobab-dev:scan baobab-verify
-
-      # DEV-10 R4 pnpm 12 provisioning qualification (AMD64). Native pnpm
-      # and the exact pinned version are verified by baobab-verify separately.
-      # pnpm 12's packageManager pin is a CONFIG dependency: its boot
-      # metadata must be resolved once over the network to create a valid
-      # lock. The second run is physically disconnected, frozen and offline,
-      # followed by negative tests for wrong packageManager and bad lock.
-      # Corepack is only responsible for Yarn; no pnpm download/shim is used.
-      - name: Execute non-interactive package-manager provisioning test
-        if: (matrix.target == 'frontend' || matrix.target == 'frontend-e2e') && matrix.platform == 'linux/amd64'
+      - name: Load the scanned final archive for runtime verification
+        if: ${{ !cancelled() && steps.build-local-image.outcome == 'success' && matrix.target == 'final' }}
+        env:
+          BUILDER: ${{ steps.local-builder.outputs.name }}
         run: |
           set -euo pipefail
-          # shellcheck disable=SC1091
-          . config/versions.lock
-          : "${PNPM_VERSION:?missing resolved pnpm version}"
-          bash scripts/qualify-pnpm-provisioning.sh baobab-dev:scan "$PNPM_VERSION"
+          : "${BUILDER:?expected the dedicated job builder}"
+          docker buildx prune --builder "$BUILDER" --all --force
+          sha256sum --check --strict "$RUNNER_TEMP/trivy-evidence/image-archive.sha256"
+          docker load --input "$RUNNER_TEMP/scan-image-final.tar"
+          rm -f "$RUNNER_TEMP/scan-image-final.tar"
 
-  # R5: validation is read-only; this tag-only job owns untagged GHCR uploads.
-  # Publication artifacts are produced ONLY after ALL eight validation legs pass.
-  # Exact remote digest scan is mandatory; development kernel exceptions do
-  # not apply to stable version tags. No version tags are created here.
+      - name: Qualify the scanned image on the native runner
+        id: native-qualification
+        if: ${{ !cancelled() && steps.build-local-image.outcome == 'success' }}
+        env:
+          TARGET: ${{ matrix.target }}
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET" == final ]]; then
+            read -r SCAN_ARCHIVE_SHA256 _ < "$RUNNER_TEMP/trivy-evidence/image-archive.sha256"
+            export SCAN_ARCHIVE_SHA256
+          else
+            read -r EXPECTED_CONFIG_DIGEST < "$RUNNER_TEMP/trivy-evidence/image-config-digest.txt"
+            export EXPECTED_CONFIG_DIGEST
+          fi
+          bash scripts/ci/qualify-native-image.sh baobab-dev:scan "$TARGET" "$PLATFORM" "$RUNNER_TEMP/native-image"
+
+      - name: Retain native runtime and package evidence
+        if: ${{ !cancelled() && (steps.native-qualification.outcome == 'success' || steps.native-qualification.outcome == 'failure') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-image-${{ matrix.target }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
+          path: ${{ runner.temp }}/native-image/
+          if-no-files-found: ignore
+          retention-days: 30
+
+  # This tag-only job builds once per native platform and owns candidate
+  # digest uploads. All eight legs must pass before signing and promotion.
   release-digests:
-    name: "Release candidate exact-digest scan (${{ matrix.target }}, ${{ matrix.platform }})"
-    needs: [sanity-check, build]
-    if: needs.sanity-check.outputs.is_release == 'true' && needs.sanity-check.outputs.is_stable_release != 'true'
+    name: "Qualify attested release image (${{ matrix.target }}, ${{ matrix.platform }})"
+    needs: sanity-check
+    if: needs.sanity-check.outputs.is_release == 'true' && github.run_attempt == 1 && (needs.sanity-check.outputs.publication_channel == 'rc' || needs.sanity-check.outputs.publication_channel == 'ga-direct')
     runs-on: ${{ matrix.platform == 'linux/arm64' && 'ubuntu-26.04-arm' || 'ubuntu-26.04' }}
     timeout-minutes: 140
     permissions:
       contents: read
-      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -735,21 +785,8 @@ jobs:
           echo "Disk space after cleanup:"
           df -h /
 
-      - name: Download exact locked tools
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: resolved-lockfile
-          path: .
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-      - name: Authenticate to GitHub Container Registry (GHCR)
-        if: needs.sanity-check.outputs.is_release == 'true'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Extract OCI Metadata & Labels
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -787,22 +824,22 @@ jobs:
 
       - name: Build container image with SBOM & SLSA Provenance
         id: build
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: ./.devcontainer/docker/Dockerfile
           target: ${{ matrix.target }}
           build-args: |
+            UBUNTU_VERSION=${{ needs.sanity-check.outputs.ubuntu_version }}
+            UBUNTU_BASE_SHA256=${{ needs.sanity-check.outputs.ubuntu_digest }}
             BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
             VERSION=${{ steps.meta.outputs.version }}
             REVISION=${{ github.sha }}
           platforms: ${{ matrix.platform }}
           labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=${{ needs.sanity-check.outputs.is_release == 'true' }}
+          outputs: type=oci,oci-mediatypes=true,tar=false,oci-artifact=false,dest=${{ runner.temp }}/release-layout
           cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.platform }}
-          # Cache writes are bounded/non-blocking; build and scan results remain
-          # authoritative even when the GHA cache budget is temporarily full.
-          cache-to: type=gha,mode=min,scope=${{ matrix.target }}-${{ matrix.platform }},ignore-error=true
+          # Reuse main's cache. The digest build does not export it again.
           sbom: true
           # Instruct BuildKit to emit SLSA v1.0 schema inside the in-toto predicate
           provenance: mode=max,version=v1
@@ -838,7 +875,7 @@ jobs:
 
       - name: Upload release resource diagnostics
         if: ${{ always() && matrix.target == 'final' }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-resources-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/release-resource-evidence/
@@ -884,123 +921,178 @@ jobs:
             --cache "$TRIVY_CACHE_DIR" \
             --evidence "$RUNNER_TEMP/trivy-db-freshness.json"
 
-      - name: Locate the exact released architecture manifest digest
+      - name: Verify the native OCI child and prepare its local scan archive
         id: exact
         env:
           INDEX_DIGEST: ${{ steps.build.outputs.digest }}
+          TARGET: ${{ matrix.target }}
           PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          image="${REGISTRY}/${IMAGE_NAME}"
-          [[ "$INDEX_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo '::error::No valid digest'; exit 1; }
-          arch="${PLATFORM#linux/}"
-          manifest=$(docker buildx imagetools inspect --raw "$image@$INDEX_DIGEST")
-          matches=$(jq --arg arch "$arch" '[.manifests[]? | select(.platform.os == "linux" and .platform.architecture == $arch)] | length' <<<"$manifest")
-          [[ "$matches" == 1 ]] || { echo "::error::Expected one $PLATFORM image, found $matches"; exit 1; }
-          child=$(jq -r --arg arch "$arch" '.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest' <<<"$manifest")
-          [[ "$child" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo '::error::Invalid architecture digest'; exit 1; }
-          echo "child=$child" >> "$GITHUB_OUTPUT"
-          echo "::notice::Exact remote $PLATFORM content: $image@$child (index $INDEX_DIGEST)"
+          # The local OCI layout survives cleaning the job's dedicated builder.
+          docker buildx prune --all --force
+          python3 scripts/attested_release_layout.py prepare --layout "$RUNNER_TEMP/release-layout" \
+            --target "$TARGET" --architecture "${PLATFORM#linux/}" --source "$GITHUB_SHA" \
+            --lock "$(sha256sum config/versions.lock | cut -d ' ' -f1)" --index "$INDEX_DIGEST" \
+            --archive "$RUNNER_TEMP/release-native.tar" --plan "$RUNNER_TEMP/release-native-plan.json"
 
-      - name: Scan EXACT registry architecture digest with fresh Trivy DBs
+      - name: Scan unfiltered exact native OCI child
         id: exact-trivy
         env:
-          CHILD_DIGEST: ${{ steps.exact.outputs.child }}
+          TARGET: ${{ matrix.target }}
           PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          image="${REGISTRY}/${IMAGE_NAME}@${CHILD_DIGEST}"
-          mkdir -p "$RUNNER_TEMP/trivy-exact-evidence"
-          # Do not scan an independently rebuilt local tag or infer equivalence.
+          evidence="$RUNNER_TEMP/trivy-exact-evidence"
+          mkdir -p "$evidence"
           set +e
-          trivy image --scanners vuln,secret --skip-db-update --skip-java-db-update \
+          trivy image --input "$RUNNER_TEMP/release-native.tar" \
+            --scanners vuln,secret --skip-db-update --skip-java-db-update \
             --ignorefile /dev/null --pkg-types os,library --severity CRITICAL,HIGH \
             --exit-code 1 --skip-version-check --format json \
-            --output "$RUNNER_TEMP/trivy-exact-raw.json" "$image"
+            --output "$RUNNER_TEMP/trivy-exact-raw.json"
           rc=$?
           set -e
+          if (( rc > 1 )); then
+            echo "::error::Trivy failed to scan the exact OCI child (rc=$rc)"
+            exit "$rc"
+          fi
           python3 scripts/summarize-trivy-vulnerabilities.py \
-            "$RUNNER_TEMP/trivy-exact-raw.json" \
-            "$RUNNER_TEMP/trivy-exact-evidence/findings.json" \
-            "${{ matrix.target }}" "${{ matrix.platform }}"
-          # Trivy is NEVER bypassed for tagged images. A real finding (rc=1)
-          # can only be accepted by the same independent exact-CVE gate as
-          # local PR scans, bounded to owner-approved v1.5.0 development
-          # distribution and expiring 2026-11-13 UTC. Different versions,
-          # vulnerabilities, available fixes, secrets, or tool failures deny.
+            "$RUNNER_TEMP/trivy-exact-raw.json" "$evidence/findings.json" "$TARGET" "$PLATFORM"
           if (( rc != 0 )); then
-            if (( rc != 1 )); then
-              echo "::error::Exact remote-digest Trivy tool failed (rc=$rc); cannot publish."
-              exit "$rc"
-            fi
-            python3 scripts/dev10_kernel_risk_gate.py \
-              --raw-trivy "$RUNNER_TEMP/trivy-exact-raw.json" \
-              --inventory docs/assessments/dev10-kernel-cves.tsv \
-              --target "${{ matrix.target }}" --platform "${{ matrix.platform }}" \
-              --event "${GITHUB_EVENT_NAME}" --ref "${GITHUB_REF}" \
-              --repository "${GITHUB_REPOSITORY}" --pr-number 0 \
-              --output "$RUNNER_TEMP/trivy-exact-evidence/dev10-executive-risk-acceptance.json"
-            echo "::warning::EXACT remote $PLATFORM development image ${image}: known kernel-header CVEs accepted, NOT remediated; see issue #54."
-          else
-            echo "::notice::Remote digest Trivy CLEAN: $image"
+            echo "::error::The native OCI child has residual release-blocking findings; development-only acceptance is insufficient."
+            exit 1
           fi
 
-      - name: Confirm exact registry child carries immutable release source revision
+      - name: Qualify the exact scanned OCI child on the native runner
+        id: native-qualification
+        if: ${{ !cancelled() && steps.exact.outcome == 'success' }}
         env:
-          CHILD_DIGEST: ${{ steps.exact.outputs.child }}
+          TARGET: ${{ matrix.target }}
           PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          remote="${REGISTRY}/${IMAGE_NAME}@${CHILD_DIGEST}"
-          docker pull --platform "$PLATFORM" "$remote"
-          actual=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$remote")
-          [[ "$actual" == "$GITHUB_SHA" ]] || {
-            echo "::error::Exact remote child image revision label does not match immutable release source"; exit 1;
-          }
-          echo "::notice::Exact image source label verified: $actual"
+          export EXPECTED_CONFIG_DIGEST="$(jq -er '.config_digest' "$RUNNER_TEMP/release-native-plan.json")"
+          export EXPECTED_NATIVE_MANIFEST_DIGEST="$(jq -er '.child_digest' "$RUNNER_TEMP/release-native-plan.json")"
+          export SCAN_ARCHIVE_SHA256="$(sha256sum "$RUNNER_TEMP/release-native.tar" | cut -d ' ' -f1)"
+          docker load --input "$RUNNER_TEMP/release-native.tar"
+          bash scripts/ci/qualify-native-image.sh baobab-dev:scan "$TARGET" "$PLATFORM" "$RUNNER_TEMP/native-image"
 
-      - name: Run runtime smoke against the scanned digest
-        env:
-          CHILD_DIGEST: ${{ steps.exact.outputs.child }}
-          PLATFORM: ${{ matrix.platform }}
+      - name: Bind clean security and native runtime evidence to the built OCI layout
         run: |
           set -euo pipefail
-          docker run --rm --platform "$PLATFORM" \
-            "${REGISTRY}/${IMAGE_NAME}@${CHILD_DIGEST}" baobab-verify
-      - name: Export architecture image digest
-        if: needs.sanity-check.outputs.is_release == 'true'
-        run: |
-          mkdir -p "${{ runner.temp }}/digests"
-          digest="${{ steps.build.outputs.digest }}"
-          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+          python3 scripts/attested_release_layout.py qualify --layout "$RUNNER_TEMP/release-layout" \
+            --plan "$RUNNER_TEMP/release-native-plan.json" --archive "$RUNNER_TEMP/release-native.tar" \
+            --runtime "$RUNNER_TEMP/native-image/native-image.json" --scan "$RUNNER_TEMP/trivy-exact-raw.json" \
+            --scanner-version "$(trivy --version | sed -n 's/^Version: //p' | head -1)"
 
-      - name: Upload digest
-        if: needs.sanity-check.outputs.is_release == 'true'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Retain qualified OCI layout for protected publication
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: digests-${{ matrix.target }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}
-          path: ${{ runner.temp }}/digests/*
+          name: release-layout-${{ matrix.target }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/release-layout/
+          compression-level: 0
           if-no-files-found: error
           retention-days: 1
 
-      - name: Retain exact-release-scan evidence
-        if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Retain native runtime and sanitized release scan evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: exact-release-${{ matrix.target }}-${{ matrix.platform == 'linux/arm64' && 'arm64' || 'amd64' }}-${{ github.sha }}
           path: |
+            ${{ runner.temp }}/release-layout/qualification.json
+            ${{ runner.temp }}/native-image/
             ${{ runner.temp }}/trivy-exact-evidence/
             ${{ runner.temp }}/trivy-db-freshness.json
           if-no-files-found: warn
           retention-days: 30
-  # Job 3: Manifest Creation, OIDC Cosign Signing & Release Attestation
-  # Merges per-arch images into a multi-arch OCI index, applies keyless
-  # Cosign signatures/attestations via OIDC, and creates a GitHub Release.
-  # Gated to `v*.*.*` tag pushes only (see PUBLISH TRIGGER POLICY above).
+
+  authorize-publish:
+    name: Authorize first registry write for the complete image family
+    needs: [release-digests, sanity-check]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: dev10-release-promotion
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Refuse promotion until independently protected environment is configured
+        env:
+          POLICY_READY: ${{ vars.DEV10_R5_PROMOTION_APPROVED }}
+        run: |
+          set -euo pipefail
+          [[ "$POLICY_READY" == 'true' ]] || {
+            echo '::error::DEV-10 R5 promotion policy not configured. The dev10-release-promotion environment must have independent reviewers/tag restrictions and DEV10_R5_PROMOTION_APPROVED=true.';
+            exit 1;
+          }
+      - name: Checkout immutable release source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Recheck tag and branch governance after the deployment approval
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_remote_release_tag.py --tag "$RELEASE_TAG" --sha "$GITHUB_SHA"
+          python3 scripts/verify_release_governance.py
+
+      - name: Verify actual independent GitHub Environment approval policy
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/environments/dev10-release-promotion" > "$RUNNER_TEMP/promotion-environment.json"
+          gh api "repos/${GITHUB_REPOSITORY}/environments/dev10-release-promotion/deployment-branch-policies?per_page=100" > "$RUNNER_TEMP/promotion-deployment-policies.json"
+          python3 scripts/verify_release_environment.py \
+            --environment "$RUNNER_TEMP/promotion-environment.json" \
+            --policies "$RUNNER_TEMP/promotion-deployment-policies.json" \
+            --tag "$RELEASE_TAG" > "$RUNNER_TEMP/verified-release-environment.json"
+
+      - name: Capture independent deployment approval evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+          ORIGINAL_ACTOR_LOGIN: ${{ github.actor }}
+          ORIGINAL_ACTOR_ID: ${{ github.actor_id }}
+          SOURCE_CONTRIBUTORS: ${{ needs.sanity-check.outputs.contributor_ids }}
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_promotion_approval.py \
+            --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" \
+            --head-sha "$GITHUB_SHA" --actor "$ORIGINAL_ACTOR_LOGIN" \
+            --actor-id "$ORIGINAL_ACTOR_ID" --tag "$RELEASE_TAG" \
+            --environment-evidence "$RUNNER_TEMP/verified-release-environment.json" --contributors "$SOURCE_CONTRIBUTORS" \
+            --output "$RUNNER_TEMP/r5-promotion-evidence/approval.json"
+
+      - name: Verify custody of all eight qualified native layout artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" > "$RUNNER_TEMP/qualified-layouts.json"
+          python3 scripts/verify_actions_artifact_containers.py --input "$RUNNER_TEMP/qualified-layouts.json" \
+            --channel native --run-id "$GITHUB_RUN_ID" --sha "$GITHUB_SHA" \
+            > "$RUNNER_TEMP/r5-promotion-evidence/qualified-layouts.json"
+
+      - name: Retain the pre-publication authorization
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: first-registry-write-approval
+          path: ${{ runner.temp }}/r5-promotion-evidence/
+          if-no-files-found: error
+          retention-days: 30
+
   publish:
     name: "Publish Multi-Arch Manifest & Cosign Sign (${{ matrix.target }})"
-    needs: [release-digests, sanity-check]
-    if: needs.sanity-check.outputs.is_release == 'true' && needs.sanity-check.outputs.is_stable_release != 'true'
+    needs: [authorize-publish, sanity-check]
+    if: needs.sanity-check.outputs.is_release == 'true' && github.run_attempt == 1 && (needs.sanity-check.outputs.publication_channel == 'rc' || needs.sanity-check.outputs.publication_channel == 'ga-direct')
 
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -1047,16 +1139,8 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      # Release jobs check out the immutable tag-push event commit only.
-      # No independently selected ref can be substituted at dispatch time.
-      - name: Download resolved lockfile
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: resolved-lockfile
-          path: .
-
       - name: Authenticate to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -1070,7 +1154,7 @@ jobs:
 
       # FIX: publish job previously had no Buildx setup, relying on the runner's older bundled buildx CLI for imagetools create/inspect — the likely cause of missing provenance in the merged index.
       - name: Setup Docker Buildx Engine
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       # FIX (found via a live, reproducible failure — not caught by the
       # earlier verification): `flavor.suffix` correctly applies to the
@@ -1137,51 +1221,42 @@ jobs:
             type=semver,pattern={{major}},value=${{ needs.sanity-check.outputs.release_tag }},enable=${{ needs.sanity-check.outputs.is_stable_release == 'true' }}
             type=raw,value=latest,enable=${{ needs.sanity-check.outputs.is_stable_release == 'true' }}
 
-      # Download per-architecture digests exported by the build job — only
-      # THIS target's digests. Pattern includes matrix.target: without it,
-      # this would pull every other target's digests into the same merge,
-      # producing a manifest that mixed layers from different Dockerfile
-      # stages under one tag.
-      # FIX: 'digests-${{ matrix.target }}-*' over-matched — for
-      # matrix.target == frontend, that glob ALSO matched
-      # 'digests-frontend-e2e-amd64'/'-arm64' as a prefix, pulling
-      # frontend-e2e's per-arch digests into frontend's merge. Confirmed
-      # live (v1.2.5-rc.3): 4 artifacts downloaded instead of 2, which fed
-      # 4 source indices (8 children after --flatten) into "Publish
-      # multi-architecture OCI manifest" below instead of 2 (4 children) —
-      # visible in that step's "existing manifest:" line count. The
-      # resulting index held two linux/amd64 image manifests, so the
-      # provenance-extraction step's single-result jq lookup for amd64
-      # silently returned multiple/no match, misreported as "missing
-      # attestation manifest for linux/amd64" on every retry.
-      #
-      # REGRESSION (v1.2.5-rc.5) from the first attempted fix: a `pattern: |`
-      # multi-line block does NOT give `actions/download-artifact` two
-      # patterns to OR together — that newline-separated-list behavior
-      # belongs to a different, unrelated tool (Azure Pipelines'
-      # DownloadPipelineArtifact task). This action's `pattern` input is
-      # documented as a single glob (see actions/download-artifact's own
-      # action.yml); a multi-line YAML block scalar produces ONE string
-      # containing a literal newline character, which cannot match any
-      # real artifact name. Confirmed live: "Total of 0 artifact(s)
-      # downloaded" across final, frontend, AND frontend-e2e in the same
-      # run — the resulting empty digests/ directory then hit the known
-      # (previously deferred, now fixed below) nullglob gap in "Publish
-      # multi-architecture OCI manifest"'s glob, which misreported the
-      # real zero as "found 1".
-      #
-      # Corrected to a SINGLE pattern using brace expansion — minimatch
-      # (the library this action uses) expands `{a,b}` by default
-      # (`nobrace` defaults to false) — verified directly against
-      # minimatch with this run's real artifact names before applying:
-      # exactly 2 matches per target, no cross-target collision, for all
-      # three of final/frontend/frontend-e2e.
-      - name: Download digests
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - name: Refuse a direct build if the exact version tag already exists
+        env:
+          TARGET: ${{ matrix.target }}
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          suffix=""
+          [[ "$TARGET" == final ]] || suffix="-$TARGET"
+          image="${REGISTRY}/${IMAGE_NAME}:${RELEASE_TAG#v}$suffix"
+          if existing=$(crane digest "$image" 2> "$RUNNER_TEMP/existing-tag.err"); then
+            echo "::error::Version tag $image already resolves to $existing; require independent provenance and authorization readback."
+            exit 1
+          fi
+          grep -Eq 'MANIFEST_UNKNOWN:|404 Not Found.*manifest unknown' "$RUNNER_TEMP/existing-tag.err" || {
+            echo "::error::Unable to establish absence of the exact version tag."; exit 1;
+          }
+
+      - name: Download prequalified amd64 OCI bytes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          path: ${{ runner.temp }}/digests
-          pattern: digests-${{ matrix.target }}-{amd64,arm64}
-          merge-multiple: true
+          path: ${{ runner.temp }}/release-layout
+          name: release-layout-${{ matrix.target }}-amd64-${{ github.run_attempt }}
+      - name: Transfer prequalified amd64 OCI bytes by immutable digest
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bash scripts/ci/transfer-release-layout.sh "$TARGET" amd64
+
+      - name: Download prequalified arm64 OCI bytes
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/release-layout
+          name: release-layout-${{ matrix.target }}-arm64-${{ github.run_attempt }}
+      - name: Transfer prequalified arm64 OCI bytes by immutable digest
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bash scripts/ci/transfer-release-layout.sh "$TARGET" arm64
 
       # ------------------------------------------------------------------
       # Merge per-architecture digests into a unified multi-arch OCI index
@@ -1431,7 +1506,7 @@ jobs:
       # actually confirmed, in case it's ever in doubt again after a future
       # cosign or GHCR change.
       - name: Install Cosign CLI tool
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       
       # NEW: make the shared cosign-retry wrapper executable once, here — all three cosign-calling steps below depend on it.
       - name: Make cosign-retry.sh executable
@@ -1843,7 +1918,7 @@ jobs:
 
       - name: Retain independent signed-predicate content evidence
         if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: signed-predicates-${{ matrix.target }}-${{ github.sha }}
           path: ${{ runner.temp }}/signed-predicate-evidence.json
@@ -1878,7 +1953,7 @@ jobs:
           JSON
 
       - name: Upload published info
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: published-info-${{ matrix.target }}
           path: ${{ runner.temp }}/published-info/*.json
@@ -1900,7 +1975,7 @@ jobs:
             echo "### Security & Hygiene Controls Applied"
             echo "- ✅ **Pinned GitHub Actions:** Immutable 40-character commit SHAs"
             echo "- ✅ **Concurrency Control:** Auto-cancels obsolete build runs on PRs"
-            echo "- ✅ **Exact remote digest Trivy:** Both architectures scanned; CLEAN or separately approved v1.5.0-rc.N / v1.5.0 DEV-only residual-risk evidence (issue #54)"
+            echo "- ✅ **Exact remote digest Trivy:** Both architectures scanned; release publication requires CLEAN results. Development-only risk acceptance never authorizes release publication or promotion."
             echo "- ✅ **SBOM & SLSA Attestations:** Embedded directly into OCI index"
             echo "- ✅ **Keyless Cosign Signature:** Signed via GitHub Actions OIDC identity"
             echo "- ✅ **Post-Publish Verification:** Signature and attestations independently re-verified against the published digest (scripts/verify-image.sh)"
@@ -1914,15 +1989,19 @@ jobs:
   promote:
     name: Protected GHCR tag promotion with recovery evidence
     needs: [publish, ga-reuse, sanity-check]
-    if: always() && needs.sanity-check.outputs.is_release == 'true' && ((needs.sanity-check.outputs.is_stable_release == 'true' && needs.ga-reuse.result == 'success') || (needs.sanity-check.outputs.is_stable_release != 'true' && needs.publish.result == 'success'))
+    if: always() && !cancelled() && github.run_attempt == 1 && needs.sanity-check.outputs.is_release == 'true' && ((needs.sanity-check.outputs.publication_channel == 'ga' && needs.ga-reuse.result == 'success') || (needs.sanity-check.outputs.publication_channel != 'ga' && needs.publish.result == 'success'))
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    concurrency:
+      group: dev10-registry-tag-promotion
+      queue: max
     environment:
       name: dev10-release-promotion
     permissions:
       contents: read
       packages: write
       actions: read
+      pull-requests: read
     steps:
       - name: Refuse promotion until independently protected environment is configured
         env:
@@ -1938,6 +2017,15 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - name: Recheck tag and branch governance after the deployment approval
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_remote_release_tag.py --tag "$RELEASE_TAG" --sha "$GITHUB_SHA"
+          python3 scripts/verify_release_governance.py
+
       - name: Verify actual independent GitHub Environment approval policy
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1949,38 +2037,61 @@ jobs:
           python3 scripts/verify_release_environment.py \
             --environment "$RUNNER_TEMP/promotion-environment.json" \
             --policies "$RUNNER_TEMP/promotion-deployment-policies.json" \
-            --tag "$RELEASE_TAG"
+            --tag "$RELEASE_TAG" > "$RUNNER_TEMP/verified-release-environment.json"
 
       - name: Capture independent deployment approval evidence
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+          ORIGINAL_ACTOR_LOGIN: ${{ github.actor }}
+          ORIGINAL_ACTOR_ID: ${{ github.actor_id }}
+          SOURCE_CONTRIBUTORS: ${{ needs.sanity-check.outputs.contributor_ids }}
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/r5-promotion-evidence"
-          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/approvals" > "$RUNNER_TEMP/promotion-approvals.json"
           python3 scripts/verify_promotion_approval.py \
-            --reviews "$RUNNER_TEMP/promotion-approvals.json" \
             --run-id "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT" \
-            --actor "$GITHUB_ACTOR" --tag "$RELEASE_TAG" \
+            --head-sha "$GITHUB_SHA" --actor "$ORIGINAL_ACTOR_LOGIN" \
+            --actor-id "$ORIGINAL_ACTOR_ID" --tag "$RELEASE_TAG" \
+            --environment-evidence "$RUNNER_TEMP/verified-release-environment.json" --contributors "$SOURCE_CONTRIBUTORS" \
             --output "$RUNNER_TEMP/r5-promotion-evidence/approval.json"
 
-      - name: Download candidate records for release channel
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: ${{ runner.temp }}/published-info
-          pattern: ${{ needs.sanity-check.outputs.is_stable_release == 'true' && 'ga-reused-candidates' || 'published-info-*' }}
-          merge-multiple: true
-      - name: Independently verify GA continuity against qualified RC records
-        if: needs.sanity-check.outputs.is_stable_release == 'true'
+      - name: Verify Actions candidate artifact containers before download
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RC_RUN: ${{ vars.DEV10_QUALIFIED_RC_RUN_ID }}
-          TAG: ${{ needs.sanity-check.outputs.release_tag }}
+          CHANNEL: ${{ needs.sanity-check.outputs.publication_channel }}
         run: |
           set -euo pipefail
-          [[ "$RC_RUN" =~ ^[1-9][0-9]*$ ]] || exit 1
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" > "$RUNNER_TEMP/artifact-pages.json"
+          python3 scripts/verify_actions_artifact_containers.py \
+            --input "$RUNNER_TEMP/artifact-pages.json" --channel "$CHANNEL" \
+            --run-id "$GITHUB_RUN_ID" --sha "$GITHUB_SHA"
+      - name: Download candidate records for release channel
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/published-info
+          pattern: ${{ needs.sanity-check.outputs.publication_channel == 'ga' && 'ga-reused-candidates' || 'published-info-*' }}
+          merge-multiple: true
+      - name: Enforce producer-consumer candidate artifact contract
+        env:
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+          CHANNEL: ${{ needs.sanity-check.outputs.publication_channel }}
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_release_artifact_contract.py \
+            --directory "$RUNNER_TEMP/published-info" \
+            --tag "$RELEASE_TAG" --channel "$CHANNEL"
+      - name: Independently verify GA continuity against qualified RC records
+        if: needs.sanity-check.outputs.publication_channel == 'ga'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.sanity-check.outputs.release_tag }}
+          RC_RUN: ${{ needs.ga-reuse.outputs.rc_run }}
+        run: |
+          set -euo pipefail
           mkdir -p "$RUNNER_TEMP/qualified-rc-records"
+          [[ "$RC_RUN" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::Could not resolve a qualified same-commit RC run"; exit 1;
+          }
           gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RC_RUN}" > "$RUNNER_TEMP/qualified-rc-run.json"
           for target in final frontend frontend-e2e infra; do
             gh run download "$RC_RUN" --repo "$GITHUB_REPOSITORY" --name "published-info-$target" --dir "$RUNNER_TEMP/qualified-rc-records"
@@ -1993,7 +2104,7 @@ jobs:
             --output "$RUNNER_TEMP/r5-promotion-evidence/rc-ga-continuity.json"
 
       - name: Authenticate to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -2016,10 +2127,24 @@ jobs:
       # Build/publish jobs install Cosign in their own runners; promotion is a
       # separate runner and must provision the verifier explicitly as well.
       - name: Install Cosign CLI for independent promotion verification
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+
+      - name: Independently provision pinned Trivy for digest-specific security decisions
+        env:
+          TRIVY_VERSION: "0.73.0"
+          TRIVY_SHA256: "2edd39da482bb4e9831962487b68f68e3928ec3137794757f54d00383d79547b"
+        run: |
+          set -euo pipefail
+          asset="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$asset" "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/$asset"
+          echo "${TRIVY_SHA256}  $RUNNER_TEMP/$asset" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP" trivy
+          sudo install -m 0755 "$RUNNER_TEMP/trivy" /usr/local/bin/trivy
+          trivy --version
 
       - name: Verify all candidate records, signatures and expected release labels
         env:
+          CHANNEL: ${{ needs.sanity-check.outputs.publication_channel }}
           RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
         run: |
           set -euo pipefail
@@ -2027,6 +2152,8 @@ jobs:
           image="${REGISTRY}/${IMAGE_NAME}"
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ || "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[1-9][0-9]*$ ]] || { echo '::error::Only strict GA or numbered RC semver can be promoted'; exit 1; }
           python3 scripts/release_tag_policy.py --tag "$RELEASE_TAG" >/dev/null
+          evidence="$RUNNER_TEMP/r5-promotion-evidence"
+          mkdir -p "$evidence/security" "$evidence/registry"
           version="${RELEASE_TAG#v}"
           count=$(find "$info" -maxdepth 1 -type f -name '*.json' | wc -l)
           [[ "$count" -eq 4 ]] || { echo "::error::Expected exactly four candidate files; found $count"; exit 1; }
@@ -2043,10 +2170,42 @@ jobs:
               echo "::error::Mismatched candidate record for $target"; exit 1;
             }
             verification_tag="$RELEASE_TAG"
-            if [[ "$RELEASE_TAG" != *-rc.* ]]; then
+            if [[ "$CHANNEL" == ga ]]; then
               verification_tag=$(jq -er '.head_branch' "$RUNNER_TEMP/qualified-rc-run.json")
             fi
-            bash scripts/verify-image.sh "$image@$digest" "$verification_tag"
+            # Resolve the immutable OCI object independently from GHCR.
+            # The record is not proof that the referenced digest exists.
+            # Pull the registry index using a verifier installed on this
+            # separate protected runner; never trust build-job platform claims.
+            crane manifest "$image@$digest" > "$RUNNER_TEMP/verified-$target-index.json"
+            python3 scripts/verify_independent_oci_index.py \
+              --input "$RUNNER_TEMP/verified-$target-index.json"
+            resolved_digest=$(crane digest "$image@$digest")
+            [[ "$resolved_digest" == "$digest" ]] || {
+              echo "::error::Registry digest identity mismatch for $target"; exit 1;
+            }
+            # Development risk acceptance is never release authority.
+            # No release-specific decision schema, custody verifier or separate
+            # trust anchor is provisioned yet. Therefore any residual HIGH or
+            # CRITICAL finding fails closed; do not reuse the development SHA.
+            # The scan must identify the immutable GHCR digest and architecture.
+            for architecture in linux/amd64 linux/arm64; do
+              child=$(jq -r --arg arch "${architecture#linux/}" '.manifests[] | select(.platform.os == "linux" and .platform.architecture == $arch) | .digest' "$RUNNER_TEMP/verified-$target-index.json")
+              [[ "$child" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "::error::Missing exact architecture child digest"; exit 2; }
+              trivy image --image-src remote --platform "$architecture" \
+                --scanners vuln,secret --pkg-types os,library \
+                --severity HIGH,CRITICAL --ignorefile /dev/null --format json \
+                --output "$RUNNER_TEMP/security-$target-${architecture#linux/}.json" "$image@$child"
+              python3 scripts/verify_digest_security_decision.py \
+                --report "$RUNNER_TEMP/security-$target-${architecture#linux/}.json" \
+                --target "$target" --digest "$child" --release-tag "$RELEASE_TAG" \
+                --image-repository "$image" --architecture "$architecture" \
+                --scanner-version "$(trivy --version | sed -n 's/^Version: //p' | head -1)" \
+                > "$evidence/security/$target-${architecture#linux/}.json"
+            done
+            python3 scripts/verify_registry_arch_attestations.py --image "$image@$digest" \
+              --tag "$RELEASE_TAG" --signer-tag "$verification_tag" --expected-sha "$GITHUB_SHA" \
+              --evidence "$evidence/registry/$target.json"
             echo "::notice::Promotion precheck: $target digest $digest verified"
           done
 
@@ -2060,9 +2219,29 @@ jobs:
           set -euo pipefail
           bash scripts/promote_release_tags.sh
 
+      - name: Assemble the release manifest from independent digest readback
+        env:
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+          CHANNEL: ${{ needs.sanity-check.outputs.publication_channel }}
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/r5-promotion-evidence"
+          python3 scripts/assemble_release_evidence.py --tag "$RELEASE_TAG" --channel "$CHANNEL" \
+            --source "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" --evidence "$evidence" \
+            --candidates "$RUNNER_TEMP/published-info"
+          cp "$evidence/release-evidence.json" "$RUNNER_TEMP/release-evidence.json"
+
+      - name: Retain the verified release evidence manifest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: verified-release-evidence
+          path: ${{ runner.temp }}/release-evidence.json
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Preserve promotion journal including partial-failure diagnosis
         if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dev10-r5-promotion-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/r5-promotion-evidence/
@@ -2079,7 +2258,7 @@ jobs:
   release:
     name: Create Combined GitHub Release
     needs: [promote, sanity-check, ga-reuse]
-    if: always() && needs.sanity-check.outputs.is_release == 'true' && needs.promote.result == 'success'
+    if: always() && !cancelled() && github.run_attempt == 1 && needs.sanity-check.outputs.is_release == 'true' && needs.promote.result == 'success'
 
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -2088,6 +2267,7 @@ jobs:
     # that needs it now; `publish`'s matrix legs no longer touch releases.
     permissions:
       contents: write
+      actions: read
 
     steps:
       - name: Checkout repository
@@ -2096,23 +2276,35 @@ jobs:
           ref: ${{ github.sha }}
           persist-credentials: false
 
-      # Needed so the release can attach versions.lock as a release asset,
-      # same as the old single-job version did.
-      - name: Download resolved lockfile
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: resolved-lockfile
-          path: .
-
       # RC builds publish published-info-* records; GA reuses the exact
       # qualified RC digests in ga-reused-candidates. Both channels must
       # render release notes from the records actually promoted.
+      - name: Verify Actions candidate artifact containers before download
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL: ${{ needs.sanity-check.outputs.publication_channel }}
+        run: |
+          set -euo pipefail
+          gh api --paginate --slurp "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100" > "$RUNNER_TEMP/artifact-pages.json"
+          python3 scripts/verify_actions_artifact_containers.py \
+            --input "$RUNNER_TEMP/artifact-pages.json" --channel "$CHANNEL" \
+            --run-id "$GITHUB_RUN_ID" --sha "$GITHUB_SHA"
       - name: Download channel candidate records
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: ${{ runner.temp }}/published-info
-          pattern: ${{ needs.sanity-check.outputs.is_stable_release == 'true' && 'ga-reused-candidates' || 'published-info-*' }}
+          pattern: ${{ needs.sanity-check.outputs.publication_channel == 'ga' && 'ga-reused-candidates' || 'published-info-*' }}
           merge-multiple: true
+
+      - name: Enforce release metadata artifact contract
+        env:
+          RELEASE_TAG: ${{ needs.sanity-check.outputs.release_tag }}
+          CHANNEL: ${{ needs.sanity-check.outputs.publication_channel }}
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_release_artifact_contract.py \
+            --directory "$RUNNER_TEMP/published-info" \
+            --tag "$RELEASE_TAG" --channel "$CHANNEL"
 
       # Builds the release body from whatever published-info JSON files are
       # actually present — genuinely no hardcoded target list, so this
@@ -2155,19 +2347,29 @@ jobs:
             ordered_files+=("$f")
           done
 
+          RELEASE_TAG="${{ needs.sanity-check.outputs.release_tag }}"
           {
-            if [[ "${{ needs.sanity-check.outputs.release_tag }}" == "v1.5.0" || "${{ needs.sanity-check.outputs.release_tag }}" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ]]; then
-              echo "### Baobab development environment — v1.5.0"
+            # Render the disclosure from the same exact allow-list enforced by
+            # dev10_kernel_risk_gate.py. A syntactically valid future release
+            # must not inherit an older version's security exception.
+            if python3 - "${RELEASE_TAG}" <<'PY'
+          import sys
+          sys.path.insert(0, "scripts")
+          from dev10_kernel_risk_gate import is_historical_development_risk_disclosure_ref
+          raise SystemExit(0 if is_historical_development_risk_disclosure_ref(sys.argv[1]) else 1)
+          PY
+            then
+              echo "### Baobab development environment — ${RELEASE_TAG}"
               echo ""
               echo "**Intended use:** Organisation development environments, GitHub Codespaces and disposable local developer toolchains only. This is NOT an application staging/production deployment image."
               if [[ "${{ needs.sanity-check.outputs.is_stable_release }}" != "true" ]]; then
                 echo "**Release candidate:** This is an RC rehearsal. Four versioned RC tags are published and verified; major/minor/latest aliases stay on the current GA."
               else
                 echo "**General availability:** This is the approved development image. Versioned tags and latest/major/minor aliases are promoted together after all checks."
-                echo "**Consumer upgrade:** Owners of Nabhold, ZuriBeans, Thamani, CP, IAM and other Baobab development estates should update their devcontainer image pin to the verified v1.5.0 digest, rebuild and rerun their consumer tests."
+                echo "**Consumer upgrade:** Owners of Nabhold, ZuriBeans, Thamani, CP, IAM and other Baobab development estates should update their devcontainer image pin to the verified ${RELEASE_TAG} digest, rebuild and rerun their consumer tests."
               fi
               echo ""
-              echo "**Time-bounded security disclosure:** Native AMD64 and ARM64 image profiles were independently scanned with unfiltered Trivy; the user-approved, inventory-pinned linux-libc-dev=7.0.0-42.42 development-only CVE treatment under [issue #54](https://github.com/baobab-platform/baobab-dev/issues/54) may apply. The original 295 advisories (12 CRITICAL, 283 HIGH) remain tracked as unremediated/under investigation, **not declared harmless**. Review exact architecture scan artifacts and the recorded risk decision."
+              echo "**Time-bounded security disclosure:** Native AMD64 and ARM64 image profiles were independently scanned with unfiltered Trivy; the explicitly scoped, inventory-pinned linux-libc-dev development-only CVE treatment under [issue #54](https://github.com/baobab-platform/baobab-dev/issues/54) may apply. The original 295 advisories (12 CRITICAL, 283 HIGH) remain tracked as unremediated/under investigation, **not declared harmless**. Review exact architecture scan artifacts and the recorded risk decision."
               echo ""
               echo "**Review deadline:** 2026-11-26 00:00 UTC. Continued organisational consumption beyond the deadline needs remediation or re-review; the tag will not automatically disappear when the exception expires."
               echo ""
@@ -2181,8 +2383,15 @@ jobs:
               target=$(jq -r '.target' "$f")
               tag=$(jq -r '.tag' "$f")
               digest=$(jq -r '.digest' "$f")
+              signer_tag=$(jq -r '.signer_tag // empty' "$f")
+              signer_run_id=$(jq -r '.signer_run_id // empty' "$f")
+              [[ -n "$signer_tag" ]] || signer_tag="${{ needs.sanity-check.outputs.release_tag }}"
 
               echo "**${target}:**"
+              echo "Signature source: \`${signer_tag}\`"
+              if [[ -n "$signer_run_id" ]]; then
+                echo "Qualified RC workflow run: [${signer_run_id}](https://github.com/${{ github.repository }}/actions/runs/${signer_run_id})"
+              fi
               echo '```bash'
               echo "docker pull ${tag}"
               echo '```'
@@ -2190,13 +2399,13 @@ jobs:
               echo "Verify (digest \`${digest}\`):"
               echo '```bash'
               echo "cosign verify \\"
-              echo "  --certificate-identity \"https://github.com/${{ github.repository }}/.github/workflows/publish.yml@refs/tags/${{ needs.sanity-check.outputs.release_tag }}\" \\"
+              echo "  --certificate-identity \"https://github.com/${{ github.repository }}/.github/workflows/publish.yml@refs/tags/${signer_tag}\" \\"
               echo "  --certificate-oidc-issuer \"https://token.actions.githubusercontent.com\" \\"
               echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${digest}"
               echo ""
               echo "cosign verify-attestation \\"
               echo "  --type slsaprovenance1 \\"
-              echo "  --certificate-identity \"https://github.com/${{ github.repository }}/.github/workflows/publish.yml@refs/tags/${{ needs.sanity-check.outputs.release_tag }}\" \\"
+              echo "  --certificate-identity \"https://github.com/${{ github.repository }}/.github/workflows/publish.yml@refs/tags/${signer_tag}\" \\"
               echo "  --certificate-oidc-issuer \"https://token.actions.githubusercontent.com\" \\"
               echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${digest}"
               echo '```'
@@ -2210,14 +2419,22 @@ jobs:
       # publish) — see the prior single-job version's comment for the full
       # "Cannot upload assets to an immutable release" background; that
       # constraint is unchanged by this job split.
+      - name: Download verified release evidence
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: verified-release-evidence
+          path: ${{ runner.temp }}/release-evidence
+
       - name: Create GitHub Release (draft)
         id: create-release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           tag_name: ${{ needs.sanity-check.outputs.release_tag }}
           draft: true
           prerelease: ${{ needs.sanity-check.outputs.is_stable_release != 'true' }}
-          files: config/versions.lock
+          files: |
+            config/versions.lock
+            ${{ runner.temp }}/release-evidence/release-evidence.json
           generate_release_notes: true
           body_path: ${{ steps.release-body.outputs.path }}
 

@@ -96,6 +96,14 @@ die() {
 }
 
 # -----------------------------------------------------------------------------
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_PNPM_CMD=""
+if [ -x "${SCRIPT_DIR}/project-pnpm.sh" ]; then
+    PROJECT_PNPM_CMD="${SCRIPT_DIR}/project-pnpm.sh"
+elif command -v baobab-project-pnpm >/dev/null 2>&1; then
+    PROJECT_PNPM_CMD="$(command -v baobab-project-pnpm)"
+fi
+
 # Validate configuration
 # -----------------------------------------------------------------------------
 
@@ -156,6 +164,10 @@ run_on_create() {
 # Stage: post-create (and update-content — see CHANGE LOG above)
 # -----------------------------------------------------------------------------
 
+# Keep the image-owned COREPACK_HOME as the read-only cache for preloaded Yarn.
+# Consumer-pinned pnpm uses the shared helper and a separate writable user cache.
+# It verifies Corepack's pnpm wrapper and pnpm's native executable before
+# disabling network access for all subsequent project-pinned pnpm commands.
 install_node_project() {
     command -v node >/dev/null 2>&1 || die "Node is required by package.json."
     if [ -f .node-version ]; then
@@ -172,12 +184,14 @@ install_node_project() {
     local manager
     manager=$(node -p 'JSON.parse(require("fs").readFileSync("package.json", "utf8")).packageManager || ""')
     if [ -f pnpm-lock.yaml ]; then
-        [[ "$manager" =~ ^pnpm@([0-9]+\.[0-9]+\.[0-9]+)(\+sha(224|512)\.[0-9a-f]+)?$ ]] \
-            || die "package.json must declare an exact pnpm packageManager."
-        local pin="${BASH_REMATCH[1]}"
-        command -v pnpm >/dev/null 2>&1 || die "pnpm is required."
-        [ "$(pnpm --version)" = "$pin" ] || die "Project pnpm version mismatch."
-        pnpm install --frozen-lockfile
+        [ -n "$PROJECT_PNPM_CMD" ] || die "Shared project-pnpm helper is required."
+        local pin
+        pin="$("$PROJECT_PNPM_CMD" pin)" || die "package.json must declare an exact pnpm packageManager."
+        if ! "$PROJECT_PNPM_CMD" prepare; then
+            die "Corepack could not securely prepare the exact project-pinned pnpm version."
+        fi
+        [ "$("$PROJECT_PNPM_CMD" --version)" = "$pin" ] || die "Project pnpm version mismatch."
+        "$PROJECT_PNPM_CMD" install --frozen-lockfile
     elif [ -f yarn.lock ]; then
         [[ "$manager" =~ ^yarn@([0-9]+\.[0-9]+\.[0-9]+)$ ]] || die "Exact Yarn packageManager is required."
         local pin="${BASH_REMATCH[1]}"
@@ -203,7 +217,9 @@ run_post_create() {
     # Python
     # -------------------------------------------------------------------------
 
-    if [ -f "pyproject.toml" ]; then
+    if [ "${BAOBAB_BUILD_PROFILE:-}" = "infra" ]; then
+        log "Skipping Python project dependencies: infra profile intentionally excludes Python."
+    elif [ -f "pyproject.toml" ]; then
         if [ -f "uv.lock" ] && [ -f "poetry.lock" ]; then
             die "Ambiguous Python lockfiles: select one project package manager."
         elif [ -f "uv.lock" ]; then
@@ -269,8 +285,8 @@ run_post_create() {
         # that would bypass the root's committed lock and workspace policy.
         if [ -f package.json ] && [ -f pnpm-workspace.yaml ]; then
             [ -f pnpm-lock.yaml ] || die "Root pnpm workspace requires a committed pnpm-lock.yaml."
-            command -v pnpm >/dev/null 2>&1 || die "pnpm is required by the root workspace."
-            if ! { pnpm list -r --depth -1 --json | node -e '
+            command -v corepack >/dev/null 2>&1 || die "Corepack is required by the root workspace."
+            if ! { "$PROJECT_PNPM_CMD" list -r --depth -1 --json | node -e '
                 const fs=require("fs");
                 try {
                     const rows=JSON.parse(fs.readFileSync(0,"utf8"));

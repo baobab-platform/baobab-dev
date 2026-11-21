@@ -1,165 +1,164 @@
-# ==============================================================================
-# BAOBAB Enterprise Platform
-# Automated Lockfile Maintenance & Dependency Drift Detector
-#
-# File: .github/workflows/update-lockfile.yml
-#
-# PURPOSE & RATIONALE:
-# --------------------
-# 1. Prevent Version Drift: Tools declared with "latest" in config/versions.yaml
-#    naturally evolve over time. Left unchecked, developers lose track of upstream
-#    breaking changes or security fixes.
-#
-# 2. Automated PR Flow (Renovate/Dependabot Style): Instead of resolving "latest"
-#    dynamically inside every release build (which makes builds non-deterministic),
-#    this workflow periodically evaluates config/versions.yaml via resolve.sh.
-#    If drift is detected, it commits updated versions.lock & .python-version
-#    to a isolated PR branch for human review and automated testing.
-#
-# 3. Supply Chain Hardening: All GitHub Actions are pinned to full 40-character
-#    commit SHAs to eliminate risks from hijacked or modified release tags.
-#
-# CHANGE LOG (this file, most recent first)
-# ------------------------------------------------------------------------------
-# * Replaced peter-evans/create-pull-request with an equivalent gh CLI step:
-#   the Foundation baseline gate only admits actions from trusted owners.
-# * peter-evans/create-pull-request was pinned to a SHA that does not
-#   correspond to v6.1.0 (or to any tag on this repository) — live-verified
-#   (2026-08-06) via `git ls-remote` against the upstream repo. Corrected to
-#   the real v6.1.0 commit. actions/checkout's existing pin was checked at
-#   the same time and is correct; left unchanged.
-# ==============================================================================
-
-name: Scheduled Lockfile Update
+name: DEV-10 manifest lock resolution
 
 on:
-  # ----------------------------------------------------------------------------
-  # Schedule: Triggers every Monday at 00:00 UTC.
-  # Ensures upstream tool releases are evaluated weekly without manual intervention.
-  # ----------------------------------------------------------------------------
-  schedule:
-    - cron: "0 0 * * 1"
+  pull_request:
+    branches: [main]
+    paths: [config/versions.yaml, config/versions.lock, .python-version]
+  pull_request_target:
+    branches: [main]
+    paths: [config/versions.yaml, config/versions.lock, .python-version]
 
-  # ----------------------------------------------------------------------------
-  # Manual Dispatch: Allows repository maintainers to run lockfile resolution
-  # on demand from the GitHub Actions UI.
-  # ----------------------------------------------------------------------------
-  workflow_dispatch:
-
-# ------------------------------------------------------------------------------
-# Least Privilege Global Security Standard
-# RATIONALE: Restrict default workflow execution permissions to strict read-only.
-# Elevation to write permissions occurs strictly within specific job blocks.
-# ------------------------------------------------------------------------------
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
-
-  # ============================================================================
-  # Job: Check Updates & Generate Pull Request
-  # ============================================================================
-  check-updates:
-    name: Check Drift & Open Pull Request
+  resolve:
+    if: >-
+      github.repository == 'baobab-platform/baobab-dev' &&
+      ((github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name != github.repository) ||
+       (github.event_name == 'pull_request_target' &&
+        github.event.pull_request.head.repo.full_name == github.repository))
     runs-on: ubuntu-26.04
-
-    # --------------------------------------------------------------------------
-    # Job-level Permission Elevation
-    # RATIONALE: Creating branches and opening PRs requires writing to repository
-    # contents and accessing the pull-requests API endpoint.
-    # --------------------------------------------------------------------------
-    permissions:
-      contents: write
-      pull-requests: write
-
+    timeout-minutes: 15
+    concurrency:
+      group: dev10-resolve-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    outputs:
+      drift: ${{ steps.resolve.outputs.drift }}
     steps:
-      # ------------------------------------------------------------------------
-      # Step 1: Checkout Repository
-      # RATIONALE: Immutable SHA pinning (@11bd71901bbe5b1630ceea73d27597364c9af683)
-      # guarantees the checkout logic cannot be tampered with via moving git tags.
-      # ------------------------------------------------------------------------
-      - name: Checkout repository
+      - name: Check out the trusted base resolver
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
-      # ------------------------------------------------------------------------
-      # Step 2: Install yq Dependency
-      # RATIONALE: resolve.sh requires yq v4+ to parse YAML input manifests.
-      # ------------------------------------------------------------------------
-      - name: Install yq CLI dependency
-        run: |
-          sudo wget -qO /usr/local/bin/yq \
-            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
-
-      # ------------------------------------------------------------------------
-      # Step 3: Execute Version Resolver
-      # RATIONALE: Evaluates config/versions.yaml, queries upstream GitHub APIs,
-      # calculates SHA256 checksums, and updates config/versions.lock.
-      # ------------------------------------------------------------------------
-      - name: Run version resolution script
+      - name: Fetch the exact PR Git object without checking out candidate code
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          chmod +x config/resolve.sh
-          ./config/resolve.sh
-
-      # ------------------------------------------------------------------------
-      # Step 4: Create Pull Request on Lockfile Drift
-      # RATIONALE:
-      # - Compares current branch state against git HEAD.
-      # - If config/versions.lock or .python-version were modified by resolve.sh,
-      #   a new branch 'automation/weekly-lockfile-update' is created and a PR
-      #   is submitted.
-      # - If no changes are detected, this step gracefully no-ops without error.
-      # ------------------------------------------------------------------------
-      - name: Open Pull Request if lockfile drift exists
-        # Uses the runner's preinstalled gh CLI rather than a third-party
-        # action, so this workflow stays within the Foundation trusted
-        # action-owner policy. Mirrors the previous create-pull-request
-        # behaviour: commit every non-ignored change resolve.sh made to a
-        # fixed branch, open (or refresh) one PR, and delete the branch when
-        # there is no drift.
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BRANCH: automation/weekly-lockfile-update
-          BASE: ${{ github.ref_name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No lockfile drift detected."
-            if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
-              git push origin --delete "$BRANCH"
-            fi
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "$BRANCH"
-          git commit -m "chore(deps): weekly update of versions.lock and .python-version"
-          git push --force origin "$BRANCH"
-          number=$(gh pr list --head "$BRANCH" --base "$BASE" --state open --json number --jq '.[0].number // empty')
-          if [ -z "$number" ]; then
-            gh pr create --base "$BASE" --head "$BRANCH" \
-              --title "chore(deps): automated weekly toolchain lockfile update" \
-              --body-file - <<'BODY'
-          ## Automated Lockfile Maintenance
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ && "$PR_HEAD" =~ ^[a-f0-9]{40}$ ]]
+          git fetch --no-tags origin "refs/pull/${PR_NUMBER}/head"
+          [[ "$(git rev-parse FETCH_HEAD)" == "$PR_HEAD" ]] || {
+            echo "::error::PR head changed. The latest revision needs a fresh resolution run."
+            exit 2
+          }
 
-          This PR was automatically generated by the scheduled `.github/workflows/update-lockfile.yml` workflow.
+      - name: Check that the PR changes version intent and generated files only
+        id: scope
+        run: |
+          set -euo pipefail
+          value=$(python3 -B scripts/dev10_lockfile_pr.py plan --event "$GITHUB_EVENT_PATH")
+          echo "manifest_only=$value" >> "$GITHUB_OUTPUT"
 
-          ### Updated Lockfile Artifacts
-          - `config/versions.lock`
-          - `.python-version`
+      - name: Install checksum-verified yq for resolution
+        if: steps.scope.outputs.manifest_only == 'true'
+        env:
+          YQ_BOOTSTRAP_VERSION: "4.53.3"
+          YQ_BOOTSTRAP_SHA256: "fa52a4e758c63d38299163fbdd1edfb4c4963247918bf9c1c5d31d84789eded4"
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://github.com/mikefarah/yq/releases/download/v${YQ_BOOTSTRAP_VERSION}/yq_linux_amd64" \
+            --output "$RUNNER_TEMP/yq"
+          printf '%s  %s\n' "$YQ_BOOTSTRAP_SHA256" "$RUNNER_TEMP/yq" | sha256sum --check --strict
+          chmod 755 "$RUNNER_TEMP/yq"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
-          ### Verification & Merge Process
-          1. CI will run multi-arch container builds, Trivy vulnerability scans, and smoke tests against this PR.
-          2. Review the lockfile diff to verify updated versions and checksum hashes.
-          3. Approve and merge when CI checks pass.
-          BODY
-            number=$(gh pr list --head "$BRANCH" --base "$BASE" --state open --json number --jq '.[0].number')
-          fi
-          # The issues labels endpoint creates missing labels, matching the
-          # previous action; a labelling failure must not fail the update.
-          gh api "repos/${GITHUB_REPOSITORY}/issues/${number}/labels" \
-            -f "labels[]=dependencies" -f "labels[]=automated-pr" >/dev/null \
-            || echo "::warning::could not label PR #${number}"
+      - name: Resolve the manifest against immutable upstream pins
+        id: resolve
+        if: steps.scope.outputs.manifest_only == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          resolved="$RUNNER_TEMP/dev10-resolved-locks"
+          manifest="$RUNNER_TEMP/dev10-pr-manifest.yaml"
+          python3 -B scripts/dev10_lockfile_pr.py stage --event "$GITHUB_EVENT_PATH" --manifest "$manifest"
+          bash config/resolve.sh --manifest "$manifest" --output-dir "$resolved"
+          drift=$(python3 -B scripts/dev10_lockfile_pr.py check --event "$GITHUB_EVENT_PATH" --resolved "$resolved")
+          echo "drift=$drift" >> "$GITHUB_OUTPUT"
+
+      - name: Retain exact generated files for same-branch or maintainer writeback
+        if: steps.resolve.outputs.drift == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: dev10-resolved-locks-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/dev10-resolved-locks/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Explain fork handoff
+        if: github.event_name == 'pull_request' && steps.resolve.outputs.drift == 'true'
+        run: |
+          echo 'A maintainer can take the generated files from this run into a trusted follow-up PR.' >> "$GITHUB_STEP_SUMMARY"
+
+  writeback:
+    needs: resolve
+    if: github.event_name == 'pull_request_target' && needs.resolve.outputs.drift == 'true'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    environment: dev10-lockfile-write
+    concurrency:
+      group: dev10-lockfile-write-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Check out only the trusted base writer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Fetch and verify the immutable PR input
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ && "$PR_HEAD" =~ ^[a-f0-9]{40}$ ]]
+          git fetch --no-tags origin "refs/pull/${PR_NUMBER}/head"
+          [[ "$(git rev-parse FETCH_HEAD)" == "$PR_HEAD" ]] || {
+            echo "::error::PR changed. The latest head needs a fresh resolution run."
+            exit 2
+          }
+          [[ "$(python3 -B scripts/dev10_lockfile_pr.py plan --trusted --event "$GITHUB_EVENT_PATH")" == true ]]
+
+      - name: Download this run's resolved files
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: dev10-resolved-locks-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/dev10-resolved-locks
+
+      - name: Require the approved lockfile GitHub App
+        env:
+          LOCKFILE_APP_CLIENT_ID: ${{ vars.DEV10_LOCKFILE_APP_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          [[ -n "$LOCKFILE_APP_CLIENT_ID" ]] || {
+            echo "::error::DEV10_LOCKFILE_APP_CLIENT_ID is unavailable. Generated files are retained for a maintainer."
+            exit 2
+          }
+
+      - name: Mint a repository-scoped lock writer token
+        id: writer
+        uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+        with:
+          client-id: ${{ vars.DEV10_LOCKFILE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.DEV10_LOCKFILE_APP_PRIVATE_KEY }}
+          permission-contents: write
+
+      - name: Append only generated files to the exact same PR branch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          LOCKFILE_APP_TOKEN: ${{ steps.writer.outputs.token }}
+        run: |
+          set -euo pipefail
+          python3 -B scripts/dev10_lockfile_pr.py write --event "$GITHUB_EVENT_PATH" \
+            --resolved "$RUNNER_TEMP/dev10-resolved-locks"

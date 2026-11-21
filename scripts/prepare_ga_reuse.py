@@ -2,6 +2,7 @@
 """Create GA records from qualified RC digests, without a new build."""
 import argparse
 import json
+import re
 from pathlib import Path
 from verify_rc_ga_workflow import records
 from verify_rc_ga_continuity import TARGETS, ContinuityError, qualify
@@ -14,17 +15,24 @@ def prepare(run, directory, tag, sha, output):
     if run.get("head_sha") != sha:
         raise ContinuityError("GA source differs from qualified RC")
     rc_tag = run.get("head_branch")
-    if not isinstance(rc_tag, str):
-        raise ContinuityError("RC tag missing")
+    num = r"(?:0|[1-9][0-9]*)"
+    stable = re.fullmatch(rf"v{num}\.{num}\.{num}", tag)
+    rc_match = re.fullmatch(rf"(v{num}\.{num}\.{num})-rc\.[1-9][0-9]*", rc_tag or "")
+    if not stable or not rc_match or rc_match.group(1) != tag:
+        raise ContinuityError("qualified RC tag must be the exact GA version family")
+    run_id = run.get("id")
+    if isinstance(run_id, bool) or not isinstance(run_id, int) or run_id <= 0:
+        raise ContinuityError("qualified RC workflow run ID missing or invalid")
     rc = records(directory, rc_tag, sha)
-    rc.update(qualified=True, qualification_ref=run.get("html_url"), run_id=run.get("id"))
+    rc.update(qualified=True, qualification_ref=run.get("html_url"), run_id=run_id)
     ga = {"release_tag": tag, "source_sha": sha, "images": dict(rc["images"])}
     result = qualify(rc, ga)
     output.mkdir(parents=True, exist_ok=True)
     for target in TARGETS:
         suffix = "" if target == "final" else "-" + target
         record = {"target": target, "tag": "ghcr.io/baobab-platform/baobab-dev:" + tag[1:] + suffix,
-                  "digest": rc["images"][target]}
+                  "digest": rc["images"][target], "signer_tag": rc_tag,
+                  "signer_run_id": run_id}
         (output / (target + ".json")).write_text(json.dumps(record, sort_keys=True) + "\n")
     return result
 

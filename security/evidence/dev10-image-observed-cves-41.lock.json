@@ -1,0 +1,186 @@
+{
+  "schema": "baobab.dev10.observed-image-cve-reconciliation.v1",
+  "status": "OBSERVED_SCAN_EVIDENCE_ONLY_NO_VEX_NO_EXCEPTION",
+  "source_head": "fa5b3fe362d5856bb512120312dbee978f070200",
+  "scan_run": {
+    "id": 44406651153,
+    "workflow": "Publish Baobab Dev Container",
+    "head_sha": "fa5b3fe362d5856bb512120312dbee978f070200",
+    "findings_per_profile_architecture": 52,
+    "severity_counts": {
+      "HIGH": 49,
+      "CRITICAL": 3
+    },
+    "package": {
+      "name": "linux-libc-dev",
+      "version": "7.0.0-43.43",
+      "type": "ubuntu"
+    }
+  },
+  "profile_architecture_artifacts": [
+    {
+      "profile": "frontend",
+      "architecture": "linux/amd64",
+      "artifact_id": 14476716492,
+      "artifact_sha256": "412ed9995fec5c223e7f1972f48e757e52e31f7bf115952fa6aeee818fe01c33"
+    },
+    {
+      "profile": "infra",
+      "architecture": "linux/amd64",
+      "artifact_id": 14474918555,
+      "artifact_sha256": "fd372b00a909b6c6fddd316ea86bca52726d82b00bbaf5db63c7d3ec829f3178"
+    },
+    {
+      "profile": "final",
+      "architecture": "linux/arm64",
+      "artifact_id": 14476331809,
+      "artifact_sha256": "e26c2af443b0966ad611b71d50ac65b8db03f4de4eea9b11ecb45460c74bc1d9"
+    },
+    {
+      "profile": "frontend-e2e",
+      "architecture": "linux/arm64",
+      "artifact_id": 14475722131,
+      "artifact_sha256": "5b53a2defff99a70894ed277c06478c29140d4d2b18202e394b034d9f6417fa1"
+    },
+    {
+      "profile": "final",
+      "architecture": "linux/amd64",
+      "artifact_id": 14475928123,
+      "artifact_sha256": "d7b3fca8d1cc0c501dfde111f96bfec0228e0fdf6dffffbc8c63b3dacbd81553"
+    },
+    {
+      "profile": "frontend",
+      "architecture": "linux/arm64",
+      "artifact_id": 14475981375,
+      "artifact_sha256": "c1f6761921efcfa05260095c428fb4f7edcab7d3581a881b781d5eb6fe9b2bc1"
+    },
+    {
+      "profile": "infra",
+      "architecture": "linux/arm64",
+      "artifact_id": 14475063067,
+      "artifact_sha256": "9efb0c7dcd661d30464eb9109ba2a58195fdc90eca6693a25d03b5a585422fee"
+    },
+    {
+      "profile": "frontend-e2e",
+      "architecture": "linux/amd64",
+      "artifact_id": 14476058565,
+      "artifact_sha256": "3ab9f95ebc92b5ce2ff3c45a54cea2d652187378e5afabfcef29e62cb30c6eb2"
+    }
+  ],
+  "inventory_reconciliation": {
+    "historical_295": {
+      "path": "docs/assessments/dev10-kernel-cves.tsv",
+      "count": 295,
+      "package_version": "7.0.0-42.42",
+      "sha256": "d79f62e624091c24f0d3636a6bb6e6134f52502ff10d9959d43f12ca0f8047d0",
+      "mutation": "none"
+    },
+    "extended_298": {
+      "path": "docs/assessments/dev10-kernel-cves-298.tsv",
+      "count": 298,
+      "package_version": "7.0.0-43.43",
+      "sha256": "251405db863a92a8156b4facedb9b5cec4b5596e45a326353e0ee2cb4e304c51",
+      "mutation": "none"
+    },
+    "observed_scan_set": {
+      "unique_findings": 52,
+      "overlap_with_extended_298": 11,
+      "additional_findings": 41,
+      "additional_severity_counts": {
+        "HIGH": 38,
+        "CRITICAL": 3
+      }
+    },
+    "additional_41_inventory": {
+      "path": "docs/assessments/dev10-image-observed-cves-41.tsv",
+      "count": 41,
+      "git_blob_sha1": "62ad83bd1f9b251c4561c28df847ac1941d5ddb8",
+      "all_observed_in_profile_architecture_artifacts": 8,
+      "all_binary_applicability": "under_investigation",
+      "all_vex_disposition": "under_investigation"
+    }
+  },
+  "overlap_cves": [
+    "CVE-2022-50240",
+    "CVE-2025-40190",
+    "CVE-2026-68103",
+    "CVE-2026-72198",
+    "CVE-2026-74578",
+    "CVE-2026-89805",
+    "CVE-2026-98376",
+    "CVE-2026-98420",
+    "CVE-2026-98869",
+    "CVE-2026-98890",
+    "CVE-2026-99083"
+  ],
+  "additional_41_cves": [
+    "CVE-2026-100081",
+    "CVE-2026-99109",
+    "CVE-2026-99110",
+    "CVE-2026-99116",
+    "CVE-2026-99117",
+    "CVE-2026-99126",
+    "CVE-2026-99128",
+    "CVE-2026-99138",
+    "CVE-2026-99147",
+    "CVE-2026-99152",
+    "CVE-2026-99153",
+    "CVE-2026-99154",
+    "CVE-2026-99164",
+    "CVE-2026-99166",
+    "CVE-2026-99167",
+    "CVE-2026-99185",
+    "CVE-2026-99203",
+    "CVE-2026-99212",
+    "CVE-2026-99213",
+    "CVE-2026-99218",
+    "CVE-2026-99227",
+    "CVE-2026-99231",
+    "CVE-2026-99236",
+    "CVE-2026-99239",
+    "CVE-2026-99260",
+    "CVE-2026-99270",
+    "CVE-2026-99272",
+    "CVE-2026-99274",
+    "CVE-2026-99275",
+    "CVE-2026-99282",
+    "CVE-2026-99284",
+    "CVE-2026-99287",
+    "CVE-2026-99288",
+    "CVE-2026-99290",
+    "CVE-2026-99292",
+    "CVE-2026-99295",
+    "CVE-2026-99302",
+    "CVE-2026-99304",
+    "CVE-2026-99306",
+    "CVE-2026-99310",
+    "CVE-2026-99311"
+  ],
+  "binary_applicability_gap": {
+    "trivy_package_path_available": false,
+    "source_audit_run_id": 44406651242,
+    "source_audit_head_sha": "fa5b3fe362d5856bb512120312dbee978f070200",
+    "source_audit_artifact_id": 14476816040,
+    "source_audit_artifact_sha256": "bce269d6ec359963d8f8aa50daec307dc2f98cfd46d55a3af6b16c5eac5328b0",
+    "source_audit_inventory_count": 298,
+    "binary_manifest_architecture": "amd64",
+    "binary_manifest_package": "linux-libc-dev=7.0.0-43.43",
+    "binary_manifest_path_count": 1102,
+    "binary_manifest_header_count": 1039,
+    "existing_298_upstream_header_path_count": 48,
+    "existing_298_exact_shipped_uapi_path_matches": 0,
+    "status": "NOT_ASSESSED_FOR_ADDITIONAL_41_OR_ARM64",
+    "note": "The 298-record source audit and amd64 manifest do not establish binary applicability for the additional 41 findings or the arm64 package. No direct UAPI path match is not proof of non-applicability."
+  },
+  "policy_boundary": {
+    "new_41_findings_added_to_298_inventory": false,
+    "added_to_295_historical_inventory": false,
+    "risk_acceptance": false,
+    "vex": false,
+    "suppression": false,
+    "release_authorization": false,
+    "publication_or_promotion_authorization": false,
+    "dev10_dev14_boundary": "unchanged",
+    "pr92_twelve_finding_proposal": "separate review-only decision; does not cover these 41 findings"
+  }
+}

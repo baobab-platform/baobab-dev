@@ -11,6 +11,14 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_PNPM_CMD=""
+if [ -x "${SCRIPT_DIR}/project-pnpm.sh" ]; then
+    PROJECT_PNPM_CMD="${SCRIPT_DIR}/project-pnpm.sh"
+elif command -v baobab-project-pnpm >/dev/null 2>&1; then
+    PROJECT_PNPM_CMD="$(command -v baobab-project-pnpm)"
+fi
+
 ###############################################################################
 # Options
 ###############################################################################
@@ -70,10 +78,18 @@ fi
 
 : "${PYTHON_MINOR:=3.14}"
 : "${PYTHON_VERSION:=3.14}"
-: "${NODE_MAJOR:=24}"
+: "${NODE_VERSION:=}"
+: "${COREPACK_VERSION:=}"
+: "${YARN_VERSION:=}"
+: "${NPM_VERSION:=}"
+: "${TASK_VERSION:=}"
+: "${YQ_VERSION:=}"
+: "${GH_VERSION:=}"
+: "${COSIGN_VERSION:=}"
 : "${PNPM_VERSION:=}"
+: "${PLAYWRIGHT_VERSION:=}"
 : "${FLUTTER_VERSION:=unknown}"
-: "${JAVA_MAJOR:=17}"
+: "${JAVA_MAJOR:=21}"
 : "${EXPECTED_USER:=vscode}"
 : "${EXPECTED_UID:=1000}"
 : "${EXPECTED_GID:=1000}"
@@ -188,16 +204,12 @@ check_optional() {
     fi
 }
 
-# check_exact_version: like check_required, but additionally fails if the
-# installed version doesn't exactly match $expected (leading 'v' stripped
-# from both sides before comparing). Added for pnpm specifically — presence
-# alone (check_required) doesn't catch the image baking in a DIFFERENT pnpm
-# than config/versions.lock's own PNPM_VERSION resolved to, the exact class
-# of drift that let a stale/mismatched image slip through prior verify runs
-# undetected while Corepack silently tried (and, without a TTY, hung)
-# downloading whatever a consuming repo's package.json actually pinned.
-# $expected empty (versions.lock not sourced / PNPM_VERSION unresolved) is
-# reported as a warning, not a failure — there is nothing to compare against.
+# check_exact_version: enforce the exact version resolved in versions.lock.
+# This is applied to every pinned CLI/runtime whose installed version is part
+# of the image contract; presence-only checks are insufficient for reproducible
+# builds and for consumers that depend on Corepack/toolchain compatibility.
+# A leading 'v' is stripped from both sides before comparing. An empty expected
+# value is a warning because there is no trustworthy value to compare against.
 check_exact_version() {
 
     local label="$1"
@@ -232,43 +244,33 @@ check_exact_version() {
     fi
 }
 
-# check_major_version: like check_exact_version, but compares only the
-# leading major-version component (e.g. Node's "v24.5.1" vs expected "24").
-# Node's own point releases move independently of this file (NodeSource
-# apt tracks the newest patch on the ${NODE_MAJOR}.x line automatically),
-# so an exact full-version match would be a false failure on every routine
-# Node patch release — the policy this image actually enforces is the
-# major-version baseline (Node 24), not a specific patch.
-check_major_version() {
-
-    local label="$1"
-    local cmd="$2"
-    local expected_major="$3"
-    local version_cmd="${4:-$2 --version}"
-
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        bad "$label — '$cmd' not found"
+# check_project_pnpm: verify a consumer's exact packageManager pin using
+# the already-prepared per-user Corepack cache. This is deliberately offline:
+# verification must never bootstrap or mutate the developer's environment.
+check_project_pnpm() {
+    # This verifier also runs in repositories without a root pnpm project.
+    # A missing manifest/lock is an intentional no-op, not a failed check.
+    if [[ ! -f package.json || ! -f pnpm-lock.yaml ]]; then
+        return 0
+    fi
+    if [[ -z "${PROJECT_PNPM_CMD}" ]]; then
+        bad "Project pnpm — shared project-pnpm helper is unavailable"
         return
     fi
-
-    local version stderr_out rc=0
-    run_version_cmd "$version_cmd" version stderr_out || rc=$?
-
-    if [[ $rc -ne 0 || -z "$version" ]]; then
-        bad "$label — '$version_cmd' failed (exit ${rc})${stderr_out:+: ${stderr_out}}"
+    local expected actual stderr_out rc=0
+    expected="$("${PROJECT_PNPM_CMD}" pin 2>/dev/null)" || {
+        bad "Project pnpm — package.json must declare an exact pnpm packageManager"
         return
-    fi
-
-    local actual_major="${version#v}"
-    actual_major="${actual_major%%.*}"
-
-    if [[ "$actual_major" == "$expected_major" ]]; then
-        ok "$label (${version})"
+    }
+    run_version_cmd "\"${PROJECT_PNPM_CMD}\" --version" actual stderr_out || rc=$?
+    if [[ $rc -ne 0 || -z "$actual" ]]; then
+        bad "Project pnpm ${expected} — offline Corepack cache unavailable; run 'baobab-post-create'${stderr_out:+: ${stderr_out}}"
+    elif [[ "${actual#v}" != "$expected" ]]; then
+        bad "Project pnpm version mismatch — expected ${expected}, found ${actual#v}."
     else
-        bad "$label major-version mismatch — Expected ${label} ${expected_major}.x. Found ${version}."
+        ok "Project pnpm (${actual})"
     fi
 }
-
 # check_contract: validates the calling repo's own .baobab/environment.yaml
 # (if one exists) against this image's config/capabilities.yaml, per the
 # Development Environment Contract (baobab-platform/shared, ADR-0001).
@@ -439,13 +441,57 @@ section "JavaScript"
 # unconditionally, which is why this section previously had no gate at all.
 if [[ "$BAOBAB_BUILD_PROFILE" != "infra" ]]; then
 
-    check_major_version "Node.js" node "${NODE_MAJOR}"
-    check_required "npm" npm
-    check_exact_version "pnpm" pnpm "${PNPM_VERSION}"
-    check_optional "Yarn" yarn
+    check_exact_version "Node.js" node "${NODE_VERSION}"
+    check_exact_version "npm" npm "${NPM_VERSION}"
+    check_exact_version "Corepack" corepack "${COREPACK_VERSION}"
+    check_exact_version "Image pnpm" pnpm "${PNPM_VERSION}" 'cd / && pnpm --version'
+    check_project_pnpm
+    check_exact_version "Yarn" yarn "${YARN_VERSION}"
 
 else
     say "  Skipped — profile '${BAOBAB_BUILD_PROFILE}' does not include Node.js"
+fi
+
+###############################################################################
+# Playwright (CI-only frontend-e2e profile)
+###############################################################################
+
+if [[ "$BAOBAB_BUILD_PROFILE" == "frontend-e2e" ]]; then
+    check_exact_version "Playwright" playwright "${PLAYWRIGHT_VERSION}" \
+        'playwright --version | grep -oE "[0-9]+([.][0-9]+){2}" | head -n1'
+
+    verify_playwright_chromium() {
+        local browsers_path="${PLAYWRIGHT_BROWSERS_PATH:-}"
+        local playwright_package
+        if [[ -z "$browsers_path" || ! -d "$browsers_path" ]]; then
+            bad "Playwright browser directory is unavailable to ${EXPECTED_USER}"
+            return
+        fi
+        playwright_package="$(npm root -g)/playwright"
+        if [[ ! -f "${playwright_package}/package.json" ]]; then
+            bad "Global Playwright package not found"
+            return
+        fi
+        if node - "${playwright_package}" <<'NODE'
+const { chromium } = require(process.argv[2]);
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  await browser.close();
+})().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});
+NODE
+        then
+            ok "Playwright Chromium launches as ${EXPECTED_USER}"
+        else
+            bad "Playwright Chromium failed to launch as ${EXPECTED_USER}"
+        fi
+    }
+
+    verify_playwright_chromium
+else
+    say "  Skipped — profile '${BAOBAB_BUILD_PROFILE}' does not include Playwright"
 fi
 
 ###############################################################################
@@ -588,7 +634,7 @@ fi
 
 section "GitHub"
 
-check_required "GitHub CLI" gh
+check_exact_version "GitHub CLI" gh "${GH_VERSION}" "gh --version | head -n1 | cut -d' ' -f3"
 
 if command -v gh >/dev/null; then
 
@@ -610,7 +656,12 @@ check_required "ripgrep" rg
 check_required "fd" fd
 check_required "bat" bat
 check_required "eza" eza
+check_exact_version "Task" task "${TASK_VERSION}"
+check_exact_version "yq" yq "${YQ_VERSION}" 'yq --version | grep -oE "[0-9]+([.][0-9]+){2}" | tail -n1'
 check_required "fzf" fzf
+if [[ "$BAOBAB_BUILD_PROFILE" == "full" ]]; then
+    check_exact_version "Cosign" cosign "${COSIGN_VERSION}" 'cosign version | grep "^GitVersion:" | grep -oE "[0-9]+([.][0-9]+){2}" | head -n1'
+fi
 check_optional "tmux" tmux "tmux -V"
 
 ###############################################################################

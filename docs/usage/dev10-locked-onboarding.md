@@ -10,7 +10,7 @@ Root and `frontend/` JavaScript projects use the same selection. Exactly one
 lockfile is required, pnpm/Yarn must match an exact `packageManager`, and installs
 are frozen/immutable. npm uses `npm ci`, with no unlocked fallback after a failed
 install. An exact `.node-version`, when supplied, is checked against the actual
-Node executable. Corepack download prompts are disabled for every stage.
+Node executable. Corepack download prompts are disabled for every stage. The project-pnpm helper disables `.corepack.env` overrides, forces strict project `packageManager` selection and prevents automatic manifest pinning; a consumer cannot silently switch the helper back to the image-global pnpm.
 
 Per-repository Node and package-manager pins remain repository-owned. The image
 provides a Node major baseline and a resolved pnpm version; it does not silently
@@ -19,16 +19,17 @@ owns its user credential probe and authenticated frozen install. A successful
 Actions GHCR login is not evidence that a new user's Codespace can read packages.
 Never put tokens into source, image build arguments, `.env` or shell tracing.
 
-The DEV-10 workflow executes this checkout's actual post-create script and locked
-uv dependencies inside the published 1.4.4 image as its native vscode user, on an owned copy
-of a read-only source mount. A raw host UID without passwd/cache remapping is
-not treated as a valid Dev Container. It records
-the resolved image digest in the job log. Mock-CLI regressions separately prove
-that failures cannot fall back to an unlocked install. This is container/CLI
-evidence; it is not an observed fresh hosted Codespace or fleet-wide adoption.
+PRs and main runs check the lifecycle scripts and source tests. Use **Run workflow**
+on **DEV-10 locked onboarding** to reproduce the historical v1.5.1 onboarding and
+41-CVE evidence. This resolves the recorded GHCR index digest, then executes the
+current checkout's post-create script and locked uv dependencies as its native
+vscode user on a writable copy of a read-only source mount. The historical
+matrix uses `ubuntu-26.04` (amd64) and `ubuntu-26.04-arm` (arm64). Its artifact
+records the exact image digest and lifecycle result. Mock-CLI regressions
+separately prove that failed installations keep the original lock requirements.
+Fresh hosted Codespaces and their private packages need separate consumer receipts.
 
-No image version or toolchain pin changes in this increment. Existing published
-images retain their baked scripts until a reviewed release. Consumers that call
+Existing published images retain their baked scripts until a reviewed release. Consumers that call
 the image's `baobab-post-create` need that release/adoption; the repository's own
 Dev Container calls the checked-out script directly.
 
@@ -79,8 +80,12 @@ internally vendored msgpack 1.1.2 (CVE-2026-114613 /
 GHSA-6v7p-g79w-8964) and setuptools 70.3.0 (CVE-2025-47273).
 This is observed scan evidence, not an inference from upstream release notes.
 
-The fixes deliberately preserve the Python 3.14 / Node 24 / PostgreSQL 17
-project baselines and frozen onboarding behavior:
+The published v1.5.1 baseline is Python 3.14.10 / Node 26.13.1 / pnpm 12.16.1 /
+PostgreSQL 17 (with Corepack 0.36.0 and Playwright 1.64.1 in its tagged lock).
+The current PR #74 source lock proposes pnpm 12.21.0 and Playwright 1.65.0 for a
+candidate next image; these are not evidence about the already-published v1.5.1
+image. Consumer projects must pin their own exact Node and package-manager
+versions and retain frozen-lockfile onboarding behavior:
 
 - Terraform upgrades to vendor release 1.17.1 on the infra profile, with
   its amd64/arm64 SHA-256 digests pinned from HashiCorp's official

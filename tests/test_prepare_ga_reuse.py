@@ -27,13 +27,20 @@ class GAReuseTests(unittest.TestCase):
                  "html_url":"https://github.com/example/actions/runs/123","id":123}
             result=m.prepare(run,rc,"v2.0.0","b"*40,out)
             self.assertEqual(result["result"],"EXACT_DIGEST_CONTINUITY_VERIFIED")
-            self.assertEqual(json.loads((out/"infra.json").read_text())["digest"],"sha256:"+"a"*64)
+            infra_record=json.loads((out/"infra.json").read_text())
+            self.assertEqual(infra_record["digest"],"sha256:"+"a"*64)
+            self.assertEqual(infra_record["signer_tag"],"v2.0.0-rc.1")
+            self.assertEqual(infra_record["signer_run_id"],123)
             for field,value in (("conclusion","failure"),("head_sha","c"*40),
                                 ("event","workflow_dispatch"),("path","wrong.yml")):
                 with self.subTest(field=field),self.assertRaises(m.ContinuityError):
                     m.prepare({**run,field:value},rc,"v2.0.0","b"*40,root/"bad")
             with self.assertRaises(m.ContinuityError):
                 m.prepare(run,rc,"v2.0.1","b"*40,root/"bad")
+            with self.assertRaises(m.ContinuityError):
+                m.prepare({**run,"id":True},rc,"v2.0.0","b"*40,root/"bad")
+            with self.assertRaises(m.ContinuityError):
+                m.prepare({**run,"head_branch":"v2.0.1-rc.1"},rc,"v2.0.0","b"*40,root/"bad")
 
 
 if __name__=="__main__":

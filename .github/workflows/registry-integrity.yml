@@ -16,9 +16,8 @@
 #      SBOM attestation are all still independently verifiable — not just
 #      the image bytes.
 #
-# It runs daily and after the publish workflow completes. This is deliberately
-# separate from publish.yml: publish-time verification proves correctness at
-# publication time; this workflow proves durability after publication.
+# Scheduled and on-demand checks verify durability after publication.
+# Publish checks the exact release digest during promotion.
 #
 # CHECK 5 (signature/attestation durability) reuses scripts/verify-image.sh
 # unchanged — the same script publish.yml itself runs right after signing —
@@ -47,18 +46,19 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Optional exact release to check (v1.5.0-rc.N or GA); empty checks latest GA"
+        description: "Optional exact release to check (vMAJOR.MINOR.PATCH-rc.N or GA); empty checks latest GA"
         type: string
         required: false
-  # On the stacked PR, prove changed integrity logic against the current
-  # released GHCR contract with read-only credentials.
+  # Exercise changed verifier logic against the released contract. Publication
+  # performs its own exact-digest readback before reporting success.
   pull_request:
-    branches:
-      - main
-      - feat/dev10-r4-lts-multiarch-candidate
     paths:
       - '.github/workflows/registry-integrity.yml'
       - 'scripts/verify-image.sh'
+      - 'scripts/resolve_release_signer.py'
+      - 'scripts/release_tag_policy.py'
+      - 'tests/test_release_tag_policy.py'
+      - 'tests/test_resolve_release_signer.py'
       - 'scripts/verify_release_contracts.py'
       - 'scripts/verify_registry_arch_attestations.py'
       - 'scripts/verify_signed_release_predicates.py'
@@ -67,18 +67,13 @@ on:
       - 'tests/test_registry_arch_attestations.py'
       - 'tests/test_verify_release_contracts.py'
       - 'tests/test_signed_release_predicates.py'
-  workflow_run:
-    workflows:
-      - "Publish Baobab Dev Container"
-    types:
-      - completed
-
 permissions:
+  actions: read
   contents: read
   packages: read
 
 concurrency:
-  # PR revisions must not suppress the independent daily/after-release observer.
+  # PR verifier tests must not suppress independent registry observations.
   group: released-ghcr-contract-integrity-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: false
 
@@ -89,11 +84,6 @@ defaults:
 jobs:
   verify-latest-stable-release:
     name: Verify latest stable release is pullable
-    # A PR's validation-only Publish completion is NOT a new stable release.
-    if: >-
-      ${{ github.event_name != 'workflow_run' ||
-          (github.event.workflow_run.conclusion == 'success' &&
-           github.event.workflow_run.event == 'push') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
 
@@ -111,13 +101,15 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest -v \
+            tests/test_release_tag_policy.py \
             tests/test_verify_release_contracts.py \
             tests/test_registry_arch_attestations.py \
             tests/test_signed_release_predicates.py \
-            tests/test_legacy_provenance.py
+            tests/test_legacy_provenance.py \
+            tests/test_resolve_release_signer.py
 
       - name: Authenticate to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -148,7 +140,7 @@ jobs:
       # Fulcio/Rekor/TUF infrastructure, not GitHub, and never signs
       # anything here.
       - name: Install Cosign CLI tool
-        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
 
       - name: Make verify-image.sh executable
         run: chmod +x scripts/verify-image.sh
@@ -158,22 +150,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REQUESTED_TAG: ${{ inputs.release_tag || '' }}
-          TRIGGER_TAG: ${{ github.event.workflow_run.head_branch || '' }}
-          TRIGGER_SHA: ${{ github.event.workflow_run.head_sha || '' }}
-          TRIGGER_EVENT: ${{ github.event.workflow_run.event || '' }}
         run: |
           set -euo pipefail
-          # PR/schedule defaults to latest GA. A successful tag-push
-          # workflow_run instead checks that exact published RC or GA.
+          # PR/schedule defaults to latest GA. Dispatch can select an exact tag.
+          classify_release_tag() {
+            python3 scripts/release_tag_policy.py --tag "$1"
+          }
           tag="$REQUESTED_TAG"
-          if [[ -z "$tag" && "$TRIGGER_EVENT" == "push" ]] &&
-             [[ "$TRIGGER_TAG" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ||
-                "$TRIGGER_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            tag="$TRIGGER_TAG"
-          fi
           if [[ -n "$tag" ]]; then
-            [[ "$tag" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ||
-               "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            release_kind=$(classify_release_tag "$tag") || {
               echo "::error::Unexpected release tag requested for integrity observer"; exit 1;
             }
             gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" > "${RUNNER_TEMP}/release.json"
@@ -185,14 +170,13 @@ jobs:
           jq -r '.body // ""' "${RUNNER_TEMP}/release.json" > "${RUNNER_TEMP}/release-body.md"
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
           echo "release_url=${RELEASE_URL}" >> "$GITHUB_OUTPUT"
-          [[ "$TAG_NAME" =~ ^v1\.5\.0-rc\.[1-9][0-9]*$ ||
-             "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+          release_kind=$(classify_release_tag "$TAG_NAME") || {
             echo "::error::Unexpected GitHub release tag"; exit 1;
           }
           if [[ -n "$tag" && "$TAG_NAME" != "$tag" ]]; then
             echo "::error::Release API returned wrong selected tag"; exit 1;
           fi
-          if [[ "$TAG_NAME" == v1.5.0-rc.* ]]; then
+          if [[ "$release_kind" == "rc" ]]; then
             [[ "$(jq -r '.prerelease' "${RUNNER_TEMP}/release.json")" == true ]] || {
               echo "::error::RC release must be marked prerelease"; exit 1;
             }
@@ -211,34 +195,73 @@ jobs:
           [[ "$object_type" == commit && "$object_sha" =~ ^[a-f0-9]{40}$ ]] || {
             echo "::error::Release tag does not resolve unambiguously to a commit"; exit 1;
           }
-          if [[ -n "$TRIGGER_SHA" && -n "$TRIGGER_TAG" &&
-                "$TAG_NAME" == "$TRIGGER_TAG" && "$object_sha" != "$TRIGGER_SHA" ]]; then
-            echo "::error::Release source differs from successful publishing run"; exit 1;
-          fi
           echo "source_sha=${object_sha}" >> "$GITHUB_OUTPUT"
           echo "Verifying release ${TAG_NAME}: ${RELEASE_URL} source ${object_sha}"
 
-      - name: Parse and require all four advertised RC/GA release contracts
+      - name: Parse release contract and resolve exact OIDC signer tag
+        id: signer
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
+          SOURCE_SHA: ${{ steps.release.outputs.source_sha }}
         run: |
           set -euo pipefail
           python3 scripts/verify_release_contracts.py \
             --release-body "$RUNNER_TEMP/release-body.md" \
             --tag "$RELEASE_TAG" \
             --output "$RUNNER_TEMP/release-contracts.tsv"
+          preferred_tags=$(awk -F '\t' 'NF >= 4 && $4 != "" {print $4}' \
+            "$RUNNER_TEMP/release-contracts.tsv" | sort -u)
+          preferred_run_ids=$(awk -F '\t' 'NF >= 5 && $5 != "" {print $5}' \
+            "$RUNNER_TEMP/release-contracts.tsv" | sort -u)
+          signer_args=()
+          run_args=()
+          if [[ -n "$preferred_tags" ]]; then
+            [[ "$(printf '%s\n' "$preferred_tags" | wc -l)" -eq 1 ]] || {
+              echo "::error::Release profiles disagree on signature source tag"; exit 1;
+            }
+            signer_args+=(--preferred-tag "$preferred_tags")
+          fi
+          if [[ -n "$preferred_run_ids" ]]; then
+            [[ "$(printf '%s\n' "$preferred_run_ids" | wc -l)" -eq 1 ]] || {
+              echo "::error::Release profiles disagree on qualified RC workflow run"; exit 1;
+            }
+            run_args+=(--preferred-run-id "$preferred_run_ids")
+          fi
+          python3 scripts/resolve_release_signer.py \
+            --repository "$GITHUB_REPOSITORY" \
+            --release-tag "$RELEASE_TAG" \
+            --source-sha "$SOURCE_SHA" "${signer_args[@]}" "${run_args[@]}" \
+            --output "$RUNNER_TEMP/release-signer.json"
+          signer_tag=$(jq -er '.signer_tag' "$RUNNER_TEMP/release-signer.json")
+          signer_run_id=$(jq -er '.signer_run_id' "$RUNNER_TEMP/release-signer.json")
+          echo "signer_tag=$signer_tag" >> "$GITHUB_OUTPUT"
+          echo "signer_run_id=$signer_run_id" >> "$GITHUB_OUTPUT"
+          echo "Exact Cosign workflow identity is bound to $signer_tag via successful publish run $signer_run_id at $SOURCE_SHA"
 
       - name: Verify advertised tags, digests, indices, platform manifests, and attestations
         env:
           RELEASE_TAG: ${{ steps.release.outputs.tag_name }}
           SOURCE_SHA: ${{ steps.release.outputs.source_sha }}
+          SIGNER_TAG: ${{ steps.signer.outputs.signer_tag }}
+          SIGNER_RUN_ID: ${{ steps.signer.outputs.signer_run_id }}
         run: |
           set -euo pipefail
           failures=0
           mkdir -p "$RUNNER_TEMP/registry-native-evidence"
 
-          while IFS=$'\t' read -r target ref expected_digest; do
+          while IFS=$'\t' read -r target ref expected_digest advertised_signer_tag advertised_signer_run_id; do
             [[ -z "${ref}" ]] && continue
+            if [[ -n "${advertised_signer_run_id}" && "${advertised_signer_run_id}" != "${SIGNER_RUN_ID}" ]]; then
+              echo "::error::${ref} advertises signer run ${advertised_signer_run_id}, but resolved run is ${SIGNER_RUN_ID}"
+              failures=$((failures + 1))
+              continue
+            fi
+            if [[ -n "${advertised_signer_tag}" && "${advertised_signer_tag}" != "${SIGNER_TAG}" ]]; then
+              echo "::error::${ref} advertises signer ${advertised_signer_tag}, but resolved identity is ${SIGNER_TAG}"
+              failures=$((failures + 1))
+              continue
+            fi
             echo "::group::Verify ${ref}"
 
             if ! actual_digest=$(crane digest "${ref}" 2>&1); then
@@ -319,7 +342,7 @@ jobs:
             # verify-image.sh's own [INFO]/[SUCCESS] lines are useful on
             # success but should not spam the log on a failure this loop
             # already reports clearly via ::error::.
-            if ! verify_output=$(./scripts/verify-image.sh "${image_name}@${actual_digest}" "${RELEASE_TAG}" 2>&1); then
+            if ! verify_output=$(./scripts/verify-image.sh "${image_name}@${actual_digest}" "${SIGNER_TAG}" 2>&1); then
               echo "::error::${ref}@${actual_digest} failed signature/attestation verification (Cosign signature, SLSA provenance, or SPDX SBOM attestation no longer verifies):"
               echo "${verify_output}"
               failures=$((failures + 1))
@@ -333,7 +356,7 @@ jobs:
             # No image pull, tag mutation or registry write is authorised.
             if ! python3 scripts/verify_registry_arch_attestations.py \
                 --image "${image_name}@${actual_digest}" \
-                --tag "${RELEASE_TAG}" \
+                --tag "${RELEASE_TAG}" --signer-tag "${SIGNER_TAG}" \
                 --expected-sha "${SOURCE_SHA}" \
                 --evidence "${RUNNER_TEMP}/registry-native-evidence/${target}.json"; then
               echo "::error::${ref}: dual-native signed artifact integrity failed."
@@ -363,7 +386,7 @@ jobs:
 
       - name: Retain read-only native registry integrity evidence
         if: ${{ always() }}
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: registry-native-attestation-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/registry-native-evidence/

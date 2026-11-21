@@ -184,15 +184,15 @@
 #   ambiguity to resolve in the first place.
 # =============================================================================
 
-# Base image tag, single source of truth for all three stages below. Has a
-# default so CI does not need to pass --build-arg UBUNTU_VERSION for normal
-# builds; override it explicitly only for a deliberate one-off build.
+# Local build defaults match the reviewed lock. CI passes the same fields
+# from the verified lock, and base refuses a mismatching input.
 ARG UBUNTU_VERSION=26.04
+ARG UBUNTU_BASE_SHA256=d66b366dac61b575bee2aef07e9c26e8070096fbe84a3d4d3eb0da069b5d76db
 
 # -----------------------------------------------------------------------------
 # Stage: flutter-sdk — fetch + verify + prune the Flutter stable SDK
 # -----------------------------------------------------------------------------
-FROM ubuntu:${UBUNTU_VERSION} AS flutter-sdk
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS flutter-sdk
 ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -279,12 +279,12 @@ RUN set -euo pipefail; \
 # filenames also come exclusively from versions.lock's *_ASSET_* variables,
 # not reconstructed inline, so a filename typo simply 404s at build time
 # instead of silently verifying against the wrong file.
-# Security rebuild of the adopted Task/yq releases; project Go baselines do
-# not change. Sources, compiler and patched dependency graphs are pinned.
-FROM ubuntu:${UBUNTU_VERSION} AS patched-go-clis
+# Security rebuild of adopted GitHub CLI, Cosign, Task and yq releases.
+# Source commits, release tags, compiler and patched dependency graphs are pinned.
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS patched-go-clis
 ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tar git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl tar git make && rm -rf /var/lib/apt/lists/*
 COPY config/versions.lock /build/versions.lock
 COPY config/security/ /build/security/
 COPY scripts/build-security-clis.sh /build/build-security-clis.sh
@@ -293,7 +293,12 @@ COPY scripts/go-mod-download-retry.sh /build/go-mod-download-retry.sh
 RUN bash /build/build-security-clis.sh "${TARGETARCH}"
 RUN bash /build/build-upstream-security-clis.sh
 
-FROM ubuntu:${UBUNTU_VERSION} AS cli-tools
+# Terraform is consumed only by infra. Reuse the verified compiler without
+# making the other image targets build Terraform or install its dependencies.
+FROM patched-go-clis AS patched-terraform
+RUN bash /build/build-upstream-security-clis.sh terraform
+
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS cli-tools
 ARG TARGETARCH
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -392,7 +397,7 @@ RUN set -euo pipefail; \
 # -----------------------------------------------------------------------------
 # pip 26.2.2 bundles urllib3 independently of system/Poetry packages.
 # Rebuild using upstream's vendoring process and identify the downstream wheel.
-FROM ubuntu:${UBUNTU_VERSION} AS patched-pip
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS patched-pip
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git python3 python3-venv && rm -rf /var/lib/apt/lists/*
 RUN python3 -m venv /build/tools
 ENV PATH="/build/tools/bin:${PATH}" PIP_NO_CACHE_DIR=1
@@ -401,25 +406,13 @@ RUN python -m pip install --require-hashes --only-binary=:all: -r /build/require
 COPY scripts/build-security-pip.sh /build/build-security-pip.sh
 RUN bash /build/build-security-pip.sh
 
-FROM ubuntu:${UBUNTU_VERSION} AS base
+FROM ubuntu:${UBUNTU_VERSION}@sha256:${UBUNTU_BASE_SHA256} AS base
 
 ARG TARGETARCH
-# Build metadata supplied by GitHub Actions
-ARG BUILD_DATE
-ARG VERSION
-ARG REVISION
-
-LABEL org.opencontainers.image.title="baobab-dev" \
-      org.opencontainers.image.description="Standard development container for the BAOBAB Enterprise Platform (Nabhold Group Africa)" \
-      org.opencontainers.image.vendor="Nabhold Group Africa" \
-      org.opencontainers.image.source="https://github.com/baobab-platform/baobab-dev" \
-      org.opencontainers.image.licenses="Apache-2.0" \
-      org.opencontainers.image.created=$BUILD_DATE \
-      org.opencontainers.image.version=$VERSION \
-      org.opencontainers.image.revision=$REVISION \
-      org.opencontainers.image.authors="Platform Engineering <platform@nabhold.com>" \
-      org.opencontainers.image.documentation="https://github.com/baobab-platform/baobab-dev/blob/main/README.md"
-
+ARG UBUNTU_VERSION
+ARG UBUNTU_BASE_SHA256
+LABEL org.opencontainers.image.base.name="docker.io/library/ubuntu:${UBUNTU_VERSION}" \
+      org.opencontainers.image.base.digest="sha256:${UBUNTU_BASE_SHA256}"
 # -----------------------------------------------------------------------------
 # devcontainer.metadata image label — Development Environment Contract task
 # 1.4 (baobab-dev-v1_1_0-release-plan-amended.md / original plan task 1.4).
@@ -475,6 +468,14 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
+ENV BAOBAB_CONFIG_DIR=/usr/local/share/baobab/config
+COPY config/versions.lock /usr/local/share/baobab/config/versions.lock
+COPY scripts/locked-apt.sh /usr/local/share/baobab/config/locked-apt.sh
+RUN set -euo pipefail; \
+    image_series="$UBUNTU_VERSION"; image_digest="$UBUNTU_BASE_SHA256"; \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
+    test "$image_series" = "$UBUNTU_VERSION"; test "$image_digest" = "$UBUNTU_BASE_SHA256"
+
 # -----------------------------------------------------------------------------
 # 1. Core system packages, locale, timezone
 # -----------------------------------------------------------------------------
@@ -488,13 +489,17 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean; \
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && \
-    apt-get install -y --no-install-recommends \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock" && apt-get update && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    headers="linux-libc-dev=${LINUX_LIBC_DEV_APT_VERSION}" && \
+    headers_sha="LINUX_LIBC_DEV_APT_SHA256_$(dpkg --print-architecture | tr '[:lower:]' '[:upper:]')" && \
+    verify_locked_apt_index "$headers" "${!headers_sha:?missing native kernel header SHA-256}" && \
+    apt-get install -y --no-install-recommends "$headers" \
       sudo curl wget git unzip zip tar jq tree nano vim less htop procps \
       ca-certificates gnupg build-essential \
       pkg-config locales tzdata xz-utils apt-transport-https \
       openssh-client dnsutils iproute2 \
-    && \
+    && verify_installed_apt_version "$headers" && \
     locale-gen en_US.UTF-8 && \
     update-locale LANG=en_US.UTF-8 LANGUAGE=en_US:en && \
     ln -fs /usr/share/zoneinfo/${TZ} /etc/localtime && \
@@ -560,16 +565,17 @@ RUN rm -f /usr/bin/pebble && rm -rf /var/lib/pebble
 # all of those stages descend from, so installing it once here, at a fixed
 # path under BAOBAB_CONFIG_DIR, means every call site sources the exact
 # same function definition rather than three drifting inline copies of it.
+#
+# scripts/project-pnpm.sh is installed as baobab-project-pnpm so onboarding,
+# summary and read-only verification use one project-pin/cache implementation.
 # -----------------------------------------------------------------------------
 RUN mkdir -p /usr/local/share/baobab/config
 
 COPY config/versions.yaml /usr/local/share/baobab/config/versions.yaml
-COPY config/versions.lock /usr/local/share/baobab/config/versions.lock
 COPY --chmod=0755 config/resolve.sh /usr/local/share/baobab/config/resolve.sh
 COPY --chmod=0755 scripts/npm-install-retry.sh /usr/local/share/baobab/config/npm-install-retry.sh
+COPY --chmod=0755 scripts/project-pnpm.sh /usr/local/bin/baobab-project-pnpm
 COPY config/npm-build-security.json /usr/local/share/baobab/config/npm-build-security.json
-
-ENV BAOBAB_CONFIG_DIR=/usr/local/share/baobab/config
 
 
 # -----------------------------------------------------------------------------
@@ -586,7 +592,7 @@ FROM base AS with-node
 
 # COREPACK_HOME fixed to an absolute, user-independent path — set BEFORE the
 # `corepack prepare` calls below run (as root, during this stage) so the
-# prepared pnpm/yarn releases land here rather than at Corepack's own
+# prepared Yarn release lands here rather than at Corepack's own
 # default of "$HOME/.cache/node/corepack". That default resolves per
 # invoking user: `corepack prepare --activate` here runs as root
 # (HOME=/root), but every downstream consumer of this image — `RUN
@@ -600,11 +606,10 @@ FROM base AS with-node
 # hard, diagnosable "Corepack is about to download pnpm-11.24.0.tgz;
 # Network access disabled" error inside this Dockerfile's own build. A
 # fixed, absolute COREPACK_HOME sidesteps per-user cache resolution
-# entirely: whichever user invokes pnpm/yarn, Corepack looks in the same
-# place it was populated during this stage's own RUN. World-readable
-# (chmod after the prepare calls, once populated) since `vscode` never
-# needs to WRITE here — every version this image promises is already
-# resident by the time `USER vscode` takes effect further down.
+# entirely for the image-preloaded Yarn release. World-readable (chmod
+# after the prepare calls, once populated) since `vscode` never needs to
+# WRITE here. The lifecycle's consumer-pinned pnpm path uses a separate
+# writable per-user cache and never replaces this image-owned Yarn cache.
 ENV COREPACK_HOME=/usr/local/share/baobab/corepack
 
 # -----------------------------------------------------------------------------
@@ -626,11 +631,8 @@ ENV COREPACK_HOME=/usr/local/share/baobab/corepack
 # npm's own registry-level integrity check (Subresource
 # Integrity, sha512) is what verifies the package on install; there's
 # nothing for this Dockerfile to additionally check by hand, matching
-# versions.yaml's own pnpm.source: npm declaration. yarn has no
-# corresponding entry in versions.yaml at all (no version to pin), so
-# `@stable` is left as-is — not an oversight, there's nothing to pin it to
-# yet, and it hasn't (yet) failed the way npm's own floating tag did (see
-# FIX 2026-08-28 below) — tracked as a follow-up, not bundled into that fix.
+# versions.yaml declares Yarn 4.18.1 explicitly; Corepack never
+# resolves the mutable `@stable` dist-tag during image construction.
 #
 # npm was explicitly self-upgraded to latest right after install. The npm
 # build bundled inside NodeSource's Node ${NODE_MAJOR}.x tarball carries
@@ -728,12 +730,12 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         https://deb.nodesource.com/node_${NODE_MAJOR}.x nodistro main" \
       > /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
-    # Fail early on NodeSource metadata drift, before the expensive npm/toolchain layers. \
-    NODE_CANDIDATE="$(apt-cache policy nodejs | awk '/Candidate:/ {print $2; exit}')" && \
-    test "${NODE_CANDIDATE}" = "${NODE_VERSION}-1nodesource1" || { \
-      echo "::error::NodeSource candidate differs from locked Node ${NODE_VERSION}; update config/versions.yaml and regenerate versions.lock" >&2; exit 1; \
-    }; \
-    apt-get install -y --no-install-recommends libatomic1 "nodejs=${NODE_VERSION}-1nodesource1" && \
+    node_sha="NODE_APT_SHA256_${TARGETARCH^^}" && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    node_package="nodejs=${NODE_VERSION}-1nodesource1" && \
+    verify_locked_apt_index "$node_package" "${!node_sha:?missing native Node SHA-256}" && \
+    apt-get install -y --no-install-recommends "$node_package" libatomic1 && \
+    verify_installed_apt_version "$node_package" && \
     test "$(node --version)" = "v${NODE_VERSION}" && \
     \
     # npm_install_retry() wraps the two npm-registry-published installs
@@ -788,22 +790,31 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     install -m 0755 "${PNPM_BIN}" /usr/local/bin/pnpm && \
     test "$(pnpm --version)" = "${PNPM_VERSION}" && \
     rm -rf /tmp/dev10-pnpm-native && \
-    # Legacy Yarn is Corepack-managed, pnpm stays the publisher binary.
+    # Yarn is exact-version Corepack-managed, pnpm stays the publisher binary.
     corepack enable yarn && \
-    corepack prepare yarn@stable --activate && \
+    corepack prepare "yarn@${YARN_VERSION}" --activate && \
     test "$(pnpm --version)" = "${PNPM_VERSION}" && \
+    test "$(yarn --version)" = "${YARN_VERSION}" && \
     chmod -R a+rX "${COREPACK_HOME}"
 
 # Two distinct package-manager authorities live in this image:
-# - The pinned native pnpm 12 binary /usr/local/bin/pnpm is the only pnpm
-#   executor. pnpm 12 defaults to downloading the project's packageManager
-#   version on a mismatch (pmOnFail=download); that defeats the reproducible,
-#   SHA-256 verified release binary and can hang Codespaces lifecycle scripts.
-#   The supported pnpm 11/12 setting pmOnFail=error rejects a mismatch while
-#   retaining exact-version verification (NOT pmOnFail=ignore/warn).
-# - Corepack 0.36 is independently installed for Yarn only. Its offline and
-#   Known Good Release controls remain fail-closed; they do not configure
-#   pnpm 12's separate package-manager bootstrap metadata resolver.
+# - The pinned native pnpm 12 binary /usr/local/bin/pnpm remains the
+#   image-wide default. pnpm 12's pmOnFail=error prevents it from silently
+#   downloading a consumer's packageManager version and replacing the
+#   SHA-256-verified publisher binary.
+# - Corepack 0.36 retains the image-owned, offline cache for preloaded Yarn.
+#   The Codespaces lifecycle hydrates a consumer's exact pnpm packageManager
+#   pin into a separate writable user cache. Corepack verifies the pnpm
+#   package using its npm integrity keys (or the explicit packageManager hash).
+#   It then invokes the pnpm wrapper once with network enabled: pnpm's bundled
+#   get-pnpm downloader verifies the platform package's npm registry signature
+#   and the downloaded executable against the registry's SRI checksum before
+#   caching it beside the wrapper. COREPACK_INTEGRITY_KEYS is unset for both
+#   stages so neither verifier can be disabled by an inherited override.
+#   Subsequent version checks and pnpm execution use the cached wrapper and
+#   native executable with Corepack networking disabled. COREPACK_ENABLE_NETWORK
+#   remains 0 globally; only the two exact project-pinned bootstrap invocations
+#   override it.
 #
 # A FRESH pnpm 12 lockfile containing packageManager: pnpm@12.x needs registry
 # metadata once to record its configuration dependency and its integrity.
@@ -825,18 +836,10 @@ ENV COREPACK_ENABLE_NETWORK=0 \
 #
 # NEW stage (baobab-dev-v1_1_0-release-plan-amended.md task 1.9; ADR-0001).
 # -----------------------------------------------------------------------------
-FROM with-node AS frontend
+FROM with-node AS frontend-build
 
-# ARGs do NOT propagate across stage boundaries the way ENV does — each
-# stage that references a build ARG in its own instructions must re-declare
-# it, even when deriving FROM a previous internal stage. Without this,
-# ${VERSION}/${BUILD_DATE}/${REVISION} below would silently resolve to
-# empty strings — no build error, just a wrong (empty) image version baked
-# in. Caught during design, not via a failed build.
-ARG BUILD_DATE
-ARG VERSION
-ARG REVISION
-
+# Build metadata ARGs and OCI labels are applied only in final image stages,
+# after expensive tool-install and verification RUN layers have completed.
 # Turborepo — npm-sourced, resolved the same way pnpm is (no compiled
 # per-architecture binary the way ripgrep/task/uv/gh/cosign have; npm's own
 # install-time integrity checking is the verification mechanism here).
@@ -891,10 +894,7 @@ RUN if id "ubuntu" &>/dev/null; then userdel -r ubuntu; fi && \
 # default to "full" and fail on every Python/Flutter/Postgres/Docker check
 # this profile deliberately never installs.
 ENV PATH="/home/vscode/.local/bin:/usr/local/bin:${PATH}" \
-    BAOBAB_BUILD_PROFILE=frontend \
-    BAOBAB_IMAGE_VERSION=${VERSION} \
-    BAOBAB_BUILD_DATE=${BUILD_DATE} \
-    BAOBAB_GIT_REVISION=${REVISION}
+    BAOBAB_BUILD_PROFILE=frontend
 
 # Shell completions — gh only. No Poetry completion (Poetry isn't part of
 # this profile); no Docker completion (Docker CLI isn't installed here
@@ -929,16 +929,35 @@ WORKDIR /workspaces
 
 RUN baobab-verify 
 
+FROM frontend-build AS frontend
+ARG BUILD_DATE
+ARG VERSION
+ARG REVISION
+ENV BAOBAB_IMAGE_VERSION=${VERSION} \
+    BAOBAB_BUILD_DATE=${BUILD_DATE} \
+    BAOBAB_GIT_REVISION=${REVISION}
+LABEL org.opencontainers.image.title="baobab-dev" \
+      org.opencontainers.image.description="Standard development container for the BAOBAB Enterprise Platform (Nabhold Group Africa)" \
+      org.opencontainers.image.vendor="Nabhold Group Africa" \
+      org.opencontainers.image.source="https://github.com/baobab-platform/baobab-dev" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.revision=$REVISION \
+      org.opencontainers.image.authors="Platform Engineering <platform@nabhold.com>" \
+      org.opencontainers.image.documentation="https://github.com/baobab-platform/baobab-dev/blob/main/README.md"
+
 HEALTHCHECK \
     --interval=60s \
     --timeout=10s \
     --start-period=15s \
     --retries=3 \
-    CMD baobab-verify || exit 1
+    # The runtime command is sleep infinity, so health is process liveness.
+    CMD ["/bin/bash", "-c", "kill -0 1"]
 
 CMD ["sleep", "infinity"]
-# -----------------------------------------------------------------------------
-# Stage: frontend-e2e — extends `frontend` with browser-dependent tooling
+
+# Stage: frontend-e2e — extends the shared frontend build stage with browser tooling
 # for end-to-end testing, image processing, and performance auditing.
 #
 # NOT a daily devcontainer image — a repo's own .baobab/environment.yaml
@@ -955,9 +974,14 @@ CMD ["sleep", "infinity"]
 # installs real browser binaries (Chromium/Firefox/WebKit), which is a
 # materially different CVE surface than anything else in this file.
 # -----------------------------------------------------------------------------
-FROM frontend AS frontend-e2e
+FROM frontend-build AS frontend-e2e
 
 USER root
+
+# Playwright is installed as root during image construction but consumed by
+# the non-root vscode user at runtime. An explicit shared browser path avoids
+# populating /root/.cache/ms-playwright, which vscode cannot read.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 
 # npm_install_retry wraps the `npm install -g` below (three
 # npm-registry-published packages in one call — the same install class
@@ -977,7 +1001,9 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
         "playwright@${PLAYWRIGHT_VERSION}" \
         "sharp@${SHARP_VERSION}" \
         "lighthouse@${LIGHTHOUSE_VERSION}" && \
-    npx playwright install --with-deps chromium firefox webkit
+    mkdir -p "${PLAYWRIGHT_BROWSERS_PATH}" && \
+    npx playwright install --with-deps chromium firefox webkit && \
+    chmod -R a+rX "${PLAYWRIGHT_BROWSERS_PATH}"
 
 # Lighthouse deliberately does NOT get its own browser install — it reuses
 # the Chromium binary Playwright just installed above. Do not add a second
@@ -1000,12 +1026,32 @@ USER vscode
 
 RUN baobab-verify 
 
+ARG BUILD_DATE
+ARG VERSION
+ARG REVISION
+ENV BAOBAB_IMAGE_VERSION=${VERSION} \
+    BAOBAB_BUILD_DATE=${BUILD_DATE} \
+    BAOBAB_GIT_REVISION=${REVISION}
+LABEL org.opencontainers.image.title="baobab-dev" \
+      org.opencontainers.image.description="Standard development container for the BAOBAB Enterprise Platform (Nabhold Group Africa)" \
+      org.opencontainers.image.vendor="Nabhold Group Africa" \
+      org.opencontainers.image.source="https://github.com/baobab-platform/baobab-dev" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.revision=$REVISION \
+      org.opencontainers.image.authors="Platform Engineering <platform@nabhold.com>" \
+      org.opencontainers.image.documentation="https://github.com/baobab-platform/baobab-dev/blob/main/README.md"
+
 HEALTHCHECK \
     --interval=60s \
     --timeout=10s \
     --start-period=15s \
     --retries=3 \
-    CMD baobab-verify || exit 1
+    # Build-time baobab-verify already validates the complete toolchain.
+    # The runtime command is sleep infinity, so health is process liveness;
+    # rerunning dozens of tool/version probes every minute wastes CPU.
+    CMD ["/bin/bash", "-c", "kill -0 1"]
 
 CMD ["sleep", "infinity"]
 # -----------------------------------------------------------------------------
@@ -1023,11 +1069,7 @@ CMD ["sleep", "infinity"]
 # -----------------------------------------------------------------------------
 FROM with-node AS final
 
-# Same ARG re-declaration requirement as `frontend` above — see that
-# stage's comment for why this is necessary, not redundant.
-ARG BUILD_DATE
-ARG VERSION
-ARG REVISION
+# Build metadata is appended after the expensive image layers below.
 
 # -----------------------------------------------------------------------------
 # devcontainer.metadata override — `final` is the only profile that actually
@@ -1112,10 +1154,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     update-alternatives --install /usr/bin/python3 python3 "/usr/bin/python${PYTHON_MINOR}" 1 && \
     update-alternatives --install /usr/bin/python  python  /usr/bin/python3 1
 
-# DEV10-R4: Ubuntu's python3.14 apt package guarantees the minor, NOT the
-# Python 3.14.10 security patch. Fetch PSF's exact signed-release tarball with
-# its published SHA-256; compile independently on amd64 and arm64. Do not
-# report a patch level that the actual binary does not provide.
+# Build the exact manifest-selected Python 3.14 patch from the
+# publisher archive verified against its generated SHA-256 pin.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     set -euo pipefail; \
@@ -1124,11 +1164,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
       build-essential libssl-dev zlib1g-dev libbz2-dev libreadline-dev \
       libsqlite3-dev libffi-dev liblzma-dev libncurses-dev xz-utils; \
     . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
-    test "${PYTHON_VERSION}" = "3.14.10"; \
+    [[ "${PYTHON_VERSION}" =~ ^3\.14\.[0-9]+$ && "${PYTHON_SOURCE_SHA256}" =~ ^[a-f0-9]{64}$ ]]; \
     curl --fail --location --silent --show-error \
       "https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tar.xz" \
       --output /tmp/baobab-python.tar.xz; \
-    echo "de414a57119abef52784d8993e341d53aed635fc2b05c2607d9f98a2c5b72032  /tmp/baobab-python.tar.xz" | sha256sum -c -; \
+    printf '%s  %s\n' "${PYTHON_SOURCE_SHA256}" /tmp/baobab-python.tar.xz | sha256sum -c -; \
     mkdir -p /tmp/baobab-python-source; \
     tar --no-same-owner -xf /tmp/baobab-python.tar.xz -C /tmp/baobab-python-source --strip-components=1; \
     cd /tmp/baobab-python-source; \
@@ -1258,7 +1298,7 @@ RUN mv /tmp/baobab-pip.whl /tmp/pip-26.2.2+baobab.1-py3-none-any.whl && \
 # framework-version-agnostic.
 # 5. Flutter + Dart (copied from the flutter-sdk builder stage)
 # -----------------------------------------------------------------------------
-COPY --from=flutter-sdk /opt/flutter-tmp /opt/flutter
+COPY --chown=1000:1000 --from=flutter-sdk /opt/flutter-tmp /opt/flutter
 ENV PUB_CACHE=/opt/flutter/.pub-cache
 
 # Pre-fetch platform-independent Flutter/Dart artifacts so first-run inside
@@ -1282,9 +1322,16 @@ ENV PUB_CACHE=/opt/flutter/.pub-cache
 # Invoked via absolute path rather than relying on PATH: PATH is defined
 # exactly once, in its final complete form, in section 11 below — Flutter
 # isn't on it yet at this point in the build.
+# Flutter's update_engine_version.sh atomically writes bin/cache/engine.stamp,
+# even for `flutter --version`. COPY --chown gives the SDK to UID 1000, but the
+# root-run precache above creates root-owned mutable cache files. Restore
+# ownership only on the runtime caches in this existing layer; do not add a
+# second recursive chown of the entire SDK.
 RUN git config --system --add safe.directory /opt/flutter && \
     /opt/flutter/bin/flutter config --no-analytics --no-cli-animations && \
     /opt/flutter/bin/flutter precache --universal --no-android --no-ios --no-fuchsia && \
+    mkdir -p /opt/flutter/bin/cache /opt/flutter/.pub-cache && \
+    chown -R 1000:1000 /opt/flutter/bin/cache /opt/flutter/.pub-cache && \
     chmod -R a+rX /opt/flutter
 
 # -----------------------------------------------------------------------------
@@ -1303,40 +1350,29 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" \
       > /etc/apt/sources.list.d/pgdg.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends \
-      postgresql-client-${POSTGRES_MAJOR} \
-      redis-tools
+    postgres_sha="POSTGRES_APT_SHA256_${TARGETARCH^^}" && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    postgres_package="postgresql-client-${POSTGRES_MAJOR}=${POSTGRES_APT_VERSION}" && \
+    verify_locked_apt_index "$postgres_package" "${!postgres_sha:?missing native PostgreSQL SHA-256}" && \
+    apt-get install -y --no-install-recommends "$postgres_package" redis-tools && \
+    verify_installed_apt_version "$postgres_package"
 
 # -----------------------------------------------------------------------------
 # 6b. Java (Eclipse Temurin JDK) + Apache Maven
 # -----------------------------------------------------------------------------
 # Needed for baobab-erp's iDempiere ERP engine migration
-# (github.com/baobab-platform/baobab-erp) — not needed by any other BAOBAB engine
-# today. iDempiere's own docs (wiki.idempiere.org/en/Install_Prerequisites,
-# live-verified 2026-09-01) require a full JDK, explicitly not JRE-only
-# ("openjdk-17-jre is not sufficient because it doesn't have the jar command
-# used in some scripts"), OpenJDK 17+ LTS preferred, plus Maven 3.9.x.
+# (github.com/baobab-platform/baobab-erp). The image supplies a full JDK and
+# an exact Maven release. Consumer builds qualify their own compatibility.
 #
 # JDK: installed from Eclipse Temurin's own apt repository (Adoptium), not
 # Ubuntu's native openjdk-17-jdk package — same reasoning already applied to
 # PostgreSQL/Docker above: an upstream-maintained repo keeps the exact
-# vendor/build consistent across Ubuntu base-image upgrades. Confirmed
-# multi-arch (amd64 + arm64) via Adoptium's own official multi-arch Docker
-# images — no per-arch checksum pair needed here, unlike the GitHub-release
-# binaries in the cli-tools stage.
+# vendor/build consistent across Ubuntu base-image upgrades. Resolve and
+# verify each native package against Adoptium's authenticated APT index.
 #
 # Maven: Apache's distribution is a pure-Java, architecture-independent
-# tarball — one asset, not a per-arch pair. Fetched from archive.apache.org
-# (not dlcdn.apache.org, which only mirrors the current release and would
-# break reproducibility once 3.9.16 is superseded) and verified via
-# sha512sum -c against MAVEN_SHA512 (Apache publishes a `.sha512` sidecar for
-# Maven releases, not `.sha256` — the one place in this Dockerfile that
-# checks a SHA-512 rather than a SHA-256, since the upstream project itself
-# only publishes the former). Pinned explicitly to 3.9.16 rather than
-# "latest" — see config/versions.yaml's development.maven comment: Maven
-# Central's own metadata currently resolves latest/release to a 4.0.0
-# pre-release, which would be incompatible with iDempiere's documented
-# Maven 3.9.x requirement.
+# tarball from archive.apache.org. Verify the exact release selected by
+# config/versions.yaml against the locked vendor SHA-512.
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     install -m 0755 -d /etc/apt/keyrings && \
@@ -1349,9 +1385,13 @@ https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSI
       > /etc/apt/sources.list.d/adoptium.list && \
     apt-get update && \
     . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
-    # Java 21 is the single image JDK for ERP iDempiere v13 and Subscriptions.
-    apt-get install -y --no-install-recommends \
-      "temurin-${JAVA_MAJOR}-jdk"
+    java_pkg="JAVA_APT_VERSION_${ARCH^^}" && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    java_package="temurin-${JAVA_MAJOR}-jdk=${!java_pkg:?missing native Java package version}" && \
+    java_sha="JAVA_APT_SHA256_${ARCH^^}" && \
+    verify_locked_apt_index "$java_package" "${!java_sha:?missing native Java SHA-256}" && \
+    apt-get install -y --no-install-recommends "$java_package" && \
+    verify_installed_apt_version "$java_package"
 
 # Adoptium's package installs under a version- and arch-suffixed path
 # (/usr/lib/jvm/temurin-${JAVA_MAJOR}-jdk-<arch>) rather than a stable one.
@@ -1379,8 +1419,8 @@ RUN set -euo pipefail; \
 # Trivy's secret scanner does raw pattern matching over file bytes, not
 # XML-comment-aware parsing, so it flags these three inert, never-executed
 # example values as HIGH-severity "Maven settings.xml password/passphrase"
-# secrets. This is the file Apache ships verbatim in every 3.9.16
-# distribution — already verified byte-for-byte via MAVEN_SHA512 below,
+# secrets. This is the file Apache ships in the Maven distribution,
+# already verified byte-for-byte via MAVEN_SHA512 below,
 # before this step ever touches it — not something this project introduced.
 #
 # Fix: strip every XML comment from settings.xml immediately after
@@ -1438,7 +1478,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
       > /etc/apt/sources.list.d/docker.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends docker-ce-cli && \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
+    docker_sha="DOCKER_APT_SHA256_${ARCH^^}" && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    docker_package="docker-ce-cli=${DOCKER_APT_VERSION}" && \
+    verify_locked_apt_index "$docker_package" "${!docker_sha:?missing native Docker SHA-256}" && \
+    apt-get install -y --no-install-recommends "$docker_package" && \
+    verify_installed_apt_version "$docker_package" && \
     install -d -m 0755 /usr/libexec/docker/cli-plugins
 
 # Install ONLY our source-pinned, security-rebuilt CLI plugin binaries.
@@ -1513,15 +1559,10 @@ ENV JAVA_HOME="/opt/java" \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     POETRY_VIRTUALENVS_IN_PROJECT=true \
     POETRY_NO_INTERACTION=1 \
-    BAOBAB_BUILD_PROFILE=full \
-    BAOBAB_IMAGE_VERSION=${VERSION} \
-    BAOBAB_BUILD_DATE=${BUILD_DATE} \
-    BAOBAB_GIT_REVISION=${REVISION}
+    BAOBAB_BUILD_PROFILE=full
 
-# Give the vscode user ownership of the entire Flutter SDK (not just the
-# pub-cache) so `flutter`/`dart` can update internal lockfiles, engine
-# caches, and version state without needing sudo at runtime.
-RUN chown -R vscode:vscode /opt/flutter
+# The SDK itself retains its COPY --chown=1000:1000 ownership. Only the
+# mutable cache trees are reassigned after the root-run precache above.
 
 # -----------------------------------------------------------------------------
 # 11. Shell enhancements: completions, aliases, colored prompt, history
@@ -1586,12 +1627,32 @@ RUN set -euo pipefail; \
 
 RUN baobab-verify
 
+ARG BUILD_DATE
+ARG VERSION
+ARG REVISION
+ENV BAOBAB_IMAGE_VERSION=${VERSION} \
+    BAOBAB_BUILD_DATE=${BUILD_DATE} \
+    BAOBAB_GIT_REVISION=${REVISION}
+LABEL org.opencontainers.image.title="baobab-dev" \
+      org.opencontainers.image.description="Standard development container for the BAOBAB Enterprise Platform (Nabhold Group Africa)" \
+      org.opencontainers.image.vendor="Nabhold Group Africa" \
+      org.opencontainers.image.source="https://github.com/baobab-platform/baobab-dev" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.revision=$REVISION \
+      org.opencontainers.image.authors="Platform Engineering <platform@nabhold.com>" \
+      org.opencontainers.image.documentation="https://github.com/baobab-platform/baobab-dev/blob/main/README.md"
+
 HEALTHCHECK \
     --interval=60s \
     --timeout=10s \
     --start-period=15s \
     --retries=3 \
-    CMD baobab-verify || exit 1
+    # Build-time baobab-verify already validates the complete toolchain.
+    # The runtime command is sleep infinity, so health is process liveness;
+    # rerunning dozens of tool/version probes every minute wastes CPU.
+    CMD ["/bin/bash", "-c", "kill -0 1"]
 
 CMD ["sleep", "infinity"]
 
@@ -1613,10 +1674,7 @@ CMD ["sleep", "infinity"]
 # -----------------------------------------------------------------------------
 FROM base AS infra
 
-# Same ARG re-declaration requirement as `frontend`/`final` above.
-ARG BUILD_DATE
-ARG VERSION
-ARG REVISION
+# Build metadata is appended after the expensive image layers below.
 
 # devcontainer.metadata override — infra has none of `base`'s Next.js dev
 # server (no Node in this profile at all) and none of `final`'s platform
@@ -1643,7 +1701,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
       > /etc/apt/sources.list.d/docker.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends docker-ce-cli && \
+    . "${BAOBAB_CONFIG_DIR}/versions.lock" && \
+    docker_sha="DOCKER_APT_SHA256_${ARCH^^}" && \
+    . "${BAOBAB_CONFIG_DIR}/locked-apt.sh" && \
+    docker_package="docker-ce-cli=${DOCKER_APT_VERSION}" && \
+    verify_locked_apt_index "$docker_package" "${!docker_sha:?missing native Docker SHA-256}" && \
+    apt-get install -y --no-install-recommends "$docker_package" && \
+    verify_installed_apt_version "$docker_package" && \
     install -d -m 0755 /usr/libexec/docker/cli-plugins
 
 # Install ONLY our source-pinned, security-rebuilt CLI plugin binaries.
@@ -1658,30 +1722,11 @@ RUN docker buildx version | grep -F 'v0.38.1' && docker compose version | grep -
 # -----------------------------------------------------------------------------
 # HashiCorp Terraform
 #
-# Per-architecture zip, verified against HashiCorp's own SHA256SUMS manifest
-# (config/resolve.sh fetched the specific line for this exact asset — see
-# terraform_sha256_for_asset() there) — the same sha256sum -c verification
-# shape as every GitHub-release binary in the cli-tools stage, just from
-# releases.hashicorp.com instead of GitHub's API. Terraform ships as a
-# single static binary inside the zip, extracted straight to /usr/local/bin
-# — no surrounding directory structure to strip, unlike Maven's tarball.
+# The official assets at 1.17.1 and 1.17.2 embed Go 1.26.10. Rebuild the
+# locked 1.17.1 release source with the verified compiler and Go module sums.
 # -----------------------------------------------------------------------------
-RUN set -euo pipefail; \
-    . "${BAOBAB_CONFIG_DIR}/versions.lock"; \
-    ARCH=$(dpkg --print-architecture); \
-    if [ "$ARCH" = "amd64" ]; then \
-        TERRAFORM_ASSET="${TERRAFORM_ASSET_AMD64}"; \
-        TERRAFORM_SHA256="${TERRAFORM_SHA256_AMD64}"; \
-    else \
-        TERRAFORM_ASSET="${TERRAFORM_ASSET_ARM64}"; \
-        TERRAFORM_SHA256="${TERRAFORM_SHA256_ARM64}"; \
-    fi; \
-    curl -fsSL -o /tmp/terraform.zip \
-      "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${TERRAFORM_ASSET}"; \
-    echo "${TERRAFORM_SHA256}  /tmp/terraform.zip" | sha256sum -c -; \
-    unzip -q /tmp/terraform.zip -d /usr/local/bin; \
-    chmod +x /usr/local/bin/terraform; \
-    rm -f /tmp/terraform.zip
+COPY --from=patched-terraform /out/terraform /usr/local/bin/terraform
+COPY --from=patched-terraform /out/licenses/terraform/ /usr/share/licenses/baobab-cli/terraform/
 
 # -----------------------------------------------------------------------------
 # AWS CLI v2
@@ -1795,10 +1840,7 @@ RUN if id "ubuntu" &>/dev/null; then userdel -r ubuntu; fi && \
 # would default to "full" and fail on every Python/Flutter/Java/Postgres/
 # Node check this profile deliberately never installs.
 ENV PATH="/home/vscode/.local/bin:/usr/local/bin:${PATH}" \
-    BAOBAB_BUILD_PROFILE=infra \
-    BAOBAB_IMAGE_VERSION=${VERSION} \
-    BAOBAB_BUILD_DATE=${BUILD_DATE} \
-    BAOBAB_GIT_REVISION=${REVISION}
+    BAOBAB_BUILD_PROFILE=infra
 
 # Shell completions — gh and docker (unlike `frontend`, which has neither
 # Docker CLI nor a completion for it). No Poetry completion — Poetry isn't
@@ -1829,11 +1871,31 @@ WORKDIR /workspaces
 
 RUN baobab-verify
 
+ARG BUILD_DATE
+ARG VERSION
+ARG REVISION
+ENV BAOBAB_IMAGE_VERSION=${VERSION} \
+    BAOBAB_BUILD_DATE=${BUILD_DATE} \
+    BAOBAB_GIT_REVISION=${REVISION}
+LABEL org.opencontainers.image.title="baobab-dev" \
+      org.opencontainers.image.description="Standard development container for the BAOBAB Enterprise Platform (Nabhold Group Africa)" \
+      org.opencontainers.image.vendor="Nabhold Group Africa" \
+      org.opencontainers.image.source="https://github.com/baobab-platform/baobab-dev" \
+      org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.revision=$REVISION \
+      org.opencontainers.image.authors="Platform Engineering <platform@nabhold.com>" \
+      org.opencontainers.image.documentation="https://github.com/baobab-platform/baobab-dev/blob/main/README.md"
+
 HEALTHCHECK \
     --interval=60s \
     --timeout=10s \
     --start-period=15s \
     --retries=3 \
-    CMD baobab-verify || exit 1
+    # Build-time baobab-verify already validates the complete toolchain.
+    # The runtime command is sleep infinity, so health is process liveness;
+    # rerunning dozens of tool/version probes every minute wastes CPU.
+    CMD ["/bin/bash", "-c", "kill -0 1"]
 
 CMD ["sleep", "infinity"]

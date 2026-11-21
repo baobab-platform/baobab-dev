@@ -10,12 +10,14 @@ VERSION = "1.5.0"
 TAG = "v" + VERSION
 
 
-def body(targets=TARGETS, version=VERSION):
+def body(targets=TARGETS, version=VERSION, signer_tag=None, signer_run_id=None):
     chunks = ["### Container Pull Directives"]
     for index, t in enumerate(targets):
         suffix = "" if t == "final" else "-" + t
+        signer_line = f"Signature source: `{signer_tag}`\n" if signer_tag else ""
+        run_line = (f"Qualified RC workflow run: [{signer_run_id}](https://github.com/baobab-platform/baobab-dev/actions/runs/{signer_run_id})\n" if signer_run_id else "")
         chunks.append(
-            f"**{t}:**\n\x60\x60\x60bash\ndocker pull {IMAGE}:{version}{suffix}\n"
+            f"**{t}:**\n{signer_line}{run_line}\x60\x60\x60bash\ndocker pull {IMAGE}:{version}{suffix}\n"
             f"\x60\x60\x60\n\nVerify (digest \x60sha256:{index + 1:064x}\x60):\n\x60\x60\x60bash\n"
             f"cosign verify {IMAGE}@sha256:{index + 1:064x}\n\x60\x60\x60"
         )
@@ -26,6 +28,21 @@ class ContractTest(unittest.TestCase):
     def test_exact_four(self):
         result = parse_contracts(body(), TAG)
         self.assertEqual([x[0] for x in result], list(TARGETS))
+
+    def test_ga_signer_source_is_consistent_and_same_version(self):
+        result = parse_contracts(body(version="1.5.1", signer_tag="v1.5.1-rc.2", signer_run_id=123),
+                                 "v1.5.1")
+        self.assertEqual({x[3] for x in result}, {"v1.5.1-rc.2"})
+        self.assertEqual({x[4] for x in result}, {"123"})
+        for release, signer in (("v1.5.1", "v1.5.0-rc.2"),
+                                ("v1.5.2-rc.1", "v1.5.2-rc.2")):
+            with self.subTest(release=release, signer=signer), self.assertRaises(ContractError):
+                parse_contracts(body(version=release[1:], signer_tag=signer, signer_run_id=123), release)
+
+    def test_ga_rc_signer_requires_qualified_run_id(self):
+        with self.assertRaises(ContractError):
+            parse_contracts(body(version="1.5.1", signer_tag="v1.5.1-rc.2"),
+                            "v1.5.1")
 
     def test_missing_profile(self):
         with self.assertRaises(ContractError):
@@ -48,12 +65,12 @@ class ContractTest(unittest.TestCase):
             parse_contracts(body().replace("sha256:" + ("1" * 0) + f"{1:064x}", "sha256:BAD", 1), TAG)
 
     def test_exact_v150_rc_series_pass_and_bad_prereleases_denied(self):
-        for rc in ("1.5.0-rc.1", "1.5.0-rc.2", "1.5.0-rc.10"):
+        for rc in ("1.5.0-rc.1", "1.5.0-rc.2", "1.5.0-rc.10", "1.5.2-rc.1", "1.5.2-rc.10"):
             with self.subTest(rc=rc):
                 result = parse_contracts(body(version=rc), "v" + rc)
                 self.assertEqual([x[0] for x in result], list(TARGETS))
                 self.assertTrue(all(":" + rc in x[1] for x in result))
-        for rc in ("v1.5.0-rc.0", "v1.5.0-rc.01", "v1.5.1-rc.1",
+        for rc in ("v1.5.0-rc.0", "v1.5.0-rc.01", "v1.5.2-rc.01",
                    "v1.5.0-rc.foo", "v1.5.0-rc.1-extra"):
             with self.subTest(rc=rc), self.assertRaises(ContractError):
                 parse_contracts(body(version=rc.lstrip("v")), rc)

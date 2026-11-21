@@ -1,0 +1,9 @@
+# The six copies of Canonical's public Ubuntu Archive Automatic Signing Key
+# (2018) fingerprint in the signed-package evidence. Each entry binds the
+# introducing commit, file, rule and line.
+9f444abfcd7751561e2c9bb356ffd6771f3df370:docs/assessments/dev10-ubuntu-44.44-binary-applicability.json:generic-api-key:1226
+9f444abfcd7751561e2c9bb356ffd6771f3df370:docs/assessments/dev10-ubuntu-44.44-binary-applicability.json:generic-api-key:1249
+9f444abfcd7751561e2c9bb356ffd6771f3df370:docs/assessments/dev10-ubuntu-44.44-binary-applicability.json:generic-api-key:1272
+9f444abfcd7751561e2c9bb356ffd6771f3df370:docs/assessments/dev10-ubuntu-44.44-binary-applicability.json:generic-api-key:1295
+9f444abfcd7751561e2c9bb356ffd6771f3df370:docs/assessments/dev10-ubuntu-44.44-binary-applicability.json:generic-api-key:1318
+9f444abfcd7751561e2c9bb356ffd6771f3df370:docs/assessments/dev10-ubuntu-44.44-binary-applicability.json:generic-api-key:1341

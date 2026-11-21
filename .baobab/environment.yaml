@@ -19,4 +19,4 @@ validation:
     - "development.docker"
     - "development.github_cli"
 notes:
-  - "The development-image repository dogfoods its published v1.4.2 full profile."
+  - "The development-image repository dogfoods its published v1.5.1 full profile."

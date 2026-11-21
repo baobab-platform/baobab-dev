@@ -1,46 +1,175 @@
 #!/usr/bin/env bash
-# Rebuild upstream gh/cosign from exact reviewed Git commit trees, with the
-# fixed x/net module. No vulnerable release binary is copied into the image.
+# Rebuild upstream gh, Cosign and Terraform from exact release-tag commits.
+# Release metadata comes from versions.lock; no binary is accepted as "DEV".
 set -euo pipefail
 export PATH="/build/go/bin:$PATH" GOTOOLCHAIN=local CGO_ENABLED=0
 export GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org
-go version | grep -F 'go1.27.3'
+
+# The lock supplies both versions and source commits. Verify each
+# commit independently against the corresponding upstream release tag.
+# shellcheck disable=SC1091
+. /build/versions.lock
+: "$GH_VERSION" "$COSIGN_VERSION"
+
+# The first build step checksum-verifies this exact compiler and installs it here.
+read -r go_version < /build/go/VERSION
+[[ "$(go env GOVERSION)" == "$go_version" ]]
 mkdir -p /out
-for tool in gh cosign; do
-  case "$tool" in
-    gh)
-      repo=https://github.com/cli/cli.git
-      commit=89d7dcec017194af1d6f8853176b2dae9c1da762
-      package=./cmd/gh ;;
-    cosign)
-      repo=https://github.com/sigstore/cosign.git
-      commit=0e48502cf5ef34e2e60bbd3617aa19945712f705
-      package=./cmd/cosign ;;
-  esac
-  dest="/build/upstream-$tool"
+
+prepare_source() {
+  local tool="$1" repo="$2" commit="$3" version="$4"
+  local dest="/build/upstream-$tool" tag_commit source_date_epoch
+
+  [[ "$commit" =~ ^[a-f0-9]{40}$ ]] || {
+    echo "::error::Invalid locked source commit for $tool" >&2
+    return 1
+  }
   mkdir -p "$dest"
   git -C "$dest" init -q
   git -C "$dest" remote add origin "$repo"
   git -C "$dest" fetch --depth 1 origin "$commit"
   git -C "$dest" checkout --detach -q FETCH_HEAD
+
   [[ "$(git -C "$dest" rev-parse HEAD)" == "$commit" ]] || {
-    echo "::error::Upstream $tool source commit mismatch" >&2; exit 1;
+    echo "::error::Upstream $tool source commit mismatch" >&2
+    exit 1
   }
-  cd "$dest"
-  # Upstream released binaries embed x/net 0.60.0/0.61.0 respectively.
-  # Resolve and verify the fixed graph against the Go checksum database.
-  go get golang.org/x/net@v0.62.0
-  go mod tidy
-  go mod verify
-  selected="$(go list -m -f '{{.Version}}' golang.org/x/net)"
-  [[ "$selected" == "v0.62.0" ]] || {
-    echo "::error::$tool selected x/net $selected, not v0.62.0" >&2; exit 1;
+
+  git -C "$dest" fetch --depth 1 origin "refs/tags/v$version"
+  tag_commit="$(git -C "$dest" rev-parse 'FETCH_HEAD^{commit}')"
+  [[ "$tag_commit" == "$commit" ]] || {
+    echo "::error::Upstream $tool tag v$version resolves to $tag_commit, expected $commit" >&2
+    exit 1
   }
-  go build -trimpath -buildvcs=false -ldflags="-s -w" -o "/out/$tool" "$package"
-  go version -m "/out/$tool" | tee "/out/$tool.buildinfo"
-  grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' "/out/$tool.buildinfo"
-  "/out/$tool" version > "/out/$tool.version" 2>&1 || {
-    # Some upstream CLIs use --version rather than the version subcommand.
-    "/out/$tool" --version > "/out/$tool.version"
+  git -C "$dest" checkout --detach -q "$commit"
+
+  source_date_epoch="$(git -C "$dest" show -s --format=%ct HEAD)"
+  printf '%s\n' "$source_date_epoch"
+}
+
+verify_fixed_xnet() {
+  local tool="$1" dest="$2" selected
+  (
+    cd "$dest"
+    # The upstream release source is retained, with only the reviewed x/net
+    # security override applied and verified against the Go checksum database.
+    # Use the same TLS transport as the bounded module download helper.
+    GODEBUG=http2client=0 go get golang.org/x/net@v0.62.0
+    GODEBUG=http2client=0 go mod tidy
+    go mod verify
+    selected="$(go list -m -f '{{.Version}}' golang.org/x/net)"
+    [[ "$selected" == "v0.62.0" ]] || {
+      echo "::error::$tool selected x/net $selected, not v0.62.0" >&2
+      exit 1
+    }
+  )
+}
+
+build_gh() {
+  local repo="https://github.com/cli/cli.git"
+  local commit="${GH_SOURCE_COMMIT:?missing GitHub CLI source pin}"
+  local dest="/build/upstream-gh" source_date_epoch
+
+  source_date_epoch="$(prepare_source gh "$repo" "$commit" "$GH_VERSION")"
+  verify_fixed_xnet gh "$dest"
+
+  (
+    cd "$dest"
+    # Use GitHub CLI's own build task so Version and Date are injected using
+    # the same linker variables as upstream release builds.
+    mkdir -p bin
+    go run script/build.go bin/gh \
+      "GH_VERSION=$GH_VERSION" \
+      "SOURCE_DATE_EPOCH=$source_date_epoch"
+  )
+
+  install -m 0755 "$dest/bin/gh" /out/gh
+  go version -m /out/gh | tee /out/gh.buildinfo
+  [[ "$(awk 'NR == 1 { print $NF }' /out/gh.buildinfo)" == "$go_version" ]]
+  grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' /out/gh.buildinfo
+
+  /out/gh version > /out/gh.version 2>&1 || /out/gh --version > /out/gh.version 2>&1
+  grep -F "gh version $GH_VERSION" /out/gh.version
+}
+
+build_cosign() {
+  local repo="https://github.com/sigstore/cosign.git"
+  local commit="${COSIGN_SOURCE_COMMIT:?missing Cosign source pin}"
+  local dest="/build/upstream-cosign" source_date_epoch
+
+  source_date_epoch="$(prepare_source cosign "$repo" "$commit" "$COSIGN_VERSION")"
+  verify_fixed_xnet cosign "$dest"
+
+  (
+    cd "$dest"
+    # Cosign's Makefile is its authoritative release build: it injects
+    # GitVersion, GitCommit, GitTreeState and reproducible BuildDate.
+    # Go 1.18+ VCS stamping sets debug.BuildInfo.Main.Version to a
+    # pseudo-version. release-utils prefers that value over its gitVersion
+    # linker variable, so disable automatic stamping and supply the exact
+    # release identity through Cosign's supported Makefile variables.
+    # Command-line assignments take precedence over upstream Makefile defaults.
+    GOFLAGS=-buildvcs=false make \
+      "GIT_VERSION=v$COSIGN_VERSION" \
+      "SOURCE_DATE_EPOCH=$source_date_epoch" \
+      cosign
+  )
+
+  install -m 0755 "$dest/cosign" /out/cosign
+  go version -m /out/cosign | tee /out/cosign.buildinfo
+  [[ "$(awk 'NR == 1 { print $NF }' /out/cosign.buildinfo)" == "$go_version" ]]
+  grep -E 'golang.org/x/net[[:space:]]+v0.62.0[[:space:]]' /out/cosign.buildinfo
+
+  /out/cosign version > /out/cosign.version 2>&1
+  cat /out/cosign.version
+
+  assert_version_field() {
+    local field="$1" expected="$2"
+    awk -F: -v key="$field" -v expected="$expected" '
+      $1 == key {
+        value = substr($0, index($0, ":") + 1)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)
+        if (value == expected) found = 1
+      }
+      END { exit(found ? 0 : 1) }
+    ' /out/cosign.version || {
+      echo "::error::Cosign $field mismatch; expected $expected" >&2
+      exit 1
+    }
   }
-done
+
+  expected_build_date="$(date -u -d "@$source_date_epoch" +'%Y-%m-%dT%H:%M:%SZ')"
+  assert_version_field GitVersion "v$COSIGN_VERSION"
+  assert_version_field GitCommit "$commit"
+  assert_version_field GitTreeState dirty
+  assert_version_field BuildDate "$expected_build_date"
+}
+
+build_terraform() {
+  local repo="https://github.com/hashicorp/terraform.git"
+  local commit="${TERRAFORM_SOURCE_COMMIT:?missing Terraform source pin}"
+  local dest="/build/upstream-terraform"
+  : "${TERRAFORM_VERSION:?expected Terraform version lock}"
+  prepare_source terraform "$repo" "$commit" "$TERRAFORM_VERSION" >/dev/null
+  (
+    cd "$dest"
+    export GOFLAGS=-mod=readonly CHECKPOINT_DISABLE=1 GODEBUG=http2client=0
+    bash /build/go-mod-download-retry.sh
+    go mod verify
+    go build -trimpath -buildvcs=false \
+      -ldflags '-s -w -X github.com/hashicorp/terraform/version.dev=no' \
+      -o /out/terraform .
+    git diff --exit-code -- go.mod go.sum
+    go version -m /out/terraform > /out/terraform.buildinfo
+    [[ "$(awk 'NR == 1 { print $NF }' /out/terraform.buildinfo)" == "$go_version" ]]
+    printf 'Terraform source %s built with %s\n' "$commit" "$go_version"
+    /out/terraform version -json | grep -F "\"terraform_version\": \"${TERRAFORM_VERSION}\""
+    install -Dm 0644 LICENSE /out/licenses/terraform/LICENSE
+  )
+}
+
+case "${1:-all}" in
+  all) build_gh; build_cosign ;;
+  terraform) build_terraform ;;
+  *) echo 'Expected all or terraform' >&2; exit 2 ;;
+esac

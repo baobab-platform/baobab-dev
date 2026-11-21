@@ -40,9 +40,11 @@ The 29 October unsuppressed scan finds CVE-2026-109869 in npm's private
 https://github.com/nodejs/undici/releases/tag/v6.29.1 . The image now installs
 exactly 6.29.1 in the existing isolated security-patch scratch project, copies
 that dependency into npm's private tree and reads back its installed version.
-Node 24, npm, pnpm and project lock baselines are unchanged. Task/yq and Docker
-plugin findings remain independently failing; this correction does not qualify
-any image or Codespace.
+At the time of this 29 October remediation, Node 24, npm, pnpm and project
+lock baselines were unchanged. The current published v1.5.1 baseline is Node
+26.13.1 / pnpm 12.16.1; this historical patch note does not override it.
+Task/yq and Docker plugin findings remain independently failing; this correction
+did not qualify any image or Codespace.
 # Vendored pip dependency remediation
 
 The final-image scan at run 40912583068 still found urllib3 2.7.0 inside

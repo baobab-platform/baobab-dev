@@ -65,13 +65,41 @@ jobs:
       version: ${{ steps.resolve.outputs.value }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # SHA is baobab-platform/shared's v1.0.0 tag (annotated — this is the
-      # peeled commit, not the tag object's own SHA), verified live via
-      # `git ls-remote --tags https://github.com/baobab-platform/shared.git
-      # v1.0.0` on 2026-08-25. See the same note in greetings.yml above
-      # re: Dependabot and dependabot-core#14716.
+      # Shared derive-value-from-yaml reuses an existing yq, but otherwise
+      # downloads a floating latest release. Install the repository's locked
+      # and checksum-verified binary first so the action cannot drift.
+      - name: Install locked yq
+        shell: bash
+        run: |
+          set -euo pipefail
+          source config/versions.lock
+          case "$(uname -m)" in
+            x86_64)
+              yq_asset="${YQ_ASSET_AMD64}"
+              yq_sha256="${YQ_SHA256_AMD64}"
+              ;;
+            aarch64|arm64)
+              yq_asset="${YQ_ASSET_ARM64}"
+              yq_sha256="${YQ_SHA256_ARM64}"
+              ;;
+            *)
+              echo "::error::Unsupported runner architecture for pinned yq: $(uname -m)" >&2
+              exit 1
+              ;;
+          esac
+          install_dir="${RUNNER_TEMP}/baobab-tools"
+          mkdir -p "${install_dir}"
+          yq_path="${install_dir}/yq"
+          curl -fsSL -o "${yq_path}" "https://github.com/mikefarah/yq/releases/download/v${YQ_VERSION}/${yq_asset}"
+          printf '%s  %s\n' "${yq_sha256}" "${yq_path}" | sha256sum -c -
+          chmod 0755 "${yq_path}"
+          "${yq_path}" --version | grep -F "version v${YQ_VERSION}"
+          echo "${install_dir}" >> "${GITHUB_PATH}"
+      # Both Shared references use the v2.3.0 lightweight tag's commit,
+      # verified against the GitHub tag ref on 2026-11-18: 31de2bc3dcd56128c019c640dc7e12c10ae9ca69.
+      # The tag resolves directly to this commit; it is not annotated.
       - id: resolve
-        uses: baobab-platform/shared/.github/actions/derive-value-from-yaml@f7466cc89a17c0b6e02b5a1e5fce3ce76073a718 # v1.1.0
+        uses: baobab-platform/shared/.github/actions/derive-value-from-yaml@31de2bc3dcd56128c019c640dc7e12c10ae9ca69 # v2.3.0
         with:
           manifest-path: config/versions.yaml   # TODO: adjust if this repo's manifest differs
           query: ".languages.python.version"    # TODO: adjust query path if schema differs
@@ -83,6 +111,6 @@ jobs:
       pages: write
       id-token: write
     # Same pin/rationale as resolve-python-version's step above.
-    uses: baobab-platform/shared/.github/workflows/pages-zensical.yml@f7466cc89a17c0b6e02b5a1e5fce3ce76073a718 # v1.1.0
+    uses: baobab-platform/shared/.github/workflows/pages-zensical.yml@31de2bc3dcd56128c019c640dc7e12c10ae9ca69 # v2.3.0
     with:
       python-version: ${{ needs.resolve-python-version.outputs.version }}

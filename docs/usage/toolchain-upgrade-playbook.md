@@ -38,23 +38,17 @@ The image is not the sole authority for project dependencies. For each planned c
 - All supported target profiles and AMD64/ARM64 support.
 - Private GitHub Packages authentication and expected user/UID context.
 
-**Coupled tools must move together.** pnpm image cache ↔ consumer `packageManager`; global Playwright browser download ↔ project `@playwright/test`; PostgreSQL client 17 ↔ server migration (separate, not implied). Node 24 and Python 3.14.x are platform baselines, but project requirements still govern their own locks.
+**Coupled tools must move together.** pnpm image cache ↔ consumer `packageManager`; global Playwright browser download ↔ project `@playwright/test`; PostgreSQL client 17 ↔ server migration (separate, not implied). The published v1.5.1 baseline is Node 26.13.1, pnpm 12.16.1 and Python 3.14.10; consumer manifests and lockfiles must align to that baseline or a deliberately qualified newer version.
 
-A native pnpm 12.16.1 offline fixture passed on both architectures in October 2026; the **default remained 11.24.0** pending coordinated Nabhold, ZuriBeans, Thamani and CP adoption. Do not treat a fixture as approval for a four-repository migration.
+The current PR #74 source lock resolves native pnpm 12.21.0 and Playwright 1.65.0 as candidate next-image pins. They are not the published v1.5.1 baseline and must not be represented as installed in a released image until the exact candidate digest is built and qualified. A passing offline fixture is necessary but not sufficient: each consumer still needs its exact `packageManager` and `.node-version` pins, frozen lock validation, native architecture testing and representative lifecycle qualification before upgrade acceptance.
 
 ## 2. Resolve without drift
 
-Follow existing [version management](../architecture/version-management.md):
+Edit `config/versions.yaml` and open the PR. **DEV-10 manifest lock resolution** validates the exact upstream tool versions and supplies `config/versions.lock` and `.python-version`. An unchanged `latest` entry reuses its reviewed base pin. Give a tool an explicit version for a deliberate upgrade.
 
-```bash
-# After editing config/versions.yaml for a reviewable proposal:
-./config/resolve.sh
+For a manifest-only PR from this repository, the approved lockfile GitHub App appends generated files to the same branch using the event head as a compare-and-swap lease. A fork run supplies a read-only artifact for a maintainer to adopt on a trusted branch. A change to resolver code or a build recipe needs a separately reviewed engineering PR.
 
-# After committing the exact intended lock, CI/check-only path:
-./config/resolve.sh --locked
-```
-
-Require checksum provenance and no dirty regenerated lock. Treat the lock as **data**, not executable shell. Select a supported upstream release, verify archive digest on **both** CPU architectures, and record original and replacement versions. Any mismatch fails.
+For local readback, run `./config/resolve.sh --locked` and inspect the generated diff. GitHub Actions continues to refuse stale locks. The same-branch writer requires the repository-scoped lockfile App and the protected `dev10-lockfile-write` environment. Workspace editors can use the retained artifact while setup or access is unavailable. Python patch changes require the exact publisher checksum from the release page in the same manifest edit.
 
 If a published tool is being rebuilt to fix embedded dependencies, retain the upstream source release and explicit Baobab patch provenance; do not mislabel a rebuilt binary as an untouched upstream distribution.
 
@@ -77,7 +71,7 @@ Use the checked-out lifecycle code, the actual non-root Dev Container user, froz
 - `uv sync --locked --no-managed-python` / exact Python lock selection, or the adopted locked equivalent.
 - JavaScript `pnpm install --frozen-lockfile`, `npm ci` or immutable Yarn as dictated by the consumer, **never unlocked fallback**.
 - Root workspace membership checks really run; a missing frontend entry fails rather than accidentally installing a nested package.
-- `COREPACK_ENABLE_NETWORK=0` **and** `COREPACK_DEFAULT_TO_LATEST=0`; exact baked and project pnpm versions match. Version mismatch returns a bounded error, never a prompt.
+- `COREPACK_ENABLE_NETWORK=0` **and** `COREPACK_DEFAULT_TO_LATEST=0` after preparation; `COREPACK_ENV_FILE=0`, `COREPACK_ENABLE_PROJECT_SPEC=1`, `COREPACK_ENABLE_STRICT=1` and `COREPACK_ENABLE_AUTO_PIN=0` keep project selection fail-closed. Exact baked and project pnpm versions match. Version mismatch returns a bounded error, never a prompt.
 - `baobab-verify` checks exact pnpm and the Node major; failure at any late lifecycle stage propagates the original nonzero exit code. Use a known fault-injection case such as exit 42.
 - Actual Playwright browser launch with the consumer's exact test-runner version (where relevant).
 - Native compiler/UAPI, Terraform, Java, Rust, Go and Docker/Compose smoke checks appropriate to the changed stage; no fictional missing toolchains.

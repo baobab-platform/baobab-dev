@@ -55,3 +55,28 @@ three dependencies write concurrently. Run 40912583068 demonstrated two messages
 interleaving within a line. The explicit `params-test.patch` serialises only that
 parameter-substitution test. Its assertions and expected output remain unchanged;
 all other concurrency tests still run. No production Task code is patched.
+
+
+## Upstream GitHub CLI and Cosign release metadata
+
+The GitHub CLI and Cosign security rebuilds start from exact upstream release-tag
+commits and apply the reviewed `golang.org/x/net` security override before
+compilation. Their installed version strings must identify the locked release,
+not merely contain a matching substring.
+
+Cosign uses `sigs.k8s.io/release-utils/version`. In the pinned release, its
+`GetVersionInfo` implementation prefers Go's `debug.BuildInfo.Main.Version`
+when that value is not `(devel)` or empty; this takes precedence over the
+`gitVersion` linker variable. Go 1.18 and later can automatically stamp VCS
+metadata into binaries, including revision, commit time and modified state.
+That automatic value can be a pseudo-version such as
+`v3.0.0-<timestamp>-<commit>+dirty`, even when the upstream source commit is
+the exact locked `v3.1.4` release tag.
+
+The Cosign rebuild therefore sets `GOFLAGS=-buildvcs=false` for the upstream
+Makefile build and supplies `GIT_VERSION` and `SOURCE_DATE_EPOCH` as Make
+command-line variables. This makes the version library use the explicitly
+injected release metadata while retaining the source commit, patched-tree
+state and deterministic build date. The resulting binary is checked for exact
+`GitVersion`, `GitCommit`, `GitTreeState` and `BuildDate` values. A
+version mismatch is a build failure; it is never relaxed to a substring match.

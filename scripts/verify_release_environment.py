@@ -30,6 +30,9 @@ except ModuleNotFoundError as exc:
     classify = policy_module.classify
 
 NAME = "dev10-release-promotion"
+# GitHub Environment selected-tag rules are glob patterns, not regex.
+# The strict release_tag_policy.classify() separately validates semver.
+ALLOWED_TAG_PATTERNS = frozenset({"v*.*.*", "v*.*.*-rc.*"})
 
 
 class PromotionEnvironmentError(ValueError):
@@ -44,6 +47,8 @@ def require(ok: bool, error: str) -> None:
 def qualify(environment: dict, policies: dict, tag: str) -> dict:
     require(isinstance(environment, dict) and environment.get("name") == NAME,
             "expected configured release-promotion environment")
+    require(environment.get("can_admins_bypass") is False,
+            "administrator bypass must be explicitly disabled for release")
     require(classify(tag) is not None,
             "promotion requires strict GA or numbered RC semver")
     rules = environment.get("protection_rules")
@@ -57,9 +62,12 @@ def qualify(environment: dict, policies: dict, tag: str) -> dict:
     entries = rule.get("reviewers")
     require(isinstance(entries, list) and len(entries) > 0,
             "at least one independent reviewer must be configured")
-    require(all(isinstance(entry, dict) and entry.get("type") in {"User", "Team"}
-                and isinstance(entry.get("reviewer"), dict)
-                for entry in entries), "invalid reviewer configuration")
+    require(all(isinstance(entry, dict) and entry.get("type") == "User"
+                and isinstance(entry.get("reviewer"), dict) and entry["reviewer"].get("type") == "User"
+                and type(entry["reviewer"].get("id")) is int and entry["reviewer"]["id"] > 0
+                for entry in entries), "release reviewer appointments must be explicit typed numeric Users")
+    reviewer_ids = {entry["reviewer"]["id"] for entry in entries}
+    require(len(reviewer_ids) == len(entries), "duplicate numeric release reviewer appointment")
 
     deploy = environment.get("deployment_branch_policy")
     require(isinstance(deploy, dict)
@@ -70,19 +78,20 @@ def qualify(environment: dict, policies: dict, tag: str) -> dict:
             "missing selected branches/tags response")
     entries = policies["branch_policies"]
     require(len(entries) > 0, "no selected deployment tag patterns")
-    # A broad '*' rule would allow arbitrary release or PR workflow refs
-    # despite the presence of one narrowly configured tag rule.
-    require(all(isinstance(entry, dict) and entry.get("type") == "tag"
-                and isinstance(entry.get("name"), str)
-                and entry["name"].startswith("v")
-                and entry["name"] not in ("v*", "v**")
-                and entry["name"].count(".") >= 2 for entry in entries),
-            "release environment admits a non-tag or over-broad ref pattern")
+    # Require exactly the two owner-configured GitHub glob patterns.
+    # v*.*.* also matches RC tags in glob syntax; strict semver classification
+    # above rejects beta, malformed and unnumbered RC tags.
+    require(len(entries) == len(ALLOWED_TAG_PATTERNS)
+            and all(isinstance(entry, dict) and entry.get("type") == "tag"
+                    and entry.get("name") in ALLOWED_TAG_PATTERNS for entry in entries)
+            and {entry["name"] for entry in entries} == ALLOWED_TAG_PATTERNS,
+            "release environment must select exactly v*.*.* and v*.*.*-rc.* tag patterns")
     matched = [entry["name"] for entry in entries
                if fnmatchcase(tag, entry["name"])]
     require(bool(matched), f"tag {tag} is not admitted by GitHub Environment policy")
     return {"environment": NAME, "release_tag": tag,
             "required_reviewers": len(rule["reviewers"]),
+            "reviewer_ids": sorted(reviewer_ids),
             "prevent_self_review": True, "accepted_tag_patterns": matched}
 
 
