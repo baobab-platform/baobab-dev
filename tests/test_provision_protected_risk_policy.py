@@ -389,7 +389,7 @@ class MergedCustodyTests(unittest.TestCase):
                  AUTHOR, set() if contributors is None else contributors
              )):
             return provisioner.verify_merged_custody(
-                "token", DECISION, 76, expected_head, TRUSTED
+                "token", DECISION, 92, expected_head, TRUSTED
             )
 
     def test_verifies_merged_head_review_contributors_and_merge_ancestry(self):
